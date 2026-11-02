@@ -59,6 +59,16 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
     back.
   - **Standing or on the floor:** on the floor you hit weaker and miss more,
     can't run, and get stomped on. Same for them.
+- **Your injuries carry over** from one person to the next: your blood,
+  bleeding, broken bones and concussion (shown under your stats). Stamina,
+  being dazed and being on the floor reset after each fight.
+  - Time heals: each lurk passes about an hour, and **Rest** (shown when
+    you're hurt) passes four, healing faster. Blood comes back about 140 ml
+    an hour once you've stopped bleeding; bleeding eases by itself, and
+    resting stops it faster. Broken bones mend: nose 8 hours, ribs 16, arms
+    and legs 24. A concussion clears in 6.
+  - Bleed out between fights and you collapse, waking up hours later. Lose a
+    fight and you come to on the pavement hours later.
   - **Leave them**, or just *Lurk* again.
 - **Your stats** (top left), each starting at 1 and only going up by using it
   (max 20):
@@ -106,6 +116,7 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | `src/game/game.ts` | The game itself: the TV, lurking, saving its state (including an encounter in progress) |
 | `src/game/person.ts` | Who you can see: types, races, builds (fight difficulty), what they carry, awareness, and the chances of each |
 | `src/game/encounter.ts` | Surveil and violence: following, finding things out, being noticed, ambushes, and combat (blood, stamina, injuries, falls), with the log |
+| `src/game/health.ts` | Your body between fights: blood, bleeding, broken bones and concussion carrying over, and healing with time and rest |
 | `src/game/stats.ts` | Your stats (sneak, strength, agility, stamina), levelling by use, and what each does |
 | `src/ui/encounterView.ts` | The encounter screen: what you know about them, the log, your options |
 | `src/game/tv.ts` | The CRT television, its power-on sequence, interference, and showing the picture |

@@ -5,7 +5,6 @@ import {
   ambushBonus,
   damageMult,
   dodgeBonus,
-  maxStamina,
   noticeRate,
   staminaRegen,
   train,
@@ -111,7 +110,8 @@ function body(blood: number, toughness: number, stamina: number): Body {
   };
 }
 
-export function newEncounter(person: Person, stats: Stats): Encounter {
+/** A new encounter. `yours` is your body as it is now (injuries carry over). */
+export function newEncounter(person: Person, yours: Body): Encounter {
   const b = BUILDS[person.build];
   const tired = person.kind === 'junkie' || person.kind === 'drunk' ? 0.8 : 1;
   return {
@@ -121,7 +121,7 @@ export function newEncounter(person: Person, stats: Stats): Encounter {
     distance: 0,
     suspicion: 0,
     known: { build: false, carrying: false, awareness: false, sex: false },
-    you: body(5000, 100, maxStamina(stats)),
+    you: yours,
     them: { ...body(b.blood, b.hp, Math.round(b.stamina * tired)), weaponOut: null, sprayed: false },
     log: [],
     result: null,
@@ -208,7 +208,10 @@ export function options(e: Encounter): Option[] {
       ];
     }
     case 'over':
-      return [{ id: 'lurk', label: 'Lurk again' }];
+      return [
+        { id: 'lurk', label: 'Lurk again' },
+        { id: 'rest', label: 'Rest', hint: 'Let time pass and heal' },
+      ];
     default:
       return [];
   }

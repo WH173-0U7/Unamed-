@@ -4,7 +4,9 @@ import { createTv } from './tv';
 import { CHANCES, RACE_CHANCES, NAMES, makePerson } from './person';
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { createEncounterView } from '../ui/encounterView';
-import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, type StatName, type Stats } from './stats';
+import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, type StatName, type Stats } from './stats';
+import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, isHurt, newHealth, passHours, type Health } from './health';
+import { PASS_OUT } from './encounter';
 
 /** Progress stored in the save file under `state.tv`. */
 interface TvState {
@@ -38,6 +40,10 @@ export class Game {
   private readonly seenEl: HTMLElement;
   private readonly encView;
   private readonly statsEl: HTMLElement;
+  private readonly youEl: HTMLElement;
+  private readonly restBtn: HTMLButtonElement;
+  private readonly noteEl: HTMLElement;
+  private noteTimer = 0;
   private phase: Phase = 'idle';
   private timer = 0;
   private jam = 0;
@@ -52,6 +58,11 @@ export class Game {
     this.lurkBtn = view.querySelector('#lurk-btn') as HTMLButtonElement;
     this.seenEl = view.querySelector('#seen') as HTMLElement;
     this.statsEl = view.querySelector('#stats') as HTMLElement;
+    this.youEl = view.querySelector('#you-status') as HTMLElement;
+    this.restBtn = view.querySelector('#rest-btn') as HTMLButtonElement;
+    this.noteEl = view.querySelector('#note') as HTMLElement;
+    this.restBtn.onclick = () => this.rest();
+    this.restBtn.hidden = true;
     this.encView = createEncounterView(view.querySelector('#enc') as HTMLElement, (id) => this.act(id));
     this.powerBtn.onclick = () => this.turnOn();
     this.lurkBtn.onclick = () => this.lurk();
@@ -77,6 +88,37 @@ export class Game {
     const fresh = newStats();
     for (const k of Object.keys(fresh) as StatName[]) s[k] ??= fresh[k];
     return s;
+  }
+
+  /** Your body between fights: blood and injuries carry over (saved). */
+  private get health(): Health {
+    return (this.save.state.health ??= newHealth()) as Health;
+  }
+
+  /** Your body as it is now, ready for a fight. */
+  private yourBody() {
+    return bodyFrom(this.health, maxStamina(this.stats));
+  }
+
+  /** A few lines shown in the middle of the screen for a while. */
+  private note(lines: string[]) {
+    if (!lines.length) return;
+    this.noteEl.replaceChildren(...lines.map((l) => Object.assign(document.createElement('p'), { textContent: l })));
+    this.noteEl.hidden = false;
+    this.noteEl.style.animation = 'none';
+    void this.noteEl.offsetWidth;
+    this.noteEl.style.animation = '';
+    this.noteTimer = 3 + lines.length * 1.2;
+  }
+
+  /** Rest: several hours pass, and you heal. */
+  rest() {
+    if (!this.canLurk || !isHurt(this.health)) return;
+    this.encounter = null;
+    const lines = ['You find somewhere quiet and rest for a few hours.', ...passHours(this.health, REST_HOURS, true)];
+    this.refresh();
+    this.note(lines);
+    buzz(8);
   }
 
   /** The person you saw last, and what's happened with them (saved). */
@@ -109,8 +151,19 @@ export class Game {
     this.phase = 'cut';
     this.timer = 0.45;
     this.encounter = null;
+    this.noteEl.hidden = true;
+    // Time passes while you wait: wounds bleed, or heal.
+    const lines = passHours(this.health, LURK_HOURS);
     this.refresh();
     this.lurkBtn.hidden = true;
+    this.restBtn.hidden = true;
+    if (lines.some((l) => l.includes('collapse'))) {
+      // Collapsed from blood loss: nobody this time.
+      this.phase = 'idle';
+      this.note(lines);
+      return;
+    }
+    this.note(lines);
     buzz(10);
   }
 
@@ -119,7 +172,14 @@ export class Game {
     const e = this.encounter;
     if (!e || !this.running) return;
     if (id === 'lurk') return this.lurk();
+    if (id === 'rest') return this.rest();
+    // Approaching someone: bring your body as it is now.
+    if (e.stage === 'seen') e.you = this.yourBody();
+    const wasOver = e.stage === 'over';
     act(e, id, this.stats);
+    if (!wasOver && e.stage === 'over') {
+      for (const text of afterFight(this.health, e.you, e.result!)) e.log.push({ by: 'info', text });
+    }
     buzz(e.stage === 'combat' ? 14 : 6);
     this.refresh();
   }
@@ -147,6 +207,7 @@ export class Game {
     }
     this.encView.render(this.tvState.on ? e : null);
     this.renderStats();
+    this.renderYou(!!e && e.stage !== 'seen');
     this.view.classList.toggle('in-encounter', !!e && e.stage !== 'seen');
   }
 
@@ -161,6 +222,16 @@ export class Game {
         return `<div class="stat" data-stat="${k}"><span>${STAT_NAMES[k]}</span><b>${level}</b><i><u style="width:${pct}%"></u></i></div>`;
       })
       .join('');
+  }
+
+  /** Your blood and injuries, under your stats (when not in an encounter). */
+  private renderYou(inEncounter: boolean) {
+    const h = this.health;
+    this.youEl.hidden = !this.tvState.on || inEncounter;
+    const pct = (100 * h.blood) / h.maxBlood;
+    this.youEl.innerHTML =
+      `<div class="you-blood"><span>Blood</span><i><b style="width:${pct}%"></b><s style="left:${PASS_OUT * 100}%"></s></i><em>${(h.blood / 1000).toFixed(1)} L</em></div>` +
+      `<div class="enc-conds">${healthConditions(h).map((c) => `<span>${c}</span>`).join('')}</div>`;
   }
 
   private stepLurk(dt: number) {
@@ -181,7 +252,7 @@ export class Game {
         s.times++;
         s.seen[person.kind]++;
         s.races[person.race]++;
-        this.encounter = newEncounter(person, this.stats);
+        this.encounter = newEncounter(person, this.yourBody());
         this.phase = 'idle';
         this.refresh();
         buzz(14);
@@ -223,7 +294,7 @@ export class Game {
     window.setTimeout(() => {
       this.powerBtn.hidden = true;
       this.tv.powerOn();
-      this.renderStats();
+      this.refresh();
       // The picture snaps open ~0.45 s in: shake the set and buzz the phone.
       window.setTimeout(() => {
         this.view.classList.remove('jolt');
@@ -261,6 +332,9 @@ export class Game {
     this.seenEl.hidden = true;
     this.encView.render(null);
     this.statsEl.hidden = true;
+    this.youEl.hidden = true;
+    this.restBtn.hidden = true;
+    this.noteEl.hidden = true;
   }
 
   setSize(width: number, height: number, _pixelRatio = 1) {
@@ -286,6 +360,9 @@ export class Game {
       this.lurkBtn.hidden = !show;
       this.lurkBtn.querySelector('span')!.textContent = this.lurkState.times ? 'Lurk again' : 'Lurk';
     }
+    const rest = show && isHurt(this.health);
+    if (this.restBtn.hidden === rest) this.restBtn.hidden = !rest;
+    if (this.noteTimer > 0 && (this.noteTimer -= dt) <= 0) this.noteEl.hidden = true;
     this.tv.update(dt);
   }
 
@@ -301,7 +378,7 @@ export class Game {
 
   /** For automated tests. */
   get debug() {
-    return { tv: this.tv, phase: this.phase, lurk: this.lurkState, encounter: this.encounter, stats: this.stats };
+    return { tv: this.tv, phase: this.phase, lurk: this.lurkState, encounter: this.encounter, stats: this.stats, health: this.health };
   }
 }
 

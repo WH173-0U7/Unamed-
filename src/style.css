@@ -185,21 +185,32 @@ canvas {
 }
 
 /* Lurk: an eye at the foot of the screen. */
-#lurk-btn {
+#idle-bar {
   position: absolute;
-  left: 50%;
+  left: 0;
+  right: 0;
   bottom: calc(var(--pad-bot) + 3vh);
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  pointer-events: none;
+}
+#idle-bar button {
+  pointer-events: auto;
+}
+#lurk-btn,
+#rest-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
   padding: 12px 26px;
-  transform: translateX(-50%);
   color: var(--ink-dim);
   animation: power-in 1.2s ease both;
   transition: color 0.3s;
 }
-#lurk-btn svg {
+#lurk-btn svg,
+#rest-btn svg {
   width: 42px;
   height: 42px;
   fill: none;
@@ -209,7 +220,8 @@ canvas {
   filter: drop-shadow(0 0 6px rgba(236, 235, 230, 0.35));
   animation: breathe 3.2s ease-in-out 1.5s infinite;
 }
-#lurk-btn span {
+#lurk-btn span,
+#rest-btn span {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.5em;
@@ -217,7 +229,9 @@ canvas {
   text-transform: uppercase;
 }
 #lurk-btn:hover,
-#lurk-btn:focus-visible {
+#lurk-btn:focus-visible,
+#rest-btn:hover,
+#rest-btn:focus-visible {
   color: var(--ink);
 }
 
@@ -306,6 +320,65 @@ canvas {
   height: 100%;
   background: var(--ink-dim);
   transition: width 0.4s ease;
+}
+
+/* Your blood and injuries between fights. */
+#you-status {
+  position: absolute;
+  top: calc(var(--pad-top) + 34px);
+  left: var(--pad-x-l);
+  width: min(300px, calc(100% - 100px));
+  pointer-events: none;
+}
+.you-blood {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.you-blood i {
+  position: relative;
+  height: 4px;
+  background: rgba(236, 235, 230, 0.12);
+}
+.you-blood b {
+  display: block;
+  height: 100%;
+  background: #a83a3a;
+  transition: width 0.5s ease;
+}
+.you-blood s {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--ink-dim);
+}
+.you-blood em {
+  font-style: normal;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+}
+#note {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  transform: translateX(-50%);
+  width: min(86vw, 420px);
+  text-align: center;
+  pointer-events: none;
+  animation: seen-in 0.9s ease both;
+}
+#note p {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: var(--ink-dim);
+  text-shadow: 0 0 10px #000;
 }
 
 /* ================= Encounter ================= */
@@ -1127,6 +1200,8 @@ body.in-game #menu {
   #power-btn svg,
   #lurk-btn,
   #lurk-btn svg,
+  #rest-btn,
+  #rest-btn svg,
   #seen,
   #game.jolt #screen {
     animation: none;

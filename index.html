@@ -29,19 +29,30 @@
         </svg>
         <span>Turn on</span>
       </button>
-      <!-- Who you saw when you lurked: shown as buttons -->
-      <!-- Your stats -->
+      <!-- Your stats, and your blood and injuries -->
       <div id="stats" hidden></div>
+      <div id="you-status" hidden></div>
+      <!-- Who you saw when you lurked: shown as a button -->
       <div id="seen" hidden></div>
       <!-- An encounter with them: what you know, the log, your options -->
       <div id="enc" hidden></div>
-      <button id="lurk-btn" type="button" hidden>
-        <svg viewBox="0 0 48 48" aria-hidden="true">
-          <path d="M4 24c6-9 12.5-13 20-13s14 4 20 13c-6 9-12.5 13-20 13S10 33 4 24z" />
-          <circle cx="24" cy="24" r="5.5" />
-        </svg>
-        <span>Lurk</span>
-      </button>
+      <!-- What happened while time passed -->
+      <div id="note" hidden></div>
+      <div id="idle-bar">
+        <button id="rest-btn" type="button" hidden>
+          <svg viewBox="0 0 48 48" aria-hidden="true">
+            <path d="M31 8a17 17 0 1 0 9 26A14 14 0 0 1 31 8z" />
+          </svg>
+          <span>Rest</span>
+        </button>
+        <button id="lurk-btn" type="button" hidden>
+          <svg viewBox="0 0 48 48" aria-hidden="true">
+            <path d="M4 24c6-9 12.5-13 20-13s14 4 20 13c-6 9-12.5 13-20 13S10 33 4 24z" />
+            <circle cx="24" cy="24" r="5.5" />
+          </svg>
+          <span>Lurk</span>
+        </button>
+      </div>
       <button id="pause-btn" type="button" aria-label="Pause"><span></span><span></span></button>
     </div>
 

@@ -60,11 +60,11 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   pocket or inside a jacket; homeless people sometimes hide cash in a shoe.
   Take things one by one, or **Take everything**. What they carry while
   you surveil them decides what's in their pockets.
-- **Pockets** (the bag at the bottom): your cash, and everything you've
+- **Pockets** (pull it in from the **right edge** of the screen, or tap its tab there): your cash, and everything you've
   taken, sorted into phones, car keys, IDs and cards, and other. Medicine
   you've bought can be **used** from here. Your cash also shows under your
   blood.
-- **Go** (the pin at the bottom) opens *Where to?*: **The street** (where
+- **Go** (pull it in from the **left edge**, or tap its tab) opens *Where to?*: **The street** (where
   you lurk) or the **Pharmacy**, open all night. It sells, cash only:
   *Bandages* $8 (bleeding down a level), *Gauze and tape* $15 (down two),
   *Painkillers* $6 (a concussion clears 3 hours sooner), *Splint* $22 (a
@@ -119,13 +119,20 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   let web pages vibrate).
 - **The glass: blood, dirt and grime stay.** All of it sits on one layer
   over everything, the game and every menu, and is kept on the device
-  between visits. Nothing cleans it for you: **drag a finger across the
-  screen to wipe it**. Wet blood gets pushed along and partly lifted,
+  between visits. Nothing cleans it for you: **rub a finger anywhere on
+  the screen to wipe it**: over buttons, lists, anything, with as many
+  fingers as you like. Wet blood gets pushed along and partly lifted,
   leaving only a faint smear. Over a couple of
   minutes blood **dries**: matte, brown-maroon, darker at the rim, finely
   cracked where it was thick, and takes a pass or two more to wipe. There's always some
   dust, specks and greasy haze, it builds up slowly, and your finger leaves
   streaks of its own. (A wipe that ends on a button doesn't press it.)
+- **The screen glitches when it changes:** switching tabs, pulling a drawer
+  in or out, a new stage of an encounter, a menu, walking somewhere. The
+  part that changed tears and fringes for a moment and the glass flickers
+  with static.
+- Drawers come in from their side and go back the same way: push one
+  towards its edge (or tap outside it, or the X) to put it away.
 - **Your injuries carry over** from one person to the next: your blood,
   bleeding, broken bones and concussion (shown under your stats). Stamina,
   being dazed and being on the floor reset after each fight.
@@ -219,5 +226,7 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | `src/core/fullscreen.ts` | Keeps the game fullscreen |
 | `src/core/quality.ts` | Graphics presets and adaptive resolution |
 | `src/ui/menu.ts` | Main menu, pause menu, settings, confirm dialogs |
+| `src/fx/uiGlitch.ts` | The quick glitch when the screen changes |
+| `src/game/legacy.ts` | What outlives you: who took your things when you died, and meeting them again |
 | `src/fx/film.ts` | Menu film grain, flicker, colour fringing and glitches |
 | `src/fx/fullscreen.ts` | Helper for full-screen GPU shaders |

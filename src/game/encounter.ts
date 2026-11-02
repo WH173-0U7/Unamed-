@@ -282,8 +282,6 @@ export function options(e: Encounter): Option[] {
         ...(e.them.dead ? searchOptions(e) : []),
         { id: 'lurk', label: 'Lurk again' },
         { id: 'rest', label: 'Rest', hint: 'Let time pass and heal' },
-        { id: 'pockets', label: 'Pockets' },
-        { id: 'go', label: 'Go somewhere' },
       ];
     default:
       return [];

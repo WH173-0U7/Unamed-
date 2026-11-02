@@ -1,3 +1,4 @@
+import { uiGlitch } from '../fx/uiGlitch';
 import { isMobile } from '../core/quality';
 import { onSettingsChange, updateSettings, type GraphicsQuality } from '../core/settings';
 import { formatAgo, formatPlayTime, type SaveData } from '../core/save';
@@ -36,6 +37,7 @@ export function createMenu(handlers: MenuHandlers) {
   const history: Screen[] = [];
 
   function show(screen: Screen, push = false) {
+    if (screen !== current || !root.classList.contains('open')) uiGlitch(screens.get(screen), 0.3);
     if (push) history.push(current);
     else history.length = 0;
     current = screen;

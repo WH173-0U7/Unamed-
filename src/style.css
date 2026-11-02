@@ -204,9 +204,7 @@ canvas {
   gap: clamp(2px, 2vw, 18px);
 }
 #lurk-btn,
-#rest-btn,
-#go-btn,
-#bag-btn {
+#rest-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -217,9 +215,7 @@ canvas {
   transition: color 0.3s;
 }
 #lurk-btn svg,
-#rest-btn svg,
-#go-btn svg,
-#bag-btn svg {
+#rest-btn svg {
   width: 42px;
   height: 42px;
   fill: none;
@@ -230,9 +226,7 @@ canvas {
   animation: breathe 3.2s ease-in-out 1.5s infinite;
 }
 #lurk-btn span,
-#rest-btn span,
-#go-btn span,
-#bag-btn span {
+#rest-btn span {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.5em;
@@ -1367,11 +1361,72 @@ body.in-game #menu {
   letter-spacing: 0.06em;
   color: #b9d4a6;
 }
-#go-btn svg,
-#bag-btn svg {
-  width: 36px;
-  height: 36px;
-  margin: 3px 0;
+/* Tabs on the screen's edges: pull one in to open its drawer (or tap it). */
+.edge-tab {
+  position: absolute;
+  top: 50%;
+  z-index: 4;
+  width: 26px;
+  height: 116px;
+  margin-top: -58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: rgba(14, 14, 16, 0.72);
+  color: var(--ink-dim);
+  touch-action: none;
+  animation: power-in 1.2s ease both;
+}
+.edge-tab[hidden] {
+  display: none;
+}
+.edge-left {
+  left: 0;
+  border-left: 0;
+  border-radius: 0 14px 14px 0;
+}
+.edge-right {
+  right: 0;
+  border-right: 0;
+  border-radius: 14px 0 0 14px;
+}
+.edge-tab svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+}
+.edge-tab span {
+  writing-mode: vertical-rl;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.edge-left span {
+  transform: rotate(180deg);
+}
+/* A little nudge now and then: these pull in. */
+.edge-tab::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 3px;
+  height: 34px;
+  margin-top: -17px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.22);
+}
+.edge-left::after {
+  right: 4px;
+}
+.edge-right::after {
+  left: 4px;
 }
 
 /* A sheet that slides up from the bottom, over a dimmed screen. */
@@ -1400,6 +1455,44 @@ body.in-game #menu {
   border-radius: 18px;
   background: rgba(14, 14, 16, 0.94);
   animation: sheet-up 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+/* Drawers: where to go from the left, pockets from the right. */
+#sheet.from-left,
+#sheet.from-right {
+  align-items: stretch;
+  padding: var(--pad-top) 0 var(--pad-bot);
+}
+#sheet.from-left {
+  justify-content: flex-start;
+}
+#sheet.from-right {
+  justify-content: flex-end;
+}
+#sheet.from-left .sheet-card,
+#sheet.from-right .sheet-card {
+  width: min(86%, 400px);
+  max-height: none;
+  height: 100%;
+}
+#sheet.from-left .sheet-card {
+  border-left: 0;
+  border-radius: 0 18px 18px 0;
+  animation-name: drawer-left;
+}
+#sheet.from-right .sheet-card {
+  border-right: 0;
+  border-radius: 18px 0 0 18px;
+  animation-name: drawer-right;
+}
+@keyframes drawer-left {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes drawer-right {
+  from {
+    transform: translateX(100%);
+  }
 }
 @keyframes sheet-up {
   from {
@@ -1696,4 +1789,61 @@ body.in-game #menu {
   text-transform: uppercase;
   color: var(--ink);
   animation: power-in 1s ease 2.4s both;
+}
+
+/* ================= The screen changing: a quick glitch ================= */
+.ui-glitch {
+  animation: ui-glitch 0.32s steps(1, end) both !important;
+}
+/* Drawers keep sliding in while they glitch. */
+#sheet .sheet-card.ui-glitch {
+  animation:
+    ui-glitch 0.32s steps(1, end),
+    var(--drawer, sheet-up) 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+#sheet.from-left .sheet-card {
+  --drawer: drawer-left;
+}
+#sheet.from-right .sheet-card {
+  --drawer: drawer-right;
+}
+/* Shakes and colour-splits only (no clipping), so a tap mid-glitch still
+   lands on what's under the finger. */
+@keyframes ui-glitch {
+  0% {
+    opacity: 0.55;
+    translate: -9px 0;
+    filter: drop-shadow(-5px 0 rgba(255, 30, 60, 0.85)) drop-shadow(5px 0 rgba(30, 220, 255, 0.75)) brightness(1.5);
+  }
+  12% {
+    opacity: 1;
+    translate: 7px 0;
+  }
+  24% {
+    translate: -3px 1px;
+    filter: drop-shadow(3px 0 rgba(255, 30, 60, 0.7)) drop-shadow(-3px 0 rgba(30, 220, 255, 0.6));
+  }
+  36% {
+    opacity: 0.8;
+    translate: 4px 0;
+  }
+  48% {
+    opacity: 1;
+    translate: 0 0;
+    filter: drop-shadow(-1.5px 0 rgba(255, 30, 60, 0.5)) drop-shadow(1.5px 0 rgba(30, 220, 255, 0.4));
+  }
+  70% {
+    translate: -1px 0;
+    filter: none;
+  }
+  100% {
+    translate: none;
+    filter: none;
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-glitch {
+    animation: none !important;
+  }
 }

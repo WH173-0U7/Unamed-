@@ -30,7 +30,9 @@ const film = createFilm($('menu'));
 
 // The glass over everything: blood, smears and grime stay on it, through
 // every menu and the game, until wiped off with a finger.
-const glass = createGlass({ onHint: () => menu.toast('Swipe the screen to wipe the blood off') });
+const glass = createGlass({ onHint: () => menu.toast('Rub the screen with your finger to wipe the blood off') });
+// The screen changing (a tab, a drawer, a menu): the glass flickers.
+addEventListener('ui-glitch', (e) => glass.pulse((e as CustomEvent<number>).detail));
 
 const fixedPR = params.has('pr') ? Number(params.get('pr')) : null;
 let pixelRatio = 1;

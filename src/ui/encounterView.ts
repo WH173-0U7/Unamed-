@@ -1,3 +1,4 @@
+import { uiGlitch } from '../fx/uiGlitch';
 import { BUILDS, NAMES } from '../game/person';
 import { CATEGORY_NAMES, PASS_OUT, conditions, distanceLabel, options, type Body, type Category, type Encounter, type Option } from '../game/encounter';
 
@@ -56,6 +57,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       if (tab !== b.dataset.tab) {
         tab = b.dataset.tab as Category;
         drawOptions(true);
+        uiGlitch(q('.enc-opts'), 0.25);
       }
       return;
     }
@@ -119,6 +121,9 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         }
         current = e;
       }
+      // Something new on screen: it glitches in.
+      if (root.hidden) uiGlitch(root, 0.4);
+      else if (root.dataset.stage !== e.stage) uiGlitch(q('.enc-actions'), 0.3);
       root.hidden = false;
       root.dataset.stage = e.stage;
       const p = e.person;

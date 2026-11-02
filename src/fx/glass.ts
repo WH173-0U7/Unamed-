@@ -118,7 +118,7 @@ export function createGlass(opts: GlassOptions = {}) {
         vec2 dir = ab / L;
         float t = clamp(dot(p - uA, dir) / L, 0.0, 1.0);
         float d = length(p - (uA + ab * t));
-        float w = 1.0 - smoothstep(uR * 0.55, uR, d);
+        float w = 1.0 - smoothstep(uR * 0.4, uR, d);
         if (w <= 0.0) { gl_FragColor = s; return; }
         // Skin ridges and uneven pressure leave streaks along the stroke.
         float across = dot(p - uA, vec2(-dir.y, dir.x));
@@ -132,12 +132,12 @@ export function createGlass(opts: GlassOptions = {}) {
         float g = mix(s.g, b.g, drag);
         // Some is lifted off; dry blood hardly comes away.
         float wet = clamp(g / max(r, 0.02), 0.0, 1.0);
-        float lift = w * streak * mix(0.5, 0.88, wet);
+        float lift = w * streak * mix(0.62, 0.9, wet);
         float r2 = r * (1.0 - lift);
         float g2 = g * (1.0 - lift);
         // What came off spreads as a thin smear; the smear wipes away slowly.
         float gone = max(s.r - r2, 0.0);
-        float smear = s.b * (1.0 - w * streak * 0.5) + gone * mix(0.1, 0.22, wet) * streak;
+        float smear = s.b * (1.0 - w * streak * 0.65) + gone * mix(0.08, 0.18, wet) * streak;
         // Dust is moved about; skin leaves a little grease, most at the edges.
         float edge = smoothstep(0.55, 0.95, d / uR);
         float grime = s.a * (1.0 - w * 0.1 * streak) + w * ((1.0 - streak) * 0.01 + edge * 0.012);
@@ -678,57 +678,55 @@ export function createGlass(opts: GlassOptions = {}) {
   }
 
   // ---------- Wiping with a finger ----------
-  let ptr: { id: number; x: number; y: number; sx: number; sy: number; wiping: boolean; seed: number } | null = null;
+  // Every finger on the glass wipes, wherever it moves: over buttons, lists,
+  // anything. Touches are followed with touch events (they keep coming even
+  // while a list scrolls under the finger), the mouse with pointer events.
+  type Finger = { x: number; y: number; sx: number; sy: number; wiping: boolean; seed: number };
+  const fingers = new Map<number, Finger>();
   let swallowClickUntil = 0;
-  addEventListener(
-    'pointerdown',
-    (e) => {
-      // A new touch: whatever came before is over (a lost release can't
-      // jam wiping), and a tap right after a wipe is a real tap.
-      if (ptr && ptr.id !== e.pointerId && !e.isPrimary) return;
-      swallowClickUntil = 0;
-      // Dragging inside something that scrolls (the log, a list) scrolls it.
-      const scroller = (e.target as Element | null)?.closest?.('.enc-log, .sheet-body, #shop, .enc-opts');
-      if (scroller && scroller.scrollHeight > scroller.clientHeight + 2) {
-        ptr = null;
-        return;
-      }
-      ptr = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, wiping: false, seed: Math.random() * 1000 };
-    },
-    { capture: true, passive: true },
-  );
-  addEventListener(
-    'pointermove',
-    (e) => {
-      if (!ptr || e.pointerId !== ptr.id) return;
-      if (e.pointerType === 'mouse' && !(e.buttons & 1)) return;
-      const x = e.clientX;
-      const y = e.clientY;
-      if (!ptr.wiping) {
-        if (Math.hypot(x - ptr.sx, y - ptr.sy) < 10) return;
-        ptr.wiping = true;
-        try {
-          localStorage.setItem(WIPED_KEY, '1');
-        } catch {
-          /* ignore */
-        }
-        wipes.push({ ax: ptr.sx, ay: ptr.sy, bx: x, by: y, seed: ptr.seed });
-      } else {
-        wipes.push({ ax: ptr.x, ay: ptr.y, bx: x, by: y, seed: ptr.seed });
-      }
-      ptr.x = x;
-      ptr.y = y;
-    },
-    { capture: true, passive: true },
-  );
-  const up = (e: PointerEvent) => {
-    if (!ptr || e.pointerId !== ptr.id) return;
-    // A wipe that ends on a button shouldn't press it.
-    if (ptr.wiping) swallowClickUntil = performance.now() + 400;
-    ptr = null;
+  const fingerDown = (id: number, x: number, y: number) => {
+    swallowClickUntil = 0;
+    fingers.set(id, { x, y, sx: x, sy: y, wiping: false, seed: Math.random() * 1000 });
   };
-  addEventListener('pointerup', up, { capture: true, passive: true });
-  addEventListener('pointercancel', up, { capture: true, passive: true });
+  const fingerMove = (id: number, x: number, y: number) => {
+    const f = fingers.get(id);
+    if (!f) return;
+    if (!f.wiping) {
+      // A few pixels of movement and it's a wipe, not a tap.
+      if (Math.hypot(x - f.sx, y - f.sy) < 6) return;
+      f.wiping = true;
+      try {
+        localStorage.setItem(WIPED_KEY, '1');
+      } catch {
+        /* ignore */
+      }
+      wipes.push({ ax: f.sx, ay: f.sy, bx: x, by: y, seed: f.seed });
+    } else {
+      // Long jumps (a fast swipe) are split so the stroke stays solid.
+      const d = Math.hypot(x - f.x, y - f.y);
+      if (d < 1.5) return;
+      wipes.push({ ax: f.x, ay: f.y, bx: x, by: y, seed: f.seed });
+    }
+    f.x = x;
+    f.y = y;
+  };
+  const fingerUp = (id: number) => {
+    const f = fingers.get(id);
+    if (!f) return;
+    // A wipe that ends on a button shouldn't press it.
+    if (f.wiping && Math.hypot(f.x - f.sx, f.y - f.sy) > 24) swallowClickUntil = performance.now() + 350;
+    fingers.delete(id);
+  };
+  const opt = { capture: true, passive: true } as const;
+  addEventListener('touchstart', (e) => { for (const t of e.changedTouches) fingerDown(t.identifier, t.clientX, t.clientY); }, opt);
+  addEventListener('touchmove', (e) => { for (const t of e.changedTouches) fingerMove(t.identifier, t.clientX, t.clientY); }, opt);
+  const touchEnd = (e: TouchEvent) => { for (const t of e.changedTouches) fingerUp(t.identifier); };
+  addEventListener('touchend', touchEnd, opt);
+  addEventListener('touchcancel', touchEnd, opt);
+  const MOUSE = -1;
+  addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && e.button === 0) fingerDown(MOUSE, e.clientX, e.clientY); }, opt);
+  addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' && e.buttons & 1) fingerMove(MOUSE, e.clientX, e.clientY); }, opt);
+  addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') fingerUp(MOUSE); }, opt);
   addEventListener(
     'click',
     (e) => {
@@ -894,7 +892,7 @@ export function createGlass(opts: GlassOptions = {}) {
         for (const s of wipes) {
           u.uA.value.set(s.ax, s.ay);
           u.uB.value.set(s.bx, s.by);
-          u.uR.value = Math.max(38, Math.min(w, h) * 0.13);
+          u.uR.value = Math.max(44, Math.min(w, h) * 0.15);
           u.uSeed.value = s.seed;
           step(wipePass);
         }
@@ -905,7 +903,7 @@ export function createGlass(opts: GlassOptions = {}) {
       }
 
       // Kept on the device once things have settled.
-      if (unsaved && quiet > 6 && !drips.length && !ptr) persist();
+      if (unsaved && quiet > 6 && !drips.length && !fingers.size) persist();
 
       const animating = hurt > 0 || glitch > 0 || low > 0;
       if (!redraw && !animating) return;
@@ -919,6 +917,11 @@ export function createGlass(opts: GlassOptions = {}) {
       renderer.setRenderTarget(null);
       renderer.clear();
       showPass.render(renderer);
+    },
+
+    /** A flicker of static over everything (the screen changing). */
+    pulse(power: number) {
+      glitch = Math.max(glitch, power);
     },
 
     /** Current glitch strength (0..1), for shaking the rest of the screen. */

@@ -8,6 +8,7 @@ import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, type StatName, t
 import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, isHurt, newHealth, passHours, type Health } from './health';
 import { PASS_OUT, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
+import { uiGlitch } from '../fx/uiGlitch';
 import { maybeThief, newWorld, robBody, settle, type World } from './legacy';
 import { MEDS, dollars, medById, newInventory, type Inventory, type InvItem, type MedId } from './inventory';
 
@@ -111,6 +112,7 @@ export class Game {
     this.sheetEl = view.querySelector('#sheet') as HTMLElement;
     this.goBtn.onclick = () => this.openSheet('places');
     this.bagBtn.onclick = () => this.openSheet('pockets');
+    this.edgeSwipes();
     this.sheetEl.onclick = (ev) => this.sheetClick(ev);
     this.shopEl.onclick = (ev) => {
       const b = (ev.target as HTMLElement).closest('button');
@@ -406,15 +408,69 @@ export class Game {
     this.note(['Someone else now. Same streets. Empty pockets.']);
   }
 
+  /**
+   * Where to go slides in from the left edge, your pockets from the right:
+   * put your finger on the edge (or its tab) and pull it in. Push a drawer
+   * back towards its edge to put it away.
+   */
+  private edgeSwipes() {
+    const EDGE = 44;
+    type Drag = { id: number; x: number; y: number; side: 'left' | 'right'; closing: boolean };
+    let drag: Drag | null = null;
+    const down = (id: number, x: number, y: number, target: EventTarget | null) => {
+      drag = null;
+      if (!this.running) return;
+      if (this.sheet) {
+        // On the open drawer: a push back towards its edge closes it.
+        const side = this.sheetEl.classList.contains('from-right') ? 'right' : 'left';
+        drag = { id, x, y, side, closing: true };
+        return;
+      }
+      if (!this.canOpenSheet) return;
+      const tab = (target as Element | null)?.closest?.('.edge-tab');
+      if (tab === this.goBtn || (!tab && x < EDGE)) drag = { id, x, y, side: 'left', closing: false };
+      else if (tab === this.bagBtn || (!tab && x > innerWidth - EDGE)) drag = { id, x, y, side: 'right', closing: false };
+    };
+    const move = (id: number, x: number, y: number) => {
+      if (!drag || drag.id !== id) return;
+      const inward = (x - drag.x) * (drag.side === 'left' ? 1 : -1);
+      const dy = Math.abs(y - drag.y);
+      if (!drag.closing && inward > 34 && inward > dy * 1.2) {
+        const side = drag.side;
+        drag = null;
+        this.openSheet(side === 'left' ? 'places' : 'pockets');
+      } else if (drag.closing && -inward > 60 && -inward > dy * 1.2) {
+        drag = null;
+        this.closeSheet();
+      }
+    };
+    const up = (id: number) => {
+      if (drag?.id === id) drag = null;
+    };
+    const opt = { capture: true, passive: true } as const;
+    addEventListener('touchstart', (e) => e.touches.length === 1 && down(e.changedTouches[0].identifier, e.changedTouches[0].clientX, e.changedTouches[0].clientY, e.target), opt);
+    addEventListener('touchmove', (e) => { for (const t of e.changedTouches) move(t.identifier, t.clientX, t.clientY); }, opt);
+    addEventListener('touchend', (e) => { for (const t of e.changedTouches) up(t.identifier); }, opt);
+    addEventListener('touchcancel', (e) => { for (const t of e.changedTouches) up(t.identifier); }, opt);
+    addEventListener('pointerdown', (e) => e.pointerType === 'mouse' && down(-1, e.clientX, e.clientY, e.target), opt);
+    addEventListener('pointermove', (e) => e.pointerType === 'mouse' && e.buttons & 1 && move(-1, e.clientX, e.clientY), opt);
+    addEventListener('pointerup', (e) => e.pointerType === 'mouse' && up(-1), opt);
+  }
+
   private openSheet(kind: 'places' | 'pockets') {
     if (!this.canOpenSheet) return;
     this.sheet = kind;
     this.renderSheet();
+    // Where to go comes in from the left, pockets from the right.
+    this.sheetEl.classList.toggle('from-left', kind === 'places');
+    this.sheetEl.classList.toggle('from-right', kind === 'pockets');
     this.sheetEl.hidden = false;
+    uiGlitch(this.sheetEl.firstElementChild, 0.4);
     buzz(6);
   }
 
   private closeSheet() {
+    if (this.sheet) uiGlitch(null, 0.25);
     this.sheet = null;
     this.sheetEl.hidden = true;
   }
@@ -439,6 +495,7 @@ export class Game {
     this.wipeBlood();
     this.jam = 0.8;
     this.refresh();
+    uiGlitch(p === 'pharmacy' ? this.shopEl : this.view, 0.55);
     this.note([p === 'pharmacy' ? 'You walk to the all-night pharmacy.' : 'You head back out into the street.']);
     buzz(10);
   }
@@ -529,6 +586,7 @@ export class Game {
 
   /** Redraws the person button and the encounter screen from the saved state. */
   private refresh() {
+    this.syncButtons();
     const e = this.encounter;
     this.seenEl.replaceChildren();
     this.seenEl.hidden = !(e && e.stage === 'seen');
@@ -611,6 +669,7 @@ export class Game {
         this.encounter = newEncounter(person, this.yourBody());
         this.phase = 'idle';
         this.refresh();
+        uiGlitch(this.seenEl, 0.3);
         buzz(14);
       }
     }
@@ -719,18 +778,7 @@ export class Game {
     }
     this.jam = Math.max(0, this.jam - dt * 2.2);
     this.tv.setJam(this.jam);
-    // The Lurk button shows whenever you're free to lurk.
-    const e = this.encounter;
-    const show = this.canLurk && !(e && e.stage === 'over'); // then it's in the encounter screen
-    if (this.lurkBtn.hidden === show) {
-      this.lurkBtn.hidden = !show;
-      this.lurkBtn.querySelector('span')!.textContent = this.lurkState.times ? 'Lurk again' : 'Lurk';
-    }
-    const rest = show && isHurt(this.health);
-    if (this.restBtn.hidden === rest) this.restBtn.hidden = !rest;
-    const idle = this.idle;
-    if (this.goBtn.hidden === idle) this.goBtn.hidden = !idle;
-    if (this.bagBtn.hidden === idle) this.bagBtn.hidden = !idle;
+    this.syncButtons();
     if (this.sheet && !this.canOpenSheet) this.closeSheet();
     if (this.noteTimer > 0 && (this.noteTimer -= dt) <= 0) this.noteEl.hidden = true;
     this.tv.update(dt);
@@ -740,6 +788,23 @@ export class Game {
     const frac = body.blood / body.maxBlood;
     this.fx.setLow(this.tvState.on ? Math.min(1, Math.max(0, (0.82 - frac) / (0.82 - PASS_OUT))) : 0);
     this.hitUi.update(dt);
+  }
+
+  /** Shows the buttons that fit the moment: Lurk, Rest, the edge tabs. */
+  private syncButtons() {
+    // The Lurk button shows whenever you're free to lurk.
+    const e = this.encounter;
+    const show = this.canLurk && !(e && e.stage === 'over'); // then it's in the encounter screen
+    if (this.lurkBtn.hidden === show) {
+      this.lurkBtn.hidden = !show;
+      this.lurkBtn.querySelector('span')!.textContent = this.lurkState.times ? 'Lurk again' : 'Lurk';
+    }
+    const rest = show && isHurt(this.health);
+    if (this.restBtn.hidden === rest) this.restBtn.hidden = !rest;
+    // The edge tabs: whenever a drawer could be pulled in.
+    const pull = this.canOpenSheet && !this.sheet;
+    if (this.goBtn.hidden === pull) this.goBtn.hidden = !pull;
+    if (this.bagBtn.hidden === pull) this.bagBtn.hidden = !pull;
   }
 
   /** Writes progress to the device. Returns false if storage is unavailable. */

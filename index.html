@@ -45,13 +45,6 @@
           </svg>
           <span>Rest</span>
         </button>
-        <button id="bag-btn" type="button" hidden>
-          <svg viewBox="0 0 48 48" aria-hidden="true">
-            <path d="M10 17h28l-2.5 23h-23z" />
-            <path d="M17 17v-3a7 7 0 0 1 14 0v3" />
-          </svg>
-          <span>Pockets</span>
-        </button>
         <button id="lurk-btn" type="button" hidden>
           <svg viewBox="0 0 48 48" aria-hidden="true">
             <path d="M4 24c6-9 12.5-13 20-13s14 4 20 13c-6 9-12.5 13-20 13S10 33 4 24z" />
@@ -59,14 +52,22 @@
           </svg>
           <span>Lurk</span>
         </button>
-        <button id="go-btn" type="button" hidden>
-          <svg viewBox="0 0 48 48" aria-hidden="true">
-            <path d="M24 43s-13-13.5-13-23a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" />
-            <circle cx="24" cy="20" r="4.5" />
-          </svg>
-          <span>Go</span>
-        </button>
       </div>
+      <!-- Pull in from the edges: where to go (left), your pockets (right) -->
+      <button id="go-btn" class="edge-tab edge-left" type="button" aria-label="Go somewhere" hidden>
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M24 43s-13-13.5-13-23a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" />
+          <circle cx="24" cy="20" r="4.5" />
+        </svg>
+        <span>Go</span>
+      </button>
+      <button id="bag-btn" class="edge-tab edge-right" type="button" aria-label="Pockets" hidden>
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M10 17h28l-2.5 23h-23z" />
+          <path d="M17 17v-3a7 7 0 0 1 14 0v3" />
+        </svg>
+        <span>Pockets</span>
+      </button>
       <!-- A place you've gone to (the pharmacy) -->
       <div id="shop" hidden></div>
       <!-- Sheets that slide up: where to go, what's in your pockets -->

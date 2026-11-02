@@ -1,8 +1,8 @@
 # Dreamscape (working title)
 
-A surreal, GPU-heavy exploration game for mobile. Drift through an endless,
-breathing dream world and follow the beams of light. Each orb you collect
-sends a wave of light through the world and shifts its colours.
+A GPU-heavy game for mobile, being built from scratch. Right now it has the
+menus, settings and a save system; starting a game opens an empty black
+screen where the game will be built.
 
 ## Play
 
@@ -11,16 +11,16 @@ sends a wave of light through the world and shifts its colours.
 Every push to `main` (or the development branch) rebuilds the game and
 publishes it there automatically (see `.github/workflows/deploy.yml`).
 
-- **Phone:** left thumb = move (floating joystick), right thumb = look. Landscape works best.
-- **Desktop:** WASD / arrows = move, drag = look, Space / Shift = rise / sink.
+- **New game / Continue:** opens the game (currently a black screen).
+- **Pause:** top-right button, or Esc on a computer.
+- **Saving:** automatic every 30 seconds, when pausing, and when leaving the
+  app; or press *Save game* in the pause menu. Saves are stored on the device.
 
 ## Tech
 
 - TypeScript + [Three.js](https://threejs.org) on WebGL2, built with Vite.
-- Every visual is a custom GPU shader: the endless terrain, the sky/nebula,
-  the instanced floating shapes, 50k–120k GPU particles, and orbs.
-- Post-processing: bloom, chromatic aberration, vignette, film grain.
-- Adaptive resolution keeps the frame rate smooth on weaker phones.
+- The menu background is a live GPU-shader world (terrain, sky, floating
+  shapes, particles, bloom), with adaptive resolution for weaker phones.
 - Can later be wrapped as a native iOS / Android app (e.g. with Capacitor).
 
 ## Develop
@@ -31,15 +31,17 @@ npm run dev      # local server, also reachable from a phone on the same Wi-Fi
 npm run build    # production build into dist/
 ```
 
-URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution, `?play` skips the intro.
+URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 
 ## Code map
 
 | File | What it does |
 | --- | --- |
-| `src/main.ts` | Sets everything up and runs the game loop |
-| `src/core/shared.ts` | Shared shader code: noise, colour palette, terrain height, fog, light pulse |
-| `src/core/controls.ts` | Touch joystick, look, keyboard / mouse |
-| `src/core/quality.ts` | Device tiers and adaptive resolution |
-| `src/world/*.ts` | Sky, terrain, floating shapes, particles, orbs |
+| `src/main.ts` | Starts everything; switches between menu, game and pause |
+| `src/game/game.ts` | The game itself (empty for now) |
+| `src/core/save.ts` | Save / load / delete, with a backup copy |
+| `src/core/settings.ts` | Player settings |
+| `src/core/quality.ts` | Graphics presets and adaptive resolution |
+| `src/ui/menu.ts` | Main menu, pause menu, settings, confirm dialogs |
+| `src/world/*.ts` | The animated menu background |
 | `src/fx/post.ts` | Post-processing effects |

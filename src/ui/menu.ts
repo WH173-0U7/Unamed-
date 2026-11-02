@@ -1,27 +1,37 @@
 import { isMobile } from '../core/quality';
 import { onSettingsChange, updateSettings, type GraphicsQuality } from '../core/settings';
+import { formatAgo, formatPlayTime, type SaveData } from '../core/save';
 
-export type Screen = 'main' | 'pause' | 'settings' | 'howto';
+export type Screen = 'main' | 'pause' | 'settings' | 'confirm';
 
 const QUALITY_NOTES: Record<GraphicsQuality, string> = {
-  auto: 'Adjusts resolution on the fly to keep the dream smooth.',
+  auto: 'Adjusts resolution on the fly to keep things smooth.',
   low: 'Fewer particles and lower resolution. Best for older phones and battery life.',
   medium: 'A balance of detail and smoothness.',
   high: 'Full detail at full resolution. Needs a powerful device.',
 };
 
-/**
- * Menu screens over the live world. Sub-screens (settings, how to play)
- * remember where they were opened from so Back returns there.
- */
-export function createMenu(handlers: { onPlay: () => void; onResume: () => void; onQuit: () => void }) {
-  const root = document.getElementById('menu') as HTMLElement;
-  const screens = new Map<Screen, HTMLElement>();
-  for (const name of ['main', 'pause', 'settings', 'howto'] as Screen[]) {
-    screens.set(name, document.getElementById(`screen-${name}`) as HTMLElement);
-  }
+export interface MenuHandlers {
+  onContinue: () => void;
+  onNewGame: () => void;
+  onResume: () => void;
+  onSave: () => void;
+  onQuit: () => void;
+  onDeleteSave: () => void;
+}
 
-  document.body.classList.add(isMobile ? 'is-touch' : 'is-desk');
+const $ = (id: string) => document.getElementById(id) as HTMLElement;
+
+/**
+ * Menu screens. Sub-screens (settings, confirm) remember where they were
+ * opened from so Back / Cancel returns there.
+ */
+export function createMenu(handlers: MenuHandlers) {
+  const root = $('menu');
+  const screens = new Map<Screen, HTMLElement>();
+  for (const name of ['main', 'pause', 'settings', 'confirm'] as Screen[]) {
+    screens.set(name, $(`screen-${name}`));
+  }
 
   let current: Screen = 'main';
   const history: Screen[] = [];
@@ -36,9 +46,11 @@ export function createMenu(handlers: { onPlay: () => void; onResume: () => void;
       el.classList.toggle('active', active);
       el.toggleAttribute('inert', !active);
     }
-    // Keyboard users land on the first control.
-    const first = screens.get(screen)?.querySelector<HTMLElement>('button, input');
-    if (!isMobile) first?.focus({ preventScroll: true });
+    // Keyboard users land on the first visible control.
+    if (!isMobile) {
+      const first = screens.get(screen)?.querySelector<HTMLElement>('button:not([hidden]), input');
+      first?.focus({ preventScroll: true });
+    }
   }
 
   function back() {
@@ -51,35 +63,39 @@ export function createMenu(handlers: { onPlay: () => void; onResume: () => void;
     (document.activeElement as HTMLElement | null)?.blur();
   }
 
+  let confirmAction: (() => void) | null = null;
+  function confirm(opts: { title: string; body: string; ok: string; onOk: () => void }) {
+    $('confirm-title').textContent = opts.title;
+    $('confirm-body').textContent = opts.body;
+    $('confirm-ok').textContent = opts.ok;
+    confirmAction = opts.onOk;
+    show('confirm', true);
+  }
+  $('confirm-ok').addEventListener('click', () => {
+    const action = confirmAction;
+    confirmAction = null;
+    back();
+    action?.();
+  });
+
   root.querySelectorAll<HTMLElement>('[data-go]').forEach((b) =>
     b.addEventListener('click', () => show(b.dataset.go as Screen, true)),
   );
   root.querySelectorAll<HTMLElement>('[data-back]').forEach((b) => b.addEventListener('click', back));
-  document.getElementById('btn-play')!.addEventListener('click', handlers.onPlay);
-  document.getElementById('btn-resume')!.addEventListener('click', handlers.onResume);
-  document.getElementById('btn-quit')!.addEventListener('click', handlers.onQuit);
+  $('btn-continue').addEventListener('click', handlers.onContinue);
+  $('btn-new').addEventListener('click', handlers.onNewGame);
+  $('btn-resume').addEventListener('click', handlers.onResume);
+  $('btn-save').addEventListener('click', handlers.onSave);
+  $('btn-quit').addEventListener('click', handlers.onQuit);
+  $('btn-delete-save').addEventListener('click', handlers.onDeleteSave);
 
   // ---------- Settings controls ----------
-  const seg = document.getElementById('set-quality')!;
-  const note = document.getElementById('quality-note')!;
-  const sens = document.getElementById('set-sens') as HTMLInputElement;
-  const sensOut = document.getElementById('sens-out')!;
-  const invert = document.getElementById('set-invert') as HTMLInputElement;
-  const vibration = document.getElementById('set-vibration') as HTMLInputElement;
-  const fps = document.getElementById('set-fps') as HTMLInputElement;
-
+  const seg = $('set-quality');
+  const fps = $('set-fps') as HTMLInputElement;
   seg.querySelectorAll<HTMLButtonElement>('button').forEach((b) =>
     b.addEventListener('click', () => updateSettings({ quality: b.dataset.v as GraphicsQuality })),
   );
-  sens.addEventListener('input', () => updateSettings({ sensitivity: Number(sens.value) }));
-  invert.addEventListener('change', () => updateSettings({ invertY: invert.checked }));
-  vibration.addEventListener('change', () => updateSettings({ vibration: vibration.checked }));
   fps.addEventListener('change', () => updateSettings({ showFps: fps.checked }));
-
-  if (!('vibrate' in navigator)) {
-    vibration.disabled = true;
-    vibration.closest('.row')?.classList.add('disabled');
-  }
 
   onSettingsChange((s) => {
     seg.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
@@ -87,29 +103,46 @@ export function createMenu(handlers: { onPlay: () => void; onResume: () => void;
       b.classList.toggle('on', on);
       b.setAttribute('aria-checked', String(on));
     });
-    note.textContent = QUALITY_NOTES[s.quality];
-    sens.value = String(s.sensitivity);
-    sensOut.textContent = `${s.sensitivity.toFixed(1)}×`;
-    invert.checked = s.invertY;
-    vibration.checked = s.vibration && !vibration.disabled;
+    $('quality-note').textContent = QUALITY_NOTES[s.quality];
     fps.checked = s.showFps;
   });
+
+  // ---------- Toast ----------
+  const toastEl = $('toast');
+  let toastTimer = 0;
+  function toast(text: string) {
+    toastEl.textContent = text;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => toastEl.classList.remove('show'), 2200);
+  }
 
   return {
     show,
     hide,
     back,
+    confirm,
+    toast,
     get current() {
       return current;
     },
-    get isOpen() {
-      return root.classList.contains('open');
+    /** Updates everything in the menus that describes the saved game. */
+    setSaveInfo(save: SaveData | null) {
+      const cont = $('btn-continue');
+      cont.hidden = !save;
+      const del = $('btn-delete-save') as HTMLButtonElement;
+      del.disabled = !save;
+      $('row-delete').classList.toggle('disabled', !save);
+      if (save) {
+        const text = `played ${formatPlayTime(save.playTime)} · saved ${formatAgo(save.savedAt)}`;
+        $('continue-meta').textContent = text;
+        $('save-info').textContent = text;
+      } else {
+        $('save-info').textContent = 'none yet';
+      }
     },
-    setBest(n: number) {
-      document.getElementById('best-n')!.textContent = String(n);
-    },
-    setPauseScore(n: number) {
-      document.getElementById('pause-n')!.textContent = String(n);
+    setPauseInfo(text: string) {
+      $('pause-meta').textContent = text;
     },
   };
 }

@@ -10,6 +10,7 @@
   --glow-2: #7fe3ff;
   --glass: rgba(14, 9, 30, 0.58);
   --line: rgba(220, 200, 255, 0.16);
+  --danger: #ff8aa0;
 
   --font-display: 'Syncopate', 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
   --font-ui: 'Quicksand', 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
@@ -79,48 +80,22 @@ button {
   touch-action: none;
 }
 
-/* ================= HUD ================= */
-#hud {
+/* ================= Game view ================= */
+/* The game starts from nothing: a black screen that fades in over the menu world. */
+#game {
   position: fixed;
   inset: 0;
-  pointer-events: none;
+  background: #000;
   opacity: 0;
-  transition: opacity 1.2s ease;
+  visibility: hidden;
+  transition:
+    opacity 0.8s ease,
+    visibility 0s linear 0.8s;
 }
-body.playing #hud {
+#game.active {
   opacity: 1;
-}
-body.playing #pause-btn {
-  pointer-events: auto;
-}
-
-#score {
-  position: absolute;
-  top: var(--pad-top);
-  left: var(--pad-x-l);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 20px;
-  font-weight: 500;
-  letter-spacing: 0.15em;
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 12px rgba(200, 160, 255, 0.8);
-}
-#score .glyph {
-  font-size: 22px;
-}
-#score.bump {
-  animation: bump 0.6s ease-out;
-}
-@keyframes bump {
-  0% {
-    transform: scale(1.6);
-    text-shadow: 0 0 30px #fff;
-  }
-  100% {
-    transform: scale(1);
-  }
+  visibility: visible;
+  transition: opacity 0.8s ease;
 }
 
 #pause-btn {
@@ -134,70 +109,64 @@ body.playing #pause-btn {
   justify-content: center;
   gap: 6px;
   border-radius: 50%;
+  opacity: 0.55;
+  transition: opacity 0.2s;
+}
+body.paused #pause-btn {
+  opacity: 0;
   pointer-events: none;
+}
+#pause-btn:hover,
+#pause-btn:focus-visible {
+  opacity: 1;
 }
 #pause-btn span {
   width: 4px;
   height: 18px;
   border-radius: 2px;
   background: var(--ink);
-  box-shadow: 0 0 10px var(--glow);
 }
 
 #fps {
   display: none;
-  position: absolute;
-  top: calc(var(--pad-top) + 44px);
+  position: fixed;
+  bottom: var(--pad-bot);
   right: var(--pad-x-r);
+  z-index: 5;
   font: 12px ui-monospace, monospace;
   color: var(--ink-dim);
+  pointer-events: none;
 }
 
-#hint {
-  position: absolute;
-  bottom: var(--pad-bot);
-  left: 0;
-  right: 0;
-  padding: 0 var(--pad-x-r) 0 var(--pad-x-l);
-  text-align: center;
-  font-size: 13px;
-  letter-spacing: 0.2em;
-  color: var(--ink-dim);
-  white-space: pre-wrap;
-  transition: opacity 3s ease;
-}
-#hint.faded {
-  opacity: 0;
-}
-
-/* ================= Touch joystick ================= */
-#joy-base {
+/* ================= Toast ================= */
+#toast {
   position: fixed;
-  left: 0;
-  top: 0;
-  width: 112px;
-  height: 112px;
-  margin: -56px 0 0 -56px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.06), transparent 70%);
+  left: 50%;
+  bottom: calc(var(--pad-bot) + 8px);
+  z-index: 10;
+  padding: 10px 18px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  max-width: calc(100% - 32px);
+  overflow: hidden;
+  text-overflow: ellipsis;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.2s;
+  transform: translate(-50%, 10px);
+  transition:
+    opacity 0.3s,
+    transform 0.3s;
 }
-#joy-base.active {
+#toast.show {
   opacity: 1;
-}
-#joy-knob {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.35);
-  box-shadow: 0 0 18px rgba(220, 180, 255, 0.8);
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, 0);
 }
 
 /* ================= Menus ================= */
@@ -246,6 +215,7 @@ body.playing #pause-btn {
 /* ----- Main & pause: left column ----- */
 #screen-main,
 #screen-pause {
+  /* left column */
   flex-direction: column;
   justify-content: center;
   align-items: flex-start;
@@ -287,21 +257,6 @@ body.playing #pause-btn {
     background-position: 100% 0;
   }
 }
-.title-score {
-  display: flex;
-  align-items: baseline;
-  gap: 0.4em;
-  font-family: var(--font-ui);
-  font-weight: 500;
-  font-size: clamp(30px, min(7vw, 12vh), 60px);
-  letter-spacing: 0.06em;
-  font-variant-numeric: tabular-nums;
-}
-.title-score .glyph {
-  font-size: 0.6em;
-  color: var(--glow);
-  -webkit-text-fill-color: var(--glow);
-}
 
 .sub {
   margin-top: 10px;
@@ -320,6 +275,7 @@ body.playing #pause-btn {
   position: relative;
   min-height: 44px;
   padding: 0 0 0 30px;
+  text-align: left;
   font-size: clamp(15px, 3.6vh, 19px);
   font-weight: 500;
   letter-spacing: 0.32em;
@@ -359,24 +315,16 @@ body.playing #pause-btn {
   opacity: 1;
   transform: translate(0, -50%) scale(1);
 }
-.nav button:first-child {
+.nav button:not([hidden]):first-of-type,
+.nav button[hidden] + button {
   color: var(--ink);
 }
-.nav button:first-child::before {
+.nav button:not([hidden]):first-of-type::before,
+.nav button[hidden] + button::before {
   opacity: 0.55;
   transform: translate(0, -50%) scale(0.85);
 }
 
-.best {
-  font-size: 12px;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  font-variant-numeric: tabular-nums;
-}
-.best .glyph {
-  margin-left: 6px;
-}
 
 /* ----- Panels: settings, how to play ----- */
 .panel.active {
@@ -390,8 +338,7 @@ body.playing #pause-btn {
   flex-direction: column;
 }
 .panel-head,
-.rows,
-.howto {
+.rows {
   width: min(560px, 100%);
 }
 .panel-head {
@@ -422,8 +369,7 @@ body.playing #pause-btn {
   color: var(--ink);
 }
 
-.rows,
-.howto {
+.rows {
   max-height: calc(100% - 70px);
   overflow-y: auto;
   padding: 6px 22px;
@@ -552,40 +498,7 @@ output {
   background: var(--void);
 }
 
-/* How to play */
-.howto > div {
-  display: grid;
-  grid-template-columns: 5.5em 1fr;
-  gap: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--line);
-}
-.howto > div:last-child {
-  border-bottom: 0;
-}
-.howto dt {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--glow-2);
-  padding-top: 2px;
-}
-.howto dd {
-  min-width: 0;
-  font-size: 15px;
-  line-height: 1.55;
-}
-body.is-touch .desk-only,
-body.is-desk .touch-only {
-  display: none;
-}
-
 @media (max-width: 420px) {
-  .howto > div {
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
   .seg button {
     padding: 0 10px;
   }
@@ -614,4 +527,100 @@ body.is-desk .touch-only {
   .nav button::before {
     transition: none;
   }
+}
+
+/* ----- Save details ----- */
+.nav .meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: none;
+  color: var(--ink-faint);
+}
+#btn-continue {
+  padding-block: 4px;
+}
+.pause-meta {
+  margin-top: 10px;
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  color: var(--ink-dim);
+}
+.label-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-dim);
+}
+
+/* ----- Buttons & confirm dialog ----- */
+.btn {
+  min-height: 44px;
+  padding: 0 20px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+.btn:hover,
+.btn:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+}
+.btn-danger {
+  color: var(--danger);
+  border-color: rgba(255, 138, 160, 0.4);
+}
+.btn-danger:hover,
+.btn-danger:focus-visible {
+  background: rgba(255, 138, 160, 0.12);
+}
+.btn-small {
+  min-height: 36px;
+  padding: 0 16px;
+  font-size: 13px;
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: none;
+}
+
+.dialog {
+  width: min(440px, 100%);
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--glass);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+.dialog h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 17px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.dialog p {
+  margin-top: 12px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
 }

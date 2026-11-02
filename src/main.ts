@@ -1,11 +1,9 @@
 import './style.css';
 import * as THREE from 'three';
-import { shared } from './core/shared';
-import { AdaptiveResolution, isMobile, presetFor } from './core/quality';
-import { onSettingsChange, settings } from './core/settings';
+import { isMobile, pixelRatioFor } from './core/quality';
+import { onSettingsChange } from './core/settings';
 import { deleteSave, formatAgo, formatPlayTime, hasSave, loadSave, newSave } from './core/save';
-import { createBackdrop } from './world/backdrop';
-import { createPost } from './fx/post';
+import { createFilm } from './fx/film';
 import { createMenu } from './ui/menu';
 import { Game } from './game/game';
 
@@ -14,59 +12,47 @@ const params = new URLSearchParams(location.search);
 
 /** How often progress is saved automatically while playing (seconds). */
 const AUTOSAVE_EVERY = 30;
-/** Length of the fade between menu and game (ms); matches #game in style.css. */
+/** Length of the fade between menu and game (ms); matches #game / #menu in style.css. */
 const FADE_MS = 800;
 
-// ---------- Renderer & menu backdrop ----------
+type State = 'menu' | 'playing' | 'paused';
+let state: State = 'menu';
+let game: Game | null = null;
+
+// ---------- Renderers ----------
+// Game screen (the TV, and later the game world).
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: false });
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-$('app').appendChild(renderer.domElement);
+renderer.setClearColor(0x000000, 1);
+$('screen').appendChild(renderer.domElement);
 
-const scene = new THREE.Scene();
-const FOV = 70;
-const camera = new THREE.PerspectiveCamera(FOV, innerWidth / innerHeight, 0.1, 1200);
-const backdrop = createBackdrop(scene, camera);
-const post = createPost(renderer, scene, camera);
+// Film grain / glitch layer over the menus.
+const film = createFilm($('menu'));
+
 const fixedPR = params.has('pr') ? Number(params.get('pr')) : null;
+let pixelRatio = 1;
 
-function applySize(pixelRatio: number) {
-  const w = innerWidth;
-  const h = innerHeight;
+function applySize() {
   renderer.setPixelRatio(pixelRatio);
-  renderer.setSize(w, h);
-  post.setSize(w, h, pixelRatio);
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
-  backdrop.particles.setScale(h * pixelRatio, FOV);
+  renderer.setSize(innerWidth, innerHeight);
+  film.setSize(pixelRatio);
+  game?.setSize(innerWidth, innerHeight);
 }
+addEventListener('resize', applySize);
 
-const resolution = new AdaptiveResolution(1, 0.5, 1, applySize);
-addEventListener('resize', () => applySize(resolution.pixelRatio));
-
-let appliedQuality: string | null = null;
 onSettingsChange((s) => {
-  const preset = presetFor(s.quality);
-  backdrop.setDensity(preset.density);
-  post.bloom.strength = preset.bloom;
-  if (appliedQuality !== s.quality) {
-    appliedQuality = s.quality;
-    const max = fixedPR ?? preset.maxPixelRatio;
-    resolution.setRange(Math.min(0.5, max), max);
-  }
+  pixelRatio = fixedPR ?? pixelRatioFor(s.quality);
+  applySize();
   $('fps').style.display = s.showFps || params.has('debug') ? 'block' : 'none';
 });
 
 // ---------- App state ----------
-type State = 'menu' | 'playing' | 'paused';
-let state: State = 'menu';
-let game: Game | null = null;
 let sinceAutosave = 0;
-/** The backdrop is only drawn while it can be seen. */
-let backdropVisible = true;
-let fadeTimer = 0;
+/** The film layer is only drawn while the menu can be seen. */
+let menuVisible = true;
+let menuFadeTimer = 0;
 
 const menu = createMenu({
-  onContinue: continueGame,
+  onContinue: () => startGame(false),
   onNewGame: () => {
     if (hasSave()) {
       menu.confirm({
@@ -103,6 +89,18 @@ const menu = createMenu({
   },
 });
 
+function showMenu(screen: 'main' | 'pause') {
+  clearTimeout(menuFadeTimer);
+  menuVisible = true;
+  menu.show(screen);
+}
+
+function hideMenu() {
+  menu.hide();
+  clearTimeout(menuFadeTimer);
+  menuFadeTimer = window.setTimeout(() => (menuVisible = false), FADE_MS);
+}
+
 function save(): boolean {
   if (!game) return false;
   sinceAutosave = 0;
@@ -124,25 +122,15 @@ function startGame(fresh: boolean) {
     menu.setSaveInfo(null);
     return;
   }
-  game = new Game(data, $('game'));
+  game = new Game(data, $('game'), renderer, { onTurnedOn: () => save() });
+  game.setSize(innerWidth, innerHeight);
   if (fresh) save(); // so Continue is available straight away
   state = 'playing';
   sinceAutosave = 0;
-  menu.hide();
+  hideMenu();
   game.start();
   document.body.classList.add('in-game');
-
-  // Stop drawing the menu world once the screen has faded to black.
-  clearTimeout(fadeTimer);
-  fadeTimer = window.setTimeout(() => {
-    if (state !== 'menu') backdropVisible = false;
-  }, FADE_MS + 100);
-
   if (isMobile) document.documentElement.requestFullscreen?.().catch(() => {});
-}
-
-function continueGame() {
-  startGame(false);
 }
 
 function pause() {
@@ -152,7 +140,7 @@ function pause() {
   document.body.classList.add('paused');
   save();
   updatePauseInfo();
-  menu.show('pause');
+  showMenu('pause');
 }
 
 function resume() {
@@ -160,7 +148,7 @@ function resume() {
   state = 'playing';
   game.resume();
   document.body.classList.remove('paused');
-  menu.hide();
+  hideMenu();
 }
 
 function quitToMenu() {
@@ -169,11 +157,9 @@ function quitToMenu() {
   game.close();
   game = null;
   state = 'menu';
-  clearTimeout(fadeTimer);
-  backdropVisible = true;
   document.body.classList.remove('in-game', 'paused');
   menu.setSaveInfo(loadSave());
-  menu.show('main');
+  showMenu('main');
 }
 
 $('pause-btn').addEventListener('click', pause);
@@ -192,11 +178,21 @@ addEventListener('pagehide', () => {
 });
 
 menu.setSaveInfo(loadSave());
-menu.show('main');
+showMenu('main');
 
 if (params.has('debug')) {
   // Handle for automated testing.
-  Object.assign(window, { __app: { menu, get state() { return state; }, get game() { return game; } } });
+  Object.assign(window, {
+    __app: {
+      menu,
+      get state() {
+        return state;
+      },
+      get game() {
+        return game;
+      },
+    },
+  });
 }
 
 // ---------- Main loop ----------
@@ -212,15 +208,11 @@ renderer.setAnimationLoop(() => {
   if (game) {
     game.update(dt);
     if (state === 'playing' && (sinceAutosave += dt) >= AUTOSAVE_EVERY) save();
+  } else {
+    renderer.clear();
   }
 
-  if (backdropVisible) {
-    shared.uTime.value += dt;
-    backdrop.update(dt);
-    post.lens.uniforms.uTime.value = shared.uTime.value;
-    post.composer.render(dt);
-    resolution.tick(dt, fixedPR === null && settings.quality === 'auto');
-  }
+  if (menuVisible) film.update(dt);
 
   frames++;
   if ((fpsTimer += dt) > 0.5) {
@@ -229,3 +221,4 @@ renderer.setAnimationLoop(() => {
     frames = 0;
   }
 });
+

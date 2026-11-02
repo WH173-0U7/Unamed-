@@ -16,11 +16,16 @@
     />
   </head>
   <body>
-    <!-- Animated world behind the menus -->
-    <div id="app"></div>
-
-    <!-- The game: an empty black screen for now -->
+    <!-- The game: a dark room with a television -->
     <div id="game">
+      <div id="screen"></div>
+      <button id="power-btn" type="button">
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M16.5 13.5a14 14 0 1 0 15 0" />
+          <path d="M24 8v15" />
+        </svg>
+        <span>Turn on</span>
+      </button>
       <button id="pause-btn" type="button" aria-label="Pause"><span></span><span></span></button>
     </div>
 
@@ -31,7 +36,7 @@
       <section class="screen" id="screen-main" aria-label="Main menu">
         <div class="brand">
           <p class="eyebrow">a surreal drift</p>
-          <h1 class="title">Dreamscape</h1>
+          <h1 class="title" data-text="Dreamscape">Dreamscape</h1>
         </div>
         <nav class="nav">
           <button type="button" id="btn-continue" hidden>

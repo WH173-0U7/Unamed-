@@ -1,8 +1,9 @@
 # Dreamscape (working title)
 
-A GPU-heavy game for mobile, being built from scratch. Right now it has the
-menus, settings and a save system; starting a game opens an empty black
-screen where the game will be built.
+A GPU-heavy game for mobile, being built from scratch. Right now it has a
+black, film-styled menu (grain, flicker, colour fringing, glitches), settings,
+a save system, and the very first moment of the game: a dark screen with one
+option that switches on an old CRT television, which shows nothing yet.
 
 ## Play
 
@@ -11,7 +12,7 @@ screen where the game will be built.
 Every push to `main` (or the development branch) rebuilds the game and
 publishes it there automatically (see `.github/workflows/deploy.yml`).
 
-- **New game / Continue:** opens the game (currently a black screen).
+- **New game / Continue:** opens the game: a black screen with one option, *Turn on*.
 - **Pause:** top-right button, or Esc on a computer.
 - **Saving:** automatic every 30 seconds, when pausing, and when leaving the
   app; or press *Save game* in the pause menu. Saves are stored on the device.
@@ -19,8 +20,8 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
 ## Tech
 
 - TypeScript + [Three.js](https://threejs.org) on WebGL2, built with Vite.
-- The menu background is a live GPU-shader world (terrain, sky, floating
-  shapes, particles, bloom), with adaptive resolution for weaker phones.
+- GPU shaders draw the menu's film grain / glitch layer and the CRT
+  television (power-on sequence, static, scanlines, curved glass).
 - Can later be wrapped as a native iOS / Android app (e.g. with Capacitor).
 
 ## Develop
@@ -38,10 +39,11 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | File | What it does |
 | --- | --- |
 | `src/main.ts` | Starts everything; switches between menu, game and pause |
-| `src/game/game.ts` | The game itself (empty for now) |
+| `src/game/game.ts` | The game itself: the dark room and its one option |
+| `src/game/tv.ts` | The CRT television and its power-on sequence |
 | `src/core/save.ts` | Save / load / delete, with a backup copy |
 | `src/core/settings.ts` | Player settings |
 | `src/core/quality.ts` | Graphics presets and adaptive resolution |
 | `src/ui/menu.ts` | Main menu, pause menu, settings, confirm dialogs |
-| `src/world/*.ts` | The animated menu background |
-| `src/fx/post.ts` | Post-processing effects |
+| `src/fx/film.ts` | Menu film grain, flicker, colour fringing and glitches |
+| `src/fx/fullscreen.ts` | Helper for full-screen GPU shaders |

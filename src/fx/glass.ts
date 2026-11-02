@@ -235,29 +235,40 @@ export function createGlass(opts: GlassOptions = {}) {
         a = smA + a * (1.0 - smA);
 
         // ---- Blood: the surface where the field crosses a threshold.
+        // Blood on glass is a thin film, not a jelly: it spreads out flat
+        // with a slightly raised lip at the edge, so only the edges curve and
+        // catch the light, and the colour comes from how thick the film is.
         const float THR = 0.3;
-        float f = s.r;
+        // Real edges aren't perfectly smooth: a little fine roughness.
+        float rough = (vnoise(P / 6.0, 62.0) - 0.5) * 0.035;
+        float f = s.r + rough * smoothstep(0.15, 0.3, s.r) * (1.0 - smoothstep(0.3, 0.5, s.r));
         float fw = fwidth(f) * 0.9 + 0.002;
         float cover = smoothstep(THR - fw, THR + fw, f);
         float hgt = clamp((f - THR) / (1.0 - THR), 0.0, 1.0);
+        // How thick the film is: rises quickly from the edge, then levels off.
+        float film = smoothstep(0.0, 0.35, hgt) * 0.7 + hgt * 0.3;
         float wet = clamp(s.g / max(s.r, 0.02), 0.0, 1.0);
         float dry = 1.0 - smoothstep(0.06, 0.45, wet);
-        float gx = (S(uv + dx * 2.0).r - S(uv - dx * 2.0).r) * 0.6 + (S(uv + dx * 4.0).r - S(uv - dx * 4.0).r) * 0.4;
-        float gy = (S(uv + dy * 2.0).r - S(uv - dy * 2.0).r) * 0.6 + (S(uv + dy * 4.0).r - S(uv - dy * 4.0).r) * 0.4;
-        float slope = length(vec2(gx, gy));
-        // Dry blood has flattened out.
-        float bump = mix(8.0, 2.5, dry);
+        float gx = (S(uv + dx * 1.5).r - S(uv - dx * 1.5).r) * 0.7 + (S(uv + dx * 3.0).r - S(uv - dx * 3.0).r) * 0.3;
+        float gy = (S(uv + dy * 1.5).r - S(uv - dy * 1.5).r) * 0.7 + (S(uv + dy * 3.0).r - S(uv - dy * 3.0).r) * 0.3;
+        // Only the edge zone is curved; the middle of a pool is flat.
+        float edgeZone = 1.0 - smoothstep(0.04, 0.3, hgt);
+        float bump = mix(4.0, 1.5, dry) * edgeZone;
         vec3 n = normalize(vec3(-gx * bump, -gy * bump, 1.0));
 
         // Wet: light passing through blood loses blue and green much faster
-        // than red, so thin edges glow red and thick pools go almost black.
-        float depth = 0.12 + hgt * (1.05 + blotch * 0.45);
-        vec3 wetCol = vec3(0.8, 0.07, 0.06) * exp(-vec3(1.05, 3.2, 2.8) * depth);
-        float rim = cover * (1.0 - smoothstep(0.0, 0.07, hgt));
-        wetCol *= 1.0 - rim * 0.4;
-        vec3 L = normalize(vec3(-0.45, 0.6, 0.66));
-        float through = pow(max(dot(n.xy, -L.xy), 0.0), 1.5) * (1.0 - smoothstep(0.05, 0.5, hgt)) * cover;
-        wetCol += vec3(0.55, 0.04, 0.03) * through * 0.6;
+        // than red. Thin smears are a clear, bright red; a real pool is deep
+        // crimson, close to black only where it's thickest.
+        // How much blood is around this point (blurred): a small drop is thin
+        // all the way across, a pool is thick. That's what sets the colour,
+        // so a drop doesn't shade like a ball.
+        float around = (S(uv + dx * 7.0).r + S(uv - dx * 7.0).r + S(uv + dy * 7.0).r + S(uv - dy * 7.0).r + s.r * 2.0) / 6.0;
+        float thick = clamp((around - 0.2) / 0.75, 0.0, 1.0);
+        float depth = 0.07 + (film * 0.3 + thick * 0.7) * (1.35 + blotch * 0.5);
+        vec3 wetCol = vec3(0.78, 0.055, 0.045) * exp(-vec3(1.25, 3.4, 3.1) * depth);
+        // The lip at the edge holds a little more blood: a faint darker line.
+        float lip = cover * (1.0 - smoothstep(0.0, 0.05, hgt)) * smoothstep(0.0, 0.01, hgt);
+        wetCol *= 1.0 - lip * 0.25;
 
         // Dry: brown-maroon, darker in a ring at the edge (blood dries from
         // the rim inward), and cracked where it was thick.
@@ -267,25 +278,28 @@ export function createGlass(opts: GlassOptions = {}) {
         // Fine flaking where it dried thick: a faint, irregular crack network.
         vec2 cp = P / 13.0 + vec2(vnoise(P / 20.0, 51.0), vnoise(P / 20.0, 52.0)) * 1.3;
         float crack = (1.0 - smoothstep(0.015, 0.05, crackDist(cp))) * smoothstep(0.35, 0.7, hgt);
-        dryCol = mix(dryCol, vec3(0.5, 0.15, 0.1), crack * 0.45);
+        dryCol = mix(dryCol, vec3(0.45, 0.13, 0.09), crack * 0.28);
 
         vec3 col = mix(wetCol, dryCol, dry);
-        float alpha = cover * (0.8 + 0.18 * smoothstep(0.0, 0.25, hgt));
+        // Thin film lets some of the screen through; thicker blood doesn't.
+        float alpha = cover * mix(0.62, 0.97, smoothstep(0.0, 0.3, film));
         alpha = mix(alpha, cover * 0.95, dry) * (1.0 - crack * dry * 0.3);
 
-        // Gloss on the curved parts of wet blood: a sharp highlight and the
-        // reflection of a window, both sitting on one side of every drop.
-        float curved = smoothstep(0.012, 0.045, slope) * smoothstep(0.02, 0.15, hgt);
+        // Gloss: wet blood is glassy, but flat. A thin bright glint along the
+        // edges that face the light, and a faint even sheen across the film.
+        vec3 L = normalize(vec3(-0.45, 0.6, 0.66));
         vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
         float nh = max(dot(n, H), 0.0);
-        vec3 R = reflect(vec3(0.0, 0.0, -1.0), n);
-        vec2 rp = R.xy - vec2(-0.3, 0.38);
-        float window = (1.0 - smoothstep(0.1, 0.16, abs(rp.x))) * (1.0 - smoothstep(0.06, 0.11, abs(rp.y)));
-        float spec = (pow(nh, 140.0) * 0.8 + pow(nh, 24.0) * 0.1 + window * 0.55) * curved * (1.0 - dry);
-        spec += pow(nh, 12.0) * 0.05 * curved * dry; // dry blood keeps a faint sheen
-        float env = smoothstep(0.2, 0.9, n.y * 0.5 + 0.5) * 0.05 * cover * (1.0 - dry);
+        float glint = pow(nh, 160.0) * (1.0 - smoothstep(0.02, 0.12, hgt)) * smoothstep(0.005, 0.03, length(vec2(gx, gy)));
+        float sheen = 0.03 * cover * (0.6 + 0.4 * vnoise(P / 160.0, 63.0));
+        // A pool's surface isn't perfectly level: a soft, broad reflection
+        // slides across the side facing the light.
+        vec2 gb = vec2(S(uv + dx * 9.0).r - S(uv - dx * 9.0).r, S(uv + dy * 9.0).r - S(uv - dy * 9.0).r);
+        vec3 nb = normalize(vec3(-gb * 2.2, 1.0));
+        sheen += pow(max(dot(nb, H), 0.0), 40.0) * 0.22 * thick;
+        float spec = (glint * 0.45 + sheen) * (1.0 - dry) + pow(nh, 12.0) * 0.03 * edgeZone * dry;
 
-        rgb = (col + env) * alpha + rgb * (1.0 - alpha) + vec3(1.0, 0.94, 0.9) * spec * cover;
+        rgb = col * alpha + rgb * (1.0 - alpha) + vec3(1.0, 0.95, 0.92) * spec * cover;
         a = alpha + a * (1.0 - alpha);
 
         // ---- The red border: a flash when hit, a heartbeat when blood is low.
@@ -422,19 +436,19 @@ export function createGlass(opts: GlassOptions = {}) {
       stamp(x + cos(dir) * along - sin(dir) * across, y + sin(dir) * along + cos(dir) * across, size * (0.4 + rnd() * 0.55), 0.24 + rnd() * 0.12);
     }
     // 2. A crown of short spines all round the rim, where the drop burst.
-    const spines = 10 + Math.floor(rnd() * 12);
+    const spines = 14 + Math.floor(rnd() * 14);
     for (let i = 0; i < spines; i++) {
       const a = rnd() * Math.PI * 2;
       // Longer on the side it was flying towards, and uneven.
-      const reach = size * (0.85 + 0.45 * Math.max(0, cos(a - dir)) * rnd() + Math.pow(rnd(), 3) * 0.6);
-      stamp(x + cos(a) * reach, y + sin(a) * reach, size * (0.06 + rnd() * 0.08), 0.45 + rnd() * 0.15, 1.4 + rnd() * 1.4, a);
+      const reach = size * (0.8 + 0.3 * Math.max(0, cos(a - dir)) * rnd() + Math.pow(rnd(), 3) * 0.35);
+      stamp(x + cos(a) * reach, y + sin(a) * reach, size * (0.05 + rnd() * 0.06), 0.42 + rnd() * 0.15, 1.3 + rnd() * 0.9, a);
     }
     // 3. Arms: streams thrown out, thinning, each ending in a bead (some broken off).
-    const arms = (heavy ? 11 : 7) + Math.floor(rnd() * 6);
+    const arms = (heavy ? 6 : 3) + Math.floor(rnd() * 4);
     for (let i = 0; i < arms; i++) {
       let a = dir + g(1.15);
-      const len = size * (0.8 + Math.pow(rnd(), 0.9) * (heavy ? 2.6 : 1.9));
-      const r0 = size * (0.24 + rnd() * 0.18);
+      const len = size * (0.5 + Math.pow(rnd(), 1.6) * (heavy ? 2.0 : 1.3));
+      const r0 = size * (0.18 + rnd() * 0.14);
       const r1 = size * (0.07 + rnd() * 0.05);
       let px = x + cos(a) * size * 0.7;
       let py = y + sin(a) * size * 0.7;

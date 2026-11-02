@@ -256,8 +256,7 @@ canvas {
 .seen-btn:active {
   transform: scale(0.97);
 }
-.seen-kind,
-.seen-nobody {
+.seen-kind {
   font-family: var(--font-display);
   font-weight: 400;
   font-size: clamp(34px, min(10vw, 11vh), 60px);
@@ -265,9 +264,6 @@ canvas {
   text-shadow:
     -1.5px 0 rgba(255, 40, 60, 0.55),
     1.5px 0 rgba(40, 220, 255, 0.55);
-}
-.seen-nobody {
-  color: var(--ink-dim);
 }
 .seen-race {
   font-size: 13px;

@@ -6,7 +6,7 @@ a pause-based save system, and the start of the game: a television in the dark
 with one option, Turn on. Once it warms up there's one option: Lurk. Each
 lurk, the signal cuts out while you wait, then whoever you saw appears as a
 button: a civilian, a drunk, someone homeless or a junkie, each of one of the
-U.S. standard race categories. Or nobody.
+U.S. standard race categories.
 
 ## Direction (planned, not built yet)
 
@@ -23,7 +23,7 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
 
 - **Playing:** press *Turn on*, then *Lurk*. After a moment of static, who
   you saw shows up as a button (type, and race underneath). The chances each
-  time: civilian 34%, drunk 20%, nobody 18%, homeless 16%, junkie 12%. Each
+  time: civilian 42%, drunk 24%, homeless 20%, junkie 14%. Each
   person's race is one of the 7 U.S. federal (OMB 2024) categories, equally
   likely. Both tables are `CHANCES` and `RACE_CHANCES` in `src/game/game.ts`.
   The buttons don't do anything yet. The game keeps count of who you've seen.

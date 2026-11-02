@@ -11,7 +11,6 @@ player unless the game itself chooses to reveal it.
   - Each person is one of the U.S. standard race categories: American Indian
     or Alaska Native; Asian; Black or African American; Hispanic or Latino;
     Middle Eastern or North African; Native Hawaiian or Pacific Islander; White.
-  - Sometimes **nobody** comes at all.
 - The game keeps count of who you have seen.
 
 ## Scrapped ideas (kept for reference)

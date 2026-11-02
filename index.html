@@ -8,22 +8,123 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Dreamscape</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600&family=Syncopate:wght@400;700&display=swap"
+    />
   </head>
   <body>
     <div id="app"></div>
 
+    <!-- In-game overlay -->
     <div id="hud">
       <div id="score"><span class="glyph">◈</span><span id="score-n">0</span></div>
-      <div id="hint"></div>
+      <button id="pause-btn" type="button" aria-label="Pause"><span></span><span></span></button>
       <div id="fps"></div>
+      <div id="hint"></div>
     </div>
 
     <div id="joy-base"><div id="joy-knob"></div></div>
 
-    <div id="intro">
-      <h1>DREAMSCAPE</h1>
-      <p class="sub">follow the beams of light</p>
-      <p class="tap">tap to begin</p>
+    <!-- Menus -->
+    <div id="menu">
+      <section class="screen" id="screen-main" aria-label="Main menu">
+        <div class="brand">
+          <p class="eyebrow">a surreal drift</p>
+          <h1 class="title">Dreamscape</h1>
+        </div>
+        <nav class="nav">
+          <button type="button" id="btn-play">Play</button>
+          <button type="button" data-go="settings">Settings</button>
+          <button type="button" data-go="howto">How to play</button>
+        </nav>
+        <p class="best">best drift <span class="glyph">◈</span> <span id="best-n">0</span></p>
+      </section>
+
+      <section class="screen" id="screen-pause" aria-label="Paused">
+        <div class="brand">
+          <p class="eyebrow">paused</p>
+          <p class="title title-score"><span class="glyph">◈</span> <span id="pause-n">0</span></p>
+          <p class="sub">orbs gathered this drift</p>
+        </div>
+        <nav class="nav">
+          <button type="button" id="btn-resume">Resume</button>
+          <button type="button" data-go="settings">Settings</button>
+          <button type="button" id="btn-quit">Main menu</button>
+        </nav>
+      </section>
+
+      <section class="screen panel" id="screen-settings" aria-label="Settings">
+        <header class="panel-head">
+          <button type="button" class="back" data-back aria-label="Back">‹</button>
+          <h2>Settings</h2>
+        </header>
+        <div class="rows">
+          <div class="row">
+            <span class="label" id="quality-label">Graphics</span>
+            <div class="seg" id="set-quality" role="radiogroup" aria-labelledby="quality-label">
+              <button type="button" role="radio" data-v="auto">Auto</button>
+              <button type="button" role="radio" data-v="low">Low</button>
+              <button type="button" role="radio" data-v="medium">Medium</button>
+              <button type="button" role="radio" data-v="high">High</button>
+            </div>
+          </div>
+          <p class="note" id="quality-note"></p>
+
+          <label class="row" for="set-sens">
+            <span class="label">Look sensitivity</span>
+            <span class="range-wrap">
+              <input type="range" id="set-sens" min="0.3" max="2" step="0.05" />
+              <output id="sens-out" for="set-sens">1.0×</output>
+            </span>
+          </label>
+
+          <label class="row" for="set-invert">
+            <span class="label">Invert look</span>
+            <input type="checkbox" class="switch" id="set-invert" />
+          </label>
+
+          <label class="row" for="set-vibration">
+            <span class="label">Vibration</span>
+            <input type="checkbox" class="switch" id="set-vibration" />
+          </label>
+
+          <label class="row" for="set-fps">
+            <span class="label">Show frame rate</span>
+            <input type="checkbox" class="switch" id="set-fps" />
+          </label>
+        </div>
+      </section>
+
+      <section class="screen panel" id="screen-howto" aria-label="How to play">
+        <header class="panel-head">
+          <button type="button" class="back" data-back aria-label="Back">‹</button>
+          <h2>How to play</h2>
+        </header>
+        <dl class="howto">
+          <div>
+            <dt>Move</dt>
+            <dd class="touch-only">Put your left thumb anywhere on the screen and slide it.</dd>
+            <dd class="desk-only">W A S D or the arrow keys. Space rises, Shift sinks.</dd>
+          </div>
+          <div>
+            <dt>Look</dt>
+            <dd class="touch-only">Drag with your right thumb. You fly where you look.</dd>
+            <dd class="desk-only">Drag with the mouse. You fly where you look.</dd>
+          </div>
+          <div>
+            <dt>Goal</dt>
+            <dd>Follow the beams of light to find the orbs. Each orb sends a wave through the dream and shifts its colours.</dd>
+          </div>
+          <div>
+            <dt>Pause</dt>
+            <dd class="touch-only">Tap the pause button in the top right corner.</dd>
+            <dd class="desk-only">Press Esc or click the pause button in the top right corner.</dd>
+          </div>
+        </dl>
+      </section>
     </div>
 
     <script type="module" src="/src/main.ts"></script>

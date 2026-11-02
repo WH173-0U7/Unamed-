@@ -77,6 +77,9 @@ export function createParticles(count: number) {
 
   return {
     points,
+    setDensity(fraction: number) {
+      geometry.setDrawRange(0, Math.round(count * fraction));
+    },
     /** Converts world-space size to pixels: call on resize / resolution changes. */
     setScale(pixelHeight: number, fovDeg: number) {
       material.uniforms.uScale.value = (pixelHeight * 0.5) / Math.tan(THREE.MathUtils.degToRad(fovDeg) / 2);

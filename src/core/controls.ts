@@ -13,6 +13,8 @@ export class Controls {
   pitch = -0.08;
   roll = 0;
   enabled = false;
+  sensitivity = 1;
+  invertY = false;
   readonly velocity = new THREE.Vector3();
 
   private move = { x: 0, y: 0 };
@@ -73,9 +75,9 @@ export class Controls {
       this.move.y = -dy / JOY_RADIUS;
       this.joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
     } else if (e.pointerId === this.lookPid) {
-      const sens = this.lookIsMouse ? 0.004 : 0.006;
+      const sens = (this.lookIsMouse ? 0.004 : 0.006) * this.sensitivity;
       const dx = e.clientX - this.lastLook.x;
-      const dy = e.clientY - this.lastLook.y;
+      const dy = (e.clientY - this.lastLook.y) * (this.invertY ? -1 : 1);
       this.lastLook = { x: e.clientX, y: e.clientY };
       this.yaw -= dx * sens;
       this.pitch = THREE.MathUtils.clamp(this.pitch - dy * sens, -1.4, 1.4);
@@ -93,6 +95,16 @@ export class Controls {
       this.lookPid = null;
     }
   };
+
+  /** Drops any held touches / keys, e.g. when a menu opens. */
+  release() {
+    this.movePid = null;
+    this.lookPid = null;
+    this.move.x = 0;
+    this.move.y = 0;
+    this.keys.clear();
+    this.joyBase.classList.remove('active');
+  }
 
   update(dt: number, camera: THREE.PerspectiveCamera, autopilot = false) {
     let f = this.move.y;

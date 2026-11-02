@@ -58,6 +58,7 @@ export function createPost(renderer: THREE.WebGLRenderer, scene: THREE.Scene, ca
   return {
     composer,
     lens,
+    bloom,
     setSize(width: number, height: number, pixelRatio: number) {
       composer.setPixelRatio(pixelRatio);
       composer.setSize(width, height);

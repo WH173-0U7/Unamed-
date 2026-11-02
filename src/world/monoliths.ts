@@ -59,7 +59,12 @@ export function createMonoliths(base: THREE.BufferGeometry, count: number, opts:
         vec3 nn = normal;
         nn.xz = R * nn.xz;
 
-        vec3 wp = c + p * aOffset.w;
+        // Shapes melt away as you get close, so you never end up stuck inside one.
+        float r = aOffset.w * max(1.0, aSeed.y);
+        float k = clamp((distance(c, uCamPos) - r * 0.5) / (r * 2.0), 0.0, 1.0);
+        k = k * k * (3.0 - 2.0 * k);
+
+        vec3 wp = c + p * aOffset.w * k;
         float pw = pulseWave(wp);
         wp.y += pw * 3.0;
         wp = bend(wp);
@@ -95,5 +100,10 @@ export function createMonoliths(base: THREE.BufferGeometry, count: number, opts:
 
   const mesh = new THREE.Mesh(geometry, material);
   mesh.frustumCulled = false;
-  return { mesh };
+  return {
+    mesh,
+    setDensity(fraction: number) {
+      geometry.instanceCount = Math.max(1, Math.round(count * fraction));
+    },
+  };
 }

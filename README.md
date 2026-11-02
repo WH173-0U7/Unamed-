@@ -2,8 +2,9 @@
 
 A GPU-heavy game for mobile, being built from scratch. Right now it has a
 black, film-styled menu (grain, flicker, colour fringing, glitches), settings,
-a save system, and the very first moment of the game: a dark screen with one
-option that switches on an old CRT television, which shows nothing yet.
+a pause-based save system, and the opening of the game: a very dark place
+where a small orb of light appears under the player's touch and feeds on
+their movement, glowing brighter and lighting up more of its surroundings.
 
 ## Direction (planned, not built yet)
 
@@ -18,7 +19,9 @@ option that switches on an old CRT television, which shows nothing yet.
 Every push to `main` (or the development branch) rebuilds the game and
 publishes it there automatically (see `.github/workflows/deploy.yml`).
 
-- **New game / Continue:** opens the game: a black screen with one option, *Turn on*.
+- **Playing:** touch anywhere and an orb appears under your thumb. Moving your
+  thumb feeds it: it glows bigger and brighter and lights up more of the dark.
+  Hold still and it slowly fades; lift your thumb and it dies away.
 - **Fullscreen:** the game asks for fullscreen on every tap, click or key press
   whenever it isn't fullscreen. On iPhone, use Share → Add to Home Screen.
 - **Pause:** top-right button, or Esc on a computer.
@@ -29,8 +32,9 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
 ## Tech
 
 - TypeScript + [Three.js](https://threejs.org) on WebGL2, built with Vite.
-- GPU shaders draw the menu's film grain / glitch layer and the CRT
-  television (power-on sequence, static, scanlines, curved glass).
+- GPU shaders draw the menu's film grain / glitch layer and the game's
+  darkness: the orb's light and halo, smoky feedback trails, wisps of light,
+  and fog and rock revealed only where the light reaches.
 - Can later be wrapped as a native iOS / Android app (e.g. with Capacitor).
 
 ## Develop
@@ -48,8 +52,9 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | File | What it does |
 | --- | --- |
 | `src/main.ts` | Starts everything; switches between menu, game and pause |
-| `src/game/game.ts` | The game itself: the dark room and its one option |
-| `src/game/tv.ts` | The CRT television and its power-on sequence |
+| `src/game/game.ts` | The game itself: touch input, saving its state |
+| `src/game/orb.ts` | How the orb behaves: following, feeding, fading, wisps |
+| `src/game/darkness.ts` | Drawing the dark place, the orb's light and trails (GPU) |
 | `src/core/save.ts` | Save / load / delete, with a backup copy |
 | `src/core/settings.ts` | Player settings |
 | `src/core/fullscreen.ts` | Keeps the game fullscreen |

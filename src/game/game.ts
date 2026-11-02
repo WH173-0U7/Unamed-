@@ -1,86 +1,91 @@
 import type * as THREE from 'three';
 import { writeSave, type SaveData } from '../core/save';
-import { createTv } from './tv';
-
-/** Progress stored in the save file under `state.tv`. */
-interface TvState {
-  on: boolean;
-}
+import { Orb, type OrbSave } from './orb';
+import { createDarkness } from './darkness';
 
 /**
- * The game itself. For now it is a dark room with a television and a single
- * option: turn it on. Each system keeps its progress in `save.state` so it is
- * included in saves automatically.
+ * The game itself. It begins in a very dark place: wherever the player
+ * touches, a small orb of light appears and feeds on their movement.
+ * Each system keeps its progress in `save.state`, so it is saved at every
+ * pause point automatically.
  */
 export class Game {
   running = false;
-  private readonly tv;
-  private readonly powerBtn: HTMLButtonElement;
+  private readonly orb: Orb;
+  private readonly darkness;
+  private pointerId: number | null = null;
+  private width = 1;
+  private height = 1;
+  private readonly listeners: [string, EventListener][] = [];
 
   constructor(
     readonly save: SaveData,
     private readonly view: HTMLElement,
     renderer: THREE.WebGLRenderer,
   ) {
-    this.tv = createTv(renderer);
-    this.powerBtn = view.querySelector('#power-btn') as HTMLButtonElement;
-    this.powerBtn.onclick = () => this.turnOn();
+    this.orb = new Orb(save.state.orb as OrbSave | undefined);
+    this.darkness = createDarkness(renderer);
+    this.listen('pointerdown', this.onDown);
+    this.listen('pointermove', this.onMove);
+    this.listen('pointerup', this.onUp);
+    this.listen('pointercancel', this.onUp);
   }
 
-  private get tvState(): TvState {
-    const s = (this.save.state.tv ??= { on: false }) as TvState;
-    return s;
+  private listen(type: string, fn: (e: PointerEvent) => void) {
+    const l = fn as EventListener;
+    this.view.addEventListener(type, l);
+    this.listeners.push([type, l]);
   }
+
+  private onDown = (e: PointerEvent) => {
+    if (!this.running || this.pointerId !== null) return;
+    if ((e.target as HTMLElement).closest('button')) return; // e.g. the pause button
+    this.pointerId = e.pointerId;
+    try {
+      this.view.setPointerCapture(e.pointerId);
+    } catch {
+      /* not capturable */
+    }
+    const firstTouch = this.orb.presence < 0.15;
+    this.orb.down(e.clientX, e.clientY);
+    if (firstTouch) {
+      try {
+        navigator.vibrate?.(8);
+      } catch {
+        /* not allowed */
+      }
+    }
+  };
+
+  private onMove = (e: PointerEvent) => {
+    if (e.pointerId !== this.pointerId) return;
+    // Use every sample the device reported since last frame, for smooth feeding.
+    const events = e.getCoalescedEvents?.() ?? [];
+    for (const ev of events.length ? events : [e]) this.orb.move(ev.clientX, ev.clientY);
+  };
+
+  private onUp = (e: PointerEvent) => {
+    if (e.pointerId !== this.pointerId) return;
+    this.pointerId = null;
+    this.orb.up();
+  };
 
   /** Starts a new game from the beginning. */
   start() {
     this.running = true;
     this.view.classList.add('active');
-    this.showSavedScene();
   }
 
-  /** Rebuilds the scene exactly as it was saved, then waits paused. */
+  /** Rebuilds the scene as it was saved, then waits paused. */
   restorePaused() {
     this.running = false;
     this.view.classList.add('active');
-    this.showSavedScene();
-  }
-
-  private showSavedScene() {
-    if (this.tvState.on) {
-      // The set was already on at the save point: no warm-up, just the glow.
-      this.powerBtn.hidden = true;
-      this.tv.powerOnSettled();
-    } else {
-      this.tv.powerOff();
-      this.powerBtn.hidden = false;
-      this.powerBtn.classList.remove('pressed');
-    }
-  }
-
-  turnOn() {
-    if (this.tvState.on || !this.running) return;
-    this.powerBtn.classList.add('pressed');
-    this.tvState.on = true;
-    window.setTimeout(() => {
-      this.powerBtn.hidden = true;
-      this.tv.powerOn();
-      // The picture snaps open ~0.45 s in: shake the set and buzz the phone.
-      window.setTimeout(() => {
-        this.view.classList.remove('jolt');
-        void this.view.offsetWidth;
-        this.view.classList.add('jolt');
-        try {
-          navigator.vibrate?.([12, 40, 25]);
-        } catch {
-          /* not allowed here */
-        }
-      }, 430);
-    }, 350);
   }
 
   pause() {
     this.running = false;
+    this.pointerId = null;
+    this.orb.up();
   }
 
   resume() {
@@ -89,27 +94,36 @@ export class Game {
 
   /** Closes the game view (back to the menu). */
   close() {
-    this.running = false;
-    this.view.classList.remove('active', 'jolt');
-    this.tv.powerOff();
+    this.pause();
+    this.view.classList.remove('active');
+    for (const [type, l] of this.listeners) this.view.removeEventListener(type, l);
+    this.darkness.dispose();
   }
 
   setSize(width: number, height: number) {
-    this.tv.setSize(width, height);
-  }
-
-  /** Debug: freeze the TV sequence at a moment (seconds), or null to resume. */
-  freezeTv(t: number | null) {
-    this.tv.freeze(t);
+    this.width = width;
+    this.height = height;
+    this.darkness.setSize(width, height);
   }
 
   update(dt: number) {
-    if (this.running) this.save.playTime += dt;
-    this.tv.update(dt);
+    if (this.running) {
+      this.save.playTime += dt;
+      this.orb.update(dt, this.width, this.height);
+    }
+    // While paused the world holds still, but keep drawing it behind the menu.
+    this.darkness.render(this.orb, this.running ? dt : 0);
   }
 
   /** Writes progress to the device. Returns false if storage is unavailable. */
   saveNow(): boolean {
+    this.save.state.orb = this.orb.toSave();
+    delete this.save.state.tv; // from earlier versions
     return writeSave(this.save);
+  }
+
+  /** For automated tests. */
+  get debug() {
+    return { orb: this.orb };
   }
 }

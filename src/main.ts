@@ -44,7 +44,11 @@ const orbs = createOrbs(scene, (pos) => {
   shared.uPulseOrigin.value.copy(pos);
   shared.uPulseTime.value = shared.uTime.value;
   hueTarget += 0.13;
-  navigator.vibrate?.(30);
+  try {
+    navigator.vibrate?.(30);
+  } catch {
+    /* vibration not allowed here */
+  }
 });
 
 // ---------- Post-processing & resolution ----------

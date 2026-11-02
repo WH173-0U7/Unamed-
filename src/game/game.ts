@@ -8,6 +8,14 @@ import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, type StatName, t
 import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, isHurt, newHealth, passHours, type Health } from './health';
 import { PASS_OUT, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
+import { MEDS, dollars, medById, newInventory, type Inventory, type InvItem, type MedId } from './inventory';
+
+/** Where you can go from the Go menu. */
+type Place = 'street' | 'pharmacy';
+const PLACES: { id: Place; name: string; desc: string }[] = [
+  { id: 'street', name: 'The street', desc: 'Lurk in the dark and watch who comes by.' },
+  { id: 'pharmacy', name: 'Pharmacy', desc: 'Open all night. Bandages, painkillers, splints.' },
+];
 import { createHitUi } from '../fx/hitUi';
 
 /** Progress stored in the save file under `state.tv`. */
@@ -47,6 +55,11 @@ export class Game {
   private readonly youEl: HTMLElement;
   private readonly restBtn: HTMLButtonElement;
   private readonly noteEl: HTMLElement;
+  private readonly goBtn: HTMLButtonElement;
+  private readonly bagBtn: HTMLButtonElement;
+  private readonly shopEl: HTMLElement;
+  private readonly sheetEl: HTMLElement;
+  private sheet: 'places' | 'pockets' | null = null;
   private noteTimer = 0;
   private phase: Phase = 'idle';
   private timer = 0;
@@ -67,6 +80,17 @@ export class Game {
     this.restBtn = view.querySelector('#rest-btn') as HTMLButtonElement;
     this.noteEl = view.querySelector('#note') as HTMLElement;
     this.restBtn.onclick = () => this.rest();
+    this.goBtn = view.querySelector('#go-btn') as HTMLButtonElement;
+    this.bagBtn = view.querySelector('#bag-btn') as HTMLButtonElement;
+    this.shopEl = view.querySelector('#shop') as HTMLElement;
+    this.sheetEl = view.querySelector('#sheet') as HTMLElement;
+    this.goBtn.onclick = () => this.openSheet('places');
+    this.bagBtn.onclick = () => this.openSheet('pockets');
+    this.sheetEl.onclick = (ev) => this.sheetClick(ev);
+    this.shopEl.onclick = (ev) => {
+      const b = (ev.target as HTMLElement).closest('button');
+      if (b?.dataset.buy) this.buy(b.dataset.buy as MedId);
+    };
     this.restBtn.hidden = true;
     this.hitUi = createHitUi(view);
     this.encView = createEncounterView(view.querySelector('#enc') as HTMLElement, (id) => this.act(id));
@@ -99,6 +123,19 @@ export class Game {
   /** Your body between fights: blood and injuries carry over (saved). */
   private get health(): Health {
     return (this.save.state.health ??= newHealth()) as Health;
+  }
+
+  /** What's in your pockets: cash, loot, medicine (saved). */
+  private get inventory(): Inventory {
+    return (this.save.state.inventory ??= newInventory()) as Inventory;
+  }
+
+  /** Where you are (saved). */
+  private get place(): Place {
+    return (this.save.state.place as Place) ?? 'street';
+  }
+  private set place(p: Place) {
+    this.save.state.place = p;
   }
 
   /** Your body as it is now, ready for a fight. */
@@ -149,7 +186,7 @@ export class Game {
    */
   private get canLurk() {
     const e = this.encounter;
-    return this.running && this.tv.showingPicture && this.phase === 'idle' && (!e || e.stage === 'seen' || e.stage === 'over');
+    return this.running && this.tv.showingPicture && this.phase === 'idle' && this.place === 'street' && (!e || e.stage === 'seen' || e.stage === 'over');
   }
 
   /** Lurk: the signal cuts out while you wait for whoever comes. */
@@ -184,7 +221,7 @@ export class Game {
     // Approaching someone: bring your body as it is now.
     if (e.stage === 'seen') e.you = this.yourBody();
     const wasOver = e.stage === 'over';
-    const impacts = act(e, id, this.stats);
+    const impacts = act(e, id, this.stats, this.inventory);
     if (!wasOver && e.stage === 'over') {
       // It's done: the log is cleared (the title says how it ended), keeping
       // only what happens to you afterwards.
@@ -225,6 +262,135 @@ export class Game {
     this.hitUi.clear();
   }
 
+  // ---------- Places, pockets, the pharmacy ----------
+
+  /** Free to do something else: no one in front of you but maybe a passer-by. */
+  private get idle() {
+    const e = this.encounter;
+    return this.running && this.tv.showingPicture && this.phase === 'idle' && (!e || e.stage === 'seen');
+  }
+
+  private openSheet(kind: 'places' | 'pockets') {
+    if (!this.idle) return;
+    this.sheet = kind;
+    this.renderSheet();
+    this.sheetEl.hidden = false;
+    buzz(6);
+  }
+
+  private closeSheet() {
+    this.sheet = null;
+    this.sheetEl.hidden = true;
+  }
+
+  private sheetClick(ev: MouseEvent) {
+    const t = ev.target as HTMLElement;
+    if (t === this.sheetEl) return this.closeSheet(); // tapped outside the card
+    const b = t.closest('button');
+    if (!b) return;
+    if (b.dataset.close !== undefined) this.closeSheet();
+    else if (b.dataset.place) this.goTo(b.dataset.place as Place);
+    else if (b.dataset.use) this.useMed(b.dataset.use as MedId);
+  }
+
+  /** Walk somewhere else. */
+  private goTo(p: Place) {
+    this.closeSheet();
+    if (p === this.place) return;
+    this.place = p;
+    this.encounter = null;
+    this.noteEl.hidden = true;
+    this.wipeBlood();
+    this.jam = 0.8;
+    this.refresh();
+    this.note([p === 'pharmacy' ? 'You walk to the all-night pharmacy.' : 'You head back out into the street.']);
+    buzz(10);
+  }
+
+  /** Buy something at the pharmacy (cash only). */
+  private buy(id: MedId) {
+    const m = medById(id);
+    const inv = this.inventory;
+    if (this.place !== 'pharmacy' || inv.cash < m.price) return;
+    inv.cash = Math.round((inv.cash - m.price) * 100) / 100;
+    inv.items.push({ kind: 'med', name: m.name, med: id });
+    this.refresh();
+    this.note([`You buy ${m.name.toLowerCase()}. ${dollars(inv.cash)} left.`]);
+    buzz(8);
+  }
+
+  /** Use medicine from your pockets. */
+  private useMed(id: MedId) {
+    const m = medById(id);
+    const inv = this.inventory;
+    const i = inv.items.findIndex((x) => x.med === id);
+    if (i < 0 || m.blocked(this.health)) return;
+    inv.items.splice(i, 1);
+    const line = m.use(this.health);
+    this.refresh();
+    this.note([line]);
+    buzz(8);
+  }
+
+  private renderShop() {
+    const here = this.place === 'pharmacy' && this.tvState.on;
+    this.shopEl.hidden = !here;
+    if (!here) return;
+    const inv = this.inventory;
+    const have = (id: MedId) => inv.items.filter((x) => x.med === id).length;
+    this.shopEl.innerHTML =
+      `<div class="shop-head"><h2>Pharmacy</h2><p>Open all night. A fluorescent hum, and a bored clerk behind the plexiglass.</p></div>` +
+      `<div class="shop-cash"><span>Your cash</span><b>${dollars(inv.cash)}</b></div>` +
+      `<ul class="shop-list">${MEDS.map(
+        (m) =>
+          `<li><div><b>${m.name}</b><small>${m.desc}${have(m.id) ? ` · You have ${have(m.id)}` : ''}</small></div>` +
+          `<button type="button" data-buy="${m.id}" ${inv.cash < m.price ? 'disabled' : ''}>${dollars(m.price)}</button></li>`,
+      ).join('')}</ul>` +
+      (inv.cash < Math.min(...MEDS.map((m) => m.price)) ? `<p class="shop-broke">You can't afford anything. Cash only.</p>` : '');
+  }
+
+  private renderSheet() {
+    const card = this.sheetEl.firstElementChild as HTMLElement;
+    const close = `<button type="button" class="sheet-x" data-close aria-label="Close">×</button>`;
+    if (this.sheet === 'places') {
+      card.innerHTML =
+        `<div class="sheet-head"><h2>Where to?</h2>${close}</div>` +
+        PLACES.map(
+          (p) =>
+            `<button type="button" class="place ${p.id === this.place ? 'here' : ''}" data-place="${p.id}"><b>${p.name}</b><small>${p.id === this.place ? "You're here" : p.desc}</small></button>`,
+        ).join('');
+      return;
+    }
+    const inv = this.inventory;
+    const h = this.health;
+    const groups: [string, (x: InvItem) => boolean][] = [
+      ['Phones', (x) => x.kind === 'phone'],
+      ['Car keys', (x) => x.kind === 'car keys'],
+      ['IDs and cards', (x) => x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card'],
+      ['Other', (x) => x.kind === 'misc'],
+    ];
+    const meds = MEDS.map((m) => ({ m, n: inv.items.filter((x) => x.med === m.id).length })).filter((x) => x.n);
+    let body = `<div class="pocket-cash"><span>Cash</span><b>${dollars(inv.cash)}</b></div>`;
+    if (meds.length) {
+      body +=
+        `<h3>Medicine</h3><ul class="pocket-list">` +
+        meds
+          .map(({ m, n }) => {
+            const why = m.blocked(h);
+            return `<li><div><b>${m.name}${n > 1 ? ` ×${n}` : ''}</b><small>${why ?? m.desc}</small></div><button type="button" data-use="${m.id}" ${why ? 'disabled' : ''}>Use</button></li>`;
+          })
+          .join('') +
+        `</ul>`;
+    }
+    for (const [name, test] of groups) {
+      const xs = inv.items.filter(test);
+      if (!xs.length) continue;
+      body += `<h3>${name}</h3><ul class="pocket-list">${xs.map((x) => `<li><div><b>${x.name}</b>${x.detail ? `<small>${x.detail}</small>` : ''}</div></li>`).join('')}</ul>`;
+    }
+    if (!inv.items.length && !inv.cash) body += `<p class="pocket-empty">Nothing but lint.</p>`;
+    card.innerHTML = `<div class="sheet-head"><h2>Pockets</h2>${close}</div><div class="sheet-body">${body}</div>`;
+  }
+
   /** Redraws the person button and the encounter screen from the saved state. */
   private refresh() {
     const e = this.encounter;
@@ -250,6 +416,8 @@ export class Game {
     this.renderStats();
     this.renderYou(!!e && e.stage !== 'seen');
     this.view.classList.toggle('in-encounter', !!e && e.stage !== 'seen');
+    this.renderShop();
+    if (this.sheet) this.renderSheet();
   }
 
   /** Your stats in the top corner, each with progress towards its next level. */
@@ -272,7 +440,8 @@ export class Game {
     const pct = (100 * h.blood) / h.maxBlood;
     this.youEl.innerHTML =
       `<div class="you-blood"><span>Blood</span><i><b style="width:${pct}%"></b><s style="left:${PASS_OUT * 100}%"></s></i><em>${(h.blood / 1000).toFixed(1)} L</em></div>` +
-      `<div class="enc-conds">${healthConditions(h).map((c) => `<span>${c}</span>`).join('')}</div>`;
+      `<div class="enc-conds">${healthConditions(h).map((c) => `<span>${c}</span>`).join('')}</div>` +
+      `<div class="you-cash">${dollars(this.inventory.cash)}</div>`;
   }
 
   private stepLurk(dt: number) {
@@ -380,6 +549,10 @@ export class Game {
     this.youEl.hidden = true;
     this.restBtn.hidden = true;
     this.noteEl.hidden = true;
+    this.goBtn.hidden = true;
+    this.bagBtn.hidden = true;
+    this.shopEl.hidden = true;
+    this.closeSheet();
   }
 
   setSize(width: number, height: number, pixelRatio = 1) {
@@ -408,6 +581,10 @@ export class Game {
     }
     const rest = show && isHurt(this.health);
     if (this.restBtn.hidden === rest) this.restBtn.hidden = !rest;
+    const idle = this.idle;
+    if (this.goBtn.hidden === idle) this.goBtn.hidden = !idle;
+    if (this.bagBtn.hidden === idle) this.bagBtn.hidden = !idle;
+    if (!idle && this.sheet) this.closeSheet();
     if (this.noteTimer > 0 && (this.noteTimer -= dt) <= 0) this.noteEl.hidden = true;
     this.tv.update(dt);
     // The red edge pulses when your blood is low.
@@ -430,7 +607,7 @@ export class Game {
 
   /** For automated tests. */
   get debug() {
-    return { tv: this.tv, phase: this.phase, lurk: this.lurkState, encounter: this.encounter, stats: this.stats, health: this.health };
+    return { tv: this.tv, phase: this.phase, lurk: this.lurkState, encounter: this.encounter, stats: this.stats, health: this.health, inventory: this.inventory, place: this.place };
   }
 }
 

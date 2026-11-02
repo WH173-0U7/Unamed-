@@ -1,10 +1,10 @@
 import { BUILDS, NAMES } from '../game/person';
-import { PASS_OUT, conditions, distanceLabel, options, type Body, type Encounter } from '../game/encounter';
+import { CATEGORY_NAMES, PASS_OUT, conditions, distanceLabel, options, type Body, type Category, type Encounter, type Option } from '../game/encounter';
 
 const STAGE_TITLE: Record<string, string> = {
   menu: 'What now?',
-  surveil: 'Surveil',
-  violence: 'Violence',
+  surveil: 'What now?',
+  violence: 'What now?',
   combat: 'Fight',
   helpless: 'Unconscious',
 };
@@ -34,17 +34,60 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     <div class="enc-log" role="log" aria-live="polite"></div>
     <div class="enc-actions">
       <div class="enc-title"></div>
-      <div class="enc-opts"></div>
+      <div class="enc-tabs" role="tablist"></div>
+      <div class="enc-opts" role="tabpanel"></div>
+      <div class="enc-opts enc-extra"></div>
     </div>`;
   const q = (s: string) => root.querySelector(s) as HTMLElement;
   const log = q('.enc-log');
   let shown = 0;
   let current: Encounter | null = null;
 
-  q('.enc-opts').addEventListener('click', (ev) => {
+  /** The tab showing, and the tabs there were last time (to notice new ones). */
+  let tab: Category | null = null;
+  let tabsKey = '';
+  let opts: Option[] = [];
+
+  q('.enc-actions').addEventListener('click', (ev) => {
     const b = (ev.target as HTMLElement).closest('button');
-    if (b && !b.disabled) onAct(b.dataset.id!);
+    if (!b || b.disabled) return;
+    if (b.dataset.tab) {
+      // Switching tabs is instant and costs nothing.
+      if (tab !== b.dataset.tab) {
+        tab = b.dataset.tab as Category;
+        drawOptions(true);
+      }
+      return;
+    }
+    onAct(b.dataset.id!);
   });
+
+  const button = (o: Option) =>
+    `<button type="button" data-id="${o.id}" ${o.disabled ? 'disabled' : ''}>${o.label}${o.hint ? `<small>${o.hint}</small>` : ''}</button>`;
+
+  /** The tab bar, the options under the chosen tab, and the ones always shown. */
+  function drawOptions(switched = false) {
+    const cats = [...new Set(opts.filter((o) => o.cat).map((o) => o.cat!))];
+    const tabs = q('.enc-tabs');
+    tabs.hidden = cats.length === 0;
+    tabs.innerHTML = cats
+      .map((c) => {
+        const n = opts.filter((o) => o.cat === c && !o.disabled).length;
+        return `<button type="button" role="tab" data-tab="${c}" aria-selected="${c === tab}" class="${c === tab ? 'on' : ''}">${CATEGORY_NAMES[c]}${c === 'search' && n ? `<i>${n}</i>` : ''}</button>`;
+      })
+      .join('');
+    const panel = q('.enc-opts');
+    panel.innerHTML = opts.filter((o) => o.cat && o.cat === tab).map(button).join('');
+    panel.hidden = !panel.innerHTML;
+    if (switched) {
+      panel.classList.remove('swap');
+      void panel.offsetWidth;
+      panel.classList.add('swap');
+    }
+    const extra = q('.enc-extra');
+    extra.innerHTML = opts.filter((o) => !o.cat).map(button).join('');
+    extra.hidden = !extra.innerHTML;
+  }
 
   const bar = (label: string, v: number, max: number, cls: string, value = `${Math.round(v)}/${max}`) =>
     `<div class="enc-bar ${cls}"><span>${label}</span><i><b style="width:${(100 * Math.max(0, v)) / max}%"></b>${
@@ -70,6 +113,10 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       if (e !== current || e.log.length < shown) {
         log.replaceChildren();
         shown = 0;
+        if (e !== current) {
+          tab = null;
+          tabsKey = '';
+        }
         current = e;
       }
       root.hidden = false;
@@ -84,6 +131,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         ['Build', e.known.build ? `${p.build} · ${b.difficulty}` : null],
         ['Carrying', e.known.carrying ? p.carrying.map((i) => i.name).join(', ') || 'Nothing' : null],
         ['Awareness', e.known.awareness ? p.awareness : null],
+        ['Wearing', (p.clothes ?? []).map((g) => g.name).join(', ') || null],
       ];
       q('.enc-facts').innerHTML = facts.map(([k, v]) => `<div><dt>${k}</dt><dd class="${v ? '' : 'unknown'}">${v ?? '?'}</dd></div>`).join('');
 
@@ -105,12 +153,17 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
 
       q('.enc-title').textContent =
         e.stage === 'over' ? RESULT[e.result ?? 'left'] : e.stage === 'combat' && e.them.out ? STAGE_TITLE.helpless : STAGE_TITLE[e.stage];
-      q('.enc-opts').innerHTML = options(e)
-        .map(
-          (o) =>
-            `<button type="button" data-id="${o.id}" ${o.disabled ? 'disabled' : ''} class="${o.id === 'back' ? 'enc-back' : ''}">${o.label}${o.hint ? `<small>${o.hint}</small>` : ''}</button>`,
-        )
-        .join('');
+      opts = options(e);
+      const cats = [...new Set(opts.filter((o) => o.cat).map((o) => o.cat!))];
+      const key = cats.join(',');
+      if (key !== tabsKey) {
+        // New tabs (they fell, they're out, the fight started): show the
+        // first, the one that matters most now. Otherwise stay where you were.
+        tabsKey = key;
+        tab = e.stage === 'surveil' || e.stage === 'violence' ? e.stage : (cats[0] ?? null);
+      }
+      if (tab && !cats.includes(tab)) tab = cats[0] ?? null;
+      drawOptions();
     },
   };
 }

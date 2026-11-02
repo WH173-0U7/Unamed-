@@ -1,4 +1,5 @@
-import { AWARENESS, BUILDS, NAMES, type Item, type Person } from './person';
+import { AWARENESS, BUILDS, NAMES, type Item, type Loot, type Person } from './person';
+import { lootLabel, take, type Inventory } from './inventory';
 import {
   STAT_NAMES,
   accuracyBonus,
@@ -28,7 +29,7 @@ import {
  *   knock someone to the floor, and each of those has its penalties.
  */
 
-export const ENCOUNTER_VERSION = 2;
+export const ENCOUNTER_VERSION = 3;
 
 export type Stage = 'seen' | 'menu' | 'surveil' | 'violence' | 'combat' | 'over';
 export type Result = 'won' | 'lost' | 'they-fled' | 'you-fled' | 'lost-them' | 'left' | 'walked' | 'killed';
@@ -104,6 +105,37 @@ export interface Option {
   label: string;
   hint?: string;
   disabled?: boolean;
+  /** Which tab it's under. Options without one are always shown, below the tabs. */
+  cat?: Category;
+}
+
+/** The tabs the options are sorted into. */
+export type Category = 'surveil' | 'violence' | 'attack' | 'stomp' | 'search' | 'move';
+export const CATEGORY_NAMES: Record<Category, string> = {
+  surveil: 'Surveil',
+  violence: 'Violence',
+  attack: 'Attack',
+  stomp: 'Stomp',
+  search: 'Search',
+  move: 'Move',
+};
+const SURVEIL_IDS = ['follow', 'build', 'carrying', 'awareness', 'sex'];
+const VIOLENCE_IDS = ['bumrush', 'sucker', 'shove'];
+
+/** Can you go through their clothes? Only once they can't stop you. */
+export const searchable = (e: Encounter) => !!(e.them.out || e.them.dead) && !e.you.down;
+
+/** Searching: each garment, then whatever you found in it to take. */
+function searchOptions(e: Encounter): Option[] {
+  const found: Option[] = [];
+  const todo: Option[] = [];
+  e.person.clothes.forEach((g, gi) => {
+    if (!g.searched) todo.push({ id: `search:${gi}`, label: `Search their ${g.name.toLowerCase()}`, cat: 'search' });
+    else g.loot.forEach((l, li) => found.push({ id: `take:${gi}:${li}`, label: lootLabel(l), hint: l.where === 'wallet' ? 'In their wallet' : `${g.name}, ${l.where}`, cat: 'search' }));
+  });
+  const all: Option[] = found.length > 1 ? [{ id: 'take-all', label: 'Take everything', hint: `${found.length} things`, cat: 'search' }] : [];
+  const out = [...all, ...found, ...todo];
+  return out.length ? out : [{ id: 'nothing', label: 'Nothing left on them', disabled: true, cat: 'search' }];
 }
 
 /** At or below this share of their blood, people pass out. */
@@ -184,30 +216,24 @@ function fleeChance(f: Body, other: Body, bonus = 0) {
 /** Chance to get back up off the floor. */
 const getUpChance = (f: Body) => Math.max(0.1, 0.8 - legs(f) * 0.3 - (f.dazed ? 0.2 : 0) - (f.stamina < COST.getUp ? 0.3 : 0));
 
-/** What you can do right now. */
+/** What you can do right now, sorted into tabs (see `Category`). */
 export function options(e: Encounter): Option[] {
   switch (e.stage) {
     case 'menu':
-      return [
-        { id: 'violence', label: 'Violence' },
-        { id: 'surveil', label: 'Surveil' },
-        { id: 'leave', label: 'Leave them' },
-      ];
     case 'surveil':
-      return [
-        { id: 'follow', label: e.distance < 2 ? 'Follow' : 'Keep following', hint: e.distance < 2 ? 'Get closer' : undefined },
-        { id: 'build', label: 'Size up their build', disabled: e.known.build },
-        { id: 'carrying', label: 'What are they carrying?', disabled: e.known.carrying, hint: e.distance < 1 ? 'Need to be closer' : undefined },
-        { id: 'awareness', label: 'How aware are they?', disabled: e.known.awareness },
-        { id: 'sex', label: 'Male or female?', disabled: e.known.sex },
-        { id: 'back', label: 'Back' },
-      ];
     case 'violence':
+      // Before anything has happened: watch them, or go for them. Switching
+      // between the two is free; it's only a tab.
       return [
-        { id: 'bumrush', label: 'Bum rush' },
-        { id: 'sucker', label: 'Sucker punch' },
-        { id: 'shove', label: 'Shove' },
-        { id: 'back', label: 'Back' },
+        { id: 'follow', label: e.distance < 2 ? 'Follow' : 'Keep following', hint: e.distance < 2 ? 'Get closer' : undefined, cat: 'surveil' },
+        { id: 'build', label: 'Size up their build', disabled: e.known.build, cat: 'surveil' },
+        { id: 'carrying', label: 'What are they carrying?', disabled: e.known.carrying, hint: e.distance < 1 ? 'Need to be closer' : undefined, cat: 'surveil' },
+        { id: 'awareness', label: 'How aware are they?', disabled: e.known.awareness, cat: 'surveil' },
+        { id: 'sex', label: 'Male or female?', disabled: e.known.sex, cat: 'surveil' },
+        { id: 'bumrush', label: 'Bum rush', hint: 'Knock them down', cat: 'violence' },
+        { id: 'sucker', label: 'Sucker punch', hint: 'Hit them in the head', cat: 'violence' },
+        { id: 'shove', label: 'Shove', hint: 'Easiest to land', cat: 'violence' },
+        { id: 'leave', label: 'Leave them' },
       ];
     case 'combat': {
       const y = e.you;
@@ -215,47 +241,38 @@ export function options(e: Encounter): Option[] {
       const armHint = arms(y) ? `Broken arm${arms(y) > 1 ? 's' : ''}` : undefined;
       const legHint = legs(y) ? `Broken leg${legs(y) > 1 ? 's' : ''}` : undefined;
       const out = !!e.them.out;
+      const run: Option = { id: 'run', label: 'Run', hint: legHint ?? (tired(COST.run) ? 'Too tired' : undefined), cat: 'move' };
+      const breathe: Option = { id: 'breathe', label: 'Catch your breath', cat: 'move' };
+      const stomps = (why?: string, t = tired(COST.kick)): Option[] => [
+        { id: 'stomp-head', label: 'Head', hint: t ? 'Too tired' : (why ?? 'Can knock them out'), disabled: t, cat: 'stomp' },
+        { id: 'stomp-stomach', label: 'Stomach', hint: t ? 'Too tired' : (why ?? 'Winds them'), disabled: t, cat: 'stomp' },
+        { id: 'stomp-ribs', label: 'Ribs', hint: t ? 'Too tired' : (why ?? 'Can break them'), disabled: t, cat: 'stomp' },
+      ];
       if (y.down) {
         return [
-          { id: 'getup', label: 'Get up', hint: legHint ?? (y.dazed ? 'Dazed' : undefined) },
-          { id: 'punch', label: 'Punch', hint: armHint ?? 'From the floor' },
-          { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : 'From the floor', disabled: tired(COST.kick) },
-          out ? { id: 'walk', label: 'Crawl away', hint: "They're unconscious" } : { id: 'breathe', label: 'Catch your breath' },
+          { id: 'punch', label: 'Punch', hint: armHint ?? 'From the floor', cat: 'attack' },
+          { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : 'From the floor', disabled: tired(COST.kick), cat: 'attack' },
+          { id: 'getup', label: 'Get up', hint: legHint ?? (y.dazed ? 'Dazed' : undefined), cat: 'move' },
+          out ? { id: 'walk', label: 'Crawl away', hint: "They're unconscious", cat: 'move' } : breathe,
         ];
       }
       if (out) {
-        // They're unconscious: it isn't a fight any more. Keep going, or walk away.
-        const t = tired(COST.kick);
-        return [
-          { id: 'stomp-head', label: 'Stomp their head', hint: t ? 'Too tired' : undefined, disabled: t },
-          { id: 'stomp-stomach', label: 'Stomp their stomach', hint: t ? 'Too tired' : undefined, disabled: t },
-          { id: 'stomp-ribs', label: 'Stomp their ribs', hint: t ? 'Too tired' : undefined, disabled: t },
-          { id: 'breathe', label: 'Catch your breath' },
-          { id: 'walk', label: 'Walk away' },
-        ];
+        // They're unconscious: it isn't a fight any more. Keep going, go
+        // through their pockets, or walk away.
+        return [...stomps(), ...searchOptions(e), breathe, { id: 'walk', label: 'Walk away', cat: 'move' }];
       }
-      if (e.them.down) {
-        // They're on the floor: stomp them, aiming for the head, stomach or ribs.
-        const t = tired(COST.kick);
-        const why = t ? 'Too tired' : legHint;
-        return [
-          { id: 'stomp-head', label: 'Stomp their head', hint: why, disabled: t },
-          { id: 'stomp-stomach', label: 'Stomp their stomach', hint: why, disabled: t },
-          { id: 'stomp-ribs', label: 'Stomp their ribs', hint: why, disabled: t },
-          { id: 'run', label: 'Run', hint: legHint ?? (tired(COST.run) ? 'Too tired' : undefined) },
-          { id: 'breathe', label: 'Catch your breath' },
-        ];
-      }
+      if (e.them.down) return [...stomps(legHint), run, breathe];
       return [
-        { id: 'punch', label: 'Punch', hint: armHint },
-        { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : legHint, disabled: tired(COST.kick) },
-        { id: 'grapple', label: 'Grapple', hint: tired(COST.grapple) ? 'Too tired' : armHint, disabled: tired(COST.grapple) },
-        { id: 'run', label: 'Run', hint: legHint ?? (tired(COST.run) ? 'Too tired' : undefined) },
-        { id: 'breathe', label: 'Catch your breath' },
+        { id: 'punch', label: 'Punch', hint: armHint, cat: 'attack' },
+        { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : legHint, disabled: tired(COST.kick), cat: 'attack' },
+        { id: 'grapple', label: 'Grapple', hint: tired(COST.grapple) ? 'Too tired' : (armHint ?? 'Take them down'), disabled: tired(COST.grapple), cat: 'attack' },
+        run,
+        breathe,
       ];
     }
     case 'over':
       return [
+        ...(e.them.dead && !e.you.down ? searchOptions(e) : []),
         { id: 'lurk', label: 'Lurk again' },
         { id: 'rest', label: 'Rest', hint: 'Let time pass and heal' },
       ];
@@ -271,9 +288,8 @@ let impacts: Impact[] = [];
 const say = (by: LogLine['by'], text: string) => enc.log.push({ by, text });
 
 /** Does one thing (an option id, or 'open' to start from the person button). */
-export function act(e: Encounter, id: string, stats: Stats): Impact[] {
+export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impact[] {
   impacts = [];
-  if (e.stage === 'over') return impacts;
   enc = e;
   you = {
     stats,
@@ -282,6 +298,15 @@ export function act(e: Encounter, id: string, stats: Stats): Impact[] {
       if (up) say('info', `${STAT_NAMES[name]} went up to ${up}.`);
     },
   };
+  // Going through their clothes (unconscious, or dead).
+  if (id.startsWith('search:') || id.startsWith('take')) {
+    if (!searchable(e)) return impacts;
+    search(id, inv);
+    // Searching takes a moment, and they go on bleeding.
+    if (e.stage === 'combat' && id.startsWith('search:')) endOfRound();
+    return impacts;
+  }
+  if (e.stage === 'over') return impacts;
   const p = e.person;
   const aw = AWARENESS.indexOf(p.awareness);
   const who = NAMES[p.kind].toLowerCase();
@@ -294,18 +319,18 @@ export function act(e: Encounter, id: string, stats: Stats): Impact[] {
     return impacts;
   }
 
-  if (e.stage === 'menu') {
-    if (id === 'violence' || id === 'surveil') e.stage = id;
-    if (id === 'leave') {
-      say('info', 'You let them go.');
-      end('left');
-    }
+  // Surveil and violence are tabs: picking an option from either one is
+  // what decides which you're doing.
+  if (e.stage === 'menu' || e.stage === 'surveil' || e.stage === 'violence') {
+    if (SURVEIL_IDS.includes(id)) e.stage = 'surveil';
+    else if (VIOLENCE_IDS.includes(id)) e.stage = 'violence';
+  }
+  if (id === 'leave' && (e.stage === 'menu' || e.stage === 'surveil' || e.stage === 'violence')) {
+    say('info', 'You let them go.');
+    end('left');
     return impacts;
   }
-  if (id === 'back' && (e.stage === 'surveil' || e.stage === 'violence')) {
-    e.stage = 'menu';
-    return impacts;
-  }
+  if (e.stage === 'menu') return impacts;
 
   // ---------- Surveil ----------
   if (e.stage === 'surveil') {
@@ -864,6 +889,54 @@ function spotted() {
     end('lost-them');
   }
 }
+
+/** Searching a garment, or taking what you found. */
+function search(id: string, inv?: Inventory) {
+  const clothes = enc.person.clothes;
+  if (id.startsWith('search:')) {
+    const g = clothes[Number(id.slice(7))];
+    if (!g || g.searched) return;
+    g.searched = true;
+    if (!g.loot.length) {
+      say('you', `You go through their ${g.name.toLowerCase()}. Nothing.`);
+      return;
+    }
+    const wallet = g.loot.filter((l) => l.where === 'wallet');
+    const loose = g.loot.filter((l) => l.where !== 'wallet');
+    const parts = loose.map((l) => `${a(lootLabel(l).toLowerCase())} (${l.where})`);
+    if (wallet.length) parts.unshift(`a wallet with ${list(wallet.map((l) => a(lootLabel(l).toLowerCase())))}`);
+    say('you', `You go through their ${g.name.toLowerCase()} and find ${list(parts)}.`);
+    return;
+  }
+  if (!inv) return;
+  const grab = (g: (typeof clothes)[number], l: Loot) => {
+    say('you', take(inv, l));
+    g.loot.splice(g.loot.indexOf(l), 1);
+  };
+  if (id === 'take-all') {
+    const lines: string[] = [];
+    let cash = 0;
+    for (const g of clothes) {
+      if (!g.searched) continue;
+      for (const l of [...g.loot]) {
+        take(inv, l);
+        if (l.kind === 'cash') cash += l.cash ?? 0;
+        else lines.push(a(l.name.toLowerCase()));
+        g.loot.splice(g.loot.indexOf(l), 1);
+      }
+    }
+    if (cash) lines.unshift(`$${Math.round(cash * 100) / 100} in cash`);
+    if (lines.length) say('you', `You take everything: ${list(lines)}.`);
+    return;
+  }
+  const [, gi, li] = id.split(':').map(Number);
+  const g = clothes[gi];
+  const l = g?.loot[li];
+  if (g && l) grab(g, l);
+}
+
+const a = (s: string) => (/^(cash|loose|groceries|house keys|car keys|cigarettes|headphones|some )/.test(s) ? s : /^[aeiou]/.test(s) ? `an ${s}` : `a ${s}`);
+const list = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 
 function end(result: Result) {
   enc.stage = 'over';

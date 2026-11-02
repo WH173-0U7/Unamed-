@@ -200,19 +200,26 @@ canvas {
 #idle-bar button {
   pointer-events: auto;
 }
+#idle-bar {
+  gap: clamp(2px, 2vw, 18px);
+}
 #lurk-btn,
-#rest-btn {
+#rest-btn,
+#go-btn,
+#bag-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 12px 26px;
+  padding: 12px clamp(8px, 3.5vw, 26px);
   color: var(--ink-dim);
   animation: power-in 1.2s ease both;
   transition: color 0.3s;
 }
 #lurk-btn svg,
-#rest-btn svg {
+#rest-btn svg,
+#go-btn svg,
+#bag-btn svg {
   width: 42px;
   height: 42px;
   fill: none;
@@ -223,13 +230,19 @@ canvas {
   animation: breathe 3.2s ease-in-out 1.5s infinite;
 }
 #lurk-btn span,
-#rest-btn span {
+#rest-btn span,
+#go-btn span,
+#bag-btn span {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.5em;
   margin-right: -0.5em;
   text-transform: uppercase;
 }
+#go-btn:hover,
+#go-btn:focus-visible,
+#bag-btn:hover,
+#bag-btn:focus-visible,
 #lurk-btn:hover,
 #lurk-btn:focus-visible,
 #rest-btn:hover,
@@ -433,7 +446,9 @@ canvas {
   width: min(calc(100% - 32px), 560px);
   transform: translateX(-50%);
   display: grid;
-  grid-template-rows: auto auto minmax(70px, 1fr) auto;
+  /* The options take the room they need, the log what's left; if it's
+     tight, the options scroll. */
+  grid-template-rows: auto auto minmax(56px, 1fr) minmax(0, max-content);
   gap: 10px;
   animation: power-in 0.5s ease both;
 }
@@ -622,6 +637,89 @@ canvas {
   text-transform: none;
   color: var(--ink);
 }
+/* Tabs over the options: Surveil / Violence, or Attack / Stomp / Search / Move. */
+.enc-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 8px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--glass);
+}
+.enc-tabs[hidden] {
+  display: none;
+}
+.enc-tabs button {
+  flex: 1;
+  position: relative;
+  min-height: 36px;
+  padding: 6px 4px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.enc-tabs button.on {
+  background: rgba(236, 235, 230, 0.12);
+  color: var(--ink);
+}
+.enc-tabs i {
+  display: inline-block;
+  min-width: 16px;
+  margin-left: 6px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: #a83a3a;
+  color: #fff;
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0;
+}
+.enc-opts.swap {
+  animation: opts-in 0.22s ease both;
+}
+@keyframes opts-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.enc-opts[hidden] {
+  display: none;
+}
+.enc-extra {
+  margin-top: 8px;
+}
+.enc-extra button {
+  color: var(--ink-dim);
+}
+/* The options under a tab can be many (searching): they scroll. */
+.enc-actions {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.enc-title,
+.enc-tabs,
+.enc-extra {
+  flex: none;
+}
+.enc-opts:not(.enc-extra) {
+  flex: 0 1 auto;
+  min-height: 46px;
+  max-height: 42vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.enc-facts div:nth-child(5) {
+  grid-column: 1 / -1;
+}
 .enc-opts {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -665,10 +763,6 @@ canvas {
   font-size: 11px;
   color: var(--ink-faint);
 }
-#enc[data-stage='menu'] .enc-opts button[data-id='leave'] {
-  grid-column: 1 / -1;
-  color: var(--ink-dim);
-}
 .enc-opts button[data-id='lurk'] {
   grid-column: 1 / -1;
 }
@@ -677,7 +771,7 @@ canvas {
   #enc {
     width: min(calc(100% - 128px), 900px); /* clear of the pause button */
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
     top: calc(var(--pad-top) + 34px); /* under the stats */
     right: auto;
   }
@@ -690,6 +784,20 @@ canvas {
     grid-column: 1;
     grid-row: 2;
     align-self: end;
+    max-height: 100%;
+  }
+  .enc-opts:not(.enc-extra) {
+    max-height: none;
+  }
+  .enc-tabs {
+    margin-bottom: 5px;
+  }
+  .enc-tabs button {
+    min-height: 30px;
+    padding: 4px;
+  }
+  .enc-extra {
+    margin-top: 5px;
   }
   .enc-status {
     grid-column: 2;
@@ -1248,5 +1356,226 @@ body.in-game #menu {
   #seen,
   #game.jolt #screen {
     animation: none;
+  }
+}
+
+/* ================= Cash, places, pockets, the pharmacy ================= */
+.you-cash {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #b9d4a6;
+}
+#go-btn svg,
+#bag-btn svg {
+  width: 36px;
+  height: 36px;
+  margin: 3px 0;
+}
+
+/* A sheet that slides up from the bottom, over a dimmed screen. */
+#sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: var(--pad-top) 16px var(--pad-bot);
+  background: rgba(0, 0, 0, 0.55);
+  animation: power-in 0.25s ease both;
+}
+#sheet[hidden] {
+  display: none;
+}
+.sheet-card {
+  width: min(100%, 460px);
+  max-height: 80%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(14, 14, 16, 0.94);
+  animation: sheet-up 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sheet-head h2,
+.shop-head h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 1;
+}
+.sheet-x {
+  width: 40px;
+  height: 40px;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--ink-dim);
+}
+.sheet-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.sheet-card .place {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--glass);
+  text-align: left;
+  color: var(--ink);
+}
+.sheet-card .place b {
+  font-size: 17px;
+  font-weight: 600;
+}
+.sheet-card .place small,
+.pocket-list small,
+.shop-list small {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.sheet-card .place.here {
+  border-color: var(--ink-dim);
+}
+.pocket-cash,
+.shop-cash {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.pocket-cash b,
+.shop-cash b {
+  font-size: 22px;
+  letter-spacing: 0;
+  color: #b9d4a6;
+}
+.sheet-body h3 {
+  margin: 14px 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.pocket-list,
+.shop-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.pocket-list li,
+.shop-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--glass);
+}
+.pocket-list li div,
+.shop-list li div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pocket-list b,
+.shop-list b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.pocket-list button,
+.shop-list button {
+  flex: none;
+  min-width: 64px;
+  min-height: 38px;
+  padding: 6px 12px;
+  border: 1px solid var(--ink-dim);
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.pocket-list button:disabled,
+.shop-list button:disabled {
+  opacity: 0.35;
+}
+.pocket-empty,
+.shop-broke {
+  margin: 14px 0 4px;
+  text-align: center;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--ink-faint);
+}
+
+/* The pharmacy. */
+#shop {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--pad-top) + 108px);
+  bottom: calc(var(--pad-bot) + 3vh + 96px);
+  width: min(calc(100% - 32px), 520px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(14, 14, 16, 0.82);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: power-in 0.5s ease both;
+}
+#shop[hidden] {
+  display: none;
+}
+.shop-head p {
+  margin-top: 6px;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--ink-dim);
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  #shop {
+    top: calc(var(--pad-top) + 34px);
+    bottom: calc(var(--pad-bot) + 3vh + 84px);
+    left: auto;
+    right: 96px;
+    transform: none;
+    width: min(calc(100% - 420px), 520px);
+  }
+  .sheet-card {
+    max-height: 100%;
   }
 }

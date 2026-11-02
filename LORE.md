@@ -15,6 +15,14 @@ player unless the game itself chooses to reveal it.
   male or female. You can find these out by watching them (**surveil**), or
   go straight to **violence**: bum rush, sucker punch or shove, then fight.
 - The game keeps count of who you have seen.
+- Everyone carries a little of their life on them: an ID with a name and
+  age, cards in that name, receipts from the corner shops and diners they go
+  to, and notes (a landlord's last warning, a clinic appointment, an address
+  and "back door, after 2", a photo of a kid). These are the seeds for
+  deeper lore later: names that come back, places the receipts point to,
+  what the notes mean.
+- **The pharmacy** is open all night: a fluorescent hum, and a bored clerk
+  behind the plexiglass. It's the first place you can go besides the street.
 
 ## Scrapped ideas (kept for reference)
 

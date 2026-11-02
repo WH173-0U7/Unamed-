@@ -69,6 +69,29 @@ export interface Person {
   build: Build;
   awareness: Awareness;
   carrying: Item[];
+  /** What they're wearing (and any bags): each can be searched for loot. */
+  clothes: Garment[];
+}
+
+/** Things you can take off someone. */
+export type LootKind = 'cash' | 'phone' | 'car keys' | 'id' | 'credit card' | 'debit card' | 'misc';
+
+export interface Loot {
+  kind: LootKind;
+  name: string;
+  /** More about it: whose card, what the note says. */
+  detail?: string;
+  /** Dollars, for cash. */
+  cash?: number;
+  /** Where on them it was ("back pocket", "wallet"). */
+  where: string;
+}
+
+/** Something they're wearing or carrying that can be gone through. */
+export interface Garment {
+  name: string;
+  loot: Loot[];
+  searched: boolean;
 }
 
 /** The chances of who turns up each time you lurk (out of 100). */
@@ -201,7 +224,128 @@ export function makePerson(): Person {
     build: pick(BUILD_CHANCES[kind]),
     awareness: pick(AWARENESS_CHANCES[kind]),
     carrying,
+    clothes: dress(kind, carrying),
   };
+}
+
+// ---------- Clothes and what's in them ----------
+
+/** What each kind of person wears: a top, a bottom and shoes (one of each list). */
+const OUTFITS: Record<Kind, [string[], string[], string[]]> = {
+  civilian: [
+    ['Jacket', 'Coat', 'Hoodie', 'Blazer', 'Windbreaker'],
+    ['Jeans', 'Chinos', 'Slacks', 'Cargo pants'],
+    ['Sneakers', 'Boots', 'Loafers'],
+  ],
+  drunk: [
+    ['Coat', 'Flannel shirt', 'Leather jacket', 'Work jacket'],
+    ['Jeans', 'Work pants'],
+    ['Work boots', 'Sneakers'],
+  ],
+  homeless: [
+    ['Layered coats', 'Army jacket', 'Torn parka'],
+    ['Sweatpants', 'Dirty jeans'],
+    ['Worn-out shoes', 'Mismatched boots'],
+  ],
+  junkie: [
+    ['Hoodie', 'Puffer jacket', 'Windbreaker'],
+    ['Track pants', 'Jeans'],
+    ['Sneakers', 'Slides'],
+  ],
+};
+
+/** Places to keep things in each kind of garment. */
+function spotsOf(name: string): string[] {
+  if (/grocery/i.test(name)) return ['in the bag'];
+  if (/hoodie/i.test(name)) return ['front pocket'];
+  if (/shirt/i.test(name)) return ['chest pocket'];
+  if (/blazer|jacket|coat|parka|windbreaker/i.test(name)) return ['left pocket', 'right pocket', 'inside pocket'];
+  if (/shoe|boot|sneaker|loafer|slide/i.test(name)) return ['left shoe'];
+  if (/bag|backpack/i.test(name)) return ['main pocket', 'side pocket'];
+  return ['front pocket', 'back pocket'];
+}
+
+const FIRST = ['Maria', 'James', 'Wei', 'Aisha', 'Diego', 'Tamika', 'Ryan', 'Priya', 'Omar', 'Hannah', 'Luis', 'Keisha', 'Daniel', 'Mei', 'Tyrone', 'Fatima', 'Kai', 'Grace', 'Marcus', 'Leilani', 'Nadia', 'Joseph', 'Ana', 'Dakota'];
+const LAST = ['Lopez', 'Smith', 'Chen', 'Johnson', 'Haddad', 'Nguyen', 'Williams', 'Garcia', 'Patel', 'Brown', 'Kim', 'Davis', 'Begay', 'Rivera', 'Okafor', 'Kealoha', 'Miller', 'Mansour', 'Jackson', 'Silva', 'Murphy', 'Tran'];
+const STORES = ['Corner Mart', 'Gas & Go', "Lucky's Liquor", 'Dollar Barn', 'Pho 88', 'QuickWash Laundromat', 'Night Owl Diner', 'Rite Way Pharmacy', 'Metro Transit'];
+const NOTES = [
+  'A note: "Call Dee back. Don\'t tell Mom."',
+  'A folded note with a phone number and one word: "tonight".',
+  'A shopping list: milk, bread, eggs, insulin.',
+  'A pawn slip for a gold ring.',
+  'A bus transfer, already expired.',
+  'A photo of a kid, worn soft at the corners.',
+  'A note: "Rent is late again. Last warning." It\'s signed by a landlord.',
+  'An appointment card for a clinic, next Tuesday at 9:15.',
+  'A note with an address on it, and "back door, after 2".',
+  'A lottery ticket. Not a winner.',
+];
+const PHONES = ['Cracked screen', 'Locked with a passcode', 'An old flip phone', 'Battery nearly dead', 'In a glitter case', 'A wallpaper of a dog'];
+const CARS = ['Toyota', 'Honda', 'Ford', 'Chevy', 'Nissan', 'Hyundai', 'Dodge'];
+
+const r = Math.random;
+const money = (a: number, b: number) => Math.round((a + r() * (b - a)) * 100) / 100;
+const any = <T>(xs: T[]) => xs[Math.floor(r() * xs.length)];
+
+function receipt(): Omit<Loot, 'where'> {
+  return { kind: 'misc', name: 'Receipt', detail: `${any(STORES)}, $${money(2, 60).toFixed(2)}` };
+}
+function note(): Omit<Loot, 'where'> {
+  return { kind: 'misc', name: 'Note', detail: any(NOTES) };
+}
+
+/** Their clothes, with what they carry put in the pockets. */
+function dress(kind: Kind, carrying: Item[]): Garment[] {
+  const [tops, bottoms, shoes] = OUTFITS[kind];
+  const clothes: Garment[] = [tops, bottoms, shoes].map((list) => ({ name: any(list), loot: [], searched: false }));
+  const has = (n: string) => carrying.some((i) => i.name === n);
+  if (has('Backpack')) clothes.push({ name: 'Backpack', loot: [], searched: false });
+  if (has('Grocery bag')) clothes.push({ name: 'Grocery bag', loot: [], searched: false });
+  // Shoes only hide things on purpose; everything else goes in pockets and bags.
+  const pockets = clothes.filter((g) => !/shoe|boot|sneaker|loafer|slide/i.test(g.name));
+  const put = (l: Omit<Loot, 'where'>, g = any(pockets), where?: string) => g.loot.push({ ...l, where: where ?? any(spotsOf(g.name)) });
+
+  const name = `${any(FIRST)} ${any(LAST)}`;
+  const age = 19 + Math.floor(r() * 50);
+  if (has('Wallet')) {
+    // The wallet: back pocket of the trousers, or inside the jacket.
+    const g = r() < 0.6 ? clothes[1] : clothes[0];
+    const w = (l: Omit<Loot, 'where'>) => put(l, g, 'wallet');
+    if (r() < 0.92) w({ kind: 'id', name: "Driver's license", detail: `${name}, ${age}` });
+    if (r() < 0.85) w({ kind: 'debit card', name: 'Debit card', detail: name });
+    if (r() < (kind === 'civilian' ? 0.6 : 0.3)) w({ kind: 'credit card', name: 'Credit card', detail: name });
+    if (r() < 0.8) {
+      const c = kind === 'civilian' ? money(5, 140) : money(2, 45);
+      w({ kind: 'cash', name: 'Cash', cash: Math.round(c) });
+    }
+    for (let i = 0; i < Math.floor(r() * 3); i++) w(receipt());
+  } else if (kind === 'homeless' && r() < 0.5) {
+    put({ kind: 'id', name: 'State ID, expired', detail: `${name}, ${age}` });
+  }
+  if (has('Cash')) put({ kind: 'cash', name: 'Cash', cash: Math.round(money(5, 80)) });
+  if (has('Loose change')) put({ kind: 'cash', name: 'Loose change', cash: money(0.25, 4.5) });
+  if (kind === 'homeless' && r() < 0.3) put({ kind: 'cash', name: 'Cash, folded small', cash: Math.round(money(3, 30)) }, clothes[2], 'left shoe');
+  if (has('Phone')) put({ kind: 'phone', name: 'Cell phone', detail: any(PHONES) });
+  if (has('Keys')) {
+    if (kind === 'civilian' ? r() < 0.75 : r() < 0.35) put({ kind: 'car keys', name: 'Car keys', detail: `${any(CARS)} key fob` });
+    else put({ kind: 'misc', name: 'House keys', detail: 'A ring of keys' });
+  }
+  if (has('Cigarettes')) put({ kind: 'misc', name: 'Cigarettes', detail: `Half a pack` });
+  if (has('Lighter')) put({ kind: 'misc', name: 'Lighter' });
+  if (has('Small baggie')) put({ kind: 'misc', name: 'Small baggie', detail: 'Some kind of powder' });
+  if (has('Backpack')) {
+    const bag = clothes.find((g) => g.name === 'Backpack')!;
+    put({ kind: 'misc', name: any(['Phone charger', 'Water bottle', 'Notebook', 'Headphones', 'Lunch in a plastic tub']) }, bag);
+    if (r() < 0.4) put(note(), bag);
+  }
+  if (has('Grocery bag')) {
+    const bag = clothes.find((g) => g.name === 'Grocery bag')!;
+    put({ kind: 'misc', name: 'Groceries', detail: any(['Bread and a carton of eggs', 'Canned soup and crackers', 'Frozen dinners', 'A bottle of wine and limes']) }, bag);
+    put(receipt(), bag, 'in the bag');
+  }
+  if (r() < 0.5) put(receipt());
+  if (r() < 0.35) put(note());
+  return clothes;
 }
 
 /** Picks one option, weighted by its chance. */

@@ -26,7 +26,15 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   time: civilian 42%, drunk 24%, homeless 20%, junkie 14%. Each person's race
   is one of the 7 U.S. federal (OMB 2024) categories, equally likely (race is
   descriptive only; it changes nothing in play).
-- **Tap the person** to choose:
+- **Tap the person**, and your options are sorted into **tabs** you can flip
+  between freely (switching tabs costs nothing; only picking an option does
+  anything): **Surveil | Violence** before anything happens, then in a fight
+  **Attack** (punch, kick, grapple), **Stomp** (head, stomach, ribs, once
+  they're down), **Search** (once they're unconscious or dead) and **Move**
+  (run, get up, catch your breath, walk away). When things change (they
+  fall, they pass out) the tab that matters jumps to the front. *Leave
+  them* / *Lurk again* / *Rest* sit below the tabs. Their card also shows
+  what they're **wearing**.
   - **Surveil:** *Follow* to get closer (across the street → behind them →
     right on them), then find out their **build** (which shows how hard a
     fight would be: Easy, Fair, Hard or Brutal), what they're **carrying**
@@ -42,6 +50,27 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
     with a log of what happens to them and to you. They may pull a weapon,
     pepper spray you, or run when losing. When it's over the log is cleared;
     the title says how it ended.
+- **Searching people:** once someone is unconscious (or dead), the Search
+  tab lists their clothes (a top, trousers, shoes, and any backpack or
+  grocery bag). Searching a garment takes a moment (they keep bleeding) and
+  shows what's in it and where: **cash**, a **cell phone**, **car keys**,
+  their **ID** (a driver's license with their name and age), **debit and
+  credit cards** in their name, and odds and ends (**receipts** from local
+  shops, **notes**, cigarettes, house keys...). Wallets turn up in a back
+  pocket or inside a jacket; homeless people sometimes hide cash in a shoe.
+  Take things one by one, or **Take everything**. What they carry while
+  you surveil them decides what's in their pockets.
+- **Pockets** (the bag at the bottom): your cash, and everything you've
+  taken, sorted into phones, car keys, IDs and cards, and other. Medicine
+  you've bought can be **used** from here. Your cash also shows under your
+  blood.
+- **Go** (the pin at the bottom) opens *Where to?*: **The street** (where
+  you lurk) or the **Pharmacy**, open all night. It sells, cash only:
+  *Bandages* $8 (bleeding down a level), *Gauze and tape* $15 (down two),
+  *Painkillers* $6 (a concussion clears 3 hours sooner), *Splint* $22 (a
+  broken arm or leg heals twice as fast) and *Iron tablets* $12 (+0.4 L of
+  blood). You can't lurk inside; Go takes you back out. Where you are is
+  saved.
 - **Fights:**
   - **Blood is health.** Blows cost blood, and so does bleeding every turn.
     At 55% of your blood or less, you pass out (the mark on the blood bar).
@@ -150,7 +179,8 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | --- | --- |
 | `src/main.ts` | Starts everything; switches between menu, game and pause |
 | `src/game/game.ts` | The game itself: the TV, lurking, saving its state (including an encounter in progress) |
-| `src/game/person.ts` | Who you can see: types, races, builds (fight difficulty), what they carry, awareness, and the chances of each |
+| `src/game/person.ts` | Who you can see: types, races, builds (fight difficulty), what they carry, awareness, and the chances of each; their clothes and what's in the pockets (loot) |
+| `src/game/inventory.ts` | Your pockets (cash, loot, medicine) and the pharmacy's medicine |
 | `src/game/encounter.ts` | Surveil and violence: following, finding things out, being noticed, ambushes, and combat (blood, stamina, injuries, falls), with the log |
 | `src/game/health.ts` | Your body between fights: blood, bleeding, broken bones and concussion carrying over, and healing with time and rest |
 | `src/game/stats.ts` | Your stats (sneak, strength, agility, stamina), levelling by use, and what each does |

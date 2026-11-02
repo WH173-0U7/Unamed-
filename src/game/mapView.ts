@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { tileAt } from './city';
+import { BLOCK, blockLayout, type Building } from './city';
 import type { Player } from './player';
 import type { Square } from './path';
 
@@ -12,7 +12,14 @@ export interface RouteDisplay {
   squares: Square[];
   /** Waiting for the confirming tap (dashed), or being walked (solid). */
   confirmed: boolean;
+  /** The building being visited, if the destination is a building's door. */
+  building: Building | null;
 }
+
+const grey = (v: number) => {
+  const c = Math.max(0, Math.min(255, Math.round(v)));
+  return `rgb(${c},${c},${c})`;
+};
 
 /**
  * The TV's curved glass (must match `barrel` in tv.ts): where a point on the
@@ -30,7 +37,9 @@ function throughGlass(u: number, v: number): [number, number] {
 
 /**
  * Draws the city map around the player into an image the TV then shows as
- * its picture: streets, buildings, the player, and the planned route.
+ * its picture, seen from above: streets with lane markings, sidewalks,
+ * blocks of individual buildings (roofs, parapets, rooftop units, skylights,
+ * shadows), courtyards, small parks, the player and the planned route.
  */
 export function createMapView() {
   const canvas = document.createElement('canvas');
@@ -83,21 +92,123 @@ export function createMapView() {
       const x1 = Math.ceil((camX + width) / TILE) + 1;
       const y1 = Math.ceil((camY + height) / TILE) + 1;
 
-      for (let ty = y0; ty <= y1; ty++) {
-        for (let tx = x0; tx <= x1; tx++) {
-          const sx = tx * TILE - camX;
-          const sy = ty * TILE - camY;
-          const tile = tileAt(tx, ty);
-          if (tile === 'building') {
-            ctx.fillStyle = '#343434';
-            ctx.fillRect(sx + 1, sy + 1, TILE - 2, TILE - 2);
-            ctx.fillStyle = '#242424';
-            ctx.fillRect(sx + 4, sy + 4, TILE - 8, TILE - 8);
-          } else {
-            // A faint dot in the middle of each walkable square shows the grid.
-            ctx.fillStyle = tile === 'street' ? '#2a2a2a' : '#1c1c1c';
-            ctx.fillRect(sx + TILE / 2 - 1.5, sy + TILE / 2 - 1.5, 3, 3);
+      const T = TILE;
+      const X = (mx: number) => mx * T - camX;
+      const Y = (my: number) => my * T - camY;
+
+      // Streets: dark asphalt with dashed centre lines.
+      ctx.fillStyle = '#0c0c0c';
+      ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = '#363636';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([6, 8]);
+      ctx.beginPath();
+      for (let gx = Math.floor(x0 / BLOCK) * BLOCK; gx <= x1; gx += BLOCK) {
+        ctx.moveTo(X(gx + 0.5), 0);
+        ctx.lineTo(X(gx + 0.5), height);
+      }
+      for (let gy = Math.floor(y0 / BLOCK) * BLOCK; gy <= y1; gy += BLOCK) {
+        ctx.moveTo(0, Y(gy + 0.5));
+        ctx.lineTo(width, Y(gy + 0.5));
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const bx0 = Math.floor(x0 / BLOCK);
+      const by0 = Math.floor(y0 / BLOCK);
+      const bx1 = Math.floor(x1 / BLOCK);
+      const by1 = Math.floor(y1 / BLOCK);
+      for (let by = by0; by <= by1; by++) {
+        for (let bx = bx0; bx <= bx1; bx++) {
+          const ox = bx * BLOCK + 1;
+          const oy = by * BLOCK + 1;
+          const n = BLOCK - 1;
+          const layout = blockLayout(bx, by);
+          // Sidewalk: a pale curb all round the block.
+          ctx.fillStyle = '#2b2b2b';
+          ctx.fillRect(X(ox) - 3, Y(oy) - 3, n * T + 6, n * T + 6);
+          // Ground inside the block (shows in alleys, courtyards and parks).
+          ctx.fillStyle = layout.kind === 'lot' ? '#151515' : '#101010';
+          ctx.fillRect(X(ox), Y(oy), n * T, n * T);
+
+          if (layout.kind === 'lot') {
+            // A small park: a path across it and trees.
+            ctx.strokeStyle = '#242424';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(X(ox), Y(oy + n / 2));
+            ctx.quadraticCurveTo(X(ox + n / 2), Y(oy + n * 0.2), X(ox + n), Y(oy + n / 2));
+            ctx.stroke();
+            for (const t of layout.trees) {
+              ctx.fillStyle = '#060606';
+              ctx.beginPath();
+              ctx.arc(X(t.x) + 2, Y(t.y) + 2, t.r * T, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.fillStyle = '#3c3c3c';
+              ctx.beginPath();
+              ctx.arc(X(t.x), Y(t.y), t.r * T, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.fillStyle = '#4c4c4c';
+              ctx.beginPath();
+              ctx.arc(X(t.x) - t.r * T * 0.3, Y(t.y) - t.r * T * 0.3, t.r * T * 0.45, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            continue;
           }
+
+          // Shadows first, so they fall across the ground and lower roofs.
+          ctx.fillStyle = '#050505';
+          for (const b of layout.buildings) {
+            if (b.courtyard) continue;
+            const d = 2 + b.height * 5;
+            ctx.fillRect(X(b.x0) + d, Y(b.y0) + d, (b.x1 - b.x0) * T - 1, (b.y1 - b.y0) * T - 1);
+          }
+          for (const b of layout.buildings) drawBuilding(b);
+        }
+      }
+
+      function drawBuilding(b: Building) {
+        const x = X(b.x0) + 0.75;
+        const y = Y(b.y0) + 0.75;
+        const w = (b.x1 - b.x0) * T - 1.5;
+        const h = (b.y1 - b.y0) * T - 1.5;
+        if (b.courtyard) {
+          ctx.fillStyle = '#121212';
+          ctx.fillRect(x, y, w, h);
+          return;
+        }
+        const roof = 34 + b.shade * 34 + b.height * 10;
+        ctx.fillStyle = grey(roof);
+        ctx.fillRect(x, y, w, h);
+        // Parapet: a raised lip around the roof edge.
+        ctx.strokeStyle = grey(roof + 18);
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 2.5, y + 2.5, w - 5, h - 5);
+        // Skylights: rows of glass strips.
+        if (b.skylights) {
+          ctx.fillStyle = grey(roof - 16);
+          const rows = b.skylights;
+          for (let i = 0; i < rows; i++) {
+            const sy = y + 6 + ((h - 12) * (i + 0.5)) / rows - 1.5;
+            ctx.fillRect(x + 7, sy, w - 14, 3);
+          }
+        }
+        // Rooftop units, each with a little shadow.
+        for (const t of b.roofThings) {
+          ctx.fillStyle = grey(roof - 22);
+          ctx.fillRect(X(t.x) + 1.5, Y(t.y) + 1.5, t.w * T, t.h * T);
+          ctx.fillStyle = grey(roof + 26);
+          ctx.fillRect(X(t.x), Y(t.y), t.w * T, t.h * T);
+        }
+        // The front door: a bright notch on the street-facing side.
+        if (b.door) {
+          ctx.fillStyle = '#8a8a8a';
+          const cx = X(b.door.x + 0.5);
+          const cy = Y(b.door.y + 0.5);
+          if (b.doorSide === 'top') ctx.fillRect(cx - 3, y - 1, 6, 3);
+          else if (b.doorSide === 'bottom') ctx.fillRect(cx - 3, y + h - 2, 6, 3);
+          else if (b.doorSide === 'left') ctx.fillRect(x - 1, cy - 3, 3, 6);
+          else ctx.fillRect(x + w - 2, cy - 3, 3, 6);
         }
       }
 
@@ -120,6 +231,16 @@ export function createMapView() {
         for (const [px, py] of pts.slice(1)) ctx.lineTo(px, py);
         ctx.stroke();
         ctx.setLineDash([]);
+
+        // The building being visited: outlined.
+        if (route.building) {
+          const b = route.building;
+          ctx.strokeStyle = route.confirmed ? '#bdbdbd' : '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.setLineDash(route.confirmed ? [] : [4, 4]);
+          ctx.strokeRect(X(b.x0) + 1, Y(b.y0) + 1, (b.x1 - b.x0) * T - 2, (b.y1 - b.y0) * T - 2);
+          ctx.setLineDash([]);
+        }
 
         // Destination marker: a ring that pulses while waiting for confirmation.
         const [dx, dy] = pts[pts.length - 1];

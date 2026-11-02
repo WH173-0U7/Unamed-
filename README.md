@@ -24,7 +24,7 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   route there is drawn (dashed) with a marker. Tap the marker again to confirm
   and the character walks there by itself, square by square. Tap anywhere else
   to plan a different route instead (this also stops a walk in progress).
-  Tapping a building routes to the nearest street square.
+  Tapping a building outlines it and routes to its front door.
 - **Fullscreen:** the game asks for fullscreen on every tap, click or key press
   whenever it isn't fullscreen. On iPhone, use Share → Add to Home Screen.
 - **Pause:** top-right button, or Esc on a computer.
@@ -56,7 +56,7 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | `src/main.ts` | Starts everything; switches between menu, game and pause |
 | `src/game/game.ts` | The game itself: the TV, the map, controls, saving its state |
 | `src/game/tv.ts` | The CRT television, its power-on sequence, and showing the picture |
-| `src/game/city.ts` | The procedural city grid: streets, blocks, alleys, lots |
+| `src/game/city.ts` | The procedural city: streets, blocks, alleys, parks, and the individual buildings in each block |
 | `src/game/player.ts` | The character walking a route square by square |
 | `src/game/path.ts` | Route finding: shortest walk through the streets |
 | `src/game/mapView.ts` | Drawing the map and routes the TV shows; turning taps into squares |

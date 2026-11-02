@@ -3,7 +3,7 @@ import { writeSave, type SaveData } from '../core/save';
 import { createTv } from './tv';
 import { createMapView, type RouteDisplay } from './mapView';
 import { Player, type PlayerSave } from './player';
-import { isWalkable } from './city';
+import { buildingAt, isWalkable, type Building } from './city';
 import { findPath, nearestWalkable, type Square } from './path';
 
 /** Progress stored in the save file under `state.tv`. */
@@ -28,6 +28,10 @@ export class Game {
   private readonly cleanups: (() => void)[] = [];
   /** A route shown but not yet confirmed. */
   private planned: Square[] | null = null;
+  /** The building that route leads to (if a building was tapped). */
+  private plannedBuilding: Building | null = null;
+  /** The building being walked to. */
+  private visiting: Building | null = null;
 
   constructor(
     readonly save: SaveData,
@@ -82,8 +86,9 @@ export class Game {
   }
 
   /**
-   * First tap on a spot: plan and show the route there.
-   * Tap the destination again (within a square of it): confirm, and walk.
+   * First tap: plan and show the route there. Tapping a building plans a
+   * route to its front door and outlines it.
+   * Tap the same building or destination again: confirm, and walk there.
    * Tap anywhere else: plan a new route instead (stopping if already walking).
    */
   private tap(x: number, y: number) {
@@ -91,39 +96,50 @@ export class Game {
     const hit = this.map.squareAt(x, y);
     if (!hit) return;
 
-    // A tap that leads to the planned destination (the same spot again, or
-    // right next to the marker) confirms it.
-    const target = nearestWalkable(hit.x, hit.y, hit.fx, hit.fy);
+    // Tapping a building means "go to that building": its front door.
+    const building = buildingAt(hit.x + hit.fx, hit.y + hit.fy);
+    const visit = building && !building.courtyard && building.door ? building : null;
+    const target = visit ? visit.door! : nearestWalkable(hit.x, hit.y, hit.fx, hit.fy);
+
+    // A tap on the planned building, its door, or right by the marker confirms.
     const dest = this.planned?.[this.planned.length - 1];
     if (
       dest &&
-      ((target && target.x === dest.x && target.y === dest.y) ||
+      ((visit && visit.id === this.plannedBuilding?.id) ||
+        (target && target.x === dest.x && target.y === dest.y) ||
         Math.max(Math.abs(hit.x - dest.x), Math.abs(hit.y - dest.y)) <= 1)
     ) {
       this.player.walk(this.planned!);
+      this.visiting = this.plannedBuilding;
       this.planned = null;
+      this.plannedBuilding = null;
       buzz(12);
       return;
     }
 
     // Otherwise plan a new route, from the square the player is on (or stepping onto).
     const from = this.player.nextSquare;
-    if (!target || (target.x === from.x && target.y === from.y)) {
+    if (!target) return;
+    if (target.x === from.x && target.y === from.y) {
+      // Already standing there: just show it (a building's door you're at).
       this.planned = null;
+      this.plannedBuilding = null;
       return;
     }
     const route = findPath(from, target);
     if (!route || !route.length) return;
     if (this.player.walking) this.player.stop();
+    this.visiting = null;
     this.planned = route;
+    this.plannedBuilding = visit;
     buzz(6);
   }
 
   /** What the map should show: a planned route, or what's left of the walk. */
   private get routeDisplay(): RouteDisplay | null {
-    if (this.planned) return { squares: this.planned, confirmed: false };
+    if (this.planned) return { squares: this.planned, confirmed: false, building: this.plannedBuilding };
     if (this.player.walking) {
-      return { squares: [{ x: this.player.x, y: this.player.y }, ...this.player.route], confirmed: true };
+      return { squares: [{ x: this.player.x, y: this.player.y }, ...this.player.route], confirmed: true, building: this.visiting };
     }
     return null;
   }
@@ -180,6 +196,8 @@ export class Game {
     // Pausing ends any walk at the next square; the save holds where it stops.
     this.player.stop();
     this.planned = null;
+    this.plannedBuilding = null;
+    this.visiting = null;
   }
 
   resume() {
@@ -225,7 +243,7 @@ export class Game {
 
   /** For automated tests. */
   get debug() {
-    return { player: this.player, tv: this.tv, isWalkable, map: this.map, planned: this.planned };
+    return { player: this.player, tv: this.tv, isWalkable, buildingAt, map: this.map, planned: this.planned, plannedBuilding: this.plannedBuilding };
   }
 }
 

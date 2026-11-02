@@ -83,6 +83,8 @@ export interface Body {
   /** Their breathing has gone shallow: close to bleeding out. */
   dyingNoted?: boolean;
   dead?: boolean;
+  /** A broken rib has gone into a lung: every breath is a fight. */
+  lung?: boolean;
 }
 
 export interface Encounter {
@@ -193,6 +195,7 @@ export function conditions(f: Body): string[] {
   if (f.dazed > 0) c.push('Dazed');
   if (f.concussed) c.push('Concussed');
   if (f.bleeding) c.push(`Bleeding: ${BLEEDING[f.bleeding]}`);
+  if (f.lung) c.push('Punctured lung');
   for (const p of f.broken) c.push(`Broken ${p}`);
   if (f.blinded > 0) c.push('Blinded');
   if (f.stamina <= 0) c.push('Exhausted');
@@ -201,7 +204,11 @@ export function conditions(f: Body): string[] {
 
 const legs = (f: Body) => f.broken.filter((p) => p.endsWith('leg')).length;
 const arms = (f: Body) => f.broken.filter((p) => p.endsWith('arm')).length;
-const cost = (f: Body, n: number) => Math.round(n * (f.broken.includes('ribs') ? 1.3 : 1));
+/** Broken ribs make every breath hurt, and a punctured lung is worse. */
+const ribs = (f: Body) => (f.lung ? 2.4 : f.broken.includes('ribs') ? 1.8 : 1);
+const cost = (f: Body, n: number) => Math.round(n * ribs(f));
+/** How much of your stamina you can get back with broken ribs (you can't fill your lungs). */
+export const staminaCap = (f: Body) => f.maxStamina * (f.lung ? 0.3 : f.broken.includes('ribs') ? 0.5 : 1);
 
 /** Chance to run away (or for them, to get away). Legs matter most. */
 function fleeChance(f: Body, other: Body, bonus = 0) {
@@ -694,7 +701,13 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
     if (D.broken.includes(part) || Math.random() >= chance) return false;
     severe = true;
     D.broken.push(part);
-    out.push(`A crack: ${N.oP} ${part} ${part === 'ribs' ? 'are' : 'is'} broken.`);
+    out.push(
+      part === 'nose'
+        ? `${N.oP[0].toUpperCase() + N.oP.slice(1)} nose flattens with a crunch: it's broken, and blood pours from it.`
+        : part === 'ribs'
+          ? `A crack like a snapped branch: ${N.oP} ribs are broken.`
+          : `A crack: ${N.oP} ${part} is broken.${Math.random() < 0.3 ? ' Bone shows through the skin.' : ''}`,
+    );
     return true;
   };
   const bleed = (n: number) => {
@@ -739,11 +752,22 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
     }
     knockOut(D.down ? 0.02 + lost * 0.2 : 0);
   } else if (loc === 'body') {
-    if (how === 'stomp' && D.broken.includes('ribs')) {
+    if (D.broken.includes('ribs') && (how === 'stomp' || dmg >= 10)) {
       D.stamina = Math.max(0, D.stamina - 15);
       out.push(`Something gives in ${N.oP} chest.`);
+      // A broken rib driven into the lung.
+      if (!D.lung && Math.random() < (how === 'stomp' ? 0.45 : 0.2)) {
+        D.lung = true;
+        severe = true;
+        D.stamina = Math.min(D.stamina, staminaCap(D));
+        out.push(`The broken rib punctures ${N.oP} lung. ${d === 'you' ? 'You' : 'They'} gasp, and blood bubbles at ${N.oP} lips.`);
+        bleed(1);
+      }
       knockOut(0.06 + lost * 0.35);
-    } else breaks('ribs', (dmg - (how === 'stomp' ? 6 : 9)) * (how === 'stomp' ? 0.06 : 0.04));
+    } else if (breaks('ribs', (dmg - (how === 'stomp' ? 6 : 9)) * (how === 'stomp' ? 0.06 : 0.04))) {
+      D.stamina = Math.min(D.stamina, staminaCap(D));
+      out.push(`${d === 'you' ? 'Your' : 'Their'} breath goes short and ragged.`);
+    }
   } else if (loc === 'arm') {
     const side = Math.random() < 0.5 ? 'left' : 'right';
     breaks(`${side} arm` as Part, (dmg - 9) * 0.05);
@@ -754,8 +778,57 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   }
   if (how === 'cut') bleed(Math.random() < 0.4 ? 2 : 1);
   if (D.dazed && how !== 'fall') fall(0.15);
+  // What it looks like, sounds like.
+  const g = gore(d, loc, how, ml, out.join(' '));
+  if (g) out.splice(1, 0, g);
   impacts.push({ target: d, ml, severe, loc });
   return out.join(' ');
+}
+
+/**
+ * The gruesome detail of a blow: what it does to a face, a chest, a limb.
+ * Worse the more blood it costs. `already` is what's been said about it (so a
+ * break or a knockout isn't described twice).
+ */
+function gore(d: Side, loc: Loc, how: string, ml: number, already: string): string {
+  const you = d === 'you';
+  const P = you ? 'your' : 'their';
+  const S = you ? 'You' : 'They';
+  const s = you ? 'you' : 'they';
+  const tier = ml >= 420 ? 2 : ml >= 220 ? 1 : 0;
+  if (how === 'fall') return tier ? `${S} hit the ground hard enough to skin ${P} palms raw.` : '';
+  const broke = already.includes('broken');
+  const pools: Partial<Record<Loc, string[][]>> = {
+    head: [
+      [`${P[0].toUpperCase() + P.slice(1)} lip splits against ${P} teeth.`, `${S} taste copper.`, `A cut opens over ${P} eye.`, `${P[0].toUpperCase() + P.slice(1)} cheek swells, purple already.`],
+      [`${P[0].toUpperCase() + P.slice(1)} head snaps back, and blood sprays from ${P} mouth.`, `${P[0].toUpperCase() + P.slice(1)} eyebrow splits open and blood runs into ${P} eye.`, `A tooth comes loose; ${s} spit it out in a string of blood.`],
+      [`Something in ${P} face caves in with a wet crunch.`, `${P[0].toUpperCase() + P.slice(1)} jaw hangs wrong, and blood pours over ${P} chin.`, `${P[0].toUpperCase() + P.slice(1)} skull bounces off the pavement with a hollow knock.`, `${S} choke on ${P} own blood, teeth scattered on the ground.`],
+    ],
+    body: [
+      [`${S} fold around it with a grunt.`, `The air goes out of ${P} chest in a rush.`],
+      [`It lands with a deep, heavy thud.`, `${S} cough, and there's blood in it.`],
+      [`Bone grinds against bone.`, `${S} cough up a mouthful of dark blood.`],
+    ],
+    stomach: [
+      [`${S} double over, retching.`],
+      [`${S} retch up bile and spit.`, `${S} vomit onto the pavement.`],
+      [`${S} retch, and it comes up red.`, `Something tears inside ${P} gut. ${S} make a sound like a kicked dog.`],
+    ],
+    arm: [[`${P[0].toUpperCase() + P.slice(1)} forearm goes numb.`], [`The skin of ${P} arm splits over the bone.`], [`The arm bends where an arm doesn't bend.`]],
+    leg: [[`${P[0].toUpperCase() + P.slice(1)} knee buckles.`], [`Something pops in ${P} knee.`], [`The knee twists sideways with a sickening pop.`]],
+  };
+  if (how === 'cut') {
+    return oneOf(
+      [
+        [`The blade opens a shallow gash. Blood beads along it.`, `A thin red line opens, then starts to run.`],
+        [`The cut is deep. Blood sheets down ${P} skin.`, `It opens ${P} skin like a zip. ${S} can see the white of fat.`],
+        [`The blade goes in deep and comes out red to the handle.`, `Blood pumps from the wound in thick spurts.`],
+      ][tier],
+    );
+  }
+  const pool = pools[loc]?.[broke ? Math.max(tier, 1) : tier];
+  if (!pool || (tier === 0 && Math.random() < 0.4)) return '';
+  return oneOf(pool);
 }
 
 /** Their move in a fight. */
@@ -827,7 +900,13 @@ function endOfRound() {
   for (const side of ['you', 'them'] as Side[]) {
     const f = enc[side];
     if (f.bleeding) f.blood = Math.max(0, f.blood - Math.round((BLEED_ML[f.bleeding] * f.maxBlood) / 5000));
-    f.stamina = Math.round(Math.min(f.maxStamina, f.stamina + regen[side] * (f.broken.includes('ribs') ? 0.5 : 1)));
+    const cap = staminaCap(f);
+    f.stamina = Math.round(Math.min(Math.max(cap, 0), f.stamina + regen[side] * (f.lung ? 0.1 : f.broken.includes('ribs') ? 0.2 : 1)));
+    // Broken ribs: shallow, stabbing breaths, and sometimes a coughing fit.
+    if (!f.out && f.broken.includes('ribs') && Math.random() < (f.lung ? 0.45 : 0.2)) {
+      f.stamina = Math.max(0, f.stamina - (f.lung ? 14 : 7));
+      say(side, f.lung ? oneOf(side === 'you' ? ['You cough, and it comes up pink and frothy. You can\'t get any air.', 'Every breath bubbles in your chest.'] : ['They cough up pink froth, wheezing.', 'Their breathing bubbles wetly in their chest.']) : side === 'you' ? oneOf(['Every breath is a knife in your side.', 'You try to breathe deep and your ribs scream.']) : oneOf(['They clutch their side, breathing in short, painful gasps.', 'They wince with every breath.']));
+    }
     if (f.dazed > 0) f.dazed--;
     if (side === 'you') f.winded = false;
   }

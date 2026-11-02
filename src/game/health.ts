@@ -17,6 +17,8 @@ export interface Health {
   mending: Partial<Record<Part, number>>;
   /** Hours left until a concussion clears (0: not concussed). */
   concussion: number;
+  /** A broken rib went into a lung; it heals when the ribs do. */
+  lung?: boolean;
 }
 
 /** Hours for each kind of break to heal. */
@@ -52,6 +54,7 @@ export function healthConditions(h: Health): string[] {
   if (h.concussion > 0) c.push('Concussed');
   if (h.bleeding) c.push(`Bleeding: ${BLEEDING[h.bleeding]}`);
   for (const p of h.broken) c.push(`Broken ${p}`);
+  if (h.lung) c.push('Punctured lung');
   return c;
 }
 
@@ -61,8 +64,10 @@ export function bodyFrom(h: Health, stamina: number): Body {
     blood: h.blood,
     maxBlood: h.maxBlood,
     toughness: 100,
-    stamina,
+    // Broken ribs: you can't fill your lungs, so you start the fight short of breath.
+    stamina: Math.round(stamina * (h.lung ? 0.3 : h.broken.includes('ribs') ? 0.5 : 1)),
     maxStamina: stamina,
+    lung: h.lung,
     bleeding: h.bleeding,
     dazed: 0,
     concussed: h.concussion > 0,
@@ -84,6 +89,7 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
     }
   }
   if (b.concussed && h.concussion <= 0) h.concussion = CONCUSSION_HOURS;
+  if (b.lung) h.lung = true;
   if (result === 'lost') {
     // Out cold for a few hours; the bleeding slows while you lie there.
     const lines = ['You come to on the pavement, hours later.'];
@@ -127,6 +133,10 @@ export function passHours(h: Health, hours: number, resting = false): string[] {
         h.broken = h.broken.filter((x) => x !== p);
         delete h.mending[p];
         lines.push(`Your ${p} ${p === 'ribs' ? 'have' : 'has'} healed.`);
+        if (p === 'ribs' && h.lung) {
+          h.lung = false;
+          lines.push('You can breathe deep again.');
+        }
       }
     }
     if (h.concussion > 0) {

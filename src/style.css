@@ -1579,3 +1579,45 @@ body.in-game #menu {
     max-height: 100%;
   }
 }
+
+/* What's left of your humanity. */
+.you-humanity {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.you-humanity b {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: #c9c3b8;
+}
+.you-humanity em {
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: none;
+}
+.you-humanity[data-level='cold'] b {
+  color: #9fb4c8;
+}
+.you-humanity[data-level='cruel'] b {
+  color: #d08a6a;
+}
+.you-humanity[data-level='heartless'] b {
+  color: #c0392b;
+  text-shadow: 0 0 8px rgba(192, 57, 43, 0.5);
+}
+.you-humanity[data-level='husk'] b {
+  color: #6d6a66;
+  text-shadow:
+    -1px 0 rgba(255, 40, 60, 0.5),
+    1px 0 rgba(40, 220, 255, 0.5);
+}

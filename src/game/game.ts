@@ -10,6 +10,26 @@ import { PASS_OUT, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
 import { MEDS, dollars, medById, newInventory, type Inventory, type InvItem, type MedId } from './inventory';
 
+/**
+ * What's left of your humanity. Killing someone takes a lot of it; stamping
+ * on someone who's already unconscious takes a little. It only goes one way:
+ * cold, then cruel, then heartless, and in the end a husk, with no humanity
+ * left inside. Saved under `state.humanity`.
+ */
+interface Humanity {
+  lost: number;
+  kills: number;
+}
+const HUMANITY: { at: number; name: string; line: string }[] = [
+  { at: 10, name: 'Cold', line: 'Something in you has gone cold.' },
+  { at: 30, name: 'Cruel', line: "You've started to enjoy their pain." },
+  { at: 60, name: 'Heartless', line: 'You feel nothing for them. Nothing at all.' },
+  { at: 100, name: 'Husk', line: "There's nothing left inside you. You're a husk." },
+];
+const humanityLevel = (lost: number) => HUMANITY.filter((l) => lost >= l.at).pop() ?? null;
+const KILL_COST = 10;
+const STOMP_HELPLESS_COST = 1;
+
 /** Where you can go from the Go menu. */
 type Place = 'street' | 'pharmacy';
 const PLACES: { id: Place; name: string; desc: string }[] = [
@@ -130,6 +150,19 @@ export class Game {
     return (this.save.state.inventory ??= newInventory()) as Inventory;
   }
 
+  private get humanity(): Humanity {
+    return (this.save.state.humanity ??= { lost: 0, kills: 0 }) as Humanity;
+  }
+
+  /** Loses some humanity; returns the line to show if it got worse. */
+  private loseHumanity(n: number): string | null {
+    const h = this.humanity;
+    const before = humanityLevel(h.lost);
+    h.lost += n;
+    const after = humanityLevel(h.lost);
+    return after && after !== before ? `${after.line} (Humanity: ${after.name})` : null;
+  }
+
   /** Where you are (saved). */
   private get place(): Place {
     return (this.save.state.place as Place) ?? 'street';
@@ -221,12 +254,25 @@ export class Game {
     // Approaching someone: bring your body as it is now.
     if (e.stage === 'seen') e.you = this.yourBody();
     const wasOver = e.stage === 'over';
+    const wasOut = !!e.them.out;
     const impacts = act(e, id, this.stats, this.inventory);
+    const worse: string[] = [];
+    // Stamping on someone who can't defend themselves.
+    if (wasOut && id.startsWith('stomp')) {
+      const l = this.loseHumanity(STOMP_HELPLESS_COST);
+      if (l) worse.push(l);
+    }
     if (!wasOver && e.stage === 'over') {
+      if (e.result === 'killed') {
+        this.humanity.kills++;
+        const l = this.loseHumanity(KILL_COST);
+        if (l) worse.push(l);
+      }
       // It's done: the log is cleared (the title says how it ended), keeping
       // only what happens to you afterwards.
       e.log = afterFight(this.health, e.you, e.result!).map((text) => ({ by: 'info' as const, text }));
     }
+    for (const text of worse) e.log.push({ by: 'info', text });
     if (impacts.length) this.feel(impacts);
     else buzz(6);
     this.refresh();
@@ -441,7 +487,17 @@ export class Game {
     this.youEl.innerHTML =
       `<div class="you-blood"><span>Blood</span><i><b style="width:${pct}%"></b><s style="left:${PASS_OUT * 100}%"></s></i><em>${(h.blood / 1000).toFixed(1)} L</em></div>` +
       `<div class="enc-conds">${healthConditions(h).map((c) => `<span>${c}</span>`).join('')}</div>` +
-      `<div class="you-cash">${dollars(this.inventory.cash)}</div>`;
+      `<div class="you-cash">${dollars(this.inventory.cash)}</div>` +
+      this.humanityLine();
+  }
+
+  /** How far gone you are, once you've started. */
+  private humanityLine() {
+    const h = this.humanity;
+    const lvl = humanityLevel(h.lost);
+    if (!lvl && !h.kills) return '';
+    const kills = h.kills ? ` · ${h.kills} dead` : '';
+    return `<div class="you-humanity" data-level="${(lvl?.name ?? 'human').toLowerCase()}"><span>Humanity</span><b>${lvl?.name ?? 'Shaken'}</b><em>${kills}</em></div>`;
   }
 
   private stepLurk(dt: number) {
@@ -607,7 +663,7 @@ export class Game {
 
   /** For automated tests. */
   get debug() {
-    return { tv: this.tv, phase: this.phase, lurk: this.lurkState, encounter: this.encounter, stats: this.stats, health: this.health, inventory: this.inventory, place: this.place };
+    return { tv: this.tv, phase: this.phase, lurk: this.lurkState, encounter: this.encounter, stats: this.stats, health: this.health, inventory: this.inventory, place: this.place, humanity: this.humanity };
   }
 }
 

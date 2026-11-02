@@ -1,31 +1,22 @@
 import type * as THREE from 'three';
 import { writeSave, type SaveData } from '../core/save';
 import { createTv } from './tv';
-import { createMapView } from './mapView';
-import { Player, type Direction, type PlayerSave } from './player';
+import { createMapView, type RouteDisplay } from './mapView';
+import { Player, type PlayerSave } from './player';
 import { isWalkable } from './city';
+import { findPath, nearestWalkable, type Square } from './path';
 
 /** Progress stored in the save file under `state.tv`. */
 interface TvState {
   on: boolean;
 }
 
-const KEYS: Record<string, Direction> = {
-  ArrowUp: 'up',
-  ArrowDown: 'down',
-  ArrowLeft: 'left',
-  ArrowRight: 'right',
-  KeyW: 'up',
-  KeyS: 'down',
-  KeyA: 'left',
-  KeyD: 'right',
-};
-
 /**
  * The game itself. It starts with a television in the dark and one option:
  * turn it on. Once it has warmed up, the TV shows a map of an endless city
- * grid, and the player moves their character one square at a time with the
- * arrows. Each system keeps its progress in `save.state`, so it is saved at
+ * grid. The player taps a spot once to see the route there, and taps it
+ * again to confirm; the character then walks there by itself, square by
+ * square. Each system keeps its progress in `save.state`, so it is saved at
  * every pause point automatically.
  */
 export class Game {
@@ -34,8 +25,9 @@ export class Game {
   private readonly map = createMapView();
   private readonly player: Player;
   private readonly powerBtn: HTMLButtonElement;
-  private readonly dpad: HTMLElement;
   private readonly cleanups: (() => void)[] = [];
+  /** A route shown but not yet confirmed. */
+  private planned: Square[] | null = null;
 
   constructor(
     readonly save: SaveData,
@@ -52,8 +44,7 @@ export class Game {
 
     this.powerBtn = view.querySelector('#power-btn') as HTMLButtonElement;
     this.powerBtn.onclick = () => this.turnOn();
-    this.dpad = view.querySelector('#dpad') as HTMLElement;
-    this.bindControls();
+    this.bindTaps();
   }
 
   private get tvState(): TvState {
@@ -65,55 +56,76 @@ export class Game {
     return this.running && this.tv.showingPicture;
   }
 
-  private bindControls() {
-    // Keyboard: arrows or WASD. Holding keeps moving.
-    const keyDown = (e: KeyboardEvent) => {
-      const dir = KEYS[e.code];
-      if (!dir || !this.canMove) return;
-      e.preventDefault();
-      if (!e.repeat) this.player.press(dir);
+  private bindTaps() {
+    // A tap = a quick press that barely moves (so a slipped finger isn't a tap).
+    let start: { id: number; x: number; y: number; t: number } | null = null;
+    const down = (e: PointerEvent) => {
+      if ((e.target as HTMLElement).closest('button')) return; // e.g. the pause button
+      start = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
     };
-    const keyUp = (e: KeyboardEvent) => {
-      const dir = KEYS[e.code];
-      if (dir) this.player.release(dir);
+    const up = (e: PointerEvent) => {
+      if (!start || e.pointerId !== start.id) return;
+      const s0 = start;
+      start = null;
+      if (Math.hypot(e.clientX - s0.x, e.clientY - s0.y) > 14 || performance.now() - s0.t > 700) return;
+      this.tap(e.clientX, e.clientY);
     };
-    addEventListener('keydown', keyDown);
-    addEventListener('keyup', keyUp);
+    const cancel = () => (start = null);
+    this.view.addEventListener('pointerdown', down);
+    this.view.addEventListener('pointerup', up);
+    this.view.addEventListener('pointercancel', cancel);
     this.cleanups.push(() => {
-      removeEventListener('keydown', keyDown);
-      removeEventListener('keyup', keyUp);
+      this.view.removeEventListener('pointerdown', down);
+      this.view.removeEventListener('pointerup', up);
+      this.view.removeEventListener('pointercancel', cancel);
     });
+  }
 
-    // On-screen arrows. Holding keeps moving.
-    for (const btn of this.dpad.querySelectorAll<HTMLButtonElement>('[data-dir]')) {
-      const dir = btn.dataset.dir as Direction;
-      const down = (e: PointerEvent) => {
-        if (!this.canMove) return;
-        e.preventDefault();
-        try {
-          btn.setPointerCapture(e.pointerId);
-        } catch {
-          /* not capturable */
-        }
-        btn.classList.add('down');
-        this.player.press(dir);
-      };
-      const up = () => {
-        btn.classList.remove('down');
-        this.player.release(dir);
-      };
-      btn.addEventListener('pointerdown', down);
-      btn.addEventListener('pointerup', up);
-      btn.addEventListener('pointercancel', up);
-      btn.addEventListener('lostpointercapture', up);
-      this.cleanups.push(() => {
-        btn.removeEventListener('pointerdown', down);
-        btn.removeEventListener('pointerup', up);
-        btn.removeEventListener('pointercancel', up);
-        btn.removeEventListener('lostpointercapture', up);
-        btn.classList.remove('down');
-      });
+  /**
+   * First tap on a spot: plan and show the route there.
+   * Tap the destination again (within a square of it): confirm, and walk.
+   * Tap anywhere else: plan a new route instead (stopping if already walking).
+   */
+  private tap(x: number, y: number) {
+    if (!this.canMove) return;
+    const hit = this.map.squareAt(x, y);
+    if (!hit) return;
+
+    // A tap that leads to the planned destination (the same spot again, or
+    // right next to the marker) confirms it.
+    const target = nearestWalkable(hit.x, hit.y, hit.fx, hit.fy);
+    const dest = this.planned?.[this.planned.length - 1];
+    if (
+      dest &&
+      ((target && target.x === dest.x && target.y === dest.y) ||
+        Math.max(Math.abs(hit.x - dest.x), Math.abs(hit.y - dest.y)) <= 1)
+    ) {
+      this.player.walk(this.planned!);
+      this.planned = null;
+      buzz(12);
+      return;
     }
+
+    // Otherwise plan a new route, from the square the player is on (or stepping onto).
+    const from = this.player.nextSquare;
+    if (!target || (target.x === from.x && target.y === from.y)) {
+      this.planned = null;
+      return;
+    }
+    const route = findPath(from, target);
+    if (!route || !route.length) return;
+    if (this.player.walking) this.player.stop();
+    this.planned = route;
+    buzz(6);
+  }
+
+  /** What the map should show: a planned route, or what's left of the walk. */
+  private get routeDisplay(): RouteDisplay | null {
+    if (this.planned) return { squares: this.planned, confirmed: false };
+    if (this.player.walking) {
+      return { squares: [{ x: this.player.x, y: this.player.y }, ...this.player.route], confirmed: true };
+    }
+    return null;
   }
 
   /** Starts a new game from the beginning. */
@@ -165,7 +177,9 @@ export class Game {
 
   pause() {
     this.running = false;
-    this.player.releaseAll();
+    // Pausing ends any walk at the next square; the save holds where it stops.
+    this.player.stop();
+    this.planned = null;
   }
 
   resume() {
@@ -176,7 +190,6 @@ export class Game {
   close() {
     this.pause();
     this.view.classList.remove('active', 'jolt');
-    this.dpad.classList.remove('show');
     this.tv.powerOff();
     for (const c of this.cleanups) c();
     this.map.dispose();
@@ -197,8 +210,7 @@ export class Game {
       this.save.playTime += dt;
       this.player.update(dt);
     }
-    this.dpad.classList.toggle('show', this.tv.showingPicture);
-    if (this.tv.isOn) this.map.draw(this.player);
+    if (this.tv.isOn) this.map.draw(this.player, this.routeDisplay, dt);
     this.tv.update(dt);
   }
 
@@ -213,6 +225,14 @@ export class Game {
 
   /** For automated tests. */
   get debug() {
-    return { player: this.player, tv: this.tv, isWalkable };
+    return { player: this.player, tv: this.tv, isWalkable, map: this.map, planned: this.planned };
+  }
+}
+
+function buzz(ms: number) {
+  try {
+    navigator.vibrate?.(ms);
+  } catch {
+    /* not allowed */
   }
 }

@@ -271,6 +271,43 @@ canvas {
   letter-spacing: 0.08em;
   color: var(--ink-dim);
 }
+/* ================= Stats ================= */
+#stats {
+  position: absolute;
+  top: calc(var(--pad-top) + 2px);
+  left: var(--pad-x-l);
+  display: flex;
+  gap: 14px;
+  pointer-events: none;
+}
+.stat {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  gap: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.stat b {
+  font-size: 15px;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+.stat i {
+  grid-column: 1 / -1;
+  height: 2px;
+  background: rgba(236, 235, 230, 0.12);
+}
+.stat u {
+  display: block;
+  height: 100%;
+  background: var(--ink-dim);
+  transition: width 0.4s ease;
+}
+
 /* ================= Encounter ================= */
 #enc {
   position: absolute;
@@ -462,7 +499,7 @@ canvas {
     width: min(calc(100% - 128px), 900px); /* clear of the pause button */
     grid-template-columns: 1fr 1fr;
     grid-template-rows: auto 1fr;
-    top: calc(var(--pad-top) + 6px);
+    top: calc(var(--pad-top) + 34px); /* under the stats */
     right: auto;
   }
   .enc-card {

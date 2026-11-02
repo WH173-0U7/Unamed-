@@ -41,8 +41,18 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
     them and to you and both health bars. They may pull a weapon, pepper
     spray you, or run when losing.
   - **Leave them**, or just *Lurk* again.
-- Tables for all of this are in `src/game/person.ts`; the rules are in
-  `src/game/encounter.ts`.
+- **Your stats** (top left), each starting at 1 and only going up by using it
+  (max 20):
+  - **Sneak:** the chance your ambush (bum rush, sucker punch, shove) lands,
+    rather than being blocked, dodged or countered before the fight starts;
+    also how slowly you get noticed while surveilling. Goes up by surveilling
+    and ambushing.
+  - **Strength:** how much damage your blows do (+8% a level). Goes up by
+    landing blows.
+  - **Agility:** how often your blows land (+3% a level) and how often you
+    dodge theirs (+2.5% a level). Goes up by landing blows and dodging.
+- Tables for all of this are in `src/game/person.ts` and `src/game/stats.ts`;
+  the rules are in `src/game/encounter.ts`.
 - **Fullscreen:** the game asks for fullscreen on every tap, click or key press
   whenever it isn't fullscreen. On iPhone, use Share → Add to Home Screen.
 - **Pause:** top-right button, or Esc on a computer.
@@ -75,6 +85,7 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | `src/game/game.ts` | The game itself: the TV, lurking, saving its state (including an encounter in progress) |
 | `src/game/person.ts` | Who you can see: types, races, builds (fight difficulty), what they carry, awareness, and the chances of each |
 | `src/game/encounter.ts` | Surveil and violence: following, finding things out, being noticed, openers, turn-by-turn combat, the log |
+| `src/game/stats.ts` | Your stats (sneak, strength, agility), levelling by use, and what each does |
 | `src/ui/encounterView.ts` | The encounter screen: what you know about them, the log, your options |
 | `src/game/tv.ts` | The CRT television, its power-on sequence, interference, and showing the picture |
 | `src/core/save.ts` | Save / load / delete, with a backup copy |

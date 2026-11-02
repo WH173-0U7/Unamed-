@@ -4,6 +4,7 @@ import { createTv } from './tv';
 import { CHANCES, RACE_CHANCES, NAMES, makePerson } from './person';
 import { act, newEncounter, type Encounter } from './encounter';
 import { createEncounterView } from '../ui/encounterView';
+import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, type StatName, type Stats } from './stats';
 
 /** Progress stored in the save file under `state.tv`. */
 interface TvState {
@@ -36,6 +37,7 @@ export class Game {
   private readonly lurkBtn: HTMLButtonElement;
   private readonly seenEl: HTMLElement;
   private readonly encView;
+  private readonly statsEl: HTMLElement;
   private phase: Phase = 'idle';
   private timer = 0;
   private jam = 0;
@@ -49,6 +51,7 @@ export class Game {
     this.powerBtn = view.querySelector('#power-btn') as HTMLButtonElement;
     this.lurkBtn = view.querySelector('#lurk-btn') as HTMLButtonElement;
     this.seenEl = view.querySelector('#seen') as HTMLElement;
+    this.statsEl = view.querySelector('#stats') as HTMLElement;
     this.encView = createEncounterView(view.querySelector('#enc') as HTMLElement, (id) => this.act(id));
     this.powerBtn.onclick = () => this.turnOn();
     this.lurkBtn.onclick = () => this.lurk();
@@ -65,6 +68,14 @@ export class Game {
     s.races ??= {};
     for (const [k] of CHANCES) s.seen[k] ??= 0;
     for (const [r] of RACE_CHANCES) s.races[r] ??= 0;
+    return s;
+  }
+
+  /** Your stats: sneak, strength, agility (saved). */
+  private get stats(): Stats {
+    const s = (this.save.state.stats ??= newStats()) as Stats;
+    const fresh = newStats();
+    for (const k of Object.keys(fresh) as StatName[]) s[k] ??= fresh[k];
     return s;
   }
 
@@ -102,7 +113,7 @@ export class Game {
     const e = this.encounter;
     if (!e || !this.running) return;
     if (id === 'lurk') return this.lurk();
-    act(e, id);
+    act(e, id, this.stats);
     buzz(e.stage === 'combat' ? 14 : 6);
     this.refresh();
   }
@@ -129,7 +140,21 @@ export class Game {
       this.seenEl.append(btn);
     }
     this.encView.render(this.tvState.on ? e : null);
+    this.renderStats();
     this.view.classList.toggle('in-encounter', !!e && e.stage !== 'seen');
+  }
+
+  /** Your stats in the top corner, each with progress towards its next level. */
+  private renderStats() {
+    this.statsEl.hidden = !this.tvState.on;
+    const st = this.stats;
+    this.statsEl.innerHTML = (Object.keys(STAT_NAMES) as StatName[])
+      .map((k) => {
+        const { level, xp } = st[k];
+        const pct = level >= MAX_LEVEL ? 100 : (100 * xp) / xpToNext(level);
+        return `<div class="stat" data-stat="${k}"><span>${STAT_NAMES[k]}</span><b>${level}</b><i><u style="width:${pct}%"></u></i></div>`;
+      })
+      .join('');
   }
 
   private stepLurk(dt: number) {
@@ -192,6 +217,7 @@ export class Game {
     window.setTimeout(() => {
       this.powerBtn.hidden = true;
       this.tv.powerOn();
+      this.renderStats();
       // The picture snaps open ~0.45 s in: shake the set and buzz the phone.
       window.setTimeout(() => {
         this.view.classList.remove('jolt');
@@ -228,6 +254,7 @@ export class Game {
     this.seenEl.replaceChildren();
     this.seenEl.hidden = true;
     this.encView.render(null);
+    this.statsEl.hidden = true;
   }
 
   setSize(width: number, height: number, _pixelRatio = 1) {
@@ -268,7 +295,7 @@ export class Game {
 
   /** For automated tests. */
   get debug() {
-    return { tv: this.tv, phase: this.phase, lurk: this.lurkState, encounter: this.encounter };
+    return { tv: this.tv, phase: this.phase, lurk: this.lurkState, encounter: this.encounter, stats: this.stats };
   }
 }
 

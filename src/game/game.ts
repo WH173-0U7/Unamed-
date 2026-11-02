@@ -1,10 +1,13 @@
 import type * as THREE from 'three';
 import { writeSave, type SaveData } from '../core/save';
-import { Whisp, type WhispSave } from './whisp';
+import { Whisp, type View, type WhispSave } from './whisp';
 import { createDarkness } from './darkness';
 
+/** How quickly the view glides after the Whisp (higher = tighter). */
+const VIEW_FOLLOW = 1.6;
+
 /**
- * The game itself. It begins in a very dark place: wherever the player
+ * The game itself. It begins in a dark, endless void: wherever the player
  * touches, the Whisp (a small orb of light) appears and feeds on their movement.
  * Each system keeps its progress in `save.state`, so it is saved at every
  * pause point automatically.
@@ -14,17 +17,19 @@ export class Game {
   private readonly whisp;
   private readonly darkness;
   private pointerId: number | null = null;
-  private width = 1;
-  private height = 1;
+  /** The part of the void on screen; it glides after the Whisp. */
+  private readonly view: View = { x: 0, y: 0, width: 1, height: 1 };
   private readonly listeners: [string, EventListener][] = [];
 
   constructor(
     readonly save: SaveData,
-    private readonly view: HTMLElement,
+    private readonly el: HTMLElement,
     renderer: THREE.WebGLRenderer,
   ) {
     // Saves from before the Whisp was named stored it as `orb`.
     this.whisp = new Whisp((save.state.whisp ?? save.state.orb) as WhispSave | undefined);
+    this.view.x = this.whisp.pos.x;
+    this.view.y = this.whisp.pos.y;
     this.darkness = createDarkness(renderer);
     this.listen('pointerdown', this.onDown);
     this.listen('pointermove', this.onMove);
@@ -34,7 +39,7 @@ export class Game {
 
   private listen(type: string, fn: (e: PointerEvent) => void) {
     const l = fn as EventListener;
-    this.view.addEventListener(type, l);
+    this.el.addEventListener(type, l);
     this.listeners.push([type, l]);
   }
 
@@ -43,12 +48,12 @@ export class Game {
     if ((e.target as HTMLElement).closest('button')) return; // e.g. the pause button
     this.pointerId = e.pointerId;
     try {
-      this.view.setPointerCapture(e.pointerId);
+      this.el.setPointerCapture(e.pointerId);
     } catch {
       /* not capturable */
     }
     const firstTouch = this.whisp.presence < 0.15;
-    this.whisp.down(e.clientX, e.clientY);
+    this.whisp.down(e.clientX, e.clientY, this.view);
     if (firstTouch) {
       try {
         navigator.vibrate?.(8);
@@ -74,13 +79,13 @@ export class Game {
   /** Starts a new game from the beginning. */
   start() {
     this.running = true;
-    this.view.classList.add('active');
+    this.el.classList.add('active');
   }
 
   /** Rebuilds the scene as it was saved, then waits paused. */
   restorePaused() {
     this.running = false;
-    this.view.classList.add('active');
+    this.el.classList.add('active');
   }
 
   pause() {
@@ -96,24 +101,27 @@ export class Game {
   /** Closes the game view (back to the menu). */
   close() {
     this.pause();
-    this.view.classList.remove('active');
-    for (const [type, l] of this.listeners) this.view.removeEventListener(type, l);
+    this.el.classList.remove('active');
+    for (const [type, l] of this.listeners) this.el.removeEventListener(type, l);
     this.darkness.dispose();
   }
 
   setSize(width: number, height: number) {
-    this.width = width;
-    this.height = height;
+    this.view.width = width;
+    this.view.height = height;
     this.darkness.setSize(width, height);
   }
 
   update(dt: number) {
     if (this.running) {
       this.save.playTime += dt;
-      this.whisp.update(dt, this.width, this.height);
+      this.whisp.update(dt, this.view);
+      const k = 1 - Math.exp(-dt * VIEW_FOLLOW);
+      this.view.x += (this.whisp.pos.x - this.view.x) * k;
+      this.view.y += (this.whisp.pos.y - this.view.y) * k;
     }
     // While paused the world holds still, but keep drawing it behind the menu.
-    this.darkness.render(this.whisp, this.running ? dt : 0);
+    this.darkness.render(this.whisp, this.view, this.running ? dt : 0);
   }
 
   /** Writes progress to the device. Returns false if storage is unavailable. */
@@ -126,6 +134,6 @@ export class Game {
 
   /** For automated tests. */
   get debug() {
-    return { whisp: this.whisp };
+    return { whisp: this.whisp, view: this.view };
   }
 }

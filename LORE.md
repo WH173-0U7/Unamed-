@@ -14,9 +14,17 @@ The small orb of light the player controls.
   fades back to an ember.
 - As it feeds, threads of light are drawn out of the player's fingertip and
   into the Whisp.
+- It travels: it is pulled through the void towards wherever the player's
+  touch is, and the world slides past around it.
 - Its name is never displayed in the game.
 
-## The darkness
+## The void
 
-Where the game begins: a very dark place of rock, cracks and drifting fog,
-visible only where the Whisp's light reaches.
+An endless dark abyss that the Whisp travels through and the player explores.
+
+- Islands and ledges of cracked rock hang over a bottomless drop; fog drifts
+  between them.
+- Far below, faint specks drift at different depths, the only hint of how
+  deep the abyss goes.
+- Almost nothing can be seen except where the Whisp's light reaches, so the
+  more the Whisp is fed, the more of the void is revealed around it.

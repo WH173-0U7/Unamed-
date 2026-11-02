@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createFullscreenShader, glslHash } from '../fx/fullscreen';
-import { MAX_THREADS, type Whisp } from './whisp';
+import { MAX_THREADS, type View, type Whisp } from './whisp';
 
 /**
  * Draws the dark place and the Whisp, all on the GPU:
@@ -8,8 +8,12 @@ import { MAX_THREADS, type Whisp } from './whisp';
  * 1. Light layer: the Whisp's core and its threads, drawn as soft points.
  * 2. Trails: each frame the previous image is faded, nudged by a slow swirl
  *    and the new light added on top, leaving smoky trails behind movement.
- * 3. Final image: fog and grit that only exist where the Whisp's light reaches,
- *    the Whisp's halo, the trails, then grain and vignette.
+ * 3. Final image: the void (rock islands over a bottomless abyss, with
+ *    faint specks drifting at several depths), seen only where the Whisp's
+ *    light reaches, plus the Whisp's halo, the trails, grain and vignette.
+ *
+ * Everything is placed in world positions, so the void scrolls past as the
+ * view follows the Whisp; deeper layers scroll slower, giving depth.
  */
 export function createDarkness(renderer: THREE.WebGLRenderer) {
   const floatTargets =
@@ -74,12 +78,14 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
       uniform float uDecay;
       uniform float uTime;
       uniform vec2 uTexel;
+      uniform vec2 uShift;   // how far the view moved this frame, in texture units
       varying vec2 vUv;
       void main() {
         // A slow swirl and a slight rise, so trails curl like smoke.
         vec2 q = vUv * 5.0;
         vec2 swirl = vec2(sin(q.y * 1.7 + uTime * 0.6), cos(q.x * 1.3 - uTime * 0.5));
-        vec2 uv = vUv + swirl * uTexel * 0.9 + vec2(0.0, uTexel.y * 0.5);
+        // Trails stay where they were left in the void while the view moves.
+        vec2 uv = vUv + uShift + swirl * uTexel * 0.9 + vec2(0.0, uTexel.y * 0.5);
         // Soften a little each frame (4-tap blur) as it fades.
         vec3 prev = 0.25 * (
           texture2D(tPrev, uv + vec2(uTexel.x, 0.0)).rgb + texture2D(tPrev, uv - vec2(uTexel.x, 0.0)).rgb +
@@ -93,6 +99,7 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
       uDecay: { value: 0.95 },
       uTime: { value: 0 },
       uTexel: { value: new THREE.Vector2() },
+      uShift: { value: new THREE.Vector2() },
     },
   );
 
@@ -101,7 +108,8 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
     /* glsl */ `
       uniform sampler2D tTrail;
       uniform vec2 uRes;      // screen size in points
-      uniform vec2 uWhisp;      // whisp position in points, y up
+      uniform vec2 uWhisp;    // the Whisp on screen, in points, y up
+      uniform vec2 uView;     // world position at the centre of the screen (y down)
       uniform float uEnergy;
       uniform float uPresence;
       uniform float uHint;
@@ -138,15 +146,51 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
         float reach = m * (0.06 + 0.45 * e);
         float light = pr * (0.3 + 0.7 * e) / (1.0 + pow(d / reach, 2.0) * 3.0);
 
-        // The place, seen only where the light reaches: rough rock split by
-        // dark cracks, with fog drifting over it.
-        float rock = pow(fbm(p * 0.018), 1.6) * 1.5;
-        float crack = pow(1.0 - abs(vnoise(p * 0.028 + 3.0) * 2.0 - 1.0), 10.0);
-        float grit = vnoise(p * 0.4) * 0.6 + hash(p) * 0.4;
-        vec3 ground = vec3(0.3, 0.32, 0.37) * (rock * (1.0 - crack * 0.75) + grit * 0.18);
-        vec2 fp = p * 0.005 + vec2(uTime * 0.015, -uTime * 0.01);
+        // Where this pixel is in the void (world points, y down).
+        vec2 sp = vec2(p.x - uRes.x * 0.5, uRes.y * 0.5 - p.y);
+        vec2 world = uView + sp;
+
+        // Islands of rock hanging over the abyss; everything else is the drop.
+        float shape = fbm(world * 0.0022 + 40.0) + 0.12 * fbm(world * 0.02);
+        float island = smoothstep(0.5, 0.56, shape);
+        // Near the edge the rock falls away into shadow, with a lit lip.
+        float lip = smoothstep(0.5, 0.53, shape) * (1.0 - smoothstep(0.53, 0.6, shape));
+        float rock = pow(fbm(world * 0.018), 1.6) * 1.5;
+        float crack = pow(1.0 - abs(vnoise(world * 0.028 + 3.0) * 2.0 - 1.0), 10.0);
+        float grit = vnoise(world * 0.4) * 0.6 + hash(world) * 0.4;
+        float edgeShade = smoothstep(0.5, 0.7, shape);
+        vec3 ground = vec3(0.3, 0.32, 0.37) * (rock * (1.0 - crack * 0.75) + grit * 0.18) * (0.35 + 0.65 * edgeShade)
+                    + vec3(0.5, 0.6, 0.75) * lip * 0.35;
+
+        // The abyss: specks drifting at three depths. Deeper ones scroll
+        // slower and are fainter, so the drop feels bottomless.
+        vec3 deep = vec3(0.0);
+        for (int i = 0; i < 3; i++) {
+          float fi = float(i);
+          float depth = 0.12 + fi * 0.22;              // how much this layer moves with the view
+          vec2 lp = uView * depth + sp + fi * 731.0;
+          lp += vec2(sin(uTime * 0.05 + fi), cos(uTime * 0.04 + fi * 2.0)) * 20.0;
+          float cell = 34.0 + fi * 10.0;
+          vec2 id = floor(lp / cell);
+          vec2 o = vec2(hash(id, 11.0 + fi), hash(id, 23.0 + fi)) * cell;
+          float on = step(0.86, hash(id, 37.0 + fi));
+          float r = 0.6 + fi * 0.35;
+          float twinkle = 0.6 + 0.4 * sin(uTime * (0.7 + hash(id, 5.0) * 1.5) + hash(id, 9.0) * 6.28);
+          deep += vec3(0.55, 0.65, 0.85) * on * (1.0 - smoothstep(r * 0.3, r, length(lp - id * cell - o)))
+                * (0.09 + 0.08 * fi) * twinkle;
+        }
+        // Faint mist far below, barely moving.
+        float mist = fbm(uView * 0.05 * 0.004 + sp * 0.003 + uTime * 0.01);
+        deep += vec3(0.08, 0.1, 0.16) * smoothstep(0.45, 0.8, mist) * 0.5;
+
+        // Fog drifting over everything at the Whisp's own depth.
+        vec2 fp = world * 0.005 + vec2(uTime * 0.015, -uTime * 0.01);
         float fog = smoothstep(0.35, 0.85, fbm(fp + fbm(fp * 1.7 + uTime * 0.03) * 1.5));
-        vec3 place = (ground + vec3(0.4, 0.5, 0.65) * fog * 0.55) * light;
+
+        // The light reveals rock and fog; the abyss stays mostly dark, its
+        // specks just visible, a little more so near the Whisp.
+        vec3 place = mix(deep * (0.55 + light * 1.5), ground * light, island)
+                   + vec3(0.4, 0.5, 0.65) * fog * 0.55 * light * (0.4 + 0.6 * island);
 
         // The Whisp: a hot core and a halo that swells as it feeds. The halo's
         // colours separate slightly at the edge, like light through old glass.
@@ -179,6 +223,7 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
       tTrail: { value: null },
       uRes: { value: new THREE.Vector2(1, 1) },
       uWhisp: { value: new THREE.Vector2() },
+      uView: { value: new THREE.Vector2() },
       uEnergy: { value: 0 },
       uPresence: { value: 0 },
       uHint: { value: 0 },
@@ -186,7 +231,7 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
     },
   );
 
-  let height = 1;
+  const lastView = { x: Number.NaN, y: 0 };
   let time = 0;
   let hint = 0;
   /** Trails and light are drawn at half resolution: they're soft anyway. */
@@ -194,22 +239,18 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
 
   return {
     setSize(w: number, h: number) {
-      height = h;
       const pr = renderer.getPixelRatio();
       const tw = Math.max(1, Math.round(w * pr * TRAIL_SCALE));
       const th = Math.max(1, Math.round(h * pr * TRAIL_SCALE));
       lightRT.setSize(tw, th);
       trailA.setSize(tw, th);
       trailB.setSize(tw, th);
-      camera.right = w;
-      camera.bottom = h;
-      camera.updateProjectionMatrix();
       pointsMat.uniforms.uScale.value = pr * TRAIL_SCALE;
       feedback.material.uniforms.uTexel.value.set(1 / tw, 1 / th);
       final.material.uniforms.uRes.value.set(w, h);
     },
 
-    render(whisp: Whisp, dt: number) {
+    render(whisp: Whisp, view: View, dt: number) {
       time += dt;
       hint += ((whisp.everTouched ? 0 : 1) - hint) * (1 - Math.exp(-dt * 2));
 
@@ -230,6 +271,13 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
       geometry.attributes.aSize.needsUpdate = true;
       geometry.attributes.aAlpha.needsUpdate = true;
 
+      // The light layer is drawn in world positions, through the view.
+      camera.left = view.x - view.width / 2;
+      camera.right = view.x + view.width / 2;
+      camera.top = view.y - view.height / 2;
+      camera.bottom = view.y + view.height / 2;
+      camera.updateProjectionMatrix();
+
       renderer.setRenderTarget(lightRT);
       renderer.setClearColor(0x000000, 1);
       renderer.clear();
@@ -240,6 +288,13 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
       feedback.material.uniforms.tLight.value = lightRT.texture;
       feedback.material.uniforms.uDecay.value = Math.pow(0.955, dt * 60);
       feedback.material.uniforms.uTime.value = time;
+      if (Number.isNaN(lastView.x)) {
+        lastView.x = view.x; // first frame: nothing to shift yet
+        lastView.y = view.y;
+      }
+      feedback.material.uniforms.uShift.value.set((view.x - lastView.x) / view.width, -(view.y - lastView.y) / view.height);
+      lastView.x = view.x;
+      lastView.y = view.y;
       renderer.setRenderTarget(trailB);
       feedback.render(renderer);
       [trailA, trailB] = [trailB, trailA];
@@ -247,7 +302,8 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
       // 3. Final image to the screen.
       const u = final.material.uniforms;
       u.tTrail.value = trailA.texture;
-      u.uWhisp.value.set(whisp.pos.x, height - whisp.pos.y);
+      u.uWhisp.value.set(whisp.pos.x - view.x + view.width / 2, view.height / 2 - (whisp.pos.y - view.y));
+      u.uView.value.set(view.x, view.y);
       u.uEnergy.value = whisp.energy;
       u.uPresence.value = whisp.presence;
       u.uHint.value = hint;

@@ -2,7 +2,7 @@
 
 A GPU-heavy game for mobile, being built from scratch. Right now it has a
 black, film-styled menu (grain, flicker, colour fringing, glitches), settings,
-a pause-based save system, and the opening of the game: a very dark place
+a pause-based save system, and the opening of the game: an endless dark void
 where a small orb of light (the Whisp, see [LORE.md](LORE.md)) appears under
 the player's touch and feeds on their movement, glowing brighter and lighting
 up more of its surroundings.
@@ -22,6 +22,7 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
 
 - **Playing:** touch anywhere and an orb appears under your thumb. Moving your
   thumb feeds it: it glows bigger and brighter and lights up more of the dark.
+  Hold your thumb away from the centre to travel that way through the void.
   Hold still and it slowly fades; lift your thumb and it dies away.
 - **Fullscreen:** the game asks for fullscreen on every tap, click or key press
   whenever it isn't fullscreen. On iPhone, use Share → Add to Home Screen.

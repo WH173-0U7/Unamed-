@@ -5,11 +5,26 @@
  * follows their thumb, and every bit of movement feeds it energy, making it
  * glow brighter and wider. Left alone it slowly fades back to an ember.
  * Threads of light stream from the fingertip into the Whisp as it feeds.
+ *
+ * It travels through an endless void: positions here are world positions
+ * (points, y down). The view follows the Whisp, so holding the thumb away
+ * from the centre of the screen keeps it travelling that way.
  */
+
+/** What part of the world the screen shows: its centre and size, in points. */
+export interface View {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 /** Progress stored in the save file under `state.whisp`. */
 export interface WhispSave {
   energy: number;
+  /** Where it is in the void. */
+  x?: number;
+  y?: number;
 }
 
 export const MAX_THREADS = 600;
@@ -29,10 +44,12 @@ export class Whisp {
   /** Has the player touched the darkness yet this session? */
   everTouched = false;
 
-  /** Where the Whisp is (screen points, y down). */
+  /** Where the Whisp is in the void. */
   readonly pos = { x: 0, y: 0 };
-  /** Where the thumb is. */
+  /** The point in the void under the thumb. */
   readonly finger = { x: 0, y: 0 };
+  /** Where the thumb is on the screen. */
+  private readonly screen = { x: 0, y: 0 };
 
   /** Threads: x, y, vx, vy, life (0..1), size. */
   readonly threads = new Float32Array(MAX_THREADS * 6);
@@ -42,42 +59,58 @@ export class Whisp {
 
   constructor(save?: WhispSave) {
     this.energy = clamp(save?.energy ?? REST_ENERGY, 0, 1);
+    this.pos.x = this.finger.x = save?.x ?? 0;
+    this.pos.y = this.finger.y = save?.y ?? 0;
   }
 
   toSave(): WhispSave {
-    return { energy: Math.round(this.energy * 1000) / 1000 };
+    const r = (v: number, k: number) => Math.round(v * k) / k;
+    return { energy: r(this.energy, 1000), x: r(this.pos.x, 10), y: r(this.pos.y, 10) };
   }
 
-  down(x: number, y: number) {
+  /** Thumb touches the screen at (x, y). */
+  down(x: number, y: number, view: View) {
     this.touching = true;
     this.everTouched = true;
+    this.screen.x = x;
+    this.screen.y = y;
+    this.aim(view);
     // If the Whisp has faded out, it is born right under the thumb.
     if (this.presence < 0.15) {
-      this.pos.x = x;
-      this.pos.y = y;
+      this.pos.x = this.finger.x;
+      this.pos.y = this.finger.y;
     }
-    this.finger.x = x;
-    this.finger.y = y;
   }
 
+  /** Thumb moves on the screen. Movement is what feeds the Whisp. */
   move(x: number, y: number) {
     if (!this.touching) return;
-    this.moved += Math.hypot(x - this.finger.x, y - this.finger.y);
-    this.finger.x = x;
-    this.finger.y = y;
+    this.moved += Math.hypot(x - this.screen.x, y - this.screen.y);
+    this.screen.x = x;
+    this.screen.y = y;
+  }
+
+  /** The point in the void currently under the thumb. */
+  private aim(view: View) {
+    this.finger.x = view.x + this.screen.x - view.width / 2;
+    this.finger.y = view.y + this.screen.y - view.height / 2;
   }
 
   up() {
     this.touching = false;
   }
 
-  update(dt: number, width: number, height: number) {
-    const diag = Math.hypot(width, height);
+  update(dt: number, view: View) {
+    const diag = Math.hypot(view.width, view.height);
 
-    // Follow the thumb with a slight, living lag.
-    const follow = 1 - Math.exp(-dt * 7);
-    this.pos.x += (this.finger.x - this.pos.x) * follow;
-    this.pos.y += (this.finger.y - this.pos.y) * follow;
+    // Follow the thumb with a slight, living lag. As the view glides after the
+    // Whisp, the point under a still thumb keeps moving: that is travelling.
+    if (this.touching) {
+      this.aim(view);
+      const follow = 1 - Math.exp(-dt * 7);
+      this.pos.x += (this.finger.x - this.pos.x) * follow;
+      this.pos.y += (this.finger.y - this.pos.y) * follow;
+    }
 
     // Feed on movement, then slowly fade back towards an ember.
     const fed = this.moved / diag;

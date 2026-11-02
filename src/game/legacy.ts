@@ -39,7 +39,7 @@ const yoursLeft = (p: Person) => p.clothes.some((g) => g.loot.some((l) => l.your
 export function robBody(w: World, inv: Inventory, e: Encounter | null): boolean {
   const loot: Loot[] = [];
   if (inv.cash > 0) loot.push({ kind: 'cash', name: 'Wad of cash', cash: inv.cash, where: 'stuffed in a pocket', yours: true });
-  for (const it of inv.items) loot.push({ kind: it.kind, name: it.name, detail: it.detail, med: it.med, where: 'stuffed in a pocket', yours: true });
+  for (const it of inv.items) loot.push({ kind: it.kind, name: it.name, detail: it.detail, med: it.med, secret: it.secret, known: it.known, doses: it.doses, where: 'stuffed in a pocket', yours: true });
   if (!loot.length) return false;
 
   let thief: Thief | undefined;

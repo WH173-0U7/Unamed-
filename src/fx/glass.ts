@@ -108,6 +108,7 @@ export function createGlass(opts: GlassOptions = {}) {
       uniform vec2 uB;
       uniform float uR;
       uniform float uSeed;
+      uniform float uPower;
       ${glslHash}
       ${noiseGlsl}
       vec2 toUv(vec2 p) { return vec2(p.x / uRes.x, 1.0 - p.y / uRes.y); }
@@ -128,6 +129,7 @@ export function createGlass(opts: GlassOptions = {}) {
         // Wet blood is pushed along with the finger.
         vec4 b = texture2D(tState, toUv(p - dir * min(L, uR * 0.55)));
         float wetB = clamp(b.g / max(b.r, 0.02), 0.0, 1.0);
+        w *= uPower;
         float drag = w * 0.3 * wetB;
         float r = mix(s.r, b.r, drag);
         float g = mix(s.g, b.g, drag);
@@ -152,6 +154,7 @@ export function createGlass(opts: GlassOptions = {}) {
       uB: { value: new THREE.Vector2() },
       uR: { value: 30 },
       uSeed: { value: 0 },
+      uPower: { value: 1 },
     },
   );
 
@@ -369,7 +372,8 @@ export function createGlass(opts: GlassOptions = {}) {
   let quiet = 0;
   let loaded = false;
   let hinted = false;
-  const wipes: { ax: number; ay: number; bx: number; by: number; seed: number }[] = [];
+  /** Strokes to apply: a finger (full strength), or a running raindrop (`r`, `p`). */
+  const wipes: { ax: number; ay: number; bx: number; by: number; seed: number; r?: number; p?: number }[] = [];
 
   interface Drip {
     x: number;
@@ -1036,7 +1040,8 @@ export function createGlass(opts: GlassOptions = {}) {
         for (const s of wipes) {
           u.uA.value.set(s.ax, s.ay);
           u.uB.value.set(s.bx, s.by);
-          u.uR.value = Math.max(44, Math.min(w, h) * 0.15);
+          u.uR.value = s.r ?? Math.max(44, Math.min(w, h) * 0.15);
+          u.uPower.value = s.p ?? 1;
           u.uSeed.value = s.seed;
           step(wipePass);
         }
@@ -1061,6 +1066,11 @@ export function createGlass(opts: GlassOptions = {}) {
       renderer.setRenderTarget(null);
       renderer.clear();
       showPass.render(renderer);
+    },
+
+    /** Water running down the glass from (ax, ay) to (bx, by): a narrow, gentle wipe. */
+    wash(ax: number, ay: number, bx: number, by: number, r: number, power: number) {
+      wipes.push({ ax, ay, bx, by, seed: Math.random() * 1000, r, p: power });
     },
 
     /** A flicker of static over everything (the screen changing). */

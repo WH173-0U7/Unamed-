@@ -21,6 +21,10 @@ export interface InvItem {
   kg: number;
   /** Which spot it's in (Spot.id). */
   spot: string;
+  /** What it really is (see Loot.secret), whether you know, and uses left. */
+  secret?: 'cocaine';
+  known?: boolean;
+  doses?: number;
 }
 
 /** Somewhere to keep things: a pocket, a bag. */
@@ -107,7 +111,7 @@ export function upgradeInventory(inv: Inventory) {
 
 /** How big and heavy something is. */
 export function measure(x: { kind: string; name: string; med?: MedId }): { size: Size; kg: number } {
-  if (x.med) return { size: x.med === 'splint' ? 'medium' : 'small', kg: { bandages: 0.05, gauze: 0.1, painkillers: 0.03, splint: 0.35, iron: 0.08 }[x.med] };
+  if (x.med) return { size: x.med === 'splint' ? 'medium' : 'small', kg: { bandages: 0.05, gauze: 0.1, painkillers: 0.03, splint: 0.35, iron: 0.08, testkit: 0.03 }[x.med] };
   const n = x.name.toLowerCase();
   if (x.kind === 'phone') return { size: 'small', kg: 0.2 };
   if (x.kind === 'car keys') return { size: 'small', kg: 0.08 };
@@ -168,7 +172,7 @@ export function take(inv: Inventory, l: Loot): { ok: boolean; text: string } {
     inv.cash = Math.round((inv.cash + (l.cash ?? 0)) * 100) / 100;
     return { ok: true, text: `You pocket the ${l.name.toLowerCase()}: ${dollars(l.cash ?? 0)}.${once}` };
   }
-  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med });
+  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses });
   if (!it) return { ok: false, text: `No room for the ${l.name.toLowerCase()}. ${noRoomWhy(inv, measure(l).size)}` };
   const spot = inv.spots.find((s) => s.id === it.spot)!;
   return { ok: true, text: `You put the ${l.name.toLowerCase()} in your ${spot.on.toLowerCase()} (${spot.name.toLowerCase()}).${once}` };
@@ -181,7 +185,7 @@ export const lootLabel = (l: { kind: string; name: string; cash?: number }) => (
 
 // ---------- Medicine (sold at the pharmacy) ----------
 
-export type MedId = 'bandages' | 'gauze' | 'painkillers' | 'splint' | 'iron';
+export type MedId = 'bandages' | 'gauze' | 'painkillers' | 'splint' | 'iron' | 'testkit';
 
 export interface Med {
   id: MedId;
@@ -257,5 +261,18 @@ export const MEDS: Med[] = [
     },
   },
 ];
+
+/**
+ * Not medicine: a reagent kit (a vial and a dropper) that tells you what a
+ * powder is. Used from the thing you want to test, in your pockets.
+ */
+MEDS.push({
+  id: 'testkit',
+  name: 'Drug test kit',
+  price: 10,
+  desc: 'A reagent vial: tells you what a powder is. One use.',
+  blocked: () => 'Test something with it',
+  use: () => '',
+});
 
 export const medById = (id: MedId) => MEDS.find((m) => m.id === id)!;

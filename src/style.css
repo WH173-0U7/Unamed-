@@ -334,6 +334,21 @@ canvas {
 /* Hit effects: the blood layer over everything, fringed text, blood on panels. */
 /* The glass over everything (blood, smears, grime): above the game and the
    menus, under the toast. Taps go straight through it. */
+#rainfall {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+#rain-glass {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 25;
+  pointer-events: none;
+}
 #glass {
   position: fixed;
   inset: 0;
@@ -609,6 +624,38 @@ canvas {
 }
 .enc-log .by-them {
   color: #e2a9a9;
+}
+/* Blows that landed: yours in gold, theirs on you in red. */
+.enc-log .hit-them,
+.enc-log .hit-you {
+  margin-left: -10px;
+  padding: 3px 0 3px 8px;
+  border-left: 2px solid;
+  border-radius: 2px;
+}
+.enc-log .hit-them {
+  border-color: #e0b25a;
+  background: linear-gradient(90deg, rgba(224, 178, 90, 0.12), transparent 70%);
+  color: #f1dcae;
+}
+.enc-log .hit-you {
+  border-color: #e0453a;
+  background: linear-gradient(90deg, rgba(224, 69, 58, 0.16), transparent 70%);
+  color: #f3b0a8;
+}
+.enc-log .hit-them b {
+  color: #f0c674;
+}
+.enc-log .hit-you b {
+  color: #ff6b5e;
+}
+.enc-pick {
+  grid-column: 1 / -1;
+  margin: 4px 0;
+  text-align: center;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-faint);
 }
 .enc-log .by-info {
   color: var(--ink-dim);
@@ -1669,8 +1716,44 @@ body.in-game #menu {
   letter-spacing: 0.06em;
   color: var(--ink-dim);
 }
+.pocket-list li {
+  flex-wrap: wrap;
+}
 .pocket-list li div {
-  flex: 1;
+  flex: 1 1 140px;
+}
+.pocket-list .acts {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.spot-empty {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+}
+.spot-empty li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 9px;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.spot-empty em {
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+.pocket-list button {
+  min-width: 52px !important;
+  padding: 6px 10px !important;
 }
 .pocket-list button.drop {
   min-width: 52px;

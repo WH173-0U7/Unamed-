@@ -23,7 +23,13 @@ export interface Health {
   splinted?: Part[];
   /** You bled out. The run is over. */
   dead?: boolean;
+  /** Soaked and cold from the rain: 0 fine, 1 chilled, 2 cold, 3 freezing. */
+  cold?: number;
+  /** On cocaine: the next fight, you've energy to burn and feel less. */
+  wired?: boolean;
 }
+
+export const COLD_NAMES = ['', 'Chilled', 'Cold', 'Freezing'];
 
 /** Hours for each kind of break to heal. */
 const MEND_HOURS: Record<Part, number> = {
@@ -50,7 +56,7 @@ export function newHealth(): Health {
 }
 
 /** Anything to heal? */
-export const isHurt = (h: Health) => h.blood < h.maxBlood || h.bleeding > 0 || h.broken.length > 0 || h.concussion > 0;
+export const isHurt = (h: Health) => h.blood < h.maxBlood || h.bleeding > 0 || h.broken.length > 0 || h.concussion > 0 || !!h.cold;
 
 /** What's wrong with you, for showing. */
 export function healthConditions(h: Health): string[] {
@@ -59,6 +65,8 @@ export function healthConditions(h: Health): string[] {
   if (h.bleeding) c.push(`Bleeding: ${BLEEDING[h.bleeding]}`);
   for (const p of h.broken) c.push(`Broken ${p}`);
   if (h.lung) c.push('Punctured lung');
+  if (h.cold) c.push(COLD_NAMES[h.cold]);
+  if (h.wired) c.push('Wired');
   return c;
 }
 
@@ -69,8 +77,9 @@ export function bodyFrom(h: Health, stamina: number): Body {
     maxBlood: h.maxBlood,
     toughness: 100,
     // Broken ribs: you can't fill your lungs, so you start the fight short of breath.
-    stamina: Math.round(stamina * (h.lung ? 0.3 : h.broken.includes('ribs') ? 0.5 : 1)),
-    maxStamina: stamina,
+    // Cold stiffens you; cocaine gives you more than you've got.
+    stamina: Math.round(stamina * (h.lung ? 0.3 : h.broken.includes('ribs') ? 0.5 : 1) * (1 - (h.cold ?? 0) * 0.1) * (h.wired ? 1.25 : 1)),
+    maxStamina: Math.round(stamina * (h.wired ? 1.25 : 1)),
     lung: h.lung,
     bleeding: h.bleeding,
     dazed: 0,
@@ -94,13 +103,18 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
   }
   if (b.concussed && h.concussion <= 0) h.concussion = CONCUSSION_HOURS;
   if (b.lung) h.lung = true;
+  const lines: string[] = [];
+  if (h.wired) {
+    h.wired = false;
+    lines.push('The coke wears off. Your jaw aches, and you feel hollow.');
+  }
   if (result === 'lost') {
     // Out cold for a few hours, still bleeding. You may not wake up.
-    const lines = lieThere(h);
-    if (!h.dead) lines.unshift('You come to on the pavement, hours later.');
-    return lines;
+    const out = lieThere(h);
+    if (!h.dead) out.unshift('You come to on the pavement, hours later.');
+    return [...out, ...(h.dead ? [] : lines)];
   }
-  return [];
+  return lines;
 }
 
 /**
@@ -150,7 +164,8 @@ export function passHours(h: Health, hours: number, resting = false): string[] {
         lines.push('You wake up hours later.');
       }
     } else {
-      h.blood = Math.min(h.maxBlood, h.blood + REGEN_PER_HOUR * (resting ? 1.5 : 1));
+      // Freezing, your body has nothing spare to make blood with.
+      h.blood = Math.min(h.maxBlood, h.blood + REGEN_PER_HOUR * (resting ? 1.5 : 1) * ((h.cold ?? 0) >= 3 ? 0.4 : (h.cold ?? 0) === 2 ? 0.75 : 1));
     }
     for (const p of [...h.broken]) {
       h.mending[p] = (h.mending[p] ?? MEND_HOURS[p]) - (resting ? 1.5 : 1);

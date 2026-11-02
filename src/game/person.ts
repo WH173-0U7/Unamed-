@@ -93,6 +93,12 @@ export interface Loot {
   med?: MedId;
   /** It belonged to one of your dead characters. */
   yours?: boolean;
+  /** What it really is, if that's not obvious (a baggie of powder: 'cocaine'). */
+  secret?: 'cocaine';
+  /** Found out what it is. */
+  known?: boolean;
+  /** How many uses are left (a baggie). */
+  doses?: number;
 }
 
 /** Something they're wearing or carrying that can be gone through. */
@@ -340,7 +346,8 @@ function dress(kind: Kind, carrying: Item[]): Garment[] {
   }
   if (has('Cigarettes')) put({ kind: 'misc', name: 'Cigarettes', detail: `Half a pack` });
   if (has('Lighter')) put({ kind: 'misc', name: 'Lighter' });
-  if (has('Small baggie')) put({ kind: 'misc', name: 'Small baggie', detail: 'Some kind of powder' });
+  // What's in it, nobody says. You'd have to test it, or taste it.
+  if (has('Small baggie')) put({ kind: 'misc', name: 'Small baggie', detail: 'Some kind of white powder', secret: 'cocaine', doses: 2 + Math.floor(r() * 4) });
   if (has('Backpack')) {
     const bag = clothes.find((g) => g.name === 'Backpack')!;
     put({ kind: 'misc', name: any(['Phone charger', 'Water bottle', 'Notebook', 'Headphones', 'Lunch in a plastic tub']) }, bag);

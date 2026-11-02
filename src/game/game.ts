@@ -10,6 +10,8 @@ import { PASS_OUT, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
 import { uiGlitch } from '../fx/uiGlitch';
 import { clockText, dateText, now } from './clock';
+import { RAIN_AMOUNT, WEATHER_NAME, newWeather, updateWeather, weatherLine, type WeatherState } from './weather';
+import { COLD_NAMES } from './health';
 import { maybeThief, newWorld, robBody, settle, type World } from './legacy';
 import { MEDS, dollars, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type MedId } from './inventory';
 
@@ -90,6 +92,7 @@ export class Game {
   private noteTimer = 0;
   private readonly clockEl: HTMLElement;
   private clockShown = '';
+  private weatherTimer = 0;
   private phase: Phase = 'idle';
   private timer = 0;
   private jam = 0;
@@ -163,6 +166,43 @@ export class Game {
     return inv;
   }
 
+  private get weather(): WeatherState {
+    return (this.save.state.weather ??= newWeather()) as WeatherState;
+  }
+
+  /** How hard it's raining where you are (0 indoors), for the rain. */
+  get rainAmount(): number {
+    if (!this.tvState.on || this.place !== 'street') return 0;
+    return RAIN_AMOUNT[this.weather.now];
+  }
+
+  /**
+   * Time out on the street: the rain soaks you and you get colder (a coat
+   * helps, a T-shirt doesn't); dry weather lets you dry off. Returns what
+   * to say, if anything.
+   */
+  private chill(): string | null {
+    const h = this.health;
+    const cold = h.cold ?? 0;
+    const rain = RAIN_AMOUNT[this.weather.now];
+    const top = this.inventory.clothes[0] ?? '';
+    const warm = /coat|parka|puffer|leather|layered/i.test(top) ? 0.5 : /t-shirt|shirt/i.test(top) ? 1.4 : 1;
+    if (rain > 0 && cold < 3 && Math.random() < rain * 0.65 * warm) {
+      h.cold = cold + 1;
+      return [
+        '',
+        `The rain soaks through your ${top.toLowerCase() || 'clothes'}. You're chilled.`,
+        "You're soaked through and cold to the bone.",
+        "You can't stop shivering. Your fingers won't work properly. You're freezing.",
+      ][h.cold];
+    }
+    if (rain === 0 && cold > 0 && Math.random() < 0.35) {
+      h.cold = cold - 1;
+      return h.cold ? 'You dry off a little.' : "You've dried off. You're warm enough again.";
+    }
+    return null;
+  }
+
   private get world(): World {
     return (this.save.state.world ??= newWorld()) as World;
   }
@@ -213,8 +253,19 @@ export class Game {
     }
     this.encounter = null;
     this.wipeBlood();
-    const lines = ['You find somewhere quiet and rest for a few hours.', ...passHours(this.health, REST_HOURS, true)];
+    const raining = RAIN_AMOUNT[this.weather.now] > 0;
+    const lines = [raining ? 'You find a doorway out of the rain and rest for a few hours.' : 'You find somewhere quiet and rest for a few hours.', ...passHours(this.health, REST_HOURS, true)];
     if (this.health.dead) return this.die(lines);
+    const h = this.health;
+    if (h.cold) {
+      // Out of the wind you warm up a little; dry, you warm up more.
+      h.cold = Math.max(0, h.cold - (raining ? 1 : 2));
+      lines.push(h.cold ? `You're still ${COLD_NAMES[h.cold].toLowerCase()}, but less.` : 'You stop shivering.');
+    }
+    if (h.wired) {
+      h.wired = false;
+      lines.push('The coke wears off while you sit there. You feel hollow.');
+    }
     this.refresh();
     this.note(lines);
     buzz(8);
@@ -256,9 +307,11 @@ export class Game {
     this.encounter = null;
     this.noteEl.hidden = true;
     this.wipeBlood();
-    // Time passes while you wait: wounds bleed, or heal.
+    // Time passes while you wait: wounds bleed, or heal; the rain soaks you.
     const lines = passHours(this.health, LURK_HOURS);
     if (this.health.dead) return this.die(lines);
+    const c = this.chill();
+    if (c) lines.push(c);
     this.refresh();
     this.lurkBtn.hidden = true;
     this.restBtn.hidden = true;
@@ -492,6 +545,10 @@ export class Game {
     else if (b.dataset.place) this.goTo(b.dataset.place as Place);
     else if (b.dataset.use) this.useMed(Number(b.dataset.use));
     else if (b.dataset.drop) this.drop(Number(b.dataset.drop));
+    else if (b.dataset.fire) this.fire(Number(b.dataset.fire));
+    else if (b.dataset.taste) this.identify(Number(b.dataset.taste), false);
+    else if (b.dataset.test) this.identify(Number(b.dataset.test), true);
+    else if (b.dataset.bump) this.bump(Number(b.dataset.bump));
   }
 
   /** Walk somewhere else. */
@@ -505,7 +562,15 @@ export class Game {
     this.jam = 0.8;
     this.refresh();
     uiGlitch(p === 'pharmacy' ? this.shopEl : this.view, 0.55);
-    this.note([p === 'pharmacy' ? 'You walk to the all-night pharmacy.' : 'You head back out into the street.']);
+    const lines = [p === 'pharmacy' ? 'You walk to the all-night pharmacy.' : 'You head back out into the street.'];
+    const h = this.health;
+    if (p === 'pharmacy' && h.cold) {
+      h.cold--;
+      lines.push(h.cold ? "It's warm inside. You thaw out a little." : "It's warm inside. You stop shivering.");
+      this.refresh();
+    }
+    if (p === 'street' && RAIN_AMOUNT[this.weather.now] > 0) lines.push(`It's still raining (${WEATHER_NAME[this.weather.now].toLowerCase()}).`);
+    this.note(lines);
     buzz(10);
   }
 
@@ -537,6 +602,97 @@ export class Game {
     this.refresh();
     this.note([line]);
     buzz(8);
+  }
+
+  /** Why you can't make a fire right now, or null. */
+  private fireBlocked(): string | null {
+    if (this.place !== 'street') return 'Not in here';
+    if (!this.canLurk) return 'Not now';
+    if (this.weather.now === 'downpour') return 'Too wet';
+    return null;
+  }
+
+  /**
+   * Make a fire with the lighter: some paper from your pockets for kindling
+   * (or whatever trash is about), in an old drum or a doorway. Warms you
+   * right through. Rain makes it hard to get going.
+   */
+  private fire(i: number) {
+    const inv = this.inventory;
+    const lighter = inv.items[i];
+    if (!lighter || this.fireBlocked()) return;
+    this.closeSheet();
+    const paper = inv.items.findIndex((x) => x.kind === 'misc' && /receipt|note|transfer|slip/i.test(x.name));
+    const lines: string[] = [];
+    let kindling: string;
+    if (paper >= 0) {
+      kindling = inv.items[paper].name.toLowerCase();
+      inv.items.splice(paper, 1);
+    } else if (Math.random() < 0.6) kindling = 'some cardboard from a skip';
+    else {
+      this.note(["You've got nothing to burn, and there's nothing dry lying around. You need some paper."]);
+      return;
+    }
+    const catches = { clear: 1, drizzle: 0.7, rain: 0.35, downpour: 0 }[this.weather.now];
+    if (Math.random() >= catches) {
+      lines.push(`You try to light the ${kindling}, cupping it from the rain. It hisses and goes out.`);
+    } else {
+      const h = this.health;
+      lines.push(`You get a fire going in an old oil drum, with the ${kindling} for kindling. You hold your hands over it until the feeling comes back.`);
+      lines.push(...passHours(h, 1));
+      if (h.dead) return this.die(lines);
+      if (h.cold) lines.push("You're warm again, right through.");
+      h.cold = 0;
+    }
+    // Cheap lighters don't last.
+    if (Math.random() < 0.1) {
+      inv.items.splice(inv.items.indexOf(lighter), 1);
+      lines.push('The lighter sputters and dies. It\'s empty. You toss it.');
+    }
+    this.refresh();
+    this.note(lines);
+    buzz(10);
+  }
+
+  /** Find out what the powder is: taste it, or test it with a kit. */
+  private identify(i: number, kit: boolean) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    if (!it?.secret || it.known) return;
+    let line: string;
+    if (kit) {
+      const k = inv.items.findIndex((x) => x.med === 'testkit');
+      if (k < 0) return;
+      inv.items.splice(k, 1);
+      line = 'You tip a few grains into the vial and shake it. The liquid turns a bright, clear blue: cocaine.';
+    } else {
+      line = 'You rub a little on your gums. They go numb almost at once, and there\'s a bitter taste at the back of your throat. Cocaine.';
+    }
+    it.known = true;
+    it.name = 'Baggie of cocaine';
+    it.detail = undefined;
+    this.refresh();
+    this.note([line]);
+    buzz(8);
+  }
+
+  /** A bump of coke: you're wired for the next fight (more stamina, less pain). */
+  private bump(i: number) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    const h = this.health;
+    if (it?.secret !== 'cocaine' || !it.known || h.wired) return;
+    it.doses = (it.doses ?? 1) - 1;
+    h.wired = true;
+    h.concussion = Math.max(0, h.concussion - 1);
+    const lines = ['You do a bump off the end of a key. Your heart kicks, your teeth buzz, and everything goes sharp and bright.'];
+    if (it.doses <= 0) {
+      inv.items.splice(i, 1);
+      lines.push("That's the last of it.");
+    }
+    this.refresh();
+    this.note(lines);
+    buzz([20, 30, 20]);
   }
 
   /** Get rid of something to make room. */
@@ -585,9 +741,12 @@ export class Game {
     let body =
       `<div class="pocket-cash"><span>Cash</span><b>${dollars(inv.cash)}</b></div>` +
       `<p class="pocket-wear">Wearing ${inv.clothes.map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total)}.</p>`;
-    // Every pocket and bag, how full it is, and what's in it.
+    // Every pocket and bag with something in it: how full, and what's there.
+    // The empty ones are listed small at the end.
+    const empty = inv.spots.filter((sp) => !inv.items.some((x) => x.spot === sp.id));
     for (const sp of inv.spots) {
       const xs = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.spot === sp.id);
+      if (!xs.length) continue;
       const used = usedKg(inv, sp.id);
       const fill = Math.min(100, (100 * used) / sp.maxKg);
       body +=
@@ -598,16 +757,29 @@ export class Game {
               .map(({ x, i }) => {
                 const m = x.med ? medById(x.med) : null;
                 const why = m?.blocked(h);
-                const small = m ? (why ?? m.desc) : x.detail;
+                const small = m ? (why ?? m.desc) : x.secret && x.known ? `${x.doses} bump${x.doses === 1 ? '' : 's'} left` : x.detail;
+                const act = (attr: string, label: string, no?: string | null) => `<button type="button" data-${attr}="${i}" ${no ? `disabled title="${no}"` : ''}>${label}</button>`;
+                let acts = m && m.id !== 'testkit' ? act('use', 'Use', why) : '';
+                if (/^lighter$/i.test(x.name)) acts += act('fire', 'Fire', this.fireBlocked());
+                if (x.secret && !x.known) {
+                  acts += act('taste', 'Taste');
+                  if (inv.items.some((y) => y.med === 'testkit')) acts += act('test', 'Test');
+                }
+                if (x.secret === 'cocaine' && x.known) acts += act('bump', 'Bump', h.wired ? 'Already wired' : null);
                 return (
                   `<li><div><b>${x.name}</b><small>${small ? `${small} · ` : ''}${kgLabel(x.kg)}</small></div>` +
-                  (m ? `<button type="button" data-use="${i}" ${why ? 'disabled' : ''}>Use</button>` : '') +
-                  `<button type="button" class="drop" data-drop="${i}" aria-label="Drop ${x.name}">Drop</button></li>`
+                  `<span class="acts">${acts}<button type="button" class="drop" data-drop="${i}" aria-label="Drop ${x.name}">Drop</button></span></li>`
                 );
               })
               .join('')}</ul>`
           : '') +
         `</div>`;
+    }
+    if (empty.length) {
+      body +=
+        `<h3>Empty</h3><ul class="spot-empty">` +
+        empty.map((sp) => `<li><span>${sp.on} · ${sp.name}</span><em>${sp.fits}, ${sp.maxKg} kg</em></li>`).join('') +
+        `</ul>`;
     }
     if (!inv.spots.length) body += `<p class="pocket-empty">Nothing you're wearing has pockets.</p>`;
     card.innerHTML = `<div class="sheet-head"><h2>Pockets</h2>${close}</div><div class="sheet-body">${body}</div>`;
@@ -801,6 +973,13 @@ export class Game {
   }
 
   update(dt: number) {
+    if ((this.weatherTimer -= dt) <= 0) {
+      this.weatherTimer = 2;
+      const was = this.weather.now;
+      if (updateWeather(this.weather) && this.running && this.tvState.on && this.weather.now !== was && this.place === 'street') {
+        this.note([weatherLine(this.weather.now, was)]);
+      }
+    }
     this.tickClock();
     if (this.running) {
       this.save.playTime += dt;
@@ -824,10 +1003,12 @@ export class Game {
   private tickClock() {
     const t = now();
     const s = clockText(t);
-    if (s === this.clockShown) return;
-    this.clockShown = s;
+    const wx = this.weather.now;
+    const key = s + wx;
+    if (key === this.clockShown) return;
+    this.clockShown = key;
     this.clockEl.querySelector('b')!.textContent = s;
-    this.clockEl.querySelector('span')!.textContent = dateText(t);
+    this.clockEl.querySelector('span')!.textContent = `${dateText(t)} · ${WEATHER_NAME[wx]}`;
   }
 
   /** Shows the buttons that fit the moment: Lurk, Rest, the edge tabs. */

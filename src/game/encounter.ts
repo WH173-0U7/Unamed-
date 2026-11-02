@@ -64,6 +64,8 @@ const SPILL_RANK: Spill[] = ['none', 'drip', 'spatter', 'cough', 'spray', 'splas
 export interface LogLine {
   by: Side | 'info';
   text: string;
+  /** A blow landed in this line, on this side (shown highlighted). */
+  hit?: Side;
 }
 
 /** Someone's body in a fight. */
@@ -130,7 +132,7 @@ export const CATEGORY_NAMES: Record<Category, string> = {
   surveil: 'Surveil',
   violence: 'Violence',
   attack: 'Attack',
-  stomp: 'Stomp',
+  stomp: 'Violence',
   search: 'Search',
   move: 'Move',
 };
@@ -305,11 +307,17 @@ export function options(e: Encounter): Option[] {
 let you: { stats: Stats; gain: (name: StatName, xp: number) => void };
 let enc: Encounter;
 let impacts: Impact[] = [];
-const say = (by: LogLine['by'], text: string) => enc.log.push({ by, text });
+/** Who the last blow landed on, for the next line said (see LogLine.hit). */
+let landed: Side | null = null;
+const say = (by: LogLine['by'], text: string) => {
+  enc.log.push(landed ? { by, text, hit: landed } : { by, text });
+  landed = null;
+};
 
 /** Does one thing (an option id, or 'open' to start from the person button). */
 export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impact[] {
   impacts = [];
+  landed = null;
   enc = e;
   you = {
     stats,
@@ -694,6 +702,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc)
  */
 function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | 'fall' | 'stomp'): string {
   const D = enc[d];
+  landed = d;
   const N = names(d === 'you' ? 'them' : 'you'); // the attacker's view: N.o is the one hurt
   const ml = Math.round((dmg * (D.maxBlood * (1 - PASS_OUT))) / D.toughness);
   D.blood = Math.max(0, D.blood - ml);

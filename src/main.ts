@@ -5,6 +5,7 @@ import { enforceFullscreen } from './core/fullscreen';
 import { onSettingsChange } from './core/settings';
 import { deleteSave, formatAgo, formatPlayTime, hasSave, loadSave, newSave } from './core/save';
 import { createFilm } from './fx/film';
+import { createRain } from './fx/rain';
 import { createGlass } from './fx/glass';
 import { createMenu } from './ui/menu';
 import { Game } from './game/game';
@@ -31,6 +32,8 @@ const film = createFilm($('menu'));
 // The glass over everything: blood, smears and grime stay on it, through
 // every menu and the game, until wiped off with a finger.
 const glass = createGlass({ onHint: () => menu.toast('Rub the screen with your finger to wipe the blood off') });
+// Rain: falling over the picture, and running down the glass.
+const rain = createRain($('rainfall') as HTMLCanvasElement, glass);
 // The screen changing (a tab, a drawer, a menu): the glass flickers.
 addEventListener('ui-glitch', (e) => glass.pulse((e as CustomEvent<number>).detail));
 
@@ -42,6 +45,7 @@ function applySize() {
   renderer.setSize(innerWidth, innerHeight);
   film.setSize(pixelRatio);
   glass.setSize(innerWidth, innerHeight, pixelRatio);
+  rain.resize(innerWidth, innerHeight, pixelRatio);
   game?.setSize(innerWidth, innerHeight, pixelRatio);
 }
 addEventListener('resize', applySize);
@@ -205,6 +209,7 @@ if (params.has('debug')) {
     __app: {
       menu,
       glass,
+      rain,
       get state() {
         return state;
       },
@@ -232,6 +237,9 @@ renderer.setAnimationLoop(() => {
   }
 
   if (menuVisible) film.update(dt);
+  // It only rains in a game (the weather is the save's).
+  rain.setAmount(game?.rainAmount ?? 0);
+  rain.update(dt);
   glass.update(dt);
 
   frames++;

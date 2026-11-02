@@ -29,12 +29,15 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
 - **Tap the person**, and your options are sorted into **tabs** you can flip
   between freely (switching tabs costs nothing; only picking an option does
   anything): **Surveil | Violence** before anything happens, then in a fight
-  **Attack** (punch, kick, grapple), **Stomp** (head, stomach, ribs, once
-  they're down), **Search** (once they're unconscious or dead) and **Move**
-  (run, get up, catch your breath, walk away). When things change (they
-  fall, they pass out) the tab that matters jumps to the front. *Leave
-  them* / *Lurk again* / *Rest* sit below the tabs. Their card also shows
-  what they're **wearing**.
+  **Attack** (punch, kick, grapple), **Violence** (stamping on their head,
+  stomach or ribs, once they're down), **Search** (once they're unconscious
+  or dead) and **Move** (run, get up, catch your breath, walk away). When
+  things change (they fall) the tab that matters jumps to the front; once
+  they're **unconscious, nothing is open until you choose**: Violence,
+  Search or Move. *Leave them* / *Lurk again* / *Rest* sit below the tabs.
+  Their card also shows what they're **wearing**.
+- **Blows that land are highlighted** in the log: yours in **gold**, theirs
+  on you in **red**, with the blood it cost picked out.
   - **Surveil:** *Follow* to get closer (across the street → behind them →
     right on them), then find out their **build** (which shows how hard a
     fight would be: Easy, Fair, Hard or Brutal), what they're **carrying**
@@ -79,6 +82,33 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   every pocket and bag with how full it is and what's in it. Medicine can be
   **used** from here, and anything can be **dropped** to make room. Your cash
   also shows under your blood.
+- **Weather, on the real clock.** Dry spells of one to three hours, then
+  drizzle, rain or a downpour for a quarter of an hour to an hour or so; it
+  keeps changing while the game is closed. The clock shows it ("Rain"), and
+  you're told when it starts, picks up, eases or stops. Indoors (the
+  pharmacy) it isn't raining on you.
+  - **Rain on the glass:** drops land and bead up, grow and merge, and once
+    heavy enough run down in fits and starts, leaving a trail of tiny beads
+    and **washing a thin path through the blood and grime**. Rain streaks
+    fall over the picture behind everything; in a downpour lightning
+    flickers. When it stops, the drops dry up.
+  - **Getting cold:** lurking in the rain soaks you: *Chilled*, *Cold*, then
+    *Freezing* (a coat or puffer helps; a T-shirt makes it worse). Cold
+    stiffens you (less stamina in a fight, 10% a level) and slows your body
+    making blood back. Dry weather dries you off slowly; resting in a
+    doorway warms you a little (more if it's dry); the pharmacy's warm
+    inside.
+- **A lighter makes a fire** (*Fire* in your pockets, on the street): it
+  burns a receipt or note from your pockets for kindling (or cardboard, if
+  there's some about), in an old oil drum. An hour by it and you're warm
+  right through. Rain makes it hard to get going; a downpour puts it out.
+  Cheap lighters run dry now and then.
+- **A small baggie of white powder** says only that. To find out what it
+  is, **Taste** it (rub some on your gums) or **Test** it with a *Drug test
+  kit* ($10 at the pharmacy, one use). It's cocaine. Once you know, a
+  **Bump** makes you *Wired* for the next fight: a quarter more stamina,
+  and a concussion hurts a little less. It wears off after the fight (or a
+  rest), and leaves you hollow. A baggie holds a few bumps.
 - **A clock** in the corner shows your device's real time and date. The
   game runs on real time: future features will take real time to happen
   (waits, healing, travel), counted from your device's clock even while the
@@ -257,6 +287,8 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | `src/core/quality.ts` | Graphics presets and adaptive resolution |
 | `src/ui/menu.ts` | Main menu, pause menu, settings, confirm dialogs |
 | `src/fx/uiGlitch.ts` | The quick glitch when the screen changes |
+| `src/game/weather.ts` | The weather on the real clock: dry spells and rain |
+| `src/fx/rain.ts` | Rain falling over the picture, and drops on the glass that run and wash it |
 | `src/game/clock.ts` | The device's real time (the clock, and time for future features) |
 | `src/game/legacy.ts` | What outlives you: who took your things when you died, and meeting them again |
 | `src/fx/film.ts` | Menu film grain, flicker, colour fringing and glitches |

@@ -79,7 +79,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       })
       .join('');
     const panel = q('.enc-opts');
-    panel.innerHTML = opts.filter((o) => o.cat && o.cat === tab).map(button).join('');
+    panel.innerHTML = tab ? opts.filter((o) => o.cat && o.cat === tab).map(button).join('') : cats.length ? `<p class="enc-pick">Choose what to do.</p>` : '';
     panel.hidden = !panel.innerHTML;
     if (switched) {
       panel.classList.remove('swap');
@@ -150,8 +150,14 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       for (; shown < e.log.length; shown++) {
         const line = e.log[shown];
         const el = document.createElement('p');
-        el.className = `by-${line.by}`;
-        el.textContent = line.text;
+        el.className = `by-${line.by}${line.hit ? ` hit-${line.hit}` : ''}`;
+        // The blood it cost stands out on a hit.
+        const m = line.hit ? /^(.*?)(\(−\d+ ml\))(.*)$/.exec(line.text) : null;
+        if (m) {
+          const b = document.createElement('b');
+          b.textContent = m[2];
+          el.append(m[1], b, m[3]);
+        } else el.textContent = line.text;
         log.append(el);
       }
       log.scrollTop = log.scrollHeight;
@@ -165,9 +171,11 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         // New tabs (they fell, they're out, the fight started): show the
         // first, the one that matters most now. Otherwise stay where you were.
         tabsKey = key;
-        tab = e.stage === 'surveil' || e.stage === 'violence' ? e.stage : (cats[0] ?? null);
+        // Someone out cold: nothing's open until you choose (violence, or
+        // going through their pockets, or leaving).
+        tab = e.stage === 'surveil' || e.stage === 'violence' ? e.stage : e.stage === 'combat' && e.them.out ? null : (cats[0] ?? null);
       }
-      if (tab && !cats.includes(tab)) tab = cats[0] ?? null;
+      if (tab && !cats.includes(tab)) tab = e.stage === 'combat' && e.them.out ? null : (cats[0] ?? null);
       drawOptions();
     },
   };

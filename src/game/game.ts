@@ -8,6 +8,7 @@ import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, type StatName, t
 import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, isHurt, newHealth, passHours, type Health } from './health';
 import { PASS_OUT, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
+import { maybeThief, newWorld, robBody, settle, type World } from './legacy';
 import { MEDS, dollars, medById, newInventory, type Inventory, type InvItem, type MedId } from './inventory';
 
 /**
@@ -64,12 +65,10 @@ type Phase = 'idle' | 'cut' | 'waiting';
  */
 export class Game {
   running = false;
-  /** You bled out: the run is over (nothing more is saved). */
+  /** You bled out, and the death screen is up. */
   dead = false;
-  /** Called the moment you die (to wipe the save). */
+  /** Called the moment you die (to save: the world goes on without you). */
   onDeath?: () => void;
-  /** Called when you leave the death screen. */
-  onExit?: () => void;
   private readonly tv;
   private readonly powerBtn: HTMLButtonElement;
   private readonly lurkBtn: HTMLButtonElement;
@@ -156,6 +155,10 @@ export class Game {
     return (this.save.state.inventory ??= newInventory()) as Inventory;
   }
 
+  private get world(): World {
+    return (this.save.state.world ??= newWorld()) as World;
+  }
+
   private get humanity(): Humanity {
     return (this.save.state.humanity ??= { lost: 0, kills: 0 }) as Humanity;
   }
@@ -220,6 +223,10 @@ export class Game {
     return e ?? null;
   }
   private set encounter(e: Encounter | null) {
+    // Done with whoever was there: if they had your old things, remember
+    // what's left on them.
+    const old = this.encounter;
+    if (old && old !== e) settle(this.world, old);
     this.save.state.encounter = e ?? undefined;
   }
 
@@ -341,19 +348,31 @@ export class Game {
   }
 
   /**
-   * You bled out. The save is wiped (there's no coming back from this), and
-   * the screen shows how it ended.
+   * You bled out. That character is gone for good: whoever finds the body
+   * takes everything on it (see legacy.ts), and you go on as someone new,
+   * with nothing. The world remembers.
    */
   private die(lines: string[]) {
     if (this.dead) return;
     this.dead = true;
     this.running = false;
     this.closeSheet();
-    this.onDeath?.();
     this.fx.impact(true, 900, true);
     buzz([120, 80, 200, 120, 400]);
     const h = this.humanity;
     const lvl = humanityLevel(h.lost);
+    const w = this.world;
+    const cash = this.inventory.cash;
+    const lurked = this.lurkState.times - w.lifeStart;
+    // The encounter you died in (its person may be the one who robs you).
+    const e = this.encounter;
+    if (e) settle(w, e);
+    const robbed = robBody(w, this.inventory, e);
+    // A new you: nothing carried over but the world.
+    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place']) delete this.save.state[k];
+    w.lives++;
+    w.lifeStart = this.lurkState.times;
+    this.onDeath?.();
     const el = document.createElement('div');
     el.id = 'death';
     const p = (t: string) => `<p>${t}</p>`;
@@ -361,14 +380,30 @@ export class Game {
       `<h2>You bled out.</h2>` +
       `<div class="death-lines">${lines.slice(-2).map(p).join('')}</div>` +
       `<dl class="death-sum">` +
-      `<div><dt>Lurked</dt><dd>${this.lurkState.times}</dd></div>` +
+      `<div><dt>Lurked</dt><dd>${lurked}</dd></div>` +
       `<div><dt>Killed</dt><dd>${h.kills}</dd></div>` +
       `<div><dt>Humanity</dt><dd>${lvl?.name ?? (h.lost ? 'Shaken' : 'Intact')}</dd></div>` +
-      `<div><dt>Cash</dt><dd>${dollars(this.inventory.cash)}</dd></div>` +
+      `<div><dt>Cash</dt><dd>${dollars(cash)}</dd></div>` +
       `</dl>` +
-      `<button type="button" class="death-btn">Begin again</button>`;
-    el.querySelector('button')!.addEventListener('click', () => this.onExit?.());
+      `<p class="death-after">${
+        robbed
+          ? 'Someone went through your pockets before you were cold. Whatever you had is out there now, on somebody.'
+          : 'There was nothing on you worth taking.'
+      }</p>` +
+      `<button type="button" class="death-btn">Go on as someone new</button>`;
+    el.querySelector('button')!.addEventListener('click', () => this.rebirth());
     this.view.append(el);
+  }
+
+  /** Off the death screen: a new character, same streets. */
+  private rebirth() {
+    document.getElementById('death')?.remove();
+    this.dead = false;
+    this.running = true;
+    this.phase = 'idle';
+    this.hitUi.clear();
+    this.refresh();
+    this.note(['Someone else now. Same streets. Empty pockets.']);
   }
 
   private openSheet(kind: 'places' | 'pockets') {
@@ -568,7 +603,7 @@ export class Game {
       // The wait: the odd flicker of interference.
       if (Math.random() < dt * 0.9) this.jam = Math.max(this.jam, 0.2 + Math.random() * 0.25);
       if (this.timer <= 0) {
-        const person = makePerson();
+        const person = maybeThief(this.world) ?? makePerson();
         const s = this.lurkState;
         s.times++;
         s.seen[person.kind]++;
@@ -719,7 +754,7 @@ export class Game {
 
   /** For automated tests. */
   get debug() {
-    return { tv: this.tv, phase: this.phase, lurk: this.lurkState, encounter: this.encounter, stats: this.stats, health: this.health, inventory: this.inventory, place: this.place, humanity: this.humanity };
+    return { world: this.world, tv: this.tv, phase: this.phase, lurk: this.lurkState, encounter: this.encounter, stats: this.stats, health: this.health, inventory: this.inventory, place: this.place, humanity: this.humanity };
   }
 }
 

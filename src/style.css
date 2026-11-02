@@ -1661,6 +1661,13 @@ body.in-game #menu {
   font-style: italic;
   color: var(--ink-dim);
 }
+.death-after {
+  max-width: 360px;
+  margin: 0 auto;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
 .death-sum {
   display: grid;
   grid-template-columns: repeat(4, auto);

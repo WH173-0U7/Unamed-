@@ -138,9 +138,17 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
     you're out cold for a few hours, still bleeding. If your blood falls to
     40% while you lie there, you never wake up. Light bleeding usually clots
     in time; heavy bleeding often doesn't (about a third of beatings end
-    this way). **Death is final:** the save is deleted, a death screen shows
-    how far you got (lurks, kills, humanity, cash), and you begin again. (The
-    blood on the glass stays.)
+    this way). **Death is final for that character:** a death screen shows
+    how far they got (lurks, kills, humanity, cash), then you **go on as
+    someone new**: stats back to level 1, fully healed, humanity intact,
+    empty pockets. The world remembers, though. Whoever found the body went
+    through it (the person who beat you, or a stranger if you dropped on your
+    own) and they're out there with **your old things on them**. Nothing
+    says who: lurk and now and then (about 1 in 7) it's one of them, looking
+    like anyone else. Search them and you'll find it ("It was yours once").
+    Whatever you don't take back stays on them; kill them and it's gone. Up
+    to 8 people can be carrying things of yours at once. (The blood on the
+    glass stays too.)
   - **Broken ribs** wreck your breathing: every move costs 1.8x the stamina,
     it comes back at a fifth of the speed and never past half, and you have
     coughing fits. Stamp or hit broken ribs and a rib can **puncture a

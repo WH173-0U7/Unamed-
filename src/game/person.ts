@@ -1,3 +1,5 @@
+import type { MedId } from './inventory';
+
 /**
  * The people you can see when you lurk, and everything about them that you
  * can find out by watching (surveil) or learn the hard way (violence).
@@ -71,13 +73,15 @@ export interface Person {
   carrying: Item[];
   /** What they're wearing (and any bags): each can be searched for loot. */
   clothes: Garment[];
+  /** They went through a dead you's pockets (see legacy.ts). Never shown. */
+  thief?: string;
 }
 
 /** Things you can take off someone. */
 export type LootKind = 'cash' | 'phone' | 'car keys' | 'id' | 'credit card' | 'debit card' | 'misc';
 
 export interface Loot {
-  kind: LootKind;
+  kind: LootKind | 'med';
   name: string;
   /** More about it: whose card, what the note says. */
   detail?: string;
@@ -85,6 +89,10 @@ export interface Loot {
   cash?: number;
   /** Where on them it was ("back pocket", "wallet"). */
   where: string;
+  /** Medicine: which one (it was yours once). */
+  med?: MedId;
+  /** It belonged to one of your dead characters. */
+  yours?: boolean;
 }
 
 /** Something they're wearing or carrying that can be gone through. */

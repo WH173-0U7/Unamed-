@@ -22,12 +22,16 @@ export const newInventory = (): Inventory => ({ cash: 0, items: [] });
 
 /** Puts something you took into your pockets. Returns how to say it. */
 export function take(inv: Inventory, l: Loot): string {
+  if (l.yours && l.kind === 'cash') {
+    inv.cash = Math.round((inv.cash + (l.cash ?? 0)) * 100) / 100;
+    return `You pocket the ${l.name.toLowerCase()}: ${dollars(l.cash ?? 0)}. It was yours once.`;
+  }
   if (l.kind === 'cash') {
     inv.cash = Math.round((inv.cash + (l.cash ?? 0)) * 100) / 100;
     return `You pocket the ${l.name.toLowerCase()}: ${dollars(l.cash ?? 0)}.`;
   }
-  inv.items.push({ kind: l.kind, name: l.name, detail: l.detail });
-  return `You take the ${l.name.toLowerCase()}.`;
+  inv.items.push({ kind: l.kind, name: l.name, detail: l.detail, med: l.med });
+  return l.yours ? `You take the ${l.name.toLowerCase()}. It was yours once.` : `You take the ${l.name.toLowerCase()}.`;
 }
 
 export const dollars = (n: number) => `$${n % 1 ? n.toFixed(2) : n}`;

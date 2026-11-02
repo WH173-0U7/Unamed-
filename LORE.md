@@ -24,6 +24,12 @@ player unless the game itself chooses to reveal it.
 - **The pharmacy** is open all night: a fluorescent hum, and a bored clerk
   behind the plexiglass. It's the first place you can go besides the street.
 
+- **After you:** when you die, you're not the last. Someone else picks up
+  where you fell, on the same streets, with nothing. Whoever found your body
+  kept what was on it. They don't know who you are now. You don't know who
+  they are either, until you go through their pockets and find your own
+  things.
+
 ## Scrapped ideas (kept for reference)
 
 These were built and then set aside. The code is still in the project's

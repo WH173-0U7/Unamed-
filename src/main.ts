@@ -125,12 +125,8 @@ function startGame(fresh: boolean) {
     return;
   }
   game = new Game(data, $('game'), renderer, glass);
-  // Death is final: the save goes the moment you die.
-  game.onDeath = () => {
-    deleteSave();
-    menu.setSaveInfo(null);
-  };
-  game.onExit = quitToMenu;
+  // Dying saves at once: that character is gone, and you go on as someone new.
+  game.onDeath = () => save();
   game.setSize(innerWidth, innerHeight, pixelRatio);
   document.body.classList.add('in-game');
   if (fresh) {
@@ -170,12 +166,11 @@ function resume() {
 function quitToMenu() {
   if (!game) return;
   // Already saved when the game paused; quitting changes nothing.
-  const dead = game.dead;
   game.close();
   game = null;
   state = 'menu';
   document.body.classList.remove('in-game', 'paused');
-  menu.setSaveInfo(dead ? null : loadSave());
+  menu.setSaveInfo(loadSave());
   showMenu('main');
 }
 

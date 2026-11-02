@@ -15,7 +15,6 @@ export interface MenuHandlers {
   onContinue: () => void;
   onNewGame: () => void;
   onResume: () => void;
-  onSave: () => void;
   onQuit: () => void;
   onDeleteSave: () => void;
 }
@@ -85,7 +84,6 @@ export function createMenu(handlers: MenuHandlers) {
   $('btn-continue').addEventListener('click', handlers.onContinue);
   $('btn-new').addEventListener('click', handlers.onNewGame);
   $('btn-resume').addEventListener('click', handlers.onResume);
-  $('btn-save').addEventListener('click', handlers.onSave);
   $('btn-quit').addEventListener('click', handlers.onQuit);
   $('btn-delete-save').addEventListener('click', handlers.onDeleteSave);
 

@@ -148,6 +148,10 @@ export function createTv(renderer: THREE.WebGLRenderer) {
     powerOn() {
       onAt = time;
     },
+    /** Already on and warmed up (e.g. restoring a save). */
+    powerOnSettled() {
+      onAt = time - 30;
+    },
     powerOff() {
       onAt = null;
     },

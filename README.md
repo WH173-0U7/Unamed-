@@ -14,8 +14,9 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
 
 - **New game / Continue:** opens the game: a black screen with one option, *Turn on*.
 - **Pause:** top-right button, or Esc on a computer.
-- **Saving:** automatic every 30 seconds, when pausing, and when leaving the
-  app; or press *Save game* in the pause menu. Saves are stored on the device.
+- **Saving:** pausing is the save point. The game saves every time you pause
+  (leaving the app pauses it too), and *Continue* brings you back to that
+  exact pause screen. Saves are stored on the device.
 
 ## Tech
 

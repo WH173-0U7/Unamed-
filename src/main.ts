@@ -10,8 +10,6 @@ import { Game } from './game/game';
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const params = new URLSearchParams(location.search);
 
-/** How often progress is saved automatically while playing (seconds). */
-const AUTOSAVE_EVERY = 30;
 /** Length of the fade between menu and game (ms); matches #game / #menu in style.css. */
 const FADE_MS = 800;
 
@@ -46,7 +44,9 @@ onSettingsChange((s) => {
 });
 
 // ---------- App state ----------
-let sinceAutosave = 0;
+// Saving rule: pausing is the save point. Progress is written only when the
+// game pauses (including when the player leaves the app), and Continue
+// returns to exactly that pause screen.
 /** The film layer is only drawn while the menu can be seen. */
 let menuVisible = true;
 let menuFadeTimer = 0;
@@ -57,7 +57,7 @@ const menu = createMenu({
     if (hasSave()) {
       menu.confirm({
         title: 'Start a new game?',
-        body: 'Your saved game will be replaced. This cannot be undone.',
+        body: 'Your saved game will be replaced the first time you pause. This cannot be undone.',
         ok: 'Start new game',
         onOk: () => startGame(true),
       });
@@ -66,10 +66,6 @@ const menu = createMenu({
     }
   },
   onResume: resume,
-  onSave: () => {
-    if (save()) menu.toast('Game saved');
-    updatePauseInfo();
-  },
   onQuit: quitToMenu,
   onDeleteSave: () => {
     if (state !== 'menu') {
@@ -103,7 +99,6 @@ function hideMenu() {
 
 function save(): boolean {
   if (!game) return false;
-  sinceAutosave = 0;
   const ok = game.saveNow();
   if (!ok) menu.toast("Couldn't save: this browser is blocking storage");
   return ok;
@@ -122,14 +117,21 @@ function startGame(fresh: boolean) {
     menu.setSaveInfo(null);
     return;
   }
-  game = new Game(data, $('game'), renderer, { onTurnedOn: () => save() });
+  game = new Game(data, $('game'), renderer);
   game.setSize(innerWidth, innerHeight);
-  if (fresh) save(); // so Continue is available straight away
-  state = 'playing';
-  sinceAutosave = 0;
-  hideMenu();
-  game.start();
   document.body.classList.add('in-game');
+  if (fresh) {
+    state = 'playing';
+    hideMenu();
+    game.start();
+  } else {
+    // Continue: back to the pause screen where the game was saved.
+    state = 'paused';
+    game.restorePaused();
+    document.body.classList.add('paused');
+    updatePauseInfo();
+    showMenu('pause');
+  }
   if (isMobile) {
     // Some browsers lack fullscreen or don't return a promise: never let that break starting.
     try {
@@ -146,7 +148,8 @@ function pause() {
   state = 'paused';
   game.pause();
   document.body.classList.add('paused');
-  save();
+  // The save point.
+  if (save()) menu.toast('Progress saved');
   updatePauseInfo();
   showMenu('pause');
 }
@@ -161,7 +164,7 @@ function resume() {
 
 function quitToMenu() {
   if (!game) return;
-  save();
+  // Already saved when the game paused; quitting changes nothing.
   game.close();
   game = null;
   state = 'menu';
@@ -177,13 +180,11 @@ addEventListener('keydown', (e) => {
   else if (menu.current === 'settings' || menu.current === 'confirm') menu.back();
   else if (state === 'paused') resume();
 });
-// Leaving the app pauses and saves; closing the tab saves.
+// Leaving or closing the app pauses it, which saves.
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) pause();
 });
-addEventListener('pagehide', () => {
-  if (game) game.saveNow();
-});
+addEventListener('pagehide', pause);
 
 menu.setSaveInfo(loadSave());
 showMenu('main');
@@ -215,7 +216,6 @@ renderer.setAnimationLoop(() => {
 
   if (game) {
     game.update(dt);
-    if (state === 'playing' && (sinceAutosave += dt) >= AUTOSAVE_EVERY) save();
   } else {
     renderer.clear();
   }

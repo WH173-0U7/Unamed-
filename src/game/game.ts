@@ -16,18 +16,14 @@ export class Game {
   running = false;
   private readonly tv;
   private readonly powerBtn: HTMLButtonElement;
-  private onAfterPower: (() => void) | null = null;
 
   constructor(
     readonly save: SaveData,
     private readonly view: HTMLElement,
     renderer: THREE.WebGLRenderer,
-    /** onTurnedOn: called when the player switches the TV on (to save). */
-    opts: { onTurnedOn?: () => void } = {},
   ) {
     this.tv = createTv(renderer);
     this.powerBtn = view.querySelector('#power-btn') as HTMLButtonElement;
-    this.onAfterPower = opts.onTurnedOn ?? null;
     this.powerBtn.onclick = () => this.turnOn();
   }
 
@@ -36,14 +32,27 @@ export class Game {
     return s;
   }
 
+  /** Starts a new game from the beginning. */
   start() {
     this.running = true;
     this.view.classList.add('active');
+    this.showSavedScene();
+  }
+
+  /** Rebuilds the scene exactly as it was saved, then waits paused. */
+  restorePaused() {
+    this.running = false;
+    this.view.classList.add('active');
+    this.showSavedScene();
+  }
+
+  private showSavedScene() {
     if (this.tvState.on) {
-      // The set was on when you left: it powers back up as you return.
+      // The set was already on at the save point: no warm-up, just the glow.
       this.powerBtn.hidden = true;
-      window.setTimeout(() => this.tv.powerOn(), 700);
+      this.tv.powerOnSettled();
     } else {
+      this.tv.powerOff();
       this.powerBtn.hidden = false;
       this.powerBtn.classList.remove('pressed');
     }
@@ -53,7 +62,6 @@ export class Game {
     if (this.tvState.on || !this.running) return;
     this.powerBtn.classList.add('pressed');
     this.tvState.on = true;
-    this.onAfterPower?.(); // save straight away, so progress is never lost
     window.setTimeout(() => {
       this.powerBtn.hidden = true;
       this.tv.powerOn();

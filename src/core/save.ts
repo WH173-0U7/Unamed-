@@ -22,10 +22,10 @@ export interface SaveData {
   state: Record<string, unknown>;
 }
 
-const KEY = 'unamed.save';
-const BACKUP_KEY = 'unamed.save.backup';
-/** Keys used before the game was renamed; still read so older saves load. */
-const LEGACY_KEYS = ['dreamscape.save', 'dreamscape.save.backup'];
+const KEY = 'darcvoyd.save';
+const BACKUP_KEY = 'darcvoyd.save.backup';
+/** Keys used under the game's earlier names; still read so older saves load. */
+const LEGACY_KEYS = ['unamed.save', 'unamed.save.backup', 'dreamscape.save', 'dreamscape.save.backup'];
 
 export function newSave(): SaveData {
   const now = Date.now();

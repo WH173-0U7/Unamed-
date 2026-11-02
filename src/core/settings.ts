@@ -7,8 +7,9 @@ export interface Settings {
   showFps: boolean;
 }
 
-const KEY = 'unamed.settings';
-const LEGACY_KEY = 'dreamscape.settings.v2';
+const KEY = 'darcvoyd.settings';
+/** Keys used under the game's earlier names. */
+const LEGACY_KEYS = ['unamed.settings', 'dreamscape.settings.v2'];
 
 const defaults: Settings = {
   quality: 'auto',
@@ -17,7 +18,7 @@ const defaults: Settings = {
 
 function load(): Settings {
   try {
-    const raw = localStorage.getItem(KEY) ?? localStorage.getItem(LEGACY_KEY);
+    const raw = [KEY, ...LEGACY_KEYS].map((k) => localStorage.getItem(k)).find((v) => v !== null) ?? null;
     return raw ? { ...defaults, ...JSON.parse(raw) } : { ...defaults };
   } catch {
     return { ...defaults };

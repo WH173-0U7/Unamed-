@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 import { writeSave, type SaveData } from '../core/save';
-import { createTv, TV_WARMUP } from './tv';
+import { createTv } from './tv';
 
 /** Progress stored in the save file under `state.tv`. */
 interface TvState {
@@ -22,6 +22,7 @@ export class Game {
     readonly save: SaveData,
     private readonly view: HTMLElement,
     renderer: THREE.WebGLRenderer,
+    /** onTurnedOn: called when the player switches the TV on (to save). */
     opts: { onTurnedOn?: () => void } = {},
   ) {
     this.tv = createTv(renderer);
@@ -52,6 +53,7 @@ export class Game {
     if (this.tvState.on || !this.running) return;
     this.powerBtn.classList.add('pressed');
     this.tvState.on = true;
+    this.onAfterPower?.(); // save straight away, so progress is never lost
     window.setTimeout(() => {
       this.powerBtn.hidden = true;
       this.tv.powerOn();
@@ -66,7 +68,6 @@ export class Game {
           /* not allowed here */
         }
       }, 430);
-      window.setTimeout(() => this.onAfterPower?.(), TV_WARMUP * 1000);
     }, 350);
   }
 

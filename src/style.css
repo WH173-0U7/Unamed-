@@ -11,6 +11,8 @@
   --glass: rgba(16, 16, 16, 0.72);
   --line: rgba(236, 235, 230, 0.16);
   --danger: #ff6b7f;
+  /* Film halation: the warm glow that bleeds around bright text. */
+  --halation: rgba(255, 110, 70, 0.22);
 
   --font-display: 'Syncopate', 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
   --font-ui: 'Quicksand', 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
@@ -23,6 +25,7 @@
   /* Driven every frame by src/fx/film.ts */
   --ca: 1px;
   --jx: 0px;
+  --gy: 0px;
   --skew: 0deg;
 
   color-scheme: dark;
@@ -73,6 +76,11 @@ button {
 
 canvas {
   display: block;
+}
+
+/* Elements with display rules of their own must still obey [hidden]. */
+[hidden] {
+  display: none !important;
 }
 
 /* ================= Game view ================= */
@@ -250,12 +258,17 @@ body.paused #pause-btn {
   /* Chromatic aberration: every bit of menu text gets red / cyan fringes. */
   text-shadow:
     calc(var(--ca) * -1) 0 var(--fringe-r),
-    var(--ca) 0 var(--fringe-c);
+    var(--ca) 0 var(--fringe-c),
+    0 0 9px var(--halation);
   opacity: 0;
   visibility: hidden;
   transition:
     opacity 0.8s ease,
     visibility 0s linear 0.8s;
+}
+/* While fading out, the menu must not swallow taps meant for the game. */
+#menu:not(.open) {
+  pointer-events: none;
 }
 #menu.open {
   opacity: 1;
@@ -282,7 +295,7 @@ body.in-game #menu {
   display: none;
   padding: var(--pad-top) var(--pad-x-r) var(--pad-bot) var(--pad-x-l);
   /* Glitch bursts knock the whole menu sideways for a frame or two. */
-  transform: translateX(var(--jx)) skewX(var(--skew));
+  transform: translate(var(--jx), var(--gy)) skewX(var(--skew));
 }
 .screen.active {
   display: flex;
@@ -325,7 +338,6 @@ body.in-game #menu {
   font-size: clamp(28px, min(7.4vw, 13vh), 84px);
   line-height: 1;
   letter-spacing: 0.12em;
-  text-transform: uppercase;
   color: var(--ink);
   --s1-t: 0%;
   --s1-h: 0%;
@@ -669,6 +681,12 @@ body.in-game #menu {
 @media (max-width: 420px) {
   .seg button {
     padding: 0 10px;
+  }
+  .nav button {
+    letter-spacing: 0.24em;
+  }
+  .pause-meta {
+    letter-spacing: 0.1em;
   }
 }
 

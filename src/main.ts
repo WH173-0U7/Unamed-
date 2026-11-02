@@ -130,7 +130,15 @@ function startGame(fresh: boolean) {
   hideMenu();
   game.start();
   document.body.classList.add('in-game');
-  if (isMobile) document.documentElement.requestFullscreen?.().catch(() => {});
+  if (isMobile) {
+    // Some browsers lack fullscreen or don't return a promise: never let that break starting.
+    try {
+      const request = document.documentElement.requestFullscreen?.();
+      request?.catch?.(() => {});
+    } catch {
+      /* fullscreen unavailable */
+    }
+  }
 }
 
 function pause() {

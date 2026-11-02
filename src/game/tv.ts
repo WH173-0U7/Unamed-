@@ -1,9 +1,6 @@
 import * as THREE from 'three';
 import { createFullscreenShader, glslHash } from '../fx/fullscreen';
 
-/** How long the power-on sequence takes before the screen is fully settled (s). */
-export const TV_WARMUP = 3;
-
 /**
  * An old CRT television filling the screen. Powering on plays the classic
  * sequence: a spark in the centre, a bright horizontal line, the picture
@@ -60,8 +57,14 @@ export function createTv(renderer: THREE.WebGLRenderer) {
 
         // 4. Static: a storm of snow that dies down, leaving a faint shimmer.
         float snowAmt = smoothstep(0.55, 0.75, t) * (1.0 - smoothstep(0.85, 2.8, t)) * 0.85 + 0.03;
+        // Analog noise is smeared sideways along each scanline, not square.
         float frame = floor(uTime * 30.0);
-        float snow = hash(floor(uv * uRes / 1.5) + frame * vec2(1013.0, 7919.0));
+        float rowS = floor(uv.y * uLines * 2.0);
+        float xs = uv.x * uRes.x / 2.5;
+        float n0 = hash(vec2(floor(xs), rowS), frame);
+        float n1 = hash(vec2(floor(xs) + 1.0, rowS), frame);
+        float snow = mix(n0, n1, smoothstep(0.0, 1.0, fract(xs)));
+        snow = pow(snow, 1.6) * 1.35;
 
         // 5. Empty screen: the dark glow of a tube showing nothing.
         float glow = 0.05 + 0.035 * (1.0 - smoothstep(0.0, 0.7, length(c * vec2(aspect * 0.8, 1.0))));
@@ -85,13 +88,19 @@ export function createTv(renderer: THREE.WebGLRenderer) {
         // Losing horizontal sync while warming up: rows jump sideways.
         float shake = smoothstep(0.6, 0.8, t) * (1.0 - smoothstep(0.9, 2.2, t));
         float row = floor(uv.y * uLines);
-        uv.x += (hash(vec2(row, floor(uTime * 30.0) * 131.0)) - 0.5) * 0.025 * shake;
+        uv.x += (hash(vec2(row, 0.0), floor(uTime * 30.0)) - 0.5) * 0.025 * shake;
+        // Degauss: the tube's magnetic field settles, warping the picture and
+        // washing it with drifting rainbow blotches.
+        float degauss = smoothstep(0.75, 0.95, t) * (1.0 - smoothstep(1.1, 2.6, t));
+        uv.x += sin(uv.y * 18.0 + t * 35.0) * 0.004 * degauss;
         // A brief vertical roll as the picture locks in.
         uv.y = fract(uv.y + (1.0 - smoothstep(0.75, 1.6, t)) * step(0.75, t) * 0.25);
 
         // Colour fringing: wide while unstable, settling to a hint.
         float ca = 0.0012 + 0.014 * smoothstep(0.35, 0.6, t) * (1.0 - smoothstep(0.8, 2.6, t));
         vec3 col = vec3(tube(uv + vec2(ca, 0.0), t), tube(uv, t), tube(uv - vec2(ca, 0.0), t));
+        float field = sin(uv.x * 5.0 + t * 2.3) + sin(uv.y * 4.0 - t * 1.7) + sin((uv.x + uv.y) * 3.0 + t * 3.1);
+        col += (0.5 + 0.5 * cos(6.28318 * (field * 0.25 + vec3(0.0, 0.33, 0.67)))) * degauss * 0.3;
         col *= vec3(0.9, 1.0, 1.1); // cool phosphor tint
         col = 1.0 - exp(-col * 1.6);   // soft highlight roll-off, like an overdriven tube
 
@@ -100,12 +109,17 @@ export function createTv(renderer: THREE.WebGLRenderer) {
         float m = mod(gl_FragCoord.x, 3.0);
         col *= 0.92 + 0.08 * vec3(step(m, 1.0), step(1.0, m) * step(m, 2.0), step(2.0, m));
 
-        // Glass: darker edges, rounded corners, slight flicker.
-        vec2 e = smoothstep(0.0, 0.012, uv) * smoothstep(0.0, 0.012, 1.0 - uv);
-        col *= e.x * e.y;
+        // Glass: the picture falls off into the bezel at the curved edges.
+        vec2 e = smoothstep(0.0, 0.035, uv) * smoothstep(0.0, 0.035, 1.0 - uv);
+        col *= pow(e.x * e.y, 0.7);
         vec2 v = vUv - 0.5;
         col *= 1.0 - dot(v, v) * 0.9;
-        col *= 0.97 + 0.03 * noise1(uTime * 22.0);
+        // Mains hum and power-supply sag: tiny flicker and a slow breath.
+        col *= (0.97 + 0.03 * noise1(uTime * 22.0)) * (0.985 + 0.015 * sin(uTime * 0.7));
+        // The tube's own light catching the curved glass: a soft reflection.
+        float lit = smoothstep(0.4, 1.2, t);
+        float refl = 1.0 - smoothstep(0.0, 0.5, length((vUv - vec2(0.27, 0.8)) * vec2(1.0, 1.8)));
+        col += vec3(0.85, 0.9, 1.0) * refl * refl * 0.035 * lit;
 
         gl_FragColor = vec4(col, 1.0);
       }

@@ -22,8 +22,10 @@ export interface SaveData {
   state: Record<string, unknown>;
 }
 
-const KEY = 'dreamscape.save';
-const BACKUP_KEY = 'dreamscape.save.backup';
+const KEY = 'unamed.save';
+const BACKUP_KEY = 'unamed.save.backup';
+/** Keys used before the game was renamed; still read so older saves load. */
+const LEGACY_KEYS = ['dreamscape.save', 'dreamscape.save.backup'];
 
 export function newSave(): SaveData {
   const now = Date.now();
@@ -55,7 +57,11 @@ function migrate(data: Partial<SaveData>): SaveData {
 
 export function loadSave(): SaveData | null {
   try {
-    return parse(localStorage.getItem(KEY)) ?? parse(localStorage.getItem(BACKUP_KEY));
+    for (const key of [KEY, BACKUP_KEY, ...LEGACY_KEYS]) {
+      const save = parse(localStorage.getItem(key));
+      if (save) return save;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -80,8 +86,7 @@ export function writeSave(data: SaveData): boolean {
 
 export function deleteSave() {
   try {
-    localStorage.removeItem(KEY);
-    localStorage.removeItem(BACKUP_KEY);
+    for (const key of [KEY, BACKUP_KEY, ...LEGACY_KEYS]) localStorage.removeItem(key);
   } catch {
     /* nothing stored */
   }

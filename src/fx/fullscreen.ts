@@ -32,14 +32,28 @@ export function createFullscreenShader(fragmentShader: string, uniforms: Record<
 
 /** Shared GLSL helpers. */
 export const glslHash = /* glsl */ `
-  // Integer hash: stable on mobile GPUs, no visible patterns.
+  // PCG integer hash: no visible patterns, and stays exact however long the
+  // game runs (frame counters go in as a separate seed, not added to coordinates).
+  uint pcg(uint v) {
+    uint state = v * 747796405u + 2891336453u;
+    uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return (word >> 22u) ^ word;
+  }
+  uint seedOf(float s) {
+    return uint(mod(floor(s), 16777216.0));
+  }
+  /** Random 0..1 for an integer cell. */
   float hash(vec2 p) {
-    uvec2 q = uvec2(ivec2(floor(p)) + 32768) * uvec2(1597334673u, 3812015801u);
-    uint n = (q.x ^ q.y) * 1597334673u;
-    return float(n) * (1.0 / 4294967295.0);
+    uvec2 q = uvec2(ivec2(floor(p)) + 65536);
+    return float(pcg(q.x + pcg(q.y))) / 4294967295.0;
+  }
+  /** Random 0..1 for an integer cell, different for every seed (e.g. frame number). */
+  float hash(vec2 p, float seed) {
+    uvec2 q = uvec2(ivec2(floor(p)) + 65536);
+    return float(pcg(q.x + pcg(q.y + pcg(seedOf(seed))))) / 4294967295.0;
   }
   float hash1(float x) {
-    return hash(vec2(x, 17.0));
+    return float(pcg(seedOf(x) + 1013904223u)) / 4294967295.0;
   }
   float noise1(float x) {
     float i = floor(x);

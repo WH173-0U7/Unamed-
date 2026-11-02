@@ -7,7 +7,8 @@ export interface Settings {
   showFps: boolean;
 }
 
-const KEY = 'dreamscape.settings.v2';
+const KEY = 'unamed.settings';
+const LEGACY_KEY = 'dreamscape.settings.v2';
 
 const defaults: Settings = {
   quality: 'auto',
@@ -16,7 +17,7 @@ const defaults: Settings = {
 
 function load(): Settings {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(KEY) ?? localStorage.getItem(LEGACY_KEY);
     return raw ? { ...defaults, ...JSON.parse(raw) } : { ...defaults };
   } catch {
     return { ...defaults };

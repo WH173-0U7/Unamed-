@@ -40,7 +40,8 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
     *Kick* (*Stomp* if they're down), *Grapple* (throws them down), *Run*,
     *Get up* (when you're on the floor) or *Catch your breath*, turn by turn,
     with a log of what happens to them and to you. They may pull a weapon,
-    pepper spray you, or run when losing.
+    pepper spray you, or run when losing. When it's over the log is cleared;
+    the title says how it ended.
 - **Fights:**
   - **Blood is health.** Blows cost blood, and so does bleeding every turn.
     At 55% of your blood or less, you pass out (the mark on the blood bar).

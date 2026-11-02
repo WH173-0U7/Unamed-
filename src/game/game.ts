@@ -186,7 +186,9 @@ export class Game {
     const wasOver = e.stage === 'over';
     const impacts = act(e, id, this.stats);
     if (!wasOver && e.stage === 'over') {
-      for (const text of afterFight(this.health, e.you, e.result!)) e.log.push({ by: 'info', text });
+      // It's done: the log is cleared (the title says how it ended), keeping
+      // only what happens to you afterwards.
+      e.log = afterFight(this.health, e.you, e.result!).map((text) => ({ by: 'info' as const, text }));
     }
     if (impacts.length) this.feel(impacts);
     else buzz(6);

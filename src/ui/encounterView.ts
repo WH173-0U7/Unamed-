@@ -67,7 +67,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         current = e;
         return;
       }
-      if (e !== current) {
+      if (e !== current || e.log.length < shown) {
         log.replaceChildren();
         shown = 0;
         current = e;

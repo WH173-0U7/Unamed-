@@ -14,7 +14,7 @@
   /* Film halation: the warm glow that bleeds around bright text. */
   --halation: rgba(255, 110, 70, 0.22);
 
-  --font-display: 'Syncopate', 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Michroma', 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
   --font-ui: 'Quicksand', 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
 
   --pad-x-l: max(22px, env(safe-area-inset-left, 0px));

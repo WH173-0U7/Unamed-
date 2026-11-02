@@ -1,6 +1,7 @@
 import './style.css';
 import * as THREE from 'three';
-import { isMobile, pixelRatioFor } from './core/quality';
+import { pixelRatioFor } from './core/quality';
+import { enforceFullscreen } from './core/fullscreen';
 import { onSettingsChange } from './core/settings';
 import { deleteSave, formatAgo, formatPlayTime, hasSave, loadSave, newSave } from './core/save';
 import { createFilm } from './fx/film';
@@ -132,15 +133,6 @@ function startGame(fresh: boolean) {
     updatePauseInfo();
     showMenu('pause');
   }
-  if (isMobile) {
-    // Some browsers lack fullscreen or don't return a promise: never let that break starting.
-    try {
-      const request = document.documentElement.requestFullscreen?.();
-      request?.catch?.(() => {});
-    } catch {
-      /* fullscreen unavailable */
-    }
-  }
 }
 
 function pause() {
@@ -188,6 +180,7 @@ addEventListener('pagehide', pause);
 
 menu.setSaveInfo(loadSave());
 showMenu('main');
+enforceFullscreen();
 
 if (params.has('debug')) {
   // Handle for automated testing.

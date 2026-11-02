@@ -13,6 +13,8 @@ Every push to `main` (or the development branch) rebuilds the game and
 publishes it there automatically (see `.github/workflows/deploy.yml`).
 
 - **New game / Continue:** opens the game: a black screen with one option, *Turn on*.
+- **Fullscreen:** the game asks for fullscreen on every tap, click or key press
+  whenever it isn't fullscreen. On iPhone, use Share → Add to Home Screen.
 - **Pause:** top-right button, or Esc on a computer.
 - **Saving:** pausing is the save point. The game saves every time you pause
   (leaving the app pauses it too), and *Continue* brings you back to that
@@ -44,6 +46,7 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | `src/game/tv.ts` | The CRT television and its power-on sequence |
 | `src/core/save.ts` | Save / load / delete, with a backup copy |
 | `src/core/settings.ts` | Player settings |
+| `src/core/fullscreen.ts` | Keeps the game fullscreen |
 | `src/core/quality.ts` | Graphics presets and adaptive resolution |
 | `src/ui/menu.ts` | Main menu, pause menu, settings, confirm dialogs |
 | `src/fx/film.ts` | Menu film grain, flicker, colour fringing and glitches |

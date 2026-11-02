@@ -14,8 +14,8 @@ import { createFullscreenShader, glslHash } from './fullscreen';
  *   a couple of minutes it dries: matte, brown-maroon, darker at the rim,
  *   cracking where it's thick.
  * - **Wiping.** Drag a finger across the screen to wipe. It pushes wet blood
- *   along and lifts some of it, leaving a thin streaky smear; dried blood
- *   barely moves and takes many passes. The smear itself fades with more
+ *   along and lifts some of it, leaving a faint streaky smear; dried blood
+ *   takes a couple more passes. The smear fades with more
  *   wiping, but your finger leaves greasy streaks.
  * - **Dirt and grime**: dust, specks and greasy haze that build up slowly
  *   and never quite come off.
@@ -118,26 +118,26 @@ export function createGlass(opts: GlassOptions = {}) {
         vec2 dir = ab / L;
         float t = clamp(dot(p - uA, dir) / L, 0.0, 1.0);
         float d = length(p - (uA + ab * t));
-        float w = 1.0 - smoothstep(uR * 0.4, uR, d);
+        float w = 1.0 - smoothstep(uR * 0.55, uR, d);
         if (w <= 0.0) { gl_FragColor = s; return; }
         // Skin ridges and uneven pressure leave streaks along the stroke.
         float across = dot(p - uA, vec2(-dir.y, dir.x));
-        float streak = 0.45 + 0.55 * vnoise(vec2(across * 0.32, 0.5), uSeed);
-        streak *= 0.75 + 0.25 * vnoise(vec2(across * 1.7, 0.5), uSeed + 3.0);
+        float streak = 0.75 + 0.25 * vnoise(vec2(across * 0.32, 0.5), uSeed);
+        streak *= 0.88 + 0.12 * vnoise(vec2(across * 1.7, 0.5), uSeed + 3.0);
         // Wet blood is pushed along with the finger.
         vec4 b = texture2D(tState, toUv(p - dir * min(L, uR * 0.55)));
         float wetB = clamp(b.g / max(b.r, 0.02), 0.0, 1.0);
-        float drag = w * 0.6 * wetB;
+        float drag = w * 0.3 * wetB;
         float r = mix(s.r, b.r, drag);
         float g = mix(s.g, b.g, drag);
         // Some is lifted off; dry blood hardly comes away.
         float wet = clamp(g / max(r, 0.02), 0.0, 1.0);
-        float lift = w * streak * mix(0.16, 0.6, wet);
+        float lift = w * streak * mix(0.5, 0.88, wet);
         float r2 = r * (1.0 - lift);
         float g2 = g * (1.0 - lift);
         // What came off spreads as a thin smear; the smear wipes away slowly.
         float gone = max(s.r - r2, 0.0);
-        float smear = s.b * (1.0 - w * streak * 0.2) + gone * mix(0.3, 0.65, wet) * streak;
+        float smear = s.b * (1.0 - w * streak * 0.5) + gone * mix(0.1, 0.22, wet) * streak;
         // Dust is moved about; skin leaves a little grease, most at the edges.
         float edge = smoothstep(0.55, 0.95, d / uR);
         float grime = s.a * (1.0 - w * 0.1 * streak) + w * ((1.0 - streak) * 0.01 + edge * 0.012);
@@ -670,7 +670,7 @@ export function createGlass(opts: GlassOptions = {}) {
       const x = e.clientX;
       const y = e.clientY;
       if (!ptr.wiping) {
-        if (Math.hypot(x - ptr.sx, y - ptr.sy) < 14) return;
+        if (Math.hypot(x - ptr.sx, y - ptr.sy) < 10) return;
         ptr.wiping = true;
         try {
           localStorage.setItem(WIPED_KEY, '1');
@@ -847,7 +847,7 @@ export function createGlass(opts: GlassOptions = {}) {
         for (const s of wipes) {
           u.uA.value.set(s.ax, s.ay);
           u.uB.value.set(s.bx, s.by);
-          u.uR.value = Math.max(22, Math.min(w, h) * 0.075);
+          u.uR.value = Math.max(38, Math.min(w, h) * 0.13);
           u.uSeed.value = s.seed;
           step(wipePass);
         }

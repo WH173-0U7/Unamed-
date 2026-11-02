@@ -89,9 +89,9 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   over everything, the game and every menu, and is kept on the device
   between visits. Nothing cleans it for you: **drag a finger across the
   screen to wipe it**. Wet blood gets pushed along and partly lifted,
-  leaving a thin streaky smear that takes more wiping. Over a couple of
+  leaving only a faint smear. Over a couple of
   minutes blood **dries**: matte, brown-maroon, darker at the rim, finely
-  cracked where it was thick, and much harder to wipe. There's always some
+  cracked where it was thick, and takes a pass or two more to wipe. There's always some
   dust, specks and greasy haze, it builds up slowly, and your finger leaves
   streaks of its own. (A wipe that ends on a button doesn't press it.)
 - **Your injuries carry over** from one person to the next: your blood,

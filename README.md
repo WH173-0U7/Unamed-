@@ -2,8 +2,8 @@
 
 A GPU-heavy game for mobile, being built from scratch. Right now it has a
 black, film-styled menu (grain, flicker, colour fringing, glitches), settings,
-a pause-based save system, and the opening of the game: an endless dark void
-where a small orb of light (the Whisp, see [LORE.md](LORE.md)) appears under
+a pause-based save system, and the opening of the game: an endless,
+procedurally generated cave of tunnels (see [LORE.md](LORE.md)) where a small orb of light (the Whisp) appears under
 the player's touch and feeds on their movement, glowing brighter and lighting
 up more of its surroundings.
 
@@ -22,7 +22,8 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
 
 - **Playing:** touch anywhere and an orb appears under your thumb. Moving your
   thumb feeds it: it glows bigger and brighter and lights up more of the dark.
-  Hold your thumb away from the centre to travel that way through the void.
+  Hold your thumb away from the centre to travel that way through the cave;
+  the walls block it.
   Hold still and it slowly fades; lift your thumb and it dies away.
 - **Fullscreen:** the game asks for fullscreen on every tap, click or key press
   whenever it isn't fullscreen. On iPhone, use Share → Add to Home Screen.
@@ -34,9 +35,10 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
 ## Tech
 
 - TypeScript + [Three.js](https://threejs.org) on WebGL2, built with Vite.
-- GPU shaders draw the menu's film grain / glitch layer and the game's
-  darkness: the Whisp's light and halo, smoky feedback trails, threads of light,
-  and fog and rock revealed only where the light reaches.
+- GPU shaders draw the menu's film grain / glitch layer and the game's world:
+  the procedural cave (the same maths runs on the CPU for collisions), soft
+  shadows, the living background (currents, pulsing veins, breathing), mist,
+  the Whisp's light, smoky feedback trails and threads of light.
 - Can later be wrapped as a native iOS / Android app (e.g. with Capacitor).
 
 ## Develop
@@ -56,7 +58,8 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | `src/main.ts` | Starts everything; switches between menu, game and pause |
 | `src/game/game.ts` | The game itself: touch input, saving its state |
 | `src/game/whisp.ts` | How the Whisp behaves: following, feeding, fading, threads of light |
-| `src/game/darkness.ts` | Drawing the dark place, the Whisp's light and trails (GPU) |
+| `src/game/cave.ts` | The procedural cave network, for both drawing and collisions |
+| `src/game/darkness.ts` | Drawing the cave, the living depths, light, shadows and trails (GPU) |
 | `src/core/save.ts` | Save / load / delete, with a backup copy |
 | `src/core/settings.ts` | Player settings |
 | `src/core/fullscreen.ts` | Keeps the game fullscreen |

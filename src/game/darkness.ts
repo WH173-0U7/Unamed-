@@ -1,19 +1,26 @@
 import * as THREE from 'three';
 import { createFullscreenShader, glslHash } from '../fx/fullscreen';
 import { MAX_THREADS, type View, type Whisp } from './whisp';
+import { glslCave } from './cave';
 
 /**
- * Draws the dark place and the Whisp, all on the GPU:
+ * Draws the cave and the Whisp, all on the GPU:
  *
  * 1. Light layer: the Whisp's core and its threads, drawn as soft points.
  * 2. Trails: each frame the previous image is faded, nudged by a slow swirl
  *    and the new light added on top, leaving smoky trails behind movement.
- * 3. Final image: the void (rock islands over a bottomless abyss, with
- *    faint specks drifting at several depths), seen only where the Whisp's
- *    light reaches, plus the Whisp's halo, the trails, grain and vignette.
+ * 3. Cave map: the tunnel network's shape around the view, worked out at a
+ *    quarter of the screen's resolution (it's smooth, so that's plenty).
+ * 4. Final image:
+ *    - far behind everything, the living depths: slow currents, a web of
+ *      veins pulsing with a heartbeat, vast shadows drifting past, all
+ *      breathing in and out;
+ *    - the cave walls, dark and cold, their wet edges lit only where the
+ *      Whisp's light reaches them, with soft shadows cast by the rock;
+ *    - cold mist in the tunnels; the Whisp's halo; trails; grain; vignette.
  *
- * Everything is placed in world positions, so the void scrolls past as the
- * view follows the Whisp; deeper layers scroll slower, giving depth.
+ * Everything is placed in world positions, so the cave scrolls past as the
+ * view follows the Whisp; the depths scroll slower, giving a sense of scale.
  */
 export function createDarkness(renderer: THREE.WebGLRenderer) {
   const floatTargets =
@@ -103,27 +110,55 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
     },
   );
 
-  // ---------- 3. Final image ----------
+  // ---------- 3. Cave map ----------
+  // Distance to open space for a patch of world a little larger than the
+  // screen (so shadows can reach in from off-screen).
+  const CAVE_SCALE = 0.25; // texels per world point
+  const MARGIN = 160; // world points beyond each screen edge
+  const caveRT = new THREE.WebGLRenderTarget(1, 1, targetOpts);
+  const caveSize = new THREE.Vector2(1, 1);
+  const caveOrigin = new THREE.Vector2(Number.NaN, 0);
+  const caveMap = createFullscreenShader(
+    /* glsl */ `
+      uniform vec2 uOrigin;
+      uniform vec2 uSize;
+      uniform float uEncoded;
+      varying vec2 vUv;
+      ${glslHash}
+      ${glslCave}
+      void main() {
+        vec2 world = uOrigin + vec2(vUv.x, 1.0 - vUv.y) * uSize;
+        float d = caveBase(world);
+        gl_FragColor = vec4(uEncoded > 0.5 ? clamp(d / 512.0 + 0.5, 0.0, 1.0) : d, 0.0, 0.0, 1.0);
+      }
+    `,
+    {
+      uOrigin: { value: caveOrigin },
+      uSize: { value: caveSize },
+      uEncoded: { value: floatTargets ? 0 : 1 },
+    },
+  );
+
+  // ---------- 4. Final image ----------
   const final = createFullscreenShader(
     /* glsl */ `
       uniform sampler2D tTrail;
+      uniform sampler2D tCave;
+      uniform vec2 uCaveOrigin;
+      uniform vec2 uCaveSize;
+      uniform float uEncoded;
       uniform vec2 uRes;      // screen size in points
-      uniform vec2 uWhisp;    // the Whisp on screen, in points, y up
       uniform vec2 uView;     // world position at the centre of the screen (y down)
+      uniform vec2 uWhispW;   // the Whisp in the world
       uniform float uEnergy;
       uniform float uPresence;
       uniform float uHint;
       uniform float uTime;
+      uniform float uWorldTime;
       varying vec2 vUv;
       ${glslHash}
+      ${glslCave}
 
-      float vnoise(vec2 p) {
-        vec2 i = floor(p);
-        vec2 f = fract(p);
-        vec2 u = f * f * (3.0 - 2.0 * f);
-        return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
-                   mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
-      }
       float fbm(vec2 p) {
         float s = 0.0;
         float a = 0.5;
@@ -135,84 +170,134 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
         return s;
       }
 
+      float caveAt(vec2 w) {
+        vec2 uv = vec2((w.x - uCaveOrigin.x) / uCaveSize.x, 1.0 - (w.y - uCaveOrigin.y) / uCaveSize.y);
+        float v = texture2D(tCave, uv).r;
+        return uEncoded > 0.5 ? (v - 0.5) * 512.0 : v;
+      }
+
+      // Soft shadow: how much of the Whisp's light reaches this point
+      // without being blocked by rock (marches through the cave map).
+      float shadow(vec2 from, vec2 to) {
+        vec2 dir = to - from;
+        float len = length(dir);
+        dir /= max(len, 0.001);
+        float s = 1.0;
+        float t = 3.0;
+        for (int i = 0; i < 18; i++) {
+          if (t >= len - 8.0) break;
+          float free = -caveAt(from + dir * t);
+          s = min(s, clamp(6.0 * free / t, 0.0, 1.0));
+          if (s < 0.02) break;
+          t += max(free, 5.0);
+        }
+        return s;
+      }
+
+      // The living depths behind the cave, moving on their own.
+      vec3 depths(vec2 sp, float t) {
+        float breath = 1.0 + 0.045 * sin(t * 0.42);
+        vec2 b = (uView * 0.18 + sp) * breath;
+        vec2 flow = vec2(fbm(b * 0.0012 + vec2(t * 0.02, 0.0)), fbm(b * 0.0012 + vec2(5.2, t * 0.017)));
+        float cur = fbm(b * 0.002 + flow * 2.5 + t * 0.01);
+        vec3 col = vec3(0.03, 0.065, 0.09) * smoothstep(0.25, 0.85, cur);
+
+        // Veins far below, carrying a slow heartbeat outwards.
+        vec2 vb = b * 0.0035 + flow * 0.6;
+        float v1 = 1.0 - abs(vnoise(vb) * 2.0 - 1.0);
+        float v2 = 1.0 - abs(vnoise(vb * 2.1 + 7.0) * 2.0 - 1.0);
+        float vein = pow(v1, 14.0) + pow(v2, 18.0) * 0.6;
+        float beat = pow(0.5 + 0.5 * sin(t * 1.15 - length(b) * 0.0015 - cur * 4.0), 6.0);
+        col += vec3(0.16, 0.3, 0.48) * vein * (0.3 + 1.1 * beat);
+
+        // Specks suspended in it, drifting on currents of their own.
+        for (int i = 0; i < 2; i++) {
+          float fi = float(i);
+          vec2 lp = uView * (0.3 + 0.25 * fi) + sp + fi * 731.0 + flow * 60.0 + vec2(t * 6.0, t * 2.5) * (1.0 + fi);
+          float cell = 38.0 + 12.0 * fi;
+          vec2 id = floor(lp / cell);
+          vec2 o = vec2(hash(id, 11.0 + fi), hash(id, 23.0 + fi)) * cell;
+          float on = step(0.86, hash(id, 37.0 + fi));
+          float r = 0.7 + 0.4 * fi;
+          col += vec3(0.4, 0.55, 0.75) * on * (1.0 - smoothstep(r * 0.3, r, length(lp - id * cell - o))) * (0.07 + 0.06 * fi);
+        }
+
+        // Vast shapes passing between us and the deep, darkening it.
+        float shade = smoothstep(0.3, 0.7, fbm(b * 0.0005 + vec2(t * 0.006, -t * 0.004)));
+        return col * (0.35 + 0.65 * shade);
+      }
+
       void main() {
         vec2 p = vUv * uRes;
         float m = min(uRes.x, uRes.y);
         float e = uEnergy;
         float pr = uPresence;
-        float d = length(p - uWhisp);
 
-        // How far the Whisp's light reaches into the dark.
-        float reach = m * (0.06 + 0.45 * e);
-        float light = pr * (0.3 + 0.7 * e) / (1.0 + pow(d / reach, 2.0) * 3.0);
-
-        // Where this pixel is in the void (world points, y down).
+        // Where this pixel is in the world (y down), and where the Whisp is.
         vec2 sp = vec2(p.x - uRes.x * 0.5, uRes.y * 0.5 - p.y);
         vec2 world = uView + sp;
+        vec2 toW = uWhispW - world;
+        float d = length(toW);
 
-        // Islands of rock hanging over the abyss; everything else is the drop.
-        float shape = fbm(world * 0.0022 + 40.0) + 0.12 * fbm(world * 0.02);
-        float island = smoothstep(0.5, 0.56, shape);
-        // Near the edge the rock falls away into shadow, with a lit lip.
-        float lip = smoothstep(0.5, 0.53, shape) * (1.0 - smoothstep(0.53, 0.6, shape));
-        float rock = pow(fbm(world * 0.018), 1.6) * 1.5;
-        float crack = pow(1.0 - abs(vnoise(world * 0.028 + 3.0) * 2.0 - 1.0), 10.0);
-        float grit = vnoise(world * 0.4) * 0.6 + hash(world) * 0.4;
-        float edgeShade = smoothstep(0.5, 0.7, shape);
-        vec3 ground = vec3(0.3, 0.32, 0.37) * (rock * (1.0 - crack * 0.75) + grit * 0.18) * (0.35 + 0.65 * edgeShade)
-                    + vec3(0.5, 0.6, 0.75) * lip * 0.35;
+        // Is this open cave or rock? (smooth map + fine edges + breathing)
+        float cave = caveAt(world) + caveDetail(world, uWorldTime);
+        float open = 1.0 - smoothstep(-1.5, 1.5, cave);
 
-        // The abyss: specks drifting at three depths. Deeper ones scroll
-        // slower and are fainter, so the drop feels bottomless.
-        vec3 deep = vec3(0.0);
-        for (int i = 0; i < 3; i++) {
-          float fi = float(i);
-          float depth = 0.12 + fi * 0.22;              // how much this layer moves with the view
-          vec2 lp = uView * depth + sp + fi * 731.0;
-          lp += vec2(sin(uTime * 0.05 + fi), cos(uTime * 0.04 + fi * 2.0)) * 20.0;
-          float cell = 34.0 + fi * 10.0;
-          vec2 id = floor(lp / cell);
-          vec2 o = vec2(hash(id, 11.0 + fi), hash(id, 23.0 + fi)) * cell;
-          float on = step(0.86, hash(id, 37.0 + fi));
-          float r = 0.6 + fi * 0.35;
-          float twinkle = 0.6 + 0.4 * sin(uTime * (0.7 + hash(id, 5.0) * 1.5) + hash(id, 9.0) * 6.28);
-          deep += vec3(0.55, 0.65, 0.85) * on * (1.0 - smoothstep(r * 0.3, r, length(lp - id * cell - o)))
-                * (0.09 + 0.08 * fi) * twinkle;
+        // The Whisp's light, falling off with distance and blocked by rock.
+        float reach = m * (0.08 + 0.5 * e);
+        float light = pr * (0.3 + 0.7 * e) / (1.0 + pow(d / reach, 2.0) * 3.0);
+        float lit = 0.0;
+        vec3 rockCol = vec3(0.0);
+        if (light > 0.004) {
+          vec2 dir = toW / max(d, 0.001);
+          // Rock is lit only at its surface: start the shadow ray just outside it.
+          vec2 from = cave > 0.0 ? world + dir * (cave + 2.0) : world;
+          lit = light * shadow(from, uWhispW);
+
+          // Wet, fibrous wall surface near the edge, facing the light.
+          float e1 = 2.0;
+          vec2 grad = vec2(caveAt(world + vec2(e1, 0.0)) - caveAt(world - vec2(e1, 0.0)),
+                           caveAt(world + vec2(0.0, e1)) - caveAt(world - vec2(0.0, e1)));
+          vec2 n = grad / max(length(grad), 0.0001); // points into the rock
+          float facing = clamp(dot(-n, dir), 0.0, 1.0);
+          float rim = (1.0 - smoothstep(0.0, 34.0, cave)) * step(0.0, cave);
+          vec2 tangent = vec2(-n.y, n.x);
+          float fibres = 0.6 + 0.4 * sin(dot(world, tangent) * 0.18 + vnoise(world * 0.03) * 6.0);
+          float glint = step(0.985, hash(floor(world / 2.0))) * pow(facing, 3.0);
+          rockCol = vec3(0.5, 0.6, 0.72) * pow(rim, 1.5) * (0.3 + 0.9 * facing) * fibres * lit
+                  + vec3(0.8, 0.9, 1.0) * glint * rim * lit * 1.5;
         }
-        // Faint mist far below, barely moving.
-        float mist = fbm(uView * 0.05 * 0.004 + sp * 0.003 + uTime * 0.01);
-        deep += vec3(0.08, 0.1, 0.16) * smoothstep(0.45, 0.8, mist) * 0.5;
 
-        // Fog drifting over everything at the Whisp's own depth.
-        vec2 fp = world * 0.005 + vec2(uTime * 0.015, -uTime * 0.01);
-        float fog = smoothstep(0.35, 0.85, fbm(fp + fbm(fp * 1.7 + uTime * 0.03) * 1.5));
+        // Cold mist hanging in the tunnels, drifting.
+        vec2 fp = world * 0.005 + vec2(uTime * 0.012, -uTime * 0.008);
+        float mist = smoothstep(0.42, 0.9, fbm(fp + fbm(fp * 1.7 + uTime * 0.03) * 1.5));
+        vec3 mistCol = vec3(0.35, 0.45, 0.58) * (mist * 0.55 + 0.08) * (0.03 + lit * 0.75);
 
-        // The light reveals rock and fog; the abyss stays mostly dark, its
-        // specks just visible, a little more so near the Whisp.
-        vec3 place = mix(deep * (0.55 + light * 1.5), ground * light, island)
-                   + vec3(0.4, 0.5, 0.65) * fog * 0.55 * light * (0.4 + 0.6 * island);
+        // The depths show through the open tunnels, and faintly through the walls.
+        vec3 deep = depths(sp, uTime);
+        vec3 col = mix(deep * 0.15, deep * (1.0 + lit * 2.5) + mistCol, open) + rockCol * (1.0 - open);
 
         // The Whisp: a hot core and a halo that swells as it feeds. The halo's
         // colours separate slightly at the edge, like light through old glass.
         float breathe = 1.0 + 0.08 * sin(uTime * (2.0 + e * 3.0));
         float hr = (8.0 + 70.0 * e) * breathe;
         vec3 r3 = vec3(1.05, 1.0, 0.94) * hr;
-        vec3 halo = exp(-d / (r3 * 0.35)) + exp(-d / r3) * 0.2;
+        vec3 halo = (exp(-d / (r3 * 0.35)) + exp(-d / r3) * 0.2) * mix(1.0, 0.35, 1.0 - open);
         vec3 tint = mix(vec3(0.4, 0.75, 1.0), vec3(0.85, 0.95, 1.0), e);
         float coreR = (2.5 + 6.0 * e) * breathe;
         float core = 1.0 - smoothstep(coreR * 0.5, coreR, d);
-        vec3 whisp = (tint * halo * (0.5 + 1.4 * e) + vec3(1.0) * core * 1.6) * pr;
+        col += (tint * halo * (0.5 + 1.4 * e) + vec3(1.0) * core * 1.6) * pr;
 
         // Before the first touch: a faint ember in the dark, breathing.
         float c = length(p - uRes * 0.5);
-        float ember = exp(-c / 5.0) * (0.5 + 0.5 * sin(uTime * 1.6)) * 0.35 * uHint;
+        col += vec3(0.6, 0.8, 1.0) * exp(-c / 5.0) * (0.5 + 0.5 * sin(uTime * 1.6)) * 0.35 * uHint;
 
-        vec3 col = place + texture2D(tTrail, vUv).rgb * vec3(0.7, 0.85, 1.0) + whisp + vec3(0.6, 0.8, 1.0) * ember;
+        col += texture2D(tTrail, vUv).rgb * vec3(0.7, 0.85, 1.0);
         col = 1.0 - exp(-col * 1.4); // soft highlights
 
         // Grain and a heavy vignette: the dark closes in at the edges.
         float frame = floor(uTime * 24.0);
-        col += (hash(floor(p), frame) - 0.5) * 0.035;
+        col += (hash(floor(p), frame) - 0.5) * 0.03;
         vec2 v = vUv - 0.5;
         v.x *= uRes.x / uRes.y;
         col *= 1.0 - smoothstep(0.3, 1.0, length(v)) * 0.8;
@@ -221,13 +306,18 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
     `,
     {
       tTrail: { value: null },
+      tCave: { value: caveRT.texture },
+      uCaveOrigin: { value: caveOrigin },
+      uCaveSize: { value: caveSize },
+      uEncoded: { value: floatTargets ? 0 : 1 },
       uRes: { value: new THREE.Vector2(1, 1) },
-      uWhisp: { value: new THREE.Vector2() },
       uView: { value: new THREE.Vector2() },
+      uWhispW: { value: new THREE.Vector2() },
       uEnergy: { value: 0 },
       uPresence: { value: 0 },
       uHint: { value: 0 },
       uTime: { value: 0 },
+      uWorldTime: { value: 0 },
     },
   );
 
@@ -248,9 +338,12 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
       pointsMat.uniforms.uScale.value = pr * TRAIL_SCALE;
       feedback.material.uniforms.uTexel.value.set(1 / tw, 1 / th);
       final.material.uniforms.uRes.value.set(w, h);
+      caveSize.set(w + MARGIN * 2, h + MARGIN * 2);
+      caveRT.setSize(Math.ceil(caveSize.x * CAVE_SCALE), Math.ceil(caveSize.y * CAVE_SCALE));
+      caveOrigin.x = Number.NaN; // force a redraw of the cave map
     },
 
-    render(whisp: Whisp, view: View, dt: number) {
+    render(whisp: Whisp, view: View, dt: number, worldTime: number) {
       time += dt;
       hint += ((whisp.everTouched ? 0 : 1) - hint) * (1 - Math.exp(-dt * 2));
 
@@ -299,11 +392,23 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
       feedback.render(renderer);
       [trailA, trailB] = [trailB, trailA];
 
-      // 3. Final image to the screen.
+      // 3. Cave map, redrawn only when the view has moved. Its corner snaps to
+      // the map's texel grid so the walls don't shimmer as it scrolls.
+      const step = 1 / CAVE_SCALE;
+      const ox = Math.floor((view.x - view.width / 2 - MARGIN) / step) * step;
+      const oy = Math.floor((view.y - view.height / 2 - MARGIN) / step) * step;
+      if (ox !== caveOrigin.x || oy !== caveOrigin.y) {
+        caveOrigin.set(ox, oy);
+        renderer.setRenderTarget(caveRT);
+        caveMap.render(renderer);
+      }
+
+      // 4. Final image to the screen.
       const u = final.material.uniforms;
       u.tTrail.value = trailA.texture;
-      u.uWhisp.value.set(whisp.pos.x - view.x + view.width / 2, view.height / 2 - (whisp.pos.y - view.y));
+      u.uWhispW.value.set(whisp.pos.x, whisp.pos.y);
       u.uView.value.set(view.x, view.y);
+      u.uWorldTime.value = worldTime;
       u.uEnergy.value = whisp.energy;
       u.uPresence.value = whisp.presence;
       u.uHint.value = hint;
@@ -314,6 +419,7 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
 
     dispose() {
       lightRT.dispose();
+      caveRT.dispose();
       trailA.dispose();
       trailB.dispose();
       geometry.dispose();

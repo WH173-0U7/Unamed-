@@ -184,6 +184,9 @@ enforceFullscreen();
 
 if (params.has('debug')) {
   // Handle for automated testing.
+  void import('./game/cave').then((cave) =>
+    import('./fx/fullscreen').then((fx) => Object.assign(window, { __cave: { ...cave, glslHash: fx.glslHash } })),
+  );
   Object.assign(window, {
     __app: {
       menu,

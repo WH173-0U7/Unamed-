@@ -1,13 +1,15 @@
 import type * as THREE from 'three';
 import { writeSave, type SaveData } from '../core/save';
-import { Whisp, type View, type WhispSave } from './whisp';
+import { Whisp, WHISP_RADIUS, type View, type WhispSave } from './whisp';
 import { createDarkness } from './darkness';
+import { nearestOpen, pushOut, startPoint } from './cave';
 
 /** How quickly the view glides after the Whisp (higher = tighter). */
 const VIEW_FOLLOW = 1.6;
 
 /**
- * The game itself. It begins in a dark, endless void: wherever the player
+ * The game itself: an endless, procedurally generated cave of tunnels and
+ * chambers, like the inside of a living thing. Wherever the player
  * touches, the Whisp (a small orb of light) appears and feeds on their movement.
  * Each system keeps its progress in `save.state`, so it is saved at every
  * pause point automatically.
@@ -20,6 +22,8 @@ export class Game {
   /** The part of the void on screen; it glides after the Whisp. */
   private readonly view: View = { x: 0, y: 0, width: 1, height: 1 };
   private readonly listeners: [string, EventListener][] = [];
+  /** Drives the cave walls' breathing (shared by drawing and collisions). */
+  private worldTime = 0;
 
   constructor(
     readonly save: SaveData,
@@ -27,7 +31,17 @@ export class Game {
     renderer: THREE.WebGLRenderer,
   ) {
     // Saves from before the Whisp was named stored it as `orb`.
-    this.whisp = new Whisp((save.state.whisp ?? save.state.orb) as WhispSave | undefined);
+    const saved = (save.state.whisp ?? save.state.orb) as WhispSave | undefined;
+    this.whisp = new Whisp(
+      saved,
+      (x, y, r) => pushOut(x, y, r, this.worldTime),
+      (x, y, r) => nearestOpen(x, y, r, this.worldTime),
+    );
+    // A new game starts in a chamber; an old save in what is now rock is
+    // moved to the nearest open space.
+    const at = saved?.x === undefined ? startPoint() : nearestOpen(saved.x, saved.y ?? 0, WHISP_RADIUS, 0);
+    this.whisp.pos.x = this.whisp.finger.x = at.x;
+    this.whisp.pos.y = this.whisp.finger.y = at.y;
     this.view.x = this.whisp.pos.x;
     this.view.y = this.whisp.pos.y;
     this.darkness = createDarkness(renderer);
@@ -115,13 +129,14 @@ export class Game {
   update(dt: number) {
     if (this.running) {
       this.save.playTime += dt;
+      this.worldTime += dt;
       this.whisp.update(dt, this.view);
       const k = 1 - Math.exp(-dt * VIEW_FOLLOW);
       this.view.x += (this.whisp.pos.x - this.view.x) * k;
       this.view.y += (this.whisp.pos.y - this.view.y) * k;
     }
     // While paused the world holds still, but keep drawing it behind the menu.
-    this.darkness.render(this.whisp, this.view, this.running ? dt : 0);
+    this.darkness.render(this.whisp, this.view, this.running ? dt : 0, this.worldTime);
   }
 
   /** Writes progress to the device. Returns false if storage is unavailable. */
@@ -134,6 +149,6 @@ export class Game {
 
   /** For automated tests. */
   get debug() {
-    return { whisp: this.whisp, view: this.view };
+    return { whisp: this.whisp, view: this.view, worldTime: this.worldTime };
   }
 }

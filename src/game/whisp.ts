@@ -19,6 +19,12 @@ export interface View {
   height: number;
 }
 
+/** The world's walls: moves a point out of solid rock (see cave.ts). */
+export type Collide = (x: number, y: number, radius: number) => { x: number; y: number; ok: boolean };
+
+/** How much room the Whisp needs: it can't squeeze closer than this to a wall. */
+export const WHISP_RADIUS = 7;
+
 /** Progress stored in the save file under `state.whisp`. */
 export interface WhispSave {
   energy: number;
@@ -57,7 +63,12 @@ export class Whisp {
   private moved = 0;
   private spawnDebt = 0;
 
-  constructor(save?: WhispSave) {
+  constructor(
+    save: WhispSave | undefined,
+    private readonly collide: Collide,
+    /** Finds open space near a point (used when the Whisp is born). */
+    private readonly place: (x: number, y: number, radius: number) => { x: number; y: number },
+  ) {
     this.energy = clamp(save?.energy ?? REST_ENERGY, 0, 1);
     this.pos.x = this.finger.x = save?.x ?? 0;
     this.pos.y = this.finger.y = save?.y ?? 0;
@@ -75,10 +86,12 @@ export class Whisp {
     this.screen.x = x;
     this.screen.y = y;
     this.aim(view);
-    // If the Whisp has faded out, it is born right under the thumb.
+    // If the Whisp has faded out, it is born right under the thumb, or in the
+    // nearest open space if the thumb is over rock.
     if (this.presence < 0.15) {
-      this.pos.x = this.finger.x;
-      this.pos.y = this.finger.y;
+      const p = this.place(this.finger.x, this.finger.y, WHISP_RADIUS);
+      this.pos.x = p.x;
+      this.pos.y = p.y;
     }
   }
 
@@ -108,8 +121,24 @@ export class Whisp {
     if (this.touching) {
       this.aim(view);
       const follow = 1 - Math.exp(-dt * 7);
-      this.pos.x += (this.finger.x - this.pos.x) * follow;
-      this.pos.y += (this.finger.y - this.pos.y) * follow;
+      // Move in small steps so it can't tunnel through a thin wall,
+      // sliding along the rock when the thumb is beyond it.
+      const dx = (this.finger.x - this.pos.x) * follow;
+      const dy = (this.finger.y - this.pos.y) * follow;
+      const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / (WHISP_RADIUS * 1.5)));
+      for (let i = 0; i < steps; i++) {
+        const p = this.collide(this.pos.x + dx / steps, this.pos.y + dy / steps, WHISP_RADIUS);
+        if (!p.ok) break; // a tight corner it can't resolve: don't step into it
+        this.pos.x = p.x;
+        this.pos.y = p.y;
+      }
+    } else {
+      // Even at rest, the breathing walls nudge it aside rather than swallow it.
+      const p = this.collide(this.pos.x, this.pos.y, WHISP_RADIUS);
+      if (p.ok) {
+        this.pos.x = p.x;
+        this.pos.y = p.y;
+      }
     }
 
     // Feed on movement, then slowly fade back towards an ember.

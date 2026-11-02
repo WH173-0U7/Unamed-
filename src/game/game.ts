@@ -2,7 +2,7 @@ import type * as THREE from 'three';
 import { writeSave, type SaveData } from '../core/save';
 import { createTv } from './tv';
 import { CHANCES, RACE_CHANCES, NAMES, makePerson } from './person';
-import { act, newEncounter, type Encounter } from './encounter';
+import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { createEncounterView } from '../ui/encounterView';
 import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, type StatName, type Stats } from './stats';
 
@@ -81,7 +81,13 @@ export class Game {
 
   /** The person you saw last, and what's happened with them (saved). */
   private get encounter(): Encounter | null {
-    return (this.save.state.encounter as Encounter | undefined) ?? null;
+    const e = this.save.state.encounter as Encounter | undefined;
+    // An encounter saved by an older version of the game can't be continued.
+    if (e && e.version !== ENCOUNTER_VERSION) {
+      delete this.save.state.encounter;
+      return null;
+    }
+    return e ?? null;
   }
   private set encounter(e: Encounter | null) {
     this.save.state.encounter = e ?? undefined;
@@ -175,7 +181,7 @@ export class Game {
         s.times++;
         s.seen[person.kind]++;
         s.races[person.race]++;
-        this.encounter = newEncounter(person);
+        this.encounter = newEncounter(person, this.stats);
         this.phase = 'idle';
         this.refresh();
         buzz(14);

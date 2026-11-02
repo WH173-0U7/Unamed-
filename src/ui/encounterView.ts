@@ -1,5 +1,5 @@
 import { BUILDS, NAMES } from '../game/person';
-import { distanceLabel, options, type Encounter } from '../game/encounter';
+import { PASS_OUT, conditions, distanceLabel, options, type Body, type Encounter } from '../game/encounter';
 
 const STAGE_TITLE: Record<string, string> = {
   menu: 'What now?',
@@ -26,8 +26,8 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     <div class="enc-card">
       <div class="enc-who"><span class="enc-kind"></span><span class="enc-race"></span></div>
       <dl class="enc-facts"></dl>
-      <div class="enc-status"></div>
     </div>
+    <div class="enc-status"></div>
     <div class="enc-log" role="log" aria-live="polite"></div>
     <div class="enc-actions">
       <div class="enc-title"></div>
@@ -43,8 +43,19 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     if (b && !b.disabled) onAct(b.dataset.id!);
   });
 
-  const bar = (label: string, hp: number, max: number, cls: string) =>
-    `<div class="enc-bar ${cls}"><span>${label}</span><i><b style="width:${(100 * hp) / max}%"></b></i><em>${hp}/${max}</em></div>`;
+  const bar = (label: string, v: number, max: number, cls: string, value = `${Math.round(v)}/${max}`) =>
+    `<div class="enc-bar ${cls}"><span>${label}</span><i><b style="width:${(100 * Math.max(0, v)) / max}%"></b>${
+      cls === 'blood' ? `<s style="left:${PASS_OUT * 100}%"></s>` : ''
+    }</i><em>${value}</em></div>`;
+  const ml = (n: number) => `${(n / 1000).toFixed(1)} L`;
+  /** Blood, stamina, and conditions (standing or on the floor, injuries). */
+  const fighter = (name: string, f: Body, cls: string) =>
+    `<div class="enc-fighter ${cls}"><div class="enc-name">${name}</div>` +
+    bar('Blood', f.blood, f.maxBlood, 'blood', `${ml(f.blood)} / ${ml(f.maxBlood)}`) +
+    bar('Stamina', f.stamina, f.maxStamina, 'stamina') +
+    `<div class="enc-conds">${conditions(f)
+      .map((c) => `<span class="${c === 'Standing' ? 'ok' : c === 'On the floor' ? 'floor' : ''}">${c}</span>`)
+      .join('')}</div></div>`;
 
   return {
     render(e: Encounter | null) {
@@ -74,9 +85,9 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       q('.enc-facts').innerHTML = facts.map(([k, v]) => `<div><dt>${k}</dt><dd class="${v ? '' : 'unknown'}">${v ?? '?'}</dd></div>`).join('');
 
       // Status: how close you are and how close they are to noticing, or the fight.
-      const fighting = e.stage === 'combat' || (e.stage === 'over' && e.them.hp < e.them.max) || e.you.hp < e.you.max;
-      q('.enc-status').innerHTML = fighting
-        ? bar('You', e.you.hp, e.you.max, 'you') + bar('Them', e.them.hp, e.them.max, 'them') + (e.you.blinded ? '<div class="enc-note">Blinded</div>' : '')
+      const fought = e.stage === 'combat' || e.you.blood < e.you.maxBlood || e.them.blood < e.them.maxBlood;
+      q('.enc-status').innerHTML = fought
+        ? `<div class="enc-fighters">${fighter('You', e.you, 'you')}${fighter('Them', e.them, 'them')}</div>`
         : `<div class="enc-note">${distanceLabel(e)}</div>` + bar('Noticed', Math.min(100, Math.round(e.suspicion)), 100, 'notice');
 
       // New log lines.

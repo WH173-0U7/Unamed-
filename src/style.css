@@ -317,11 +317,12 @@ canvas {
   width: min(calc(100% - 32px), 560px);
   transform: translateX(-50%);
   display: grid;
-  grid-template-rows: auto minmax(70px, 1fr) auto;
+  grid-template-rows: auto auto minmax(70px, 1fr) auto;
   gap: 10px;
   animation: power-in 0.5s ease both;
 }
 .enc-card,
+.enc-status,
 .enc-log {
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -369,7 +370,7 @@ canvas {
   color: var(--ink-faint);
 }
 .enc-status {
-  margin-top: 10px;
+  padding: 10px 14px;
   display: grid;
   gap: 6px;
 }
@@ -393,8 +394,67 @@ canvas {
   background: var(--ink);
   transition: width 0.35s ease;
 }
-.enc-bar.them b {
-  background: #c9a0a0;
+.enc-bar i {
+  position: relative;
+}
+.enc-bar.blood b {
+  background: #a83a3a;
+}
+.enc-bar.blood s {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--ink-dim);
+}
+.enc-bar.stamina b {
+  background: #8fb3a0;
+}
+.enc-fighters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.enc-fighter .enc-bar {
+  grid-template-columns: 50px 1fr;
+  gap: 2px 6px;
+  font-size: 11px;
+}
+.enc-fighter .enc-bar em {
+  grid-column: 1 / -1;
+  text-align: left;
+  font-size: 10px;
+  color: var(--ink-faint);
+  margin-top: -2px;
+}
+.enc-name {
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.enc-conds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.enc-conds span {
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(226, 120, 120, 0.45);
+  font-size: 10.5px;
+  color: #e2a9a9;
+}
+.enc-conds span.ok {
+  border-color: var(--line);
+  color: var(--ink-faint);
+}
+.enc-conds span.floor {
+  border-color: rgba(216, 196, 138, 0.6);
+  color: #d8c48a;
 }
 .enc-bar.notice b {
   background: #d8c48a;
@@ -482,6 +542,9 @@ canvas {
 .enc-opts button.enc-back {
   color: var(--ink-dim);
 }
+.enc-opts button:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
 .enc-opts small {
   font-size: 11px;
   color: var(--ink-faint);
@@ -512,9 +575,14 @@ canvas {
     grid-row: 2;
     align-self: end;
   }
+  .enc-status {
+    grid-column: 2;
+    grid-row: 1;
+    padding: 8px 12px;
+  }
   .enc-log {
     grid-column: 2;
-    grid-row: 1 / 3;
+    grid-row: 2;
   }
   .enc-kind {
     font-size: 24px;

@@ -9,9 +9,11 @@
  *   weapons, especially blunt ones). Trained by landing blows.
  * - **Agility:** how often your blows land, and how often you dodge theirs.
  *   Trained by landing blows and by dodging.
+ * - **Stamina:** how long you can keep fighting before you're exhausted, and
+ *   how fast you get your breath back. Trained by exhausting yourself.
  */
 
-export type StatName = 'sneak' | 'strength' | 'agility';
+export type StatName = 'sneak' | 'strength' | 'agility' | 'stamina';
 
 export interface Stat {
   level: number;
@@ -25,12 +27,18 @@ export const STAT_NAMES: Record<StatName, string> = {
   sneak: 'Sneak',
   strength: 'Strength',
   agility: 'Agility',
+  stamina: 'Stamina',
 };
 
 export const MAX_LEVEL = 20;
 
 export function newStats(): Stats {
-  return { sneak: { level: 1, xp: 0 }, strength: { level: 1, xp: 0 }, agility: { level: 1, xp: 0 } };
+  return {
+    sneak: { level: 1, xp: 0 },
+    strength: { level: 1, xp: 0 },
+    agility: { level: 1, xp: 0 },
+    stamina: { level: 1, xp: 0 },
+  };
 }
 
 /** Experience needed to go from this level to the next. */
@@ -61,3 +69,7 @@ export const damageMult = (s: Stats) => 1 + (s.strength.level - 1) * 0.08;
 export const accuracyBonus = (s: Stats) => (s.agility.level - 1) * 0.03;
 /** Agility: less chance their blows land on you (−2.5% a level). */
 export const dodgeBonus = (s: Stats) => (s.agility.level - 1) * 0.025;
+/** Stamina: how much you have (+6 a level). */
+export const maxStamina = (s: Stats) => 100 + (s.stamina.level - 1) * 6;
+/** Stamina: how much comes back each turn (+0.6 a level). */
+export const staminaRegen = (s: Stats) => 7 + (s.stamina.level - 1) * 0.6;

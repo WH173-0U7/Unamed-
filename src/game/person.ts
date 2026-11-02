@@ -27,8 +27,12 @@ export type Difficulty = 'Easy' | 'Fair' | 'Hard' | 'Brutal';
 
 export interface BuildStats {
   difficulty: Difficulty;
-  /** Health. */
+  /** Toughness: how much punishment it takes to put them down. */
   hp: number;
+  /** How much blood they have (ml). */
+  blood: number;
+  /** How long they can keep fighting before they're exhausted. */
+  stamina: number;
   /** How hard they hit. */
   power: number;
   /** Chance to avoid a hit (0..1). */
@@ -38,13 +42,13 @@ export interface BuildStats {
 }
 
 export const BUILDS: Record<Build, BuildStats> = {
-  Frail: { difficulty: 'Easy', hp: 40, power: 4, guard: 0.0, solid: false },
-  Skinny: { difficulty: 'Easy', hp: 50, power: 5, guard: 0.05, solid: false },
-  Average: { difficulty: 'Fair', hp: 65, power: 7, guard: 0.1, solid: false },
-  Stocky: { difficulty: 'Hard', hp: 80, power: 9, guard: 0.12, solid: true },
-  Athletic: { difficulty: 'Hard', hp: 75, power: 9, guard: 0.25, solid: false },
-  Heavyset: { difficulty: 'Hard', hp: 95, power: 10, guard: 0.05, solid: true },
-  Muscular: { difficulty: 'Brutal', hp: 105, power: 13, guard: 0.18, solid: true },
+  Frail: { difficulty: 'Easy', hp: 40, blood: 4200, stamina: 60, power: 4, guard: 0.0, solid: false },
+  Skinny: { difficulty: 'Easy', hp: 50, blood: 4600, stamina: 80, power: 5, guard: 0.05, solid: false },
+  Average: { difficulty: 'Fair', hp: 65, blood: 5000, stamina: 90, power: 7, guard: 0.1, solid: false },
+  Stocky: { difficulty: 'Hard', hp: 80, blood: 5400, stamina: 90, power: 9, guard: 0.12, solid: true },
+  Athletic: { difficulty: 'Hard', hp: 75, blood: 5200, stamina: 120, power: 9, guard: 0.25, solid: false },
+  Heavyset: { difficulty: 'Hard', hp: 95, blood: 6000, stamina: 70, power: 10, guard: 0.05, solid: true },
+  Muscular: { difficulty: 'Brutal', hp: 105, blood: 5800, stamina: 100, power: 13, guard: 0.18, solid: true },
 };
 
 /** Things people carry. Some can be used as weapons. */
@@ -52,6 +56,8 @@ export interface Item {
   name: string;
   /** Extra damage when used to hit you. */
   weapon?: number;
+  /** A blade or a point: it cuts, so it causes bleeding. */
+  cuts?: boolean;
   /** Pepper spray: blinds you instead of hurting. */
   spray?: boolean;
 }
@@ -159,7 +165,7 @@ const ITEMS: Record<Kind, [Item, number][]> = {
     [{ name: 'Pepper spray', spray: true }, 0.12],
   ],
   drunk: [
-    [{ name: 'Bottle', weapon: 4 }, 0.8],
+    [{ name: 'Bottle', weapon: 4, cuts: true }, 0.8],
     [{ name: 'Wallet' }, 0.5],
     [{ name: 'Keys' }, 0.4],
     [{ name: 'Phone' }, 0.4],
@@ -172,15 +178,15 @@ const ITEMS: Record<Kind, [Item, number][]> = {
     [{ name: 'Blanket' }, 0.5],
     [{ name: 'Loose change' }, 0.5],
     [{ name: 'Cigarettes' }, 0.3],
-    [{ name: 'Knife', weapon: 7 }, 0.2],
+    [{ name: 'Knife', weapon: 7, cuts: true }, 0.2],
   ],
   junkie: [
-    [{ name: 'Syringe', weapon: 3 }, 0.6],
+    [{ name: 'Syringe', weapon: 3, cuts: true }, 0.6],
     [{ name: 'Lighter' }, 0.6],
     [{ name: 'Small baggie' }, 0.5],
     [{ name: 'Loose change' }, 0.3],
     [{ name: 'Phone' }, 0.2],
-    [{ name: 'Box cutter', weapon: 5 }, 0.2],
+    [{ name: 'Box cutter', weapon: 5, cuts: true }, 0.2],
   ],
 };
 

@@ -37,9 +37,28 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   - **Violence:** *Bum rush* (can knock lighter builds down), *Sucker punch*
     (hits hardest on someone unaware), or *Shove* (most likely to land, throws
     them off balance). Getting close first helps. Then the fight: *Punch*,
-    *Kick*, *Grapple* or *Run*, turn by turn, with a log of what happens to
-    them and to you and both health bars. They may pull a weapon, pepper
-    spray you, or run when losing.
+    *Kick* (*Stomp* if they're down), *Grapple* (throws them down), *Run*,
+    *Get up* (when you're on the floor) or *Catch your breath*, turn by turn,
+    with a log of what happens to them and to you. They may pull a weapon,
+    pepper spray you, or run when losing.
+- **Fights:**
+  - **Blood is health.** Blows cost blood, and so does bleeding every turn.
+    At 55% of your blood or less, you pass out (the mark on the blood bar).
+  - **Stamina:** every move costs some; it comes back a little each turn
+    (or more if you catch your breath). Tired blows miss more and hit softer;
+    exhausted, you can't kick or grapple.
+  - **Where blows land** (head, body, arms, legs) decides what they do:
+    *dazed* (a couple of turns of missing more and being hit more),
+    *concussed* (for the rest of the fight), *bleeding* (light, moderate,
+    heavy, severe; blades cut), *broken bones* (nose, ribs, either arm or
+    leg), or knocked to the floor.
+  - **Injuries have penalties where they are:** a broken leg makes running
+    away much harder (two, almost impossible), getting up harder and kicks
+    miss more; a broken arm makes punches, grapples and weapon blows miss
+    more; broken ribs make everything cost more stamina and slow getting it
+    back.
+  - **Standing or on the floor:** on the floor you hit weaker and miss more,
+    can't run, and get stomped on. Same for them.
   - **Leave them**, or just *Lurk* again.
 - **Your stats** (top left), each starting at 1 and only going up by using it
   (max 20):
@@ -51,6 +70,8 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
     landing blows.
   - **Agility:** how often your blows land (+3% a level) and how often you
     dodge theirs (+2.5% a level). Goes up by landing blows and dodging.
+  - **Stamina:** how much stamina you have (+6 a level) and how fast it comes
+    back. Goes up by exhausting yourself (spending it when you're low).
 - Tables for all of this are in `src/game/person.ts` and `src/game/stats.ts`;
   the rules are in `src/game/encounter.ts`.
 - **Fullscreen:** the game asks for fullscreen on every tap, click or key press
@@ -84,8 +105,8 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | `src/main.ts` | Starts everything; switches between menu, game and pause |
 | `src/game/game.ts` | The game itself: the TV, lurking, saving its state (including an encounter in progress) |
 | `src/game/person.ts` | Who you can see: types, races, builds (fight difficulty), what they carry, awareness, and the chances of each |
-| `src/game/encounter.ts` | Surveil and violence: following, finding things out, being noticed, openers, turn-by-turn combat, the log |
-| `src/game/stats.ts` | Your stats (sneak, strength, agility), levelling by use, and what each does |
+| `src/game/encounter.ts` | Surveil and violence: following, finding things out, being noticed, ambushes, and combat (blood, stamina, injuries, falls), with the log |
+| `src/game/stats.ts` | Your stats (sneak, strength, agility, stamina), levelling by use, and what each does |
 | `src/ui/encounterView.ts` | The encounter screen: what you know about them, the log, your options |
 | `src/game/tv.ts` | The CRT television, its power-on sequence, interference, and showing the picture |
 | `src/core/save.ts` | Save / load / delete, with a backup copy |

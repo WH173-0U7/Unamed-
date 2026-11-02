@@ -5,7 +5,9 @@ import {
   ambushBonus,
   damageMult,
   dodgeBonus,
+  maxStamina,
   noticeRate,
+  staminaRegen,
   train,
   type StatName,
   type Stats,
@@ -21,28 +23,50 @@ import {
  * - **Violence:** bum rush, sucker punch or shove them: an ambush. Sneak
  *   decides whether it lands, or they block, dodge or counter it. Then the
  *   fight starts.
- * - **Combat:** turn by turn (punch, kick, grapple, run), with a log of what
- *   happens to them and to you.
+ * - **Combat:** turn by turn. Health is blood: blows and bleeding drain it,
+ *   and at 55% or below you pass out. Every move costs stamina. Blows land on
+ *   a part of the body and can daze, concuss, start bleeding, break bones, or
+ *   knock someone to the floor, and each of those has its penalties.
  */
+
+export const ENCOUNTER_VERSION = 2;
 
 export type Stage = 'seen' | 'menu' | 'surveil' | 'violence' | 'combat' | 'over';
 export type Result = 'won' | 'lost' | 'they-fled' | 'you-fled' | 'lost-them' | 'left';
+export type Side = 'you' | 'them';
+export type Part = 'nose' | 'ribs' | 'left arm' | 'right arm' | 'left leg' | 'right leg';
+type Loc = 'head' | 'body' | 'arm' | 'leg';
 
 export interface LogLine {
-  by: 'you' | 'them' | 'info';
+  by: Side | 'info';
   text: string;
 }
 
-export interface Fighter {
-  hp: number;
-  max: number;
-  /** Loses their next turn. */
-  stunned: boolean;
-  /** Their next attack is easier to land on / weaker. */
+/** Someone's body in a fight. */
+export interface Body {
+  /** Blood (ml). Passes out at or below 55% of `maxBlood`. */
+  blood: number;
+  maxBlood: number;
+  /** How much punishment it takes to lose that much blood. */
+  toughness: number;
+  stamina: number;
+  maxStamina: number;
+  /** 0 none, 1 light, 2 moderate, 3 heavy, 4 severe. */
+  bleeding: number;
+  /** Turns left dazed. */
+  dazed: number;
+  concussed: boolean;
+  broken: Part[];
+  /** On the floor (rather than standing). */
+  down: boolean;
+  /** Next blow against them is easier to land. */
   offBalance: boolean;
+  /** Turns left half blind (pepper spray). */
+  blinded: number;
 }
 
 export interface Encounter {
+  version: number;
   person: Person;
   stage: Stage;
   /** How close you are: 0 across the street, 1 behind them, 2 right on them. */
@@ -50,8 +74,8 @@ export interface Encounter {
   /** How close they are to noticing you (0..100). */
   suspicion: number;
   known: { build: boolean; carrying: boolean; awareness: boolean; sex: boolean };
-  you: Fighter & { blinded: number };
-  them: Fighter & { weaponOut: string | null; sprayed: boolean };
+  you: Body;
+  them: Body & { weaponOut: string | null; sprayed: boolean };
   log: LogLine[];
   result: Result | null;
 }
@@ -63,18 +87,42 @@ export interface Option {
   disabled?: boolean;
 }
 
-const YOUR_HP = 100;
+/** At or below this share of their blood, people pass out. */
+export const PASS_OUT = 0.55;
+export const BLEEDING = ['None', 'Light', 'Moderate', 'Heavy', 'Severe'];
+/** Blood lost per turn at each level of bleeding, per 5 litres of blood. */
+const BLEED_ML = [0, 35, 80, 150, 260];
+const COST = { punch: 8, kick: 14, grapple: 12, weapon: 10, run: 15, getUp: 10, ambush: 10 };
 
-export function newEncounter(person: Person): Encounter {
-  const b = BUILDS[person.build];
+function body(blood: number, toughness: number, stamina: number): Body {
   return {
+    blood,
+    maxBlood: blood,
+    toughness,
+    stamina,
+    maxStamina: stamina,
+    bleeding: 0,
+    dazed: 0,
+    concussed: false,
+    broken: [],
+    down: false,
+    offBalance: false,
+    blinded: 0,
+  };
+}
+
+export function newEncounter(person: Person, stats: Stats): Encounter {
+  const b = BUILDS[person.build];
+  const tired = person.kind === 'junkie' || person.kind === 'drunk' ? 0.8 : 1;
+  return {
+    version: ENCOUNTER_VERSION,
     person,
     stage: 'seen',
     distance: 0,
     suspicion: 0,
     known: { build: false, carrying: false, awareness: false, sex: false },
-    you: { hp: YOUR_HP, max: YOUR_HP, stunned: false, offBalance: false, blinded: 0 },
-    them: { hp: b.hp, max: b.hp, stunned: false, offBalance: false, weaponOut: null, sprayed: false },
+    you: body(5000, 100, maxStamina(stats)),
+    them: { ...body(b.blood, b.hp, Math.round(b.stamina * tired)), weaponOut: null, sprayed: false },
     log: [],
     result: null,
   };
@@ -82,6 +130,36 @@ export function newEncounter(person: Person): Encounter {
 
 const DISTANCE = ['Across the street', 'Behind them', 'Right on them'];
 export const distanceLabel = (e: Encounter) => DISTANCE[e.distance];
+
+/** The states someone is in, for showing (e.g. "On the floor", "Bleeding: Heavy"). */
+export function conditions(f: Body): string[] {
+  const c: string[] = [];
+  c.push(f.down ? 'On the floor' : 'Standing');
+  if (f.dazed > 0) c.push('Dazed');
+  if (f.concussed) c.push('Concussed');
+  if (f.bleeding) c.push(`Bleeding: ${BLEEDING[f.bleeding]}`);
+  for (const p of f.broken) c.push(`Broken ${p}`);
+  if (f.blinded > 0) c.push('Blinded');
+  if (f.stamina <= 0) c.push('Exhausted');
+  return c;
+}
+
+const legs = (f: Body) => f.broken.filter((p) => p.endsWith('leg')).length;
+const arms = (f: Body) => f.broken.filter((p) => p.endsWith('arm')).length;
+const cost = (f: Body, n: number) => Math.round(n * (f.broken.includes('ribs') ? 1.3 : 1));
+
+/** Chance to run away (or for them, to get away). Legs matter most. */
+function fleeChance(f: Body, other: Body, bonus = 0) {
+  if (f.down) return 0;
+  let c = 0.6 + bonus + (other.down ? 0.25 : 0) + (other.dazed ? 0.15 : 0);
+  c *= [1, 0.35, 0.08][legs(f)];
+  if (f.dazed) c -= 0.15;
+  if (f.stamina < cost(f, COST.run)) c -= 0.25;
+  return Math.max(0.02, Math.min(0.95, c));
+}
+
+/** Chance to get back up off the floor. */
+const getUpChance = (f: Body) => Math.max(0.1, 0.8 - legs(f) * 0.3 - (f.dazed ? 0.2 : 0) - (f.stamina < COST.getUp ? 0.3 : 0));
 
 /** What you can do right now. */
 export function options(e: Encounter): Option[] {
@@ -108,13 +186,27 @@ export function options(e: Encounter): Option[] {
         { id: 'shove', label: 'Shove' },
         { id: 'back', label: 'Back' },
       ];
-    case 'combat':
+    case 'combat': {
+      const y = e.you;
+      const tired = (n: number) => y.stamina < cost(y, n);
+      const armHint = arms(y) ? `Broken arm${arms(y) > 1 ? 's' : ''}` : undefined;
+      const legHint = legs(y) ? `Broken leg${legs(y) > 1 ? 's' : ''}` : undefined;
+      if (y.down) {
+        return [
+          { id: 'getup', label: 'Get up', hint: legHint ?? (y.dazed ? 'Dazed' : undefined) },
+          { id: 'punch', label: 'Punch', hint: armHint ?? 'From the floor' },
+          { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : 'From the floor', disabled: tired(COST.kick) },
+          { id: 'breathe', label: 'Catch your breath' },
+        ];
+      }
       return [
-        { id: 'punch', label: 'Punch' },
-        { id: 'kick', label: 'Kick' },
-        { id: 'grapple', label: 'Grapple' },
-        { id: 'run', label: 'Run' },
+        { id: 'punch', label: 'Punch', hint: armHint ?? (e.them.down ? "They're down" : undefined) },
+        { id: 'kick', label: e.them.down ? 'Stomp' : 'Kick', hint: tired(COST.kick) ? 'Too tired' : legHint, disabled: tired(COST.kick) },
+        { id: 'grapple', label: 'Grapple', hint: tired(COST.grapple) ? 'Too tired' : armHint, disabled: tired(COST.grapple) || e.them.down },
+        { id: 'run', label: 'Run', hint: legHint ?? (tired(COST.run) ? 'Too tired' : undefined) },
+        { id: 'breathe', label: 'Catch your breath' },
       ];
+    }
     case 'over':
       return [{ id: 'lurk', label: 'Lurk again' }];
     default:
@@ -124,11 +216,13 @@ export function options(e: Encounter): Option[] {
 
 /** Your stats, and a way to train them, for the move being played out. */
 let you: { stats: Stats; gain: (name: StatName, xp: number) => void };
+let enc: Encounter;
+const say = (by: LogLine['by'], text: string) => enc.log.push({ by, text });
 
 /** Does one thing (an option id, or 'open' to start from the person button). */
 export function act(e: Encounter, id: string, stats: Stats) {
   if (e.stage === 'over') return;
-  const say = (by: LogLine['by'], text: string) => e.log.push({ by, text });
+  enc = e;
   you = {
     stats,
     gain(name, xp) {
@@ -139,7 +233,6 @@ export function act(e: Encounter, id: string, stats: Stats) {
   const p = e.person;
   const aw = AWARENESS.indexOf(p.awareness);
   const who = NAMES[p.kind].toLowerCase();
-  const strong = (dmg: number) => Math.round(dmg * damageMult(stats));
 
   if (id === 'open') {
     if (e.stage === 'seen') {
@@ -153,7 +246,7 @@ export function act(e: Encounter, id: string, stats: Stats) {
     if (id === 'violence' || id === 'surveil') e.stage = id;
     if (id === 'leave') {
       say('info', 'You let them go.');
-      end(e, 'left');
+      end('left');
     }
     return;
   }
@@ -215,7 +308,7 @@ export function act(e: Encounter, id: string, stats: Stats) {
     }
     // Getting noticed.
     if (e.suspicion >= 100) {
-      spotted(e);
+      spotted();
     } else if (e.suspicion >= 60 && Math.random() < 0.6) {
       say('them', oneOf(['They glance back over their shoulder.', 'They slow down. Listening.', 'They look around, then keep walking.']));
     }
@@ -231,6 +324,7 @@ export function act(e: Encounter, id: string, stats: Stats) {
     const chance = clamp([0.8, 0.65, 0.45, 0.3][aw] + e.distance * 0.06 + ambushBonus(stats) + extra - b.guard * 0.5, 0.05, 0.97);
     if (e.distance === 0) say('you', 'You cross the street toward them.');
     e.stage = 'combat';
+    spend('you', COST.ambush);
     you.gain('sneak', 4);
     let theyGoFirst = false;
 
@@ -238,217 +332,416 @@ export function act(e: Encounter, id: string, stats: Stats) {
       // It lands.
       you.gain('sneak', 4);
       you.gain('strength', 3);
+      const str = damageMult(stats);
       if (id === 'sucker') {
-        const dmg = strong(roll(16, 24) * (aw === 0 ? 1.3 : 1));
-        hurt(e.them, dmg);
-        say('you', `You sucker punch them from behind. ${blow(dmg)} (−${dmg})`);
-        if (aw <= 1) {
-          e.them.stunned = true;
-          say('them', "They're dazed.");
-        }
+        const dmg = Math.round(roll(16, 24) * (aw === 0 ? 1.3 : 1) * str);
+        say('you', `You sucker punch them from behind, on the side of the head. ${wound('them', 'head', dmg, 'punch')}`);
       } else if (id === 'bumrush') {
-        const dmg = strong(roll(10, 15));
-        hurt(e.them, dmg);
+        const dmg = Math.round(roll(10, 15) * str);
         if (!b.solid) {
-          e.them.stunned = true;
-          say('you', `You bum rush them and slam them into the pavement. (−${dmg})`);
+          e.them.down = true;
+          say('you', `You bum rush them and slam them into the pavement. ${wound('them', 'body', dmg, 'fall')} They're on the floor.`);
         } else {
-          const back = roll(3, 6);
-          hurt(e.you, back);
-          say('you', `You bum rush them. They're heavy and hold their ground. (−${dmg})`);
-          say('them', `You bounce off them. (−${back} you)`);
+          say('you', `You bum rush them. They're heavy and hold their ground. ${wound('them', 'body', dmg, 'fall')}`);
+          if (Math.random() < 0.35) {
+            e.you.down = true;
+            say('them', "You bounce off them and land on your back. You're on the floor.");
+          } else say('them', 'You bounce off them.');
         }
       } else {
-        const dmg = strong(roll(4, 8));
-        hurt(e.them, dmg);
-        say('you', `You shove them hard into the wall. (−${dmg})`);
+        const dmg = Math.round(roll(4, 8) * str);
+        say('you', `You shove them hard into the wall. ${wound('them', 'body', dmg, 'fall')}`);
         if (Math.random() < 0.7) {
-          e.them.stunned = true;
-          say('them', 'They lose their footing.');
+          e.them.down = true;
+          say('them', "They lose their footing and go down. They're on the floor.");
         } else e.them.offBalance = true;
       }
     } else {
       // They react in time: block, dodge, or counter. Heavy builds tend to
       // block, quick ones to dodge, alert ones to counter.
-      const how = pickWeighted<'block' | 'dodge' | 'counter'>([
+      const how = pick<'block' | 'dodge' | 'counter'>([
         ['block', b.solid ? 3 : 1],
         ['dodge', 1 + b.guard * 10],
         ['counter', aw >= 2 ? 2 : 0.6],
       ]);
       const move = { sucker: 'punch', bumrush: 'rush', shove: 'shove' }[id] ?? 'move';
       if (how === 'block') {
-        const dmg = strong(roll(2, 5));
-        hurt(e.them, dmg);
-        say('them', `They turn just in time and block your ${move}. (−${dmg})`);
+        const dmg = Math.round(roll(2, 5) * damageMult(stats));
+        say('them', `They turn just in time and block your ${move} with their arm. ${wound('them', 'arm', dmg, 'punch')}`);
       } else if (how === 'dodge') {
         say('them', `They hear you coming and dodge your ${move}. You stumble past.`);
         e.you.offBalance = true;
         theyGoFirst = true;
       } else {
         const dmg = Math.max(1, Math.round(b.power * 1.3) + roll(-2, 2));
-        hurt(e.you, dmg);
-        say('them', `They see it coming and counter: a hard hit straight back at you. (−${dmg} you)`);
+        say('them', `They see it coming and counter: a hard hit straight back at you. ${wound('you', 'head', dmg, 'punch')}`);
       }
     }
-    check(e);
-    if (e.stage === 'combat') {
+    if (!checkEnd()) {
       say('info', 'The fight is on.');
-      if (theyGoFirst) theirTurn(e);
-      check(e);
+      if (theyGoFirst) theirTurn();
+      endOfRound();
     }
     return;
   }
 
-  // ---------- Combat ----------
+  // ---------- Combat: your move, then theirs ----------
   if (e.stage === 'combat') {
-    const b = BUILDS[p.build];
-    const blind = e.you.blinded > 0 ? 0.35 : 0;
-    const open = e.them.offBalance || e.them.stunned ? 0.15 : 0;
-    const aim = accuracyBonus(stats) - blind + open - b.guard;
-    if (e.you.blinded > 0) e.you.blinded--;
-    const landed = () => {
-      you.gain('strength', 3);
-      you.gain('agility', 2);
-    };
+    const y = e.you;
+    if (y.blinded > 0) y.blinded--;
     switch (id) {
-      case 'punch': {
-        if (Math.random() < 0.82 + aim) {
-          const dmg = strong(roll(6, 11));
-          hurt(e.them, dmg);
-          say('you', `${oneOf(['You catch them on the jaw.', 'A punch to the gut.', 'You hit them square in the face.', 'A short jab lands.'])} (−${dmg})`);
-          landed();
-        } else say('you', oneOf(['Your punch glances off.', 'They slip the punch.', 'You miss.']));
+      case 'punch':
+        strike('you', 'punch');
         break;
-      }
-      case 'kick': {
-        if (Math.random() < 0.66 + aim) {
-          const dmg = strong(roll(9, 15));
-          hurt(e.them, dmg);
-          say('you', `${oneOf(['A kick to the knee buckles them.', 'You kick them in the ribs.', 'Your kick lands hard.'])} (−${dmg})`);
-          landed();
-        } else {
-          say('you', 'You miss the kick and lose your balance.');
-          e.you.offBalance = true;
-        }
+      case 'kick':
+        strike('you', 'kick');
         break;
-      }
       case 'grapple': {
-        const odds = 0.6 + aim + (b.solid ? -0.15 : 0.1) + (stats.strength.level - 1) * 0.02;
+        spend('you', COST.grapple);
+        const b = BUILDS[p.build];
+        const odds = clamp(
+          0.6 + accuracyBonus(stats) + (stats.strength.level - 1) * 0.02 + (b.solid ? -0.15 : 0.1) - arms(y) * 0.2 - (y.dazed ? 0.2 : 0) + (e.them.dazed ? 0.15 : 0),
+          0.05,
+          0.95,
+        );
         if (Math.random() < odds) {
-          const dmg = strong(roll(3, 6));
-          hurt(e.them, dmg);
-          e.them.stunned = true;
-          say('you', `You get hold of them and wrench them down. (−${dmg})`);
-          landed();
+          const dmg = Math.round(roll(3, 6) * damageMult(stats));
+          e.them.down = true;
+          say('you', `You get hold of them and throw them down. ${wound('them', 'body', dmg, 'fall')} They're on the floor.`);
+          you.gain('strength', 3);
+          you.gain('agility', 2);
         } else say('you', b.solid ? "You grab them, but they're too strong. They shake you off." : 'They twist out of your grip.');
         break;
       }
       case 'run':
-        if (Math.random() < 0.6 + (e.them.stunned ? 0.3 : 0) + accuracyBonus(stats)) {
-          say('you', 'You break away and run. You lose them in the dark.');
+        spend('you', COST.run);
+        if (Math.random() < fleeChance(y, e.them, accuracyBonus(stats))) {
+          say('you', legs(y) ? 'You limp away as fast as you can, and somehow lose them.' : 'You break away and run. You lose them in the dark.');
           you.gain('agility', 2);
-          end(e, 'you-fled');
+          end('you-fled');
           return;
         }
-        say('you', "You try to run, but they're on you.");
+        say('you', legs(y) ? "You try to run, but your leg won't take it. They're on you." : "You try to run, but they're on you.");
+        break;
+      case 'getup':
+        spend('you', COST.getUp);
+        if (Math.random() < getUpChance(y)) {
+          y.down = false;
+          say('you', 'You get back on your feet.');
+        } else say('you', legs(y) ? 'You try to stand, but your leg gives way.' : 'You try to get up, and fall back down.');
+        break;
+      case 'breathe':
+        y.stamina = Math.min(y.maxStamina, y.stamina + 22);
+        say('you', y.down ? 'You stay down and catch your breath.' : 'You back off a step and catch your breath.');
         break;
     }
-    e.them.offBalance = false;
-    check(e);
-    if (e.stage === 'combat') theirTurn(e);
-    check(e);
+    if (checkEnd()) return;
+    theirTurn();
+    endOfRound();
   }
 }
 
-/** They noticed you following them: they run, or come at you. */
-function spotted(e: Encounter) {
-  const p = e.person;
-  const b = BUILDS[p.build];
-  const tough = ['Easy', 'Fair', 'Hard', 'Brutal'].indexOf(b.difficulty);
-  const fight = tough * 0.2 + (p.kind === 'drunk' ? 0.3 : 0) + (p.awareness === 'Paranoid' ? 0.15 : 0);
-  if (Math.random() < fight) {
-    e.log.push({ by: 'them', text: oneOf(['They spin around. "The hell do you want?" They come at you.', 'They spot you, and they don\'t run. They come straight for you.']) });
-    e.stage = 'combat';
-    e.log.push({ by: 'info', text: 'The fight is on.' });
-    theirTurn(e);
-    check(e);
-  } else {
-    e.log.push({ by: 'them', text: oneOf(['They spot you and bolt. Gone.', 'They see you. They run, and you lose them.']) });
-    end(e, 'lost-them');
+/** Spends stamina. Exhausting yourself trains your Stamina. */
+function spend(side: Side, n: number) {
+  const f = enc[side];
+  const c = cost(f, n);
+  const was = f.stamina;
+  f.stamina = Math.max(0, f.stamina - c);
+  if (side === 'you') {
+    if (f.stamina < f.maxStamina * 0.3) you.gain('stamina', Math.ceil(c * 0.6));
+    if (f.stamina === 0 && was > 0) {
+      say('info', "You're exhausted.");
+      you.gain('stamina', 6);
+    }
   }
+}
+
+/**
+ * One blow: does it land, where, and what it does. `kind` is the attacker's
+ * move (a weapon blow uses the weapon they've drawn).
+ */
+function strike(a: Side, kind: 'punch' | 'kick' | 'weapon') {
+  const d: Side = a === 'you' ? 'them' : 'you';
+  const A = enc[a];
+  const D = enc[d];
+  const N = names(a);
+  const b = BUILDS[enc.person.build];
+  const weapon = kind === 'weapon' ? enc.person.carrying.find((i) => i.name === enc.them.weaponOut) : undefined;
+  const tired = A.stamina < A.maxStamina * 0.25;
+  spend(a, kind === 'kick' ? COST.kick : kind === 'weapon' ? COST.weapon : COST.punch);
+
+  // Will it land?
+  let hit = kind === 'punch' ? 0.8 : kind === 'kick' ? 0.66 : 0.75;
+  hit += a === 'you' ? accuracyBonus(you.stats) : 0;
+  hit -= d === 'you' ? dodgeBonus(you.stats) : b.guard;
+  if (kind === 'kick') hit -= legs(A) * 0.2;
+  else hit -= arms(A) * 0.2; // punches and weapons need your arms
+  if (A.dazed) hit -= 0.2;
+  if (A.concussed) hit -= 0.1;
+  if (A.blinded > 0) hit -= 0.35;
+  if (tired) hit -= 0.15;
+  if (A.down) hit -= kind === 'kick' ? 0.1 : 0.2;
+  if (D.down) hit += 0.2;
+  if (D.dazed) hit += 0.15;
+  if (D.offBalance) hit += 0.15;
+  D.offBalance = false;
+  if (A.offBalance) hit -= 0.15;
+  A.offBalance = false;
+
+  if (Math.random() >= clamp(hit, 0.05, 0.95)) {
+    if (kind === 'kick') {
+      say(a, `${N.S} miss the kick and lose ${N.p} balance.`);
+      A.offBalance = true;
+      if (!A.down && Math.random() < 0.15) {
+        A.down = true;
+        say(a, `${N.S} slip and fall. ${N.re} on the floor.`);
+      }
+    } else if (d === 'you') {
+      say(a, oneOf(['They swing and miss.', 'You duck their swing.', 'They lunge. You step aside.']));
+    } else {
+      say(a, oneOf(['Your punch glances off.', 'They slip the punch.', 'You miss.']));
+    }
+    if (d === 'you') you.gain('agility', 3);
+    return;
+  }
+
+  // Where it lands.
+  const stomp = kind === 'kick' && D.down && !A.down;
+  const loc = pick<Loc>(
+    kind === 'punch'
+      ? [
+          ['head', D.down ? 3 : 5],
+          ['body', 4],
+          ['arm', 1],
+        ]
+      : kind === 'kick'
+        ? stomp
+          ? [
+              ['head', 4],
+              ['body', 4],
+              ['arm', 1],
+              ['leg', 1],
+            ]
+          : [
+              ['head', A.down ? 0 : 1],
+              ['body', 3.5],
+              ['arm', 1],
+              ['leg', 4.5],
+            ]
+        : [
+            ['head', 2],
+            ['body', 4],
+            ['arm', 3],
+            ['leg', 1],
+          ],
+  );
+
+  // How hard.
+  let dmg =
+    a === 'you'
+      ? (kind === 'kick' ? roll(9, 15) : roll(6, 11)) * damageMult(you.stats)
+      : b.power + roll(-3, 3) + (kind === 'kick' ? 3 : 0) + (weapon?.weapon ?? 0);
+  if (tired) dmg *= 0.75;
+  if (A.stamina <= 0) dmg *= 0.7;
+  if (A.down) dmg *= 0.6;
+  if (stomp) dmg *= 1.3;
+  dmg = Math.max(1, Math.round(dmg));
+
+  const where = { head: 'in the face', body: 'in the ribs', arm: 'on the arm', leg: 'in the leg' }[loc];
+  let text: string;
+  if (kind === 'weapon' && weapon) {
+    text = weapon.cuts
+      ? `${N.S} slash at ${N.o} with the ${weapon.name.toLowerCase()} and catch ${N.o} ${where}.`
+      : `${N.S} hit ${N.o} with the ${weapon.name.toLowerCase()} ${where}.`;
+  } else if (stomp) {
+    text = `${N.S} stomp on ${N.o} while ${N.oSub}'re down, ${loc === 'head' ? 'on the head' : where}.`;
+  } else if (kind === 'kick') {
+    text = loc === 'leg' ? `${N.S} kick ${N.o} in the knee.` : `${N.S} kick ${N.o} ${where}.`;
+  } else {
+    text = loc === 'arm' ? `${N.S} hit ${N.o} on the arm as ${N.oSub} cover up.` : `${N.S} punch ${N.o} ${where}.`;
+  }
+  say(a, `${text} ${wound(d, loc, dmg, weapon?.cuts ? 'cut' : kind === 'kick' ? 'kick' : 'punch')}`);
+  if (a === 'you') {
+    you.gain('strength', 3);
+    you.gain('agility', 2);
+  }
+}
+
+/**
+ * Damage to a part of someone's body: blood lost, plus whatever else it does
+ * (dazed, concussed, bleeding, broken bones, knocked down). Returns the text
+ * describing it.
+ */
+function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | 'fall'): string {
+  const D = enc[d];
+  const N = names(d === 'you' ? 'them' : 'you'); // the attacker's view: N.o is the one hurt
+  const ml = Math.round((dmg * (D.maxBlood * (1 - PASS_OUT))) / D.toughness);
+  D.blood = Math.max(0, D.blood - ml);
+  const out: string[] = [`(−${ml} ml)`];
+  const re = N.oRe;
+  const breaks = (part: Part, chance: number) => {
+    if (D.broken.includes(part) || Math.random() >= chance) return false;
+    D.broken.push(part);
+    out.push(`A crack: ${N.oP} ${part} ${part === 'ribs' ? 'are' : 'is'} broken.`);
+    return true;
+  };
+  const bleed = (n: number) => {
+    const before = D.bleeding;
+    D.bleeding = Math.min(4, D.bleeding + n);
+    if (D.bleeding > before) out.push(`${re} bleeding${before ? ' worse' : ''} (${BLEEDING[D.bleeding].toLowerCase()}).`);
+  };
+  const fall = (chance: number) => {
+    if (!D.down && Math.random() < chance) {
+      D.down = true;
+      out.push(`${N.oSubCap} go down. ${re} on the floor.`);
+    }
+  };
+
+  if (loc === 'head') {
+    if (Math.random() < Math.min(0.8, dmg * 0.035 * (D.concussed ? 1.5 : 1))) {
+      D.dazed = 2;
+      out.push(`${re} dazed.`);
+    }
+    if (!D.concussed && dmg >= 12 && Math.random() < 0.3) {
+      D.concussed = true;
+      out.push(`${re} concussed.`);
+    }
+    if (how === 'punch' || how === 'kick') {
+      if (breaks('nose', dmg >= 10 ? 0.2 : 0)) bleed(1);
+      else if (dmg >= 8 && Math.random() < 0.25) bleed(1);
+    }
+    fall(dmg >= 14 ? 0.3 : 0);
+  } else if (loc === 'body') {
+    breaks('ribs', (dmg - 9) * 0.04);
+  } else if (loc === 'arm') {
+    const side = Math.random() < 0.5 ? 'left' : 'right';
+    breaks(`${side} arm` as Part, (dmg - 9) * 0.05);
+  } else {
+    const side = Math.random() < 0.5 ? 'left' : 'right';
+    if (breaks(`${side} leg` as Part, (dmg - 9) * 0.045)) fall(1);
+    else fall(dmg >= 10 ? 0.25 : 0.08);
+  }
+  if (how === 'cut') bleed(Math.random() < 0.4 ? 2 : 1);
+  if (D.dazed && how !== 'fall') fall(0.15);
+  return out.join(' ');
 }
 
 /** Their move in a fight. */
-function theirTurn(e: Encounter) {
+function theirTurn() {
+  const e = enc;
   const p = e.person;
   const b = BUILDS[p.build];
-  const say = (text: string) => e.log.push({ by: 'them', text });
-  if (e.them.stunned) {
-    e.them.stunned = false;
-    say(oneOf(['They\'re still reeling.', 'They struggle to get up.']));
+  const T = e.them;
+  if (T.dazed > 0 && Math.random() < 0.5) {
+    say('them', oneOf(["They're still reeling.", 'They shake their head, trying to clear it.']));
     return;
   }
-  // Losing badly: some run for it.
+  if (T.down) {
+    spend('them', COST.getUp);
+    if (Math.random() < getUpChance(T)) {
+      T.down = false;
+      say('them', legs(T) ? 'They drag themselves up on one good leg.' : 'They get back on their feet.');
+    } else say('them', legs(T) ? 'They try to stand, but their leg gives way.' : 'They try to get up, and fall back down.');
+    return;
+  }
+  // Losing badly: some try to run for it (much harder on a broken leg).
   const tough = ['Easy', 'Fair', 'Hard', 'Brutal'].indexOf(b.difficulty);
-  const flee = (p.kind === 'civilian' || p.kind === 'junkie' ? 0.18 : 0.1) * (1 - tough * 0.25);
-  if (e.them.hp < e.them.max * 0.3 && Math.random() < flee) {
-    say('They scramble away and run. They\'re gone.');
-    end(e, 'they-fled');
+  const wants = (p.kind === 'civilian' || p.kind === 'junkie' ? 0.2 : 0.12) * (1 - tough * 0.25);
+  if (T.blood < T.maxBlood * 0.72 && Math.random() < wants) {
+    spend('them', COST.run);
+    if (Math.random() < fleeChance(T, e.you)) {
+      say('them', legs(T) ? "They limp off into the dark. They're gone." : "They scramble away and run. They're gone.");
+      end('they-fled');
+    } else say('them', legs(T) ? "They try to run, but their leg won't carry them." : 'They try to run. You cut them off.');
     return;
   }
   // Pepper spray, once.
   const spray = p.carrying.find((i) => i.spray);
-  if (spray && !e.them.sprayed && Math.random() < 0.6) {
-    e.them.sprayed = true;
+  if (spray && !T.sprayed && Math.random() < 0.6) {
+    T.sprayed = true;
     e.you.blinded = 2;
-    say('They pepper spray you in the face. You can barely see.');
+    say('them', 'They pepper spray you in the face. You can barely see.');
     return;
   }
   // Pulling a weapon.
   const weapon: Item | undefined = p.carrying.find((i) => i.weapon);
-  if (weapon && !e.them.weaponOut && Math.random() < 0.5) {
-    e.them.weaponOut = weapon.name;
-    say(`They pull out a ${weapon.name.toLowerCase()}.`);
+  if (weapon && !T.weaponOut && arms(T) < 2 && Math.random() < 0.5) {
+    T.weaponOut = weapon.name;
+    say('them', `They pull out a ${weapon.name.toLowerCase()}.`);
     return;
   }
-  const hit = 0.7 + (e.you.offBalance ? 0.15 : 0) - (e.them.offBalance ? 0.2 : 0) - dodgeBonus(you.stats);
-  e.you.offBalance = false;
-  if (Math.random() < hit) {
-    const bonus = e.them.weaponOut ? (p.carrying.find((i) => i.name === e.them.weaponOut)?.weapon ?? 0) : 0;
-    const dmg = Math.max(1, b.power + roll(-3, 3) + bonus);
-    hurt(e.you, dmg);
-    const how = e.them.weaponOut
-      ? `They come at you with the ${e.them.weaponOut.toLowerCase()}.`
-      : oneOf(['They hit you in the face.', 'A fist to your ribs.', 'They catch you with a wild swing.', 'They knee you in the stomach.']);
-    say(`${how} (−${dmg} you)`);
+  // Out of breath.
+  if (T.stamina < COST.punch) {
+    T.stamina = Math.min(T.maxStamina, T.stamina + 22);
+    say('them', 'They stop, gasping for breath.');
+    return;
+  }
+  if (T.weaponOut && Math.random() < 0.7) strike('them', 'weapon');
+  else if (T.stamina >= cost(T, COST.kick) && Math.random() < (e.you.down ? 0.7 : 0.3)) strike('them', 'kick');
+  else strike('them', 'punch');
+}
+
+/** End of a round: bleeding, getting your breath back, the daze wearing off. */
+function endOfRound() {
+  if (enc.stage !== 'combat') return;
+  const regen = { you: staminaRegen(you.stats), them: 7 };
+  for (const side of ['you', 'them'] as Side[]) {
+    const f = enc[side];
+    if (f.bleeding) f.blood = Math.max(0, f.blood - Math.round((BLEED_ML[f.bleeding] * f.maxBlood) / 5000));
+    f.stamina = Math.round(Math.min(f.maxStamina, f.stamina + regen[side] * (f.broken.includes('ribs') ? 0.5 : 1)));
+    if (f.dazed > 0) f.dazed--;
+  }
+  enc.them.blinded = 0;
+  checkEnd();
+}
+
+/** Has someone passed out? */
+function checkEnd(): boolean {
+  if (enc.stage !== 'combat') return true;
+  const out = (f: Body) => f.blood <= f.maxBlood * PASS_OUT;
+  if (out(enc.them)) {
+    enc.them.down = true;
+    say('you', enc.them.bleeding >= 3 ? "They've lost too much blood. They slump to the floor and don't get up." : 'They go down, and stay down.');
+    end('won');
+    return true;
+  }
+  if (out(enc.you)) {
+    enc.you.down = true;
+    say('them', enc.you.bleeding >= 3 ? 'Too much blood. Your legs give out, and everything goes dark.' : 'You hit the pavement. Everything goes dark.');
+    end('lost');
+    return true;
+  }
+  return false;
+}
+
+/** They noticed you following them: they run, or come at you. */
+function spotted() {
+  const p = enc.person;
+  const b = BUILDS[p.build];
+  const tough = ['Easy', 'Fair', 'Hard', 'Brutal'].indexOf(b.difficulty);
+  const fight = tough * 0.2 + (p.kind === 'drunk' ? 0.3 : 0) + (p.awareness === 'Paranoid' ? 0.15 : 0);
+  if (Math.random() < fight) {
+    say('them', oneOf(['They spin around. "The hell do you want?" They come at you.', "They spot you, and they don't run. They come straight for you."]));
+    enc.stage = 'combat';
+    say('info', 'The fight is on.');
+    theirTurn();
+    endOfRound();
   } else {
-    say(oneOf(['They swing and miss.', 'You duck their swing.', 'They lunge. You step aside.']));
-    you.gain('agility', 3);
+    say('them', oneOf(['They spot you and bolt. Gone.', 'They see you. They run, and you lose them.']));
+    end('lost-them');
   }
 }
 
-function check(e: Encounter) {
-  if (e.stage !== 'combat') return;
-  if (e.them.hp <= 0) {
-    e.log.push({ by: 'you', text: 'They go down, and stay down.' });
-    end(e, 'won');
-  } else if (e.you.hp <= 0) {
-    e.log.push({ by: 'them', text: 'You hit the pavement. Everything goes dark.' });
-    end(e, 'lost');
-  }
+function end(result: Result) {
+  enc.stage = 'over';
+  enc.result = result;
 }
 
-function end(e: Encounter, result: Result) {
-  e.stage = 'over';
-  e.result = result;
-}
-
-function hurt(f: Fighter, dmg: number) {
-  f.hp = Math.max(0, Math.round(f.hp - dmg));
-}
-
-function blow(dmg: number) {
-  return dmg > 22 ? 'They crumple.' : 'They stagger.';
+/** Words for one side doing something to the other ("they" and "you" take the same verbs). */
+function names(a: Side) {
+  return a === 'you'
+    ? { S: 'You', p: 'your', re: "You're", o: 'them', oP: 'their', oRe: "They're", oSub: 'they', oSubCap: 'They' }
+    : { S: 'They', p: 'their', re: "They're", o: 'you', oP: 'your', oRe: "You're", oSub: 'you', oSubCap: 'You' };
 }
 
 function difficultyLine(d: string) {
@@ -471,10 +764,9 @@ function awarenessLine(a: string) {
 
 const roll = (a: number, b: number) => a + Math.floor(Math.random() * (b - a + 1));
 const oneOf = <T>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)];
-
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
-function pickWeighted<T>(table: [T, number][]): T {
+function pick<T>(table: [T, number][]): T {
   let r = Math.random() * table.reduce((n, [, c]) => n + c, 0);
   for (const [v, c] of table) if ((r -= c) < 0) return v;
   return table[table.length - 1][0];

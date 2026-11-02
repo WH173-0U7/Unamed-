@@ -5,6 +5,12 @@ black, film-styled menu (grain, flicker, colour fringing, glitches), settings,
 a save system, and the very first moment of the game: a dark screen with one
 option that switches on an old CRT television, which shows nothing yet.
 
+## Direction (planned, not built yet)
+
+- A **2D** game where the visual effects are the focus.
+- Gameplay mixes **side-scrolling** sections and **top-down** sections.
+- Tone: dark and creepy, in the style of the film-grain / glitch menu and the CRT television.
+
 ## Play
 
 **Play in your browser:** https://wh173-0u7.github.io/Unamed-/

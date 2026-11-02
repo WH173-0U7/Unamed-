@@ -6,6 +6,11 @@ sends a wave of light through the world and shifts its colours.
 
 ## Play
 
+**Play in your browser:** https://wh173-0u7.github.io/Unamed-/
+
+Every push to `main` (or the development branch) rebuilds the game and
+publishes it there automatically (see `.github/workflows/deploy.yml`).
+
 - **Phone:** left thumb = move (floating joystick), right thumb = look. Landscape works best.
 - **Desktop:** WASD / arrows = move, drag = look, Space / Shift = rise / sink.
 

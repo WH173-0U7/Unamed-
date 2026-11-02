@@ -1,0 +1,171 @@
+:root {
+  --ink: #f4ecff;
+  --ink-dim: rgba(244, 236, 255, 0.6);
+  --bg: #000;
+  --font: 'Avenir Next', 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+#app canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* ---------- HUD ---------- */
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 2s ease;
+}
+#hud.visible {
+  opacity: 1;
+}
+
+#score {
+  position: absolute;
+  top: max(18px, env(safe-area-inset-top));
+  left: max(22px, env(safe-area-inset-left));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 300;
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 12px rgba(200, 160, 255, 0.8);
+}
+#score .glyph {
+  font-size: 22px;
+}
+#score.bump {
+  animation: bump 0.6s ease-out;
+}
+@keyframes bump {
+  0% {
+    transform: scale(1.6);
+    text-shadow: 0 0 30px #fff;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+#hint {
+  position: absolute;
+  bottom: max(22px, env(safe-area-inset-bottom));
+  width: 100%;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  color: var(--ink-dim);
+  white-space: pre;
+  transition: opacity 3s ease;
+}
+#hint.faded {
+  opacity: 0;
+}
+
+#fps {
+  display: none;
+  position: absolute;
+  top: max(18px, env(safe-area-inset-top));
+  right: max(22px, env(safe-area-inset-right));
+  font: 12px ui-monospace, monospace;
+  color: var(--ink-dim);
+}
+
+/* ---------- Touch joystick ---------- */
+#joy-base {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 112px;
+  height: 112px;
+  margin: -56px 0 0 -56px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.06), transparent 70%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+#joy-base.active {
+  opacity: 1;
+}
+#joy-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 18px rgba(220, 180, 255, 0.8);
+  transform: translate(-50%, -50%);
+}
+
+/* ---------- Intro ---------- */
+#intro {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 16px;
+  text-align: center;
+  cursor: pointer;
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.55));
+  transition: opacity 1.5s ease;
+}
+#intro.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+#intro h1 {
+  font-size: clamp(32px, 9vw, 72px);
+  font-weight: 200;
+  letter-spacing: 0.4em;
+  margin-right: -0.4em;
+  text-shadow: 0 0 30px rgba(210, 170, 255, 0.9);
+}
+#intro .sub {
+  font-size: 14px;
+  letter-spacing: 0.3em;
+  color: var(--ink-dim);
+}
+#intro .tap {
+  margin-top: 28px;
+  font-size: 12px;
+  letter-spacing: 0.4em;
+  animation: breathe 2.4s ease-in-out infinite;
+}
+@keyframes breathe {
+  50% {
+    opacity: 0.25;
+  }
+}

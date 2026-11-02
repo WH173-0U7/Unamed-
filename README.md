@@ -60,10 +60,29 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   pocket or inside a jacket; homeless people sometimes hide cash in a shoe.
   Take things one by one, or **Take everything**. What they carry while
   you surveil them decides what's in their pockets.
-- **Pockets** (pull it in from the **right edge** of the screen, or tap its tab there): your cash, and everything you've
-  taken, sorted into phones, car keys, IDs and cards, and other. Medicine
-  you've bought can be **used** from here. Your cash also shows under your
-  blood.
+- **You wear clothes too**, random ones, like everyone else (a top,
+  trousers, shoes, and maybe a backpack, shoulder bag or fanny pack), and
+  **what you carry goes in their pockets**. Each pocket or bag holds only so
+  much, in **kg**, and only things up to a size:
+  - **Small** things (phones, keys, cards, ID, receipts, cigarettes,
+    lighters, most medicine) fit in pockets: jacket pockets 0.5 kg each
+    (0.4 inside), jeans front pockets 0.4, back pocket 0.3, a hoodie's front
+    pocket 0.9, a shirt's chest pocket 0.2. A T-shirt has none.
+  - **Medium** things (a water bottle, a notebook, headphones, a lunch tub,
+    a splint) need a bag: a shoulder bag holds 5 kg, cargo pockets 1.5.
+  - **Large** things (a bag of groceries) need a backpack (12 kg).
+  Things go in the smallest place they fit. If there's no room, you can't
+  take it, and you're told why ("too big to carry without a backpack").
+  *Take everything* takes what fits and leaves the rest.
+- **Pockets** (pull it in from the **right edge** of the screen, or tap its
+  tab there): your cash, what you're wearing, the weight you carry, and
+  every pocket and bag with how full it is and what's in it. Medicine can be
+  **used** from here, and anything can be **dropped** to make room. Your cash
+  also shows under your blood.
+- **A clock** in the corner shows your device's real time and date. The
+  game runs on real time: future features will take real time to happen
+  (waits, healing, travel), counted from your device's clock even while the
+  game is closed. (The save already records when you were last there.)
 - **Go** (pull it in from the **left edge**, or tap its tab) opens *Where to?*: **The street** (where
   you lurk) or the **Pharmacy**, open all night. It sells, cash only:
   *Bandages* $8 (bleeding down a level), *Gauze and tape* $15 (down two),
@@ -106,7 +125,18 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
     can still search the dead.
 - **Feeling the hits:** every blow that lands shakes the screen, tears it
   with glitches and static, and fringes the text with colour; when you're
-  the one hit the edges flash red. Blood splashes onto the screen: a main
+  the one hit the edges flash red. **Blood only when it makes sense:** a punch to the
+  gut, a shove, a kick to the legs throw none; you'll feel it but not see
+  it. What you see depends on the blow:
+  - a face that's already bleeding, or a brow or lip splitting open: a fan of
+    fine **spatter**, round up close and stretched into teardrops further out
+  - a blade: a **cast-off** line of drops thrown along the arc of the swing
+  - a nose breaking, a stamp on a bleeding head: a full **splash**
+  - a punctured lung: blood **coughed** up in a fine, frothy mist from below
+    (and again with every coughing fit)
+  - an open break, a heavy blow that opens the skin: a few heavy **drops**
+    that land and run.
+  Your own blood lands thicker and closer than theirs. A splash is a main
   splash, streams thrown outward ending in round beads, satellite drops
   with little tails, fine mist, and drips that run down and bead where they
   stop, with a crown of short spines where the drop burst and teardrop
@@ -227,6 +257,7 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | `src/core/quality.ts` | Graphics presets and adaptive resolution |
 | `src/ui/menu.ts` | Main menu, pause menu, settings, confirm dialogs |
 | `src/fx/uiGlitch.ts` | The quick glitch when the screen changes |
+| `src/game/clock.ts` | The device's real time (the clock, and time for future features) |
 | `src/game/legacy.ts` | What outlives you: who took your things when you died, and meeting them again |
 | `src/fx/film.ts` | Menu film grain, flicker, colour fringing and glitches |
 | `src/fx/fullscreen.ts` | Helper for full-screen GPU shaders |

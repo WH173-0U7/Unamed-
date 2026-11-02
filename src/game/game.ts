@@ -9,8 +9,9 @@ import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, isHurt,
 import { PASS_OUT, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
 import { uiGlitch } from '../fx/uiGlitch';
+import { clockText, dateText, now } from './clock';
 import { maybeThief, newWorld, robBody, settle, type World } from './legacy';
-import { MEDS, dollars, medById, newInventory, type Inventory, type InvItem, type MedId } from './inventory';
+import { MEDS, dollars, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type MedId } from './inventory';
 
 /**
  * What's left of your humanity. Killing someone takes a lot of it; stamping
@@ -87,6 +88,8 @@ export class Game {
   private readonly sheetEl: HTMLElement;
   private sheet: 'places' | 'pockets' | null = null;
   private noteTimer = 0;
+  private readonly clockEl: HTMLElement;
+  private clockShown = '';
   private phase: Phase = 'idle';
   private timer = 0;
   private jam = 0;
@@ -105,6 +108,7 @@ export class Game {
     this.youEl = view.querySelector('#you-status') as HTMLElement;
     this.restBtn = view.querySelector('#rest-btn') as HTMLButtonElement;
     this.noteEl = view.querySelector('#note') as HTMLElement;
+    this.clockEl = view.querySelector('#clock') as HTMLElement;
     this.restBtn.onclick = () => this.rest();
     this.goBtn = view.querySelector('#go-btn') as HTMLButtonElement;
     this.bagBtn = view.querySelector('#bag-btn') as HTMLButtonElement;
@@ -154,7 +158,9 @@ export class Game {
 
   /** What's in your pockets: cash, loot, medicine (saved). */
   private get inventory(): Inventory {
-    return (this.save.state.inventory ??= newInventory()) as Inventory;
+    const inv = (this.save.state.inventory ??= newInventory()) as Inventory;
+    upgradeInventory(inv);
+    return inv;
   }
 
   private get world(): World {
@@ -315,10 +321,12 @@ export class Game {
       const t = window.setTimeout(() => {
         const you = im.target === 'you';
         const power = Math.min(1, im.ml / 600) * (im.severe ? 1.3 : 1);
-        this.fx.impact(you, im.ml, im.severe);
-        this.hitUi.kick(power, you);
-        if (you && (power > 0.35 || Math.random() < 0.4)) this.hitUi.splash(im.severe ? 2 : 1, im.severe);
-        if (!you && im.severe && Math.random() < 0.6) this.hitUi.splash(1, false);
+        // Blood only when the blow would throw it (see Spill).
+        this.fx.impact(you, im.ml, im.severe, im.spill);
+        if (im.ml > 0) this.hitUi.kick(power, you);
+        const wet = im.spill === 'splash' || im.spill === 'spray' || (im.spill === 'spatter' && you);
+        if (wet && you && (power > 0.35 || Math.random() < 0.4)) this.hitUi.splash(im.severe ? 2 : 1, im.severe);
+        if (wet && !you && im.severe && Math.random() < 0.6) this.hitUi.splash(1, false);
         this.jam = Math.max(this.jam, (you ? 0.45 : 0.25) + power * 0.4);
         if (you) buzz(im.severe ? [70, 40, 110] : [35 + Math.round(power * 30), 25, 45]);
         else buzz(im.severe ? [25, 35, 45] : [14 + Math.round(power * 16)]);
@@ -482,7 +490,8 @@ export class Game {
     if (!b) return;
     if (b.dataset.close !== undefined) this.closeSheet();
     else if (b.dataset.place) this.goTo(b.dataset.place as Place);
-    else if (b.dataset.use) this.useMed(b.dataset.use as MedId);
+    else if (b.dataset.use) this.useMed(Number(b.dataset.use));
+    else if (b.dataset.drop) this.drop(Number(b.dataset.drop));
   }
 
   /** Walk somewhere else. */
@@ -505,24 +514,40 @@ export class Game {
     const m = medById(id);
     const inv = this.inventory;
     if (this.place !== 'pharmacy' || inv.cash < m.price) return;
+    const it = stow(inv, { kind: 'med', name: m.name, med: id });
+    if (!it) {
+      this.note([`You've got nowhere to put ${m.name.toLowerCase()}. ${noRoomWhy(inv, measure({ kind: 'med', name: m.name, med: id }).size)}`]);
+      return;
+    }
     inv.cash = Math.round((inv.cash - m.price) * 100) / 100;
-    inv.items.push({ kind: 'med', name: m.name, med: id });
     this.refresh();
     this.note([`You buy ${m.name.toLowerCase()}. ${dollars(inv.cash)} left.`]);
     buzz(8);
   }
 
-  /** Use medicine from your pockets. */
-  private useMed(id: MedId) {
-    const m = medById(id);
+  /** Use medicine from your pockets (by its place in the list). */
+  private useMed(i: number) {
     const inv = this.inventory;
-    const i = inv.items.findIndex((x) => x.med === id);
-    if (i < 0 || m.blocked(this.health)) return;
+    const it = inv.items[i];
+    if (!it?.med) return;
+    const m = medById(it.med);
+    if (m.blocked(this.health)) return;
     inv.items.splice(i, 1);
     const line = m.use(this.health);
     this.refresh();
     this.note([line]);
     buzz(8);
+  }
+
+  /** Get rid of something to make room. */
+  private drop(i: number) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    if (!it) return;
+    inv.items.splice(i, 1);
+    this.refresh();
+    this.note([`You drop the ${it.name.toLowerCase()}.`]);
+    buzz(6);
   }
 
   private renderShop() {
@@ -556,31 +581,35 @@ export class Game {
     }
     const inv = this.inventory;
     const h = this.health;
-    const groups: [string, (x: InvItem) => boolean][] = [
-      ['Phones', (x) => x.kind === 'phone'],
-      ['Car keys', (x) => x.kind === 'car keys'],
-      ['IDs and cards', (x) => x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card'],
-      ['Other', (x) => x.kind === 'misc'],
-    ];
-    const meds = MEDS.map((m) => ({ m, n: inv.items.filter((x) => x.med === m.id).length })).filter((x) => x.n);
-    let body = `<div class="pocket-cash"><span>Cash</span><b>${dollars(inv.cash)}</b></div>`;
-    if (meds.length) {
+    const total = inv.items.reduce((t, i) => t + i.kg, 0);
+    let body =
+      `<div class="pocket-cash"><span>Cash</span><b>${dollars(inv.cash)}</b></div>` +
+      `<p class="pocket-wear">Wearing ${inv.clothes.map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total)}.</p>`;
+    // Every pocket and bag, how full it is, and what's in it.
+    for (const sp of inv.spots) {
+      const xs = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.spot === sp.id);
+      const used = usedKg(inv, sp.id);
+      const fill = Math.min(100, (100 * used) / sp.maxKg);
       body +=
-        `<h3>Medicine</h3><ul class="pocket-list">` +
-        meds
-          .map(({ m, n }) => {
-            const why = m.blocked(h);
-            return `<li><div><b>${m.name}${n > 1 ? ` ×${n}` : ''}</b><small>${why ?? m.desc}</small></div><button type="button" data-use="${m.id}" ${why ? 'disabled' : ''}>Use</button></li>`;
-          })
-          .join('') +
-        `</ul>`;
+        `<div class="spot"><h3><span>${sp.on} · ${sp.name}</span><em>${sp.fits}</em></h3>` +
+        `<div class="spot-bar"><i style="width:${fill}%"></i><span>${kgLabel(used)} / ${sp.maxKg} kg</span></div>` +
+        (xs.length
+          ? `<ul class="pocket-list">${xs
+              .map(({ x, i }) => {
+                const m = x.med ? medById(x.med) : null;
+                const why = m?.blocked(h);
+                const small = m ? (why ?? m.desc) : x.detail;
+                return (
+                  `<li><div><b>${x.name}</b><small>${small ? `${small} · ` : ''}${kgLabel(x.kg)}</small></div>` +
+                  (m ? `<button type="button" data-use="${i}" ${why ? 'disabled' : ''}>Use</button>` : '') +
+                  `<button type="button" class="drop" data-drop="${i}" aria-label="Drop ${x.name}">Drop</button></li>`
+                );
+              })
+              .join('')}</ul>`
+          : '') +
+        `</div>`;
     }
-    for (const [name, test] of groups) {
-      const xs = inv.items.filter(test);
-      if (!xs.length) continue;
-      body += `<h3>${name}</h3><ul class="pocket-list">${xs.map((x) => `<li><div><b>${x.name}</b>${x.detail ? `<small>${x.detail}</small>` : ''}</div></li>`).join('')}</ul>`;
-    }
-    if (!inv.items.length && !inv.cash) body += `<p class="pocket-empty">Nothing but lint.</p>`;
+    if (!inv.spots.length) body += `<p class="pocket-empty">Nothing you're wearing has pockets.</p>`;
     card.innerHTML = `<div class="sheet-head"><h2>Pockets</h2>${close}</div><div class="sheet-body">${body}</div>`;
   }
 
@@ -772,6 +801,7 @@ export class Game {
   }
 
   update(dt: number) {
+    this.tickClock();
     if (this.running) {
       this.save.playTime += dt;
       this.stepLurk(dt);
@@ -788,6 +818,16 @@ export class Game {
     const frac = body.blood / body.maxBlood;
     this.fx.setLow(this.tvState.on ? Math.min(1, Math.max(0, (0.82 - frac) / (0.82 - PASS_OUT))) : 0);
     this.hitUi.update(dt);
+  }
+
+  /** The device's time, top right (redrawn when the minute changes). */
+  private tickClock() {
+    const t = now();
+    const s = clockText(t);
+    if (s === this.clockShown) return;
+    this.clockShown = s;
+    this.clockEl.querySelector('b')!.textContent = s;
+    this.clockEl.querySelector('span')!.textContent = dateText(t);
   }
 
   /** Shows the buttons that fit the moment: Lurk, Rest, the edge tabs. */
@@ -814,6 +854,8 @@ export class Game {
     delete this.save.state.player;
     delete this.save.state.whisp;
     delete this.save.state.orb;
+    // When you were last here, by the real clock (for time that passes while away).
+    this.save.state.lastSeen = now();
     return writeSave(this.save);
   }
 

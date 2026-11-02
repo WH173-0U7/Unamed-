@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Spill } from '../game/encounter';
 import { createFullscreenShader, glslHash } from './fullscreen';
 
 /**
@@ -437,7 +438,7 @@ export function createGlass(opts: GlassOptions = {}) {
       stamp(x + cos(dir) * along - sin(dir) * across, y + sin(dir) * along + cos(dir) * across, size * (0.4 + rnd() * 0.55), 0.24 + rnd() * 0.12);
     }
     // 2. A crown of short spines all round the rim, where the drop burst.
-    const spines = 14 + Math.floor(rnd() * 14);
+    const spines = rnd() < 0.55 ? 14 + Math.floor(rnd() * 14) : 4 + Math.floor(rnd() * 5);
     for (let i = 0; i < spines; i++) {
       const a = rnd() * Math.PI * 2;
       // Longer on the side it was flying towards, and uneven.
@@ -501,6 +502,133 @@ export function createGlass(opts: GlassOptions = {}) {
     const nd = heavy ? 2 + Math.floor(rnd() * 3) : 1 + (rnd() < 0.5 ? 1 : 0);
     for (let i = 0; i < nd; i++) {
       drips.push({ x: x + g(size * 0.9), y: y + size * (0.4 + rnd() * 0.5), v: 55 + rnd() * 90, r: size * (0.16 + rnd() * 0.1), life: 2 + rnd() * 4, wob: rnd() * 6 });
+    }
+    pctx.globalCompositeOperation = 'source-over';
+    painted(true);
+    maybeHint();
+  }
+
+  /**
+   * Impact spatter: a blow to a bleeding face flings a fan of fine droplets,
+   * no pool. Round up close, stretched into teardrops further out, all
+   * pointing the way they flew. (x, y) is where it came from (often just off
+   * the edge of the screen).
+   */
+  function spatter(x: number, y: number, reach: number, dir: number, dense: number) {
+    const rnd = Math.random;
+    const { cos, sin } = Math;
+    pctx.globalCompositeOperation = 'lighter';
+    const n = Math.round(70 + dense * 160);
+    for (let i = 0; i < n; i++) {
+      const a = dir + (rnd() + rnd() - 1) * 0.75;
+      const t = Math.pow(rnd(), 0.8);
+      const d = reach * (0.15 + t * 0.95);
+      // Most drops are tiny; a few are big. Smaller ones fly further.
+      const r = 1.2 + Math.pow(rnd(), 2.6) * (4 + dense * 5) * (1.1 - t * 0.5);
+      const px = x + cos(a) * d;
+      const py = y + sin(a) * d;
+      // Close in they hit square and stay round; further out they skid.
+      const stretch = 1 + t * t * (0.5 + rnd() * 1.4);
+      stamp(px, py, r, 0.7 + rnd() * 0.2, stretch, a);
+      if (r > 2.6 && rnd() < 0.55) {
+        // A tail, and maybe a little satellite beyond it.
+        stamp(px + cos(a) * r * stretch * 0.9, py + sin(a) * r * stretch * 0.9, r * 0.38, 0.5, 2.4, a);
+        if (rnd() < 0.4) stamp(px + cos(a) * r * stretch * 2.1, py + sin(a) * r * stretch * 2.1, r * 0.25, 0.6);
+      }
+    }
+    // A haze of the finest droplets, thickest near the source.
+    for (let i = 0; i < n * 1.4; i++) {
+      const a = dir + (rnd() + rnd() - 1) * 1;
+      const d = reach * Math.pow(rnd(), 1.4) * 0.9;
+      stamp(x + cos(a) * d, y + sin(a) * d, 1 + rnd() * 0.8, 0.6 + rnd() * 0.25);
+    }
+    // A couple of the bigger drops near the source run.
+    if (dense > 0.5)
+      for (let i = 0; i < 1 + Math.floor(rnd() * 2); i++) {
+        const a = dir + (rnd() - 0.5) * 0.8;
+        const d = reach * (0.2 + rnd() * 0.3);
+        drips.push({ x: x + cos(a) * d, y: y + sin(a) * d, v: 40 + rnd() * 60, r: 2.5 + rnd() * 2.5, life: 1.5 + rnd() * 2.5, wob: rnd() * 6 });
+      }
+    pctx.globalCompositeOperation = 'source-over';
+    painted(true);
+    maybeHint();
+  }
+
+  /**
+   * Cast-off from a blade: a line of drops thrown off along the arc of the
+   * swing, getting smaller towards the end, each stretched along the line.
+   */
+  function castOff(x: number, y: number, len: number, dir: number, heavy: number) {
+    const rnd = Math.random;
+    const { cos, sin } = Math;
+    pctx.globalCompositeOperation = 'lighter';
+    const bend = (rnd() < 0.5 ? -1 : 1) * (0.5 + rnd() * 0.7);
+    const steps = Math.round(len / 9);
+    let a = dir;
+    let px = x;
+    let py = y;
+    for (let i = 0; i < steps; i++) {
+      const t = i / steps;
+      a = dir + bend * t;
+      px += cos(a) * 9;
+      py += sin(a) * 9;
+      if (rnd() < 0.25) continue; // gaps in the line
+      const r = (2 + heavy * 4) * (1 - t * 0.7) * (0.6 + rnd() * 0.7);
+      const off = (rnd() - 0.5) * 6;
+      const qx = px - sin(a) * off;
+      const qy = py + cos(a) * off;
+      stamp(qx, qy, r, 0.66, 1.6 + rnd() * 1.6, a);
+      if (rnd() < 0.5) stamp(qx + cos(a) * r * 2.2, qy + sin(a) * r * 2.2, r * 0.3, 0.6);
+    }
+    // Where the swing started, a heavier smear, and a run or two from it.
+    stamp(x, y, 5 + heavy * 8, 0.55, 2.2, dir);
+    for (let i = 0; i < 1 + Math.round(heavy * 2); i++) drips.push({ x: x + (rnd() - 0.5) * 10, y, v: 50 + rnd() * 70, r: 3 + heavy * 3, life: 2 + rnd() * 3, wob: rnd() * 6 });
+    pctx.globalCompositeOperation = 'source-over';
+    painted(true);
+    maybeHint();
+  }
+
+  /**
+   * Coughed up: a fine, frothy mist from low in front, thin and pinkish
+   * (lots of tiny drops and some bubbles' worth of thin film).
+   */
+  function coughMist(x: number, y: number, reach: number, strength: number) {
+    const rnd = Math.random;
+    pctx.globalCompositeOperation = 'lighter';
+    const n = Math.round(180 + strength * 260);
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + (rnd() + rnd() - 1) * 1.1;
+      const d = reach * Math.pow(rnd(), 0.7);
+      const r = 1 + Math.pow(rnd(), 3.5) * 3.6;
+      stamp(x + Math.cos(a) * d * 1.3, y + Math.sin(a) * d, r, 0.55 + rnd() * 0.3);
+    }
+    // Froth: a few faint, thin blotches.
+    for (let i = 0; i < 6 + strength * 6; i++) {
+      const a = -Math.PI / 2 + (rnd() - 0.5) * 1.6;
+      const d = reach * rnd() * 0.6;
+      stamp(x + Math.cos(a) * d, y + Math.sin(a) * d, 6 + rnd() * 12, 0.14 + rnd() * 0.08);
+    }
+    pctx.globalCompositeOperation = 'source-over';
+    painted(true);
+    maybeHint();
+  }
+
+  /** A few heavy drops that land and run (an open break, a split lip). */
+  function dropsOf(x: number, y: number, n: number) {
+    const rnd = Math.random;
+    pctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < n; i++) {
+      const px = x + (rnd() - 0.5) * 120;
+      const py = y + (rnd() - 0.5) * 90;
+      const r = 5 + rnd() * 6;
+      stamp(px, py, r * 1.5, 0.62);
+      stamp(px + (rnd() - 0.5) * r, py + (rnd() - 0.5) * r, r, 0.4);
+      // A ring of tiny spines where it hit.
+      for (let j = 0; j < 8; j++) {
+        const a = rnd() * Math.PI * 2;
+        stamp(px + Math.cos(a) * r * 1.5, py + Math.sin(a) * r * 1.5, r * 0.18, 0.5, 1.8, a);
+      }
+      if (rnd() < 0.6) drips.push({ x: px, y: py + r, v: 35 + rnd() * 50, r: r * 0.5, life: 1.5 + rnd() * 3, wob: rnd() * 6 });
     }
     pctx.globalCompositeOperation = 'source-over';
     painted(true);
@@ -792,38 +920,54 @@ export function createGlass(opts: GlassOptions = {}) {
     /**
      * A blow landed. `hurtYou`: you were hit (big splashes, red flash);
      * otherwise you hit them (their blood sprays across). `amount` is blood
-     * lost (ml); `severe` a break, knockout or very heavy blow.
+     * lost (ml); `severe` a break, knockout or very heavy blow; `spill` what
+     * blood it throws (none for a punch to the gut).
      */
-    impact(hurtYou: boolean, amount: number, severe: boolean) {
+    impact(hurtYou: boolean, amount: number, severe: boolean, spill: Spill = 'splash') {
       const power = Math.min(1, amount / 600) * (severe ? 1.3 : 1);
-      glitch = Math.max(glitch, (hurtYou ? 0.55 : 0.3) + power * 0.45);
-      if (hurtYou) hurt = Math.max(hurt, 0.5 + power * 0.5);
+      glitch = Math.max(glitch, (hurtYou ? 0.45 : 0.2) + power * 0.45);
+      if (hurtYou && amount > 0) hurt = Math.max(hurt, 0.4 + power * 0.5);
       const m = Math.min(w, h);
-      const count = hurtYou ? 1 + (power > 0.45 ? 1 : 0) + (severe ? 1 : 0) : amount > 100 ? 1 : 0;
-      for (let i = 0; i < count; i++) {
-        // Mostly towards the edges and corners, flying inward.
-        const ang = Math.random() * Math.PI * 2;
-        const rr = 0.25 + Math.random() * 0.25;
-        const x = w / 2 + Math.cos(ang) * w * rr;
-        const y = h / 2 + Math.sin(ang) * h * rr;
-        const dir = Math.atan2(h / 2 - y, w / 2 - x) + (Math.random() - 0.5) * 1.2;
-        splat(x, y, m * (hurtYou ? 0.042 + power * 0.04 : 0.026 + power * 0.026), dir, hurtYou && power > 0.4);
-      }
-      if (!hurtYou && amount > 0) {
-        // A light spray of their blood even on smaller hits.
-        const x = w * (0.2 + Math.random() * 0.6);
-        const y = h * (0.2 + Math.random() * 0.6);
-        const dir = Math.random() * Math.PI * 2;
-        pctx.globalCompositeOperation = 'lighter';
-        const n = 40 + power * 110;
-        for (let i = 0; i < n; i++) {
-          const a = dir + (Math.random() - 0.5) * 2;
-          const d = Math.pow(Math.random(), 1.3) * m * (0.12 + power * 0.22);
-          stamp(x + Math.cos(a) * d, y + Math.sin(a) * d, 1.3 + Math.pow(Math.random(), 2) * (3 + power * 7), 0.6, 1 + Math.random() * 0.4, a);
+      const rnd = Math.random;
+      /** A point near the edge, and the direction into the screen from it. */
+      const fromEdge = (inset: number) => {
+        const ang = rnd() * Math.PI * 2;
+        const x = w / 2 + Math.cos(ang) * w * inset;
+        const y = h / 2 + Math.sin(ang) * h * inset;
+        return { x, y, dir: Math.atan2(h / 2 - y, w / 2 - x) + (rnd() - 0.5) * 0.9 };
+      };
+      // Your own blood lands thick and close; theirs comes from further off.
+      const near = hurtYou ? 1 : 0.6;
+      switch (spill) {
+        case 'none':
+          return;
+        case 'drip': {
+          const p = fromEdge(0.3);
+          dropsOf(p.x, p.y, Math.round((2 + rnd() * 2) * (hurtYou ? 1.4 : 1)));
+          return;
         }
-        pctx.globalCompositeOperation = 'source-over';
-        painted(true);
-        maybeHint();
+        case 'spatter': {
+          const p = fromEdge(0.55 + rnd() * 0.15);
+          spatter(p.x, p.y, m * (0.35 + power * 0.4) * near, p.dir, (0.3 + power * 0.7) * near);
+          return;
+        }
+        case 'cough':
+          coughMist(w * (0.35 + rnd() * 0.3), h * (0.85 + rnd() * 0.1), m * (0.25 + rnd() * 0.15), hurtYou ? 1 : 0.4);
+          return;
+        case 'spray': {
+          const p = fromEdge(0.45);
+          castOff(p.x, p.y, m * (0.5 + power * 0.6), p.dir, (0.3 + power * 0.7) * near);
+          if (power > 0.5) spatter(p.x, p.y, m * 0.3, p.dir, 0.5 * near);
+          return;
+        }
+        case 'splash': {
+          const count = hurtYou ? 1 + (power > 0.55 ? 1 : 0) : 1;
+          for (let i = 0; i < count; i++) {
+            const p = fromEdge(0.25 + rnd() * 0.25);
+            splat(p.x, p.y, m * (hurtYou ? 0.036 + power * 0.04 : 0.022 + power * 0.024), p.dir, hurtYou && power > 0.4);
+          }
+          return;
+        }
       }
     },
 

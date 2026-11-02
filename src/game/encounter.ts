@@ -46,7 +46,20 @@ export interface Impact {
   /** A big moment: a break, a knockout, or a very heavy blow. */
   severe: boolean;
   loc: Loc;
+  /** What blood, if any, it throws: a punch to the gut throws none. */
+  spill: Spill;
 }
+
+/**
+ * Blood thrown by a blow, from none to worst:
+ * - drip: a few drops (an open break, a split lip)
+ * - spatter: a fine spray of droplets (a blow to a face that's already bleeding)
+ * - cough: blood coughed up from a punctured lung (a fine, frothy mist)
+ * - spray: a cut, flinging a line of drops off the blade
+ * - splash: a burst (a nose breaking, a stamp on a bleeding head)
+ */
+export type Spill = 'none' | 'drip' | 'spatter' | 'cough' | 'spray' | 'splash';
+const SPILL_RANK: Spill[] = ['none', 'drip', 'spatter', 'cough', 'spray', 'splash'];
 
 export interface LogLine {
   by: Side | 'info';
@@ -687,6 +700,11 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   const out: string[] = [`(−${ml} ml)`];
   const re = N.oRe;
   let severe = ml >= 450;
+  const bledBefore = D.bleeding;
+  let spill: Spill = 'none';
+  const spills = (s: Spill) => {
+    if (SPILL_RANK.indexOf(s) > SPILL_RANK.indexOf(spill)) spill = s;
+  };
   /** Blood already lost makes passing out more likely. */
   const lost = 1 - D.blood / D.maxBlood;
   const knockOut = (chance: number) => {
@@ -701,12 +719,15 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
     if (D.broken.includes(part) || Math.random() >= chance) return false;
     severe = true;
     D.broken.push(part);
+    const open = part !== 'nose' && part !== 'ribs' && Math.random() < 0.3;
+    if (part === 'nose') spills('splash');
+    if (open) spills('drip');
     out.push(
       part === 'nose'
         ? `${N.oP[0].toUpperCase() + N.oP.slice(1)} nose flattens with a crunch: it's broken, and blood pours from it.`
         : part === 'ribs'
           ? `A crack like a snapped branch: ${N.oP} ribs are broken.`
-          : `A crack: ${N.oP} ${part} is broken.${Math.random() < 0.3 ? ' Bone shows through the skin.' : ''}`,
+          : `A crack: ${N.oP} ${part} is broken.${open ? ' Bone shows through the skin.' : ''}`,
     );
     return true;
   };
@@ -761,6 +782,7 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
         severe = true;
         D.stamina = Math.min(D.stamina, staminaCap(D));
         out.push(`The broken rib punctures ${N.oP} lung. ${d === 'you' ? 'You' : 'They'} gasp, and blood bubbles at ${N.oP} lips.`);
+        spills('cough');
         bleed(1);
       }
       knockOut(0.06 + lost * 0.35);
@@ -777,11 +799,27 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
     else fall(dmg >= 10 ? 0.25 : 0.08);
   }
   if (how === 'cut') bleed(Math.random() < 0.4 ? 2 : 1);
+  // Blood only where it makes sense: blunt blows to the body throw none.
+  if (how === 'cut') spills('spray');
+  if (loc === 'head' && how !== 'fall') {
+    // A split brow or lip opening up throws droplets; so does hitting a face
+    // that's already bleeding; a stamp on one bursts.
+    if (D.bleeding > bledBefore) spills('spatter');
+    else if (bledBefore && dmg >= 6) spills(how === 'stomp' && ml >= 300 ? 'splash' : 'spatter');
+    else if (ml >= 420) spills('drip');
+  }
+  if (D.lung && loc !== 'head' && dmg >= 8 && Math.random() < 0.35) spills('cough');
   if (D.dazed && how !== 'fall') fall(0.15);
   // What it looks like, sounds like.
   const g = gore(d, loc, how, ml, out.join(' '));
   if (g) out.splice(1, 0, g);
-  impacts.push({ target: d, ml, severe, loc });
+  // The blood matches what's described.
+  if (g && /blood|red\b/.test(g)) {
+    if (loc === 'head') spills(/spray|pours|choke/.test(g) ? 'splash' : 'spatter');
+    else if (loc === 'body' || loc === 'stomach') spills(/cough/.test(g) ? 'cough' : 'none');
+    else spills('drip');
+  }
+  impacts.push({ target: d, ml, severe, loc, spill });
   return out.join(' ');
 }
 
@@ -905,6 +943,7 @@ function endOfRound() {
     // Broken ribs: shallow, stabbing breaths, and sometimes a coughing fit.
     if (!f.out && f.broken.includes('ribs') && Math.random() < (f.lung ? 0.45 : 0.2)) {
       f.stamina = Math.max(0, f.stamina - (f.lung ? 14 : 7));
+      if (f.lung) impacts.push({ target: side, ml: 0, severe: false, loc: 'body', spill: 'cough' });
       say(side, f.lung ? oneOf(side === 'you' ? ['You cough, and it comes up pink and frothy. You can\'t get any air.', 'Every breath bubbles in your chest.'] : ['They cough up pink froth, wheezing.', 'Their breathing bubbles wetly in their chest.']) : side === 'you' ? oneOf(['Every breath is a knife in your side.', 'You try to breathe deep and your ribs scream.']) : oneOf(['They clutch their side, breathing in short, painful gasps.', 'They wince with every breath.']));
     }
     if (f.dazed > 0) f.dazed--;
@@ -992,23 +1031,29 @@ function search(id: string, inv?: Inventory) {
   }
   if (!inv) return;
   const grab = (g: (typeof clothes)[number], l: Loot) => {
-    say('you', take(inv, l));
-    g.loot.splice(g.loot.indexOf(l), 1);
+    const r = take(inv, l);
+    say('you', r.text);
+    if (r.ok) g.loot.splice(g.loot.indexOf(l), 1);
   };
   if (id === 'take-all') {
     const lines: string[] = [];
+    const left: string[] = [];
     let cash = 0;
     for (const g of clothes) {
       if (!g.searched) continue;
       for (const l of [...g.loot]) {
-        take(inv, l);
+        if (!take(inv, l).ok) {
+          left.push(a(l.name.toLowerCase()));
+          continue;
+        }
         if (l.kind === 'cash') cash += l.cash ?? 0;
         else lines.push(a(l.name.toLowerCase()));
         g.loot.splice(g.loot.indexOf(l), 1);
       }
     }
     if (cash) lines.unshift(`$${Math.round(cash * 100) / 100} in cash`);
-    if (lines.length) say('you', `You take everything: ${list(lines)}.`);
+    if (lines.length) say('you', `You take ${left.length ? 'what you can carry' : 'everything'}: ${list(lines)}.`);
+    if (left.length) say('you', `There's no room for ${list(left)}. You leave ${left.length > 1 ? 'them' : 'it'}.`);
     return;
   }
   const [, gi, li] = id.split(':').map(Number);

@@ -1631,6 +1631,53 @@ body.in-game #menu {
   color: var(--ink-faint);
 }
 
+/* Each pocket or bag, and how full it is. */
+.pocket-wear {
+  margin: 10px 2px 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+.spot h3 {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.spot h3 em {
+  font-style: normal;
+  color: var(--ink-faint);
+}
+.spot-bar {
+  position: relative;
+  height: 16px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+.spot-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, rgba(185, 212, 166, 0.25), rgba(185, 212, 166, 0.45));
+}
+.spot-bar span {
+  position: relative;
+  display: block;
+  padding: 0 8px;
+  font-size: 10px;
+  line-height: 16px;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+}
+.pocket-list li div {
+  flex: 1;
+}
+.pocket-list button.drop {
+  min-width: 52px;
+  border-color: var(--line);
+  color: var(--ink-faint);
+  font-size: 12px;
+}
 /* The pharmacy. */
 #shop {
   position: absolute;
@@ -1845,5 +1892,51 @@ body.in-game #menu {
 @media (prefers-reduced-motion: reduce) {
   .ui-glitch {
     animation: none !important;
+  }
+}
+
+/* The real time, from the device. */
+#clock {
+  position: absolute;
+  top: calc(var(--pad-top) + 46px);
+  right: var(--pad-x-r);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+#clock b {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+}
+#clock span {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+/* In an encounter it sits in the card's top corner. */
+#game:has(#enc:not([hidden])) #clock {
+  top: calc(var(--pad-top) + 60px);
+  right: calc(50% - min(calc(100% - 32px), 560px) / 2 + 16px);
+}
+.enc-who {
+  padding-right: 78px;
+}
+/* Landscape: in the top bar, next to the pause button. */
+@media (orientation: landscape) and (max-height: 560px) {
+  #clock,
+  #game:has(#enc:not([hidden])) #clock {
+    top: calc(var(--pad-top) + 2px);
+    right: calc(var(--pad-x-r) + 64px);
+    flex-direction: row;
+    align-items: baseline;
+    gap: 10px;
   }
 }

@@ -5,15 +5,12 @@ player unless the game itself chooses to reveal it.
 
 ## Current direction
 
-- The game begins with a television in the dark. Turning it on reveals a
-  security camera on a night street: brick wall, windows, a doorway, one
-  street lamp.
-- The only thing to do is **lurk**: watch, unseen, and wait for whoever comes.
-  Each lurk cuts to another camera. The people of the street at night:
-  - **Civilians:** walking home, never looking up.
-  - **Drunks:** staggering between the lights, bottle in hand.
-  - **The homeless:** pushing a cart, bedding down in a doorway for the night.
-  - **Junkies:** hunched under the lamp, scratching, nodding off.
+- The game begins with a television in the dark. Turning it on lets you
+  **lurk**: wait, unseen, for whoever comes. Who you saw appears as a button.
+  - **Civilians**, **drunks**, **the homeless** and **junkies**.
+  - Each person is one of the U.S. standard race categories: American Indian
+    or Alaska Native; Asian; Black or African American; Hispanic or Latino;
+    Middle Eastern or North African; Native Hawaiian or Pacific Islander; White.
   - Sometimes **nobody** comes at all.
 - The game keeps count of who you have seen.
 
@@ -31,3 +28,6 @@ history if they are ever wanted again.
 - **The city map:** the TV showed a top-down map of an endless, procedurally
   generated city grid. You tapped to plan a route and tapped again to walk it;
   tapping a building took you to its front door.
+- **The street camera:** the TV showed a security camera on a night street
+  (brick wall, windows, a doorway, a street lamp), and the people walked
+  through it as animated silhouettes, each moving in their own way.

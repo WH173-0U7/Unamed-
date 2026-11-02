@@ -76,7 +76,7 @@ export function createTv(renderer: THREE.WebGLRenderer) {
         float glow = 0.05 + 0.035 * (1.0 - smoothstep(0.0, 0.7, length(c * vec2(aspect * 0.8, 1.0))));
         float bar = exp(-pow((fract(uv.y * 0.7 - uTime * 0.07) - 0.5) / 0.1, 2.0)) * 0.03;
 
-        // 6. The picture: the street camera, coming through once the tube has warmed up.
+        // 6. The picture (if one is set), coming through once the tube has warmed up.
         float pic = texture2D(tPicture, uv).g * uPicture * (1.0 - uJam * 0.75);
 
         return (glow + snow * snowAmt + bar + flash + pic) * inside + spark + halo;

@@ -221,34 +221,59 @@ canvas {
   color: var(--ink);
 }
 
-/* Who you saw: named across the top of the screen. */
+/* Who you saw: a button in the middle of the screen. */
 #seen {
   position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(var(--pad-top) + 9vh);
-  padding: 0 24px;
-  text-align: center;
-  pointer-events: none;
-  animation: seen-in 1.4s ease both;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(86vw, 420px);
+  animation: seen-in 0.9s ease both;
 }
-#seen .seen-kind {
+.seen-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 18px 22px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--glass);
+  color: var(--ink);
+  transition:
+    border-color 0.2s,
+    transform 0.15s;
+}
+.seen-btn:hover,
+.seen-btn:focus-visible {
+  border-color: var(--ink-dim);
+}
+.seen-btn:active {
+  transform: scale(0.97);
+}
+.seen-kind,
+.seen-nobody {
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: clamp(34px, min(10vw, 11vh), 72px);
+  font-size: clamp(34px, min(10vw, 11vh), 60px);
   line-height: 1;
-  color: var(--ink);
   text-shadow:
     -1.5px 0 rgba(255, 40, 60, 0.55),
-    1.5px 0 rgba(40, 220, 255, 0.55),
-    0 0 18px rgba(0, 0, 0, 0.9);
+    1.5px 0 rgba(40, 220, 255, 0.55);
 }
-#seen .seen-line {
-  margin-top: 10px;
-  font-size: 14px;
+.seen-nobody {
+  color: var(--ink-dim);
+}
+.seen-race {
+  font-size: 13px;
+  font-weight: 500;
   letter-spacing: 0.08em;
   color: var(--ink-dim);
-  text-shadow: 0 0 10px #000;
 }
 @keyframes seen-in {
   from {

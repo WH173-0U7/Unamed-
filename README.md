@@ -3,10 +3,10 @@
 A GPU-heavy game for mobile, being built from scratch. Right now it has a
 black, film-styled menu (grain, flicker, colour fringing, glitches), settings,
 a pause-based save system, and the start of the game: a television in the dark
-with one option, Turn on. Once it warms up, the TV shows a security camera on
-a night street, and one option: Lurk. Each lurk cuts to a new camera and you
-wait to see who comes by: a civilian, a drunk, someone homeless, a junkie, or
-nobody.
+with one option, Turn on. Once it warms up there's one option: Lurk. Each
+lurk, the signal cuts out while you wait, then whoever you saw appears as a
+button: a civilian, a drunk, someone homeless or a junkie, each of one of the
+U.S. standard race categories. Or nobody.
 
 ## Direction (planned, not built yet)
 
@@ -21,12 +21,12 @@ nobody.
 Every push to `main` (or the development branch) rebuilds the game and
 publishes it there automatically (see `.github/workflows/deploy.yml`).
 
-- **Playing:** press *Turn on*. When the picture comes through, press *Lurk*.
-  The signal cuts to another street camera; wait, and someone may walk into
-  the lamp light. Who it is gets named at the top of the screen. The chances
-  each time: civilian 34%, drunk 20%, nobody 18%, homeless 16%, junkie 12%
-  (set in `CHANCES` in `src/game/game.ts`). The game keeps count of everyone
-  you've seen.
+- **Playing:** press *Turn on*, then *Lurk*. After a moment of static, who
+  you saw shows up as a button (type, and race underneath). The chances each
+  time: civilian 34%, drunk 20%, nobody 18%, homeless 16%, junkie 12%. Each
+  person's race is one of the 7 U.S. federal (OMB 2024) categories, equally
+  likely. Both tables are `CHANCES` and `RACE_CHANCES` in `src/game/game.ts`.
+  The buttons don't do anything yet. The game keeps count of who you've seen.
 - **Fullscreen:** the game asks for fullscreen on every tap, click or key press
   whenever it isn't fullscreen. On iPhone, use Share → Add to Home Screen.
 - **Pause:** top-right button, or Esc on a computer.
@@ -38,8 +38,7 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
 
 - TypeScript + [Three.js](https://threejs.org) on WebGL2, built with Vite.
 - GPU shaders draw the menu's film grain / glitch layer and the CRT television
-  (power-on sequence, static, scanlines, curved glass, interference), which
-  shows the street camera.
+  (power-on sequence, static, scanlines, curved glass, interference).
 - Can later be wrapped as a native iOS / Android app (e.g. with Capacitor).
 
 ## Develop
@@ -57,10 +56,8 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | File | What it does |
 | --- | --- |
 | `src/main.ts` | Starts everything; switches between menu, game and pause |
-| `src/game/game.ts` | The game itself: the TV, lurking, the chances of who comes, saving its state |
+| `src/game/game.ts` | The game itself: the TV, lurking, the chances of who you see (and their race), saving its state |
 | `src/game/tv.ts` | The CRT television, its power-on sequence, interference, and showing the picture |
-| `src/game/street.ts` | The street camera picture: a new street for every camera, lamp light, overlay |
-| `src/game/people.ts` | The people (civilian, drunk, homeless, junkie): how each one moves and is drawn |
 | `src/core/save.ts` | Save / load / delete, with a backup copy |
 | `src/core/settings.ts` | Player settings |
 | `src/core/fullscreen.ts` | Keeps the game fullscreen |

@@ -7,7 +7,7 @@ import { createEncounterView } from '../ui/encounterView';
 import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, type StatName, type Stats } from './stats';
 import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, isHurt, newHealth, passHours, type Health } from './health';
 import { PASS_OUT, type Impact } from './encounter';
-import { createBloodFx } from '../fx/blood';
+import type { Glass } from '../fx/glass';
 import { createHitUi } from '../fx/hitUi';
 
 /** Progress stored in the save file under `state.tv`. */
@@ -41,7 +41,6 @@ export class Game {
   private readonly lurkBtn: HTMLButtonElement;
   private readonly seenEl: HTMLElement;
   private readonly encView;
-  private readonly fx;
   private readonly hitUi;
   private readonly timers: number[] = [];
   private readonly statsEl: HTMLElement;
@@ -57,6 +56,7 @@ export class Game {
     readonly save: SaveData,
     private readonly view: HTMLElement,
     renderer: THREE.WebGLRenderer,
+    private readonly fx: Glass,
   ) {
     this.tv = createTv(renderer);
     this.powerBtn = view.querySelector('#power-btn') as HTMLButtonElement;
@@ -68,7 +68,6 @@ export class Game {
     this.noteEl = view.querySelector('#note') as HTMLElement;
     this.restBtn.onclick = () => this.rest();
     this.restBtn.hidden = true;
-    this.fx = createBloodFx(view);
     this.hitUi = createHitUi(view);
     this.encView = createEncounterView(view.querySelector('#enc') as HTMLElement, (id) => this.act(id));
     this.powerBtn.onclick = () => this.turnOn();
@@ -216,9 +215,11 @@ export class Game {
     });
   }
 
-  /** Clean the blood off the screen and the panels. */
+  /**
+   * Clean the blood off the panels (they're put away). The blood on the
+   * screen itself stays until you wipe it off with your finger.
+   */
   private wipeBlood() {
-    this.fx.wipe();
     this.hitUi.clear();
   }
 
@@ -363,7 +364,7 @@ export class Game {
   /** Closes the game view (back to the menu). */
   close() {
     for (const t of this.timers) clearTimeout(t);
-    this.fx.dispose();
+    this.fx.setLow(0);
     this.hitUi.clear();
     this.view.style.transform = '';
     this.pause();
@@ -380,8 +381,8 @@ export class Game {
   }
 
   setSize(width: number, height: number, pixelRatio = 1) {
+    void pixelRatio;
     this.tv.setSize(width, height);
-    this.fx.setSize(width, height, pixelRatio);
   }
 
   /** Debug: freeze the TV sequence at a moment (seconds), or null to resume. */
@@ -412,7 +413,6 @@ export class Game {
     const body = e2 && e2.stage !== 'seen' ? e2.you : this.health;
     const frac = body.blood / body.maxBlood;
     this.fx.setLow(this.tvState.on ? Math.min(1, Math.max(0, (0.82 - frac) / (0.82 - PASS_OUT))) : 0);
-    this.fx.update(dt);
     this.hitUi.update(dt);
   }
 

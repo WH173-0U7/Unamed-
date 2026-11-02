@@ -5,6 +5,7 @@ import { enforceFullscreen } from './core/fullscreen';
 import { onSettingsChange } from './core/settings';
 import { deleteSave, formatAgo, formatPlayTime, hasSave, loadSave, newSave } from './core/save';
 import { createFilm } from './fx/film';
+import { createGlass } from './fx/glass';
 import { createMenu } from './ui/menu';
 import { Game } from './game/game';
 
@@ -27,6 +28,10 @@ $('screen').appendChild(renderer.domElement);
 // Film grain / glitch layer over the menus.
 const film = createFilm($('menu'));
 
+// The glass over everything: blood, smears and grime stay on it, through
+// every menu and the game, until wiped off with a finger.
+const glass = createGlass({ onHint: () => menu.toast('Swipe the screen to wipe the blood off') });
+
 const fixedPR = params.has('pr') ? Number(params.get('pr')) : null;
 let pixelRatio = 1;
 
@@ -34,6 +39,7 @@ function applySize() {
   renderer.setPixelRatio(pixelRatio);
   renderer.setSize(innerWidth, innerHeight);
   film.setSize(pixelRatio);
+  glass.setSize(innerWidth, innerHeight, pixelRatio);
   game?.setSize(innerWidth, innerHeight, pixelRatio);
 }
 addEventListener('resize', applySize);
@@ -118,7 +124,7 @@ function startGame(fresh: boolean) {
     menu.setSaveInfo(null);
     return;
   }
-  game = new Game(data, $('game'), renderer);
+  game = new Game(data, $('game'), renderer, glass);
   game.setSize(innerWidth, innerHeight, pixelRatio);
   document.body.classList.add('in-game');
   if (fresh) {
@@ -142,6 +148,7 @@ function pause() {
   document.body.classList.add('paused');
   // The save point.
   if (save()) menu.toast('Progress saved');
+  glass.persist();
   updatePauseInfo();
   showMenu('pause');
 }
@@ -174,9 +181,15 @@ addEventListener('keydown', (e) => {
 });
 // Leaving or closing the app pauses it, which saves.
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) pause();
+  if (document.hidden) {
+    pause();
+    glass.persist();
+  }
 });
-addEventListener('pagehide', pause);
+addEventListener('pagehide', () => {
+  pause();
+  glass.persist();
+});
 
 menu.setSaveInfo(loadSave());
 showMenu('main');
@@ -187,6 +200,7 @@ if (params.has('debug')) {
   Object.assign(window, {
     __app: {
       menu,
+      glass,
       get state() {
         return state;
       },
@@ -214,6 +228,7 @@ renderer.setAnimationLoop(() => {
   }
 
   if (menuVisible) film.update(dt);
+  glass.update(dt);
 
   frames++;
   if ((fpsTimer += dt) > 0.5) {

@@ -69,18 +69,31 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
     anything any more, and you choose what happens. Keep stomping (head,
     stomach, ribs; every blow lands), catch your breath, or **Walk away**,
     which ends it. If *you* pass out, it ends.
+  - **They can bleed out.** An unconscious person still loses blood (from
+    bleeding, and from every stomp). When it gets low their breathing goes
+    shallow; at 40% of their blood they die, and it's over ("They're dead.").
 - **Feeling the hits:** every blow that lands shakes the screen, tears it
   with glitches and static, and fringes the text with colour; when you're
   the one hit the edges flash red. Blood splashes onto the screen: a main
   splash, streams thrown outward ending in round beads, satellite drops
   with little tails, fine mist, and drips that run down and bead where they
-  stop. It's built as a field of soft blobs cut at a surface (so drops merge
+  stop, with a crown of short spines where the drop burst and teardrop
+  drops whose tails point the way they flew. It's built as a field of soft blobs cut at a surface (so drops merge
   like real liquid) and lit on the GPU like wet blood: near black-red where
   thick, glowing red at thin edges, a dark meniscus line, light shining
   through the domes, glossy highlights. Splashes land on the panels too.
   When your blood is low, a red edge pulses like a heartbeat. The phone
   vibrates on every hit, harder when you're hurt (Android; iPhones don't
-  let web pages vibrate). The blood is wiped when you lurk or rest.
+  let web pages vibrate).
+- **The glass: blood, dirt and grime stay.** All of it sits on one layer
+  over everything, the game and every menu, and is kept on the device
+  between visits. Nothing cleans it for you: **drag a finger across the
+  screen to wipe it**. Wet blood gets pushed along and partly lifted,
+  leaving a thin streaky smear that takes more wiping. Over a couple of
+  minutes blood **dries**: matte, brown-maroon, darker at the rim, finely
+  cracked where it was thick, and much harder to wipe. There's always some
+  dust, specks and greasy haze, it builds up slowly, and your finger leaves
+  streaks of its own. (A wipe that ends on a button doesn't press it.)
 - **Your injuries carry over** from one person to the next: your blood,
   bleeding, broken bones and concussion (shown under your stats). Stamina,
   being dazed and being on the floor reset after each fight.
@@ -140,7 +153,7 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | `src/game/encounter.ts` | Surveil and violence: following, finding things out, being noticed, ambushes, and combat (blood, stamina, injuries, falls), with the log |
 | `src/game/health.ts` | Your body between fights: blood, bleeding, broken bones and concussion carrying over, and healing with time and rest |
 | `src/game/stats.ts` | Your stats (sneak, strength, agility, stamina), levelling by use, and what each does |
-| `src/fx/blood.ts` | The hit effects layer: blood splatters on the screen, red border, glitch and static |
+| `src/fx/glass.ts` | The glass over everything: blood splatters that dry, wiping with a finger, smears, dirt and grime (kept on the device), plus the red border, glitch and static |
 | `src/fx/hitUi.ts` | Hit effects on the interface: shaking, colour fringing, panels glitching, blood on the panels |
 | `src/ui/encounterView.ts` | The encounter screen: what you know about them, the log, your options |
 | `src/game/tv.ts` | The CRT television, its power-on sequence, interference, and showing the picture |

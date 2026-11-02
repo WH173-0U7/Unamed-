@@ -31,7 +31,7 @@ import {
 export const ENCOUNTER_VERSION = 2;
 
 export type Stage = 'seen' | 'menu' | 'surveil' | 'violence' | 'combat' | 'over';
-export type Result = 'won' | 'lost' | 'they-fled' | 'you-fled' | 'lost-them' | 'left' | 'walked';
+export type Result = 'won' | 'lost' | 'they-fled' | 'you-fled' | 'lost-them' | 'left' | 'walked' | 'killed';
 export type Side = 'you' | 'them';
 export type Part = 'nose' | 'ribs' | 'left arm' | 'right arm' | 'left leg' | 'right leg';
 export type Loc = 'head' | 'body' | 'stomach' | 'arm' | 'leg';
@@ -79,6 +79,9 @@ export interface Body {
   winded?: boolean;
   /** Told you they're unconscious already. */
   outNoted?: boolean;
+  /** Their breathing has gone shallow: close to bleeding out. */
+  dyingNoted?: boolean;
+  dead?: boolean;
 }
 
 export interface Encounter {
@@ -105,6 +108,8 @@ export interface Option {
 
 /** At or below this share of their blood, people pass out. */
 export const PASS_OUT = 0.55;
+/** Someone unconscious dies when their blood falls this low (a fraction of all of it). */
+export const DEATH = 0.4;
 export const BLEEDING = ['None', 'Light', 'Moderate', 'Heavy', 'Severe'];
 /** Blood lost per turn at each level of bleeding, per 5 litres of blood. */
 const BLEED_ML = [0, 35, 80, 150, 260];
@@ -826,6 +831,18 @@ function checkEnd(): boolean {
   if (T.out && !T.outNoted) {
     T.outNoted = true;
     say('info', "They're unconscious. They can't fight back.");
+  }
+  // Unconscious and still losing blood: they can bleed out.
+  if (T.out && T.blood <= T.maxBlood * DEATH) {
+    T.dead = true;
+    T.bleeding = 0;
+    say('you', oneOf(["Their chest stops moving. The blood around them stops spreading. They're dead.", "One last rattling breath, then nothing. They've bled out."]));
+    end('killed');
+    return true;
+  }
+  if (T.out && !T.dyingNoted && T.blood <= T.maxBlood * (DEATH + 0.07)) {
+    T.dyingNoted = true;
+    say('info', "Their breathing is shallow and fast, their skin grey. They're bleeding out.");
   }
   return false;
 }

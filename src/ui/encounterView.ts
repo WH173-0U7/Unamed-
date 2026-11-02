@@ -17,6 +17,7 @@ const RESULT: Record<string, string> = {
   'lost-them': 'You lost them.',
   left: 'You let them go.',
   walked: 'You walk away.',
+  killed: "They're dead.",
 };
 
 /**

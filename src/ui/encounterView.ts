@@ -6,6 +6,7 @@ const STAGE_TITLE: Record<string, string> = {
   surveil: 'Surveil',
   violence: 'Violence',
   combat: 'Fight',
+  helpless: 'Unconscious',
 };
 
 const RESULT: Record<string, string> = {
@@ -15,6 +16,7 @@ const RESULT: Record<string, string> = {
   'you-fled': 'You got away.',
   'lost-them': 'You lost them.',
   left: 'You let them go.',
+  walked: 'You walk away.',
 };
 
 /**
@@ -100,7 +102,8 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       }
       log.scrollTop = log.scrollHeight;
 
-      q('.enc-title').textContent = e.stage === 'over' ? RESULT[e.result ?? 'left'] : STAGE_TITLE[e.stage];
+      q('.enc-title').textContent =
+        e.stage === 'over' ? RESULT[e.result ?? 'left'] : e.stage === 'combat' && e.them.out ? STAGE_TITLE.helpless : STAGE_TITLE[e.stage];
       q('.enc-opts').innerHTML = options(e)
         .map(
           (o) =>

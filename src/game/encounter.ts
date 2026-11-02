@@ -31,7 +31,7 @@ import {
 export const ENCOUNTER_VERSION = 2;
 
 export type Stage = 'seen' | 'menu' | 'surveil' | 'violence' | 'combat' | 'over';
-export type Result = 'won' | 'lost' | 'they-fled' | 'you-fled' | 'lost-them' | 'left';
+export type Result = 'won' | 'lost' | 'they-fled' | 'you-fled' | 'lost-them' | 'left' | 'walked';
 export type Side = 'you' | 'them';
 export type Part = 'nose' | 'ribs' | 'left arm' | 'right arm' | 'left leg' | 'right leg';
 export type Loc = 'head' | 'body' | 'stomach' | 'arm' | 'leg';
@@ -77,6 +77,8 @@ export interface Body {
   out?: boolean;
   /** Winded (stamped on the stomach): loses their next move. */
   winded?: boolean;
+  /** Told you they're unconscious already. */
+  outNoted?: boolean;
 }
 
 export interface Encounter {
@@ -207,12 +209,24 @@ export function options(e: Encounter): Option[] {
       const tired = (n: number) => y.stamina < cost(y, n);
       const armHint = arms(y) ? `Broken arm${arms(y) > 1 ? 's' : ''}` : undefined;
       const legHint = legs(y) ? `Broken leg${legs(y) > 1 ? 's' : ''}` : undefined;
+      const out = !!e.them.out;
       if (y.down) {
         return [
           { id: 'getup', label: 'Get up', hint: legHint ?? (y.dazed ? 'Dazed' : undefined) },
           { id: 'punch', label: 'Punch', hint: armHint ?? 'From the floor' },
           { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : 'From the floor', disabled: tired(COST.kick) },
+          out ? { id: 'walk', label: 'Crawl away', hint: "They're unconscious" } : { id: 'breathe', label: 'Catch your breath' },
+        ];
+      }
+      if (out) {
+        // They're unconscious: it isn't a fight any more. Keep going, or walk away.
+        const t = tired(COST.kick);
+        return [
+          { id: 'stomp-head', label: 'Stomp their head', hint: t ? 'Too tired' : undefined, disabled: t },
+          { id: 'stomp-stomach', label: 'Stomp their stomach', hint: t ? 'Too tired' : undefined, disabled: t },
+          { id: 'stomp-ribs', label: 'Stomp their ribs', hint: t ? 'Too tired' : undefined, disabled: t },
           { id: 'breathe', label: 'Catch your breath' },
+          { id: 'walk', label: 'Walk away' },
         ];
       }
       if (e.them.down) {
@@ -410,7 +424,7 @@ export function act(e: Encounter, id: string, stats: Stats): Impact[] {
         say('them', `They see it coming and counter: a hard hit straight back at you. ${wound('you', 'head', dmg, 'punch')}`);
       }
     }
-    if (!checkEnd()) {
+    if (!checkEnd() && !e.them.out) {
       say('info', 'The fight is on.');
       if (theyGoFirst) theirTurn();
       endOfRound();
@@ -472,6 +486,11 @@ export function act(e: Encounter, id: string, stats: Stats): Impact[] {
           say('you', 'You get back on your feet.');
         } else say('you', legs(y) ? 'You try to stand, but your leg gives way.' : 'You try to get up, and fall back down.');
         break;
+      case 'walk':
+        if (!e.them.out) break;
+        say('you', y.down ? 'You drag yourself up and stagger away, leaving them where they lie.' : 'You leave them lying there and walk off into the dark.');
+        end('walked');
+        return impacts;
       case 'breathe':
         y.stamina = Math.min(y.maxStamina, y.stamina + 22);
         say('you', y.down ? 'You stay down and catch your breath.' : 'You back off a step and catch your breath.');
@@ -525,6 +544,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc)
   if (tired) hit -= 0.15;
   if (A.down) hit -= kind === 'kick' ? 0.1 : 0.2;
   if (D.down) hit += 0.2;
+  if (D.out) hit = 2; // can't defend themselves
   if (D.dazed) hit += 0.15;
   if (D.offBalance) hit += 0.15;
   D.offBalance = false;
@@ -660,7 +680,7 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   };
 
   if (loc === 'head') {
-    if (Math.random() < Math.min(0.8, dmg * 0.035 * (D.concussed ? 1.5 : 1))) {
+    if (!D.out && Math.random() < Math.min(0.8, dmg * 0.035 * (D.concussed ? 1.5 : 1))) {
       D.dazed = 2;
       out.push(`${re} dazed.`);
     }
@@ -682,8 +702,11 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
     fall(dmg >= 14 ? 0.3 : 0);
   } else if (loc === 'stomach') {
     D.stamina = Math.max(0, D.stamina - 30);
-    D.winded = true;
-    out.push(d === 'you' ? "The wind's knocked out of you." : "It knocks the wind out of them. They curl up, gasping.");
+    if (D.out) out.push('Their body jerks. They make a low sound.');
+    else {
+      D.winded = true;
+      out.push(d === 'you' ? "The wind's knocked out of you." : 'It knocks the wind out of them. They curl up, gasping.');
+    }
     knockOut(D.down ? 0.02 + lost * 0.2 : 0);
   } else if (loc === 'body') {
     if (how === 'stomp' && D.broken.includes('ribs')) {
@@ -711,6 +734,7 @@ function theirTurn() {
   const p = e.person;
   const b = BUILDS[p.build];
   const T = e.them;
+  if (T.out) return; // unconscious
   if (T.winded) {
     T.winded = false;
     say('them', 'They lie there, fighting for breath.');
@@ -785,17 +809,23 @@ function endOfRound() {
 function checkEnd(): boolean {
   if (enc.stage !== 'combat') return true;
   const out = (f: Body) => f.out || f.blood <= f.maxBlood * PASS_OUT;
-  if (out(enc.them)) {
-    enc.them.down = true;
-    say('you', enc.them.out ? "They're out cold. They don't move." : enc.them.bleeding >= 3 ? "They've lost too much blood. They slump to the floor and don't get up." : 'They go down, and stay down.');
-    end('won');
-    return true;
-  }
+  // You passing out ends it (you can't do anything). Them passing out
+  // doesn't: they're helpless, and it's up to you what happens next.
   if (out(enc.you)) {
     enc.you.down = true;
-    say('them', enc.you.out ? 'Everything goes black.' : enc.you.bleeding >= 3 ? 'Too much blood. Your legs give out, and everything goes dark.' : 'You hit the pavement. Everything goes dark.');
+    say('info', enc.you.out ? 'Everything goes black.' : enc.you.bleeding >= 3 ? 'Too much blood. Your legs give out, and everything goes dark.' : 'You hit the pavement. Everything goes dark.');
     end('lost');
     return true;
+  }
+  const T = enc.them;
+  if (!T.out && T.blood <= T.maxBlood * PASS_OUT) {
+    T.out = true;
+    T.down = true;
+    say('you', T.bleeding >= 3 ? "They've lost too much blood. They slump to the floor, unconscious." : "They go down and don't get up. They're unconscious.");
+  }
+  if (T.out && !T.outNoted) {
+    T.outNoted = true;
+    say('info', "They're unconscious. They can't fight back.");
   }
   return false;
 }

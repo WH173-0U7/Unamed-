@@ -62,9 +62,13 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   - **When they're on the floor** your attacks become stomps, aimed at their
     **head** (most likely to knock them out), **stomach** (knocks the wind
     out of them: they lose their next move and stamina) or **ribs** (likely
-    to break them; stomping broken ribs can knock them out). Getting knocked
-    **unconscious** ends the fight, and it's far more likely on the floor,
-    concussed, dazed, or after losing a lot of blood.
+    to break them; stomping broken ribs can knock them out). Someone gets
+    knocked **unconscious** far more easily on the floor, concussed, dazed,
+    or after losing a lot of blood, and passes out at 55% of their blood.
+  - **When they're unconscious** the encounter doesn't end: they can't do
+    anything any more, and you choose what happens. Keep stomping (head,
+    stomach, ribs; every blow lands), catch your breath, or **Walk away**,
+    which ends it. If *you* pass out, it ends.
 - **Feeling the hits:** every blow that lands shakes the screen, tears it
   with glitches and static, and fringes the text with colour; when you're
   the one hit the edges flash red. Blood splashes onto the screen: a main

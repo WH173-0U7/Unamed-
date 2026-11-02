@@ -347,6 +347,7 @@ export function createGlass(opts: GlassOptions = {}) {
   }
 
   let w = 0;
+  let lastPr = 0;
   let h = 0;
   /** Map resolution relative to the screen. */
   let k = 1;
@@ -591,9 +592,15 @@ export function createGlass(opts: GlassOptions = {}) {
         d[q + 3] = 255;
       }
       x.putImageData(img, 0, 0);
-      localStorage.setItem(STORE_KEY, JSON.stringify({ w: pw, h: ph, png: c.toDataURL('image/png') }));
+      const value = JSON.stringify({ w: pw, h: ph, png: c.toDataURL('image/png') });
+      try {
+        localStorage.setItem(STORE_KEY, value);
+      } catch {
+        // Storage full: the saved game matters more than the glass.
+        localStorage.removeItem(STORE_KEY);
+      }
     } catch {
-      /* storage full or blocked: it just won't be kept */
+      /* storage blocked: it just won't be kept */
     }
   }
 
@@ -639,6 +646,11 @@ export function createGlass(opts: GlassOptions = {}) {
       sinceFresh = 0; // it may still be drying
       redraw = true;
     };
+    im.onerror = () => {
+      // Spoiled: start again with a dirty glass.
+      seedGrime();
+      painted(false);
+    };
     im.src = stored.png;
   }
 
@@ -671,7 +683,16 @@ export function createGlass(opts: GlassOptions = {}) {
   addEventListener(
     'pointerdown',
     (e) => {
-      if (ptr) return;
+      // A new touch: whatever came before is over (a lost release can't
+      // jam wiping), and a tap right after a wipe is a real tap.
+      if (ptr && ptr.id !== e.pointerId && !e.isPrimary) return;
+      swallowClickUntil = 0;
+      // Dragging inside something that scrolls (the log, a list) scrolls it.
+      const scroller = (e.target as Element | null)?.closest?.('.enc-log, .sheet-body, #shop, .enc-opts');
+      if (scroller && scroller.scrollHeight > scroller.clientHeight + 2) {
+        ptr = null;
+        return;
+      }
       ptr = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, wiping: false, seed: Math.random() * 1000 };
     },
     { capture: true, passive: true },
@@ -722,20 +743,31 @@ export function createGlass(opts: GlassOptions = {}) {
 
   return {
     setSize(width: number, height: number, pixelRatio: number) {
-      if (width === w && height === h) return;
-      renderer.setPixelRatio(Math.min(pixelRatio, 2));
+      const pr = Math.min(pixelRatio, 2);
+      if (width === w && height === h && pr === lastPr) return;
+      lastPr = pr;
+      // Anything just painted goes onto the glass before it's resized.
+      if (w && pendingDirty) {
+        addPass.material.uniforms.uUsePending.value = 1;
+        addPass.material.uniforms.uDry.value = 1;
+        pendingTex.needsUpdate = true;
+        step(addPass);
+        pendingDirty = false;
+      }
+      renderer.setPixelRatio(pr);
       renderer.setSize(width, height);
       k = Math.min(1.5, 1200 / Math.max(width, height), Math.max(1, pixelRatio));
       const mw = Math.max(1, Math.round(width * k));
       const mh = Math.max(1, Math.round(height * k));
-      // Keep what's on the glass, stretched to the new shape.
-      if (w) {
+      // Keep what's on the glass, stretched to the new shape (only if the
+      // map itself changes size: a sharper or blurrier screen doesn't).
+      if (w && (mw !== rtA.width || mh !== rtA.height)) {
         spare.setSize(mw, mh);
         copyInto(spare, rtA.texture, [1, 1, 1, 1]);
         rtA.setSize(mw, mh);
         rtB.setSize(mw, mh);
         copyInto(rtA, spare.texture, [1, 1, 1, 1]);
-      } else {
+      } else if (!w) {
         rtA.setSize(mw, mh);
         rtB.setSize(mw, mh);
         renderer.setRenderTarget(rtA);
@@ -747,9 +779,10 @@ export function createGlass(opts: GlassOptions = {}) {
       pendingTex.dispose();
       clearPending();
       pendingTex.needsUpdate = true;
+      // Drips are in screen points: keep the ones still on screen.
+      drips = drips.filter((d) => d.x < width && d.y < height);
       w = width;
       h = height;
-      drips = [];
       const su = showPass.material.uniforms;
       su.uTexel.value.set(1 / mw, 1 / mh);
       su.uRes.value.set(width, height);
@@ -872,7 +905,7 @@ export function createGlass(opts: GlassOptions = {}) {
       }
 
       // Kept on the device once things have settled.
-      if (unsaved && quiet > 3 && !drips.length && !ptr) persist();
+      if (unsaved && quiet > 6 && !drips.length && !ptr) persist();
 
       const animating = hurt > 0 || glitch > 0 || low > 0;
       if (!redraw && !animating) return;

@@ -1,4 +1,4 @@
-import { BLEEDING, PASS_OUT, type Body, type Part, type Result } from './encounter';
+import { BLEEDING, DEATH, PASS_OUT, type Body, type Part, type Result } from './encounter';
 
 /**
  * Your body between fights. Blood, bleeding, broken bones and concussion
@@ -19,6 +19,10 @@ export interface Health {
   concussion: number;
   /** A broken rib went into a lung; it heals when the ribs do. */
   lung?: boolean;
+  /** Broken limbs already set in a splint (a second splint does nothing). */
+  splinted?: Part[];
+  /** You bled out. The run is over. */
+  dead?: boolean;
 }
 
 /** Hours for each kind of break to heal. */
@@ -91,14 +95,34 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
   if (b.concussed && h.concussion <= 0) h.concussion = CONCUSSION_HOURS;
   if (b.lung) h.lung = true;
   if (result === 'lost') {
-    // Out cold for a few hours; the bleeding slows while you lie there.
-    const lines = ['You come to on the pavement, hours later.'];
-    h.bleeding = Math.min(h.bleeding, 1);
-    lines.push(...passHours(h, 3));
-    h.blood = Math.max(h.blood, Math.round(h.maxBlood * (PASS_OUT + 0.05)));
+    // Out cold for a few hours, still bleeding. You may not wake up.
+    const lines = lieThere(h);
+    if (!h.dead) lines.unshift('You come to on the pavement, hours later.');
     return lines;
   }
   return [];
+}
+
+/**
+ * Unconscious for a few hours, bleeding where you fell. Light bleeding
+ * usually clots; heavy bleeding can kill you before it does. If you live,
+ * you wake up just strong enough to stand.
+ */
+function lieThere(h: Health): string[] {
+  for (let i = 0; i <= 3; i++) {
+    if (i > 0) {
+      if (!h.bleeding) break;
+      h.blood -= BLEED_PER_HOUR[h.bleeding];
+    }
+    if (h.blood <= h.maxBlood * DEATH) {
+      h.blood = Math.max(0, Math.round(h.blood));
+      h.dead = true;
+      return ['You never wake up. You bleed out where you fell.'];
+    }
+    if (i > 0 && Math.random() < CLOT[h.bleeding]) h.bleeding--;
+  }
+  h.blood = Math.round(Math.max(h.blood, h.maxBlood * (PASS_OUT + 0.03)));
+  return [h.bleeding ? "You're still bleeding." : 'The blood has dried on you.'];
 }
 
 /**
@@ -120,9 +144,10 @@ export function passHours(h: Health, hours: number, resting = false): string[] {
         if (!h.bleeding) lines.push('The bleeding has stopped.');
       }
       if (h.blood <= h.maxBlood * PASS_OUT) {
-        lines.push("You've lost too much blood. You collapse, and wake up hours later.");
-        h.bleeding = 0;
-        h.blood = Math.round(h.maxBlood * (PASS_OUT + 0.05));
+        lines.push("You've lost too much blood. You collapse.");
+        lines.push(...lieThere(h));
+        if (h.dead) return lines;
+        lines.push('You wake up hours later.');
       }
     } else {
       h.blood = Math.min(h.maxBlood, h.blood + REGEN_PER_HOUR * (resting ? 1.5 : 1));
@@ -132,6 +157,7 @@ export function passHours(h: Health, hours: number, resting = false): string[] {
       if (h.mending[p]! <= 0) {
         h.broken = h.broken.filter((x) => x !== p);
         delete h.mending[p];
+        h.splinted = h.splinted?.filter((x) => x !== p);
         lines.push(`Your ${p} ${p === 'ribs' ? 'have' : 'has'} healed.`);
         if (p === 'ribs' && h.lung) {
           h.lung = false;

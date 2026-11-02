@@ -102,6 +102,8 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   - **They can bleed out.** An unconscious person still loses blood (from
     bleeding, and from every stomp). When it gets low their breathing goes
     shallow; at 40% of their blood they die, and it's over ("They're dead.").
+    A single blow knocks someone out; it doesn't kill them on the spot. You
+    can still search the dead.
 - **Feeling the hits:** every blow that lands shakes the screen, tears it
   with glitches and static, and fringes the text with colour; when you're
   the one hit the edges flash red. Blood splashes onto the screen: a main
@@ -132,8 +134,24 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
     an hour once you've stopped bleeding; bleeding eases by itself, and
     resting stops it faster. Broken bones mend: nose 8 hours, ribs 16, arms
     and legs 24. A concussion clears in 6.
-  - Bleed out between fights and you collapse, waking up hours later. Lose a
-    fight and you come to on the pavement hours later.
+  - **You can die.** Lose a fight, or bleed down to 55% between fights, and
+    you're out cold for a few hours, still bleeding. If your blood falls to
+    40% while you lie there, you never wake up. Light bleeding usually clots
+    in time; heavy bleeding often doesn't (about a third of beatings end
+    this way). **Death is final:** the save is deleted, a death screen shows
+    how far you got (lurks, kills, humanity, cash), and you begin again. (The
+    blood on the glass stays.)
+  - **Broken ribs** wreck your breathing: every move costs 1.8x the stamina,
+    it comes back at a fifth of the speed and never past half, and you have
+    coughing fits. Stamp or hit broken ribs and a rib can **puncture a
+    lung** (2.4x, capped at 30%, more bleeding; it heals with the ribs).
+- **Humanity** (under your blood, once you've lost some): killing someone
+  costs a lot of it, stamping on someone unconscious a little. It only gets
+  worse: **Cold**, then **Cruel**, then **Heartless**, then **Husk**, with no
+  humanity left inside. You're told the moment it slips.
+- **Gore:** every blow that lands is described: split lips and brows,
+  teeth, caved-in faces, retching blood, bone through skin, deep cuts,
+  worse the more blood it costs.
   - **Leave them**, or just *Lurk* again.
 - **Your stats** (top left), each starting at 1 and only going up by using it
   (max 20):

@@ -125,7 +125,7 @@ const SURVEIL_IDS = ['follow', 'build', 'carrying', 'awareness', 'sex'];
 const VIOLENCE_IDS = ['bumrush', 'sucker', 'shove'];
 
 /** Can you go through their clothes? Only once they can't stop you. */
-export const searchable = (e: Encounter) => !!(e.them.out || e.them.dead) && !e.you.down;
+export const searchable = (e: Encounter) => !!(e.them.out || e.them.dead) && (!e.you.down || e.stage === 'over');
 
 /** Searching: each garment, then whatever you found in it to take. */
 function searchOptions(e: Encounter): Option[] {
@@ -279,9 +279,11 @@ export function options(e: Encounter): Option[] {
     }
     case 'over':
       return [
-        ...(e.them.dead && !e.you.down ? searchOptions(e) : []),
+        ...(e.them.dead ? searchOptions(e) : []),
         { id: 'lurk', label: 'Lurk again' },
         { id: 'rest', label: 'Rest', hint: 'Let time pass and heal' },
+        { id: 'pockets', label: 'Pockets' },
+        { id: 'go', label: 'Go somewhere' },
       ];
     default:
       return [];
@@ -927,6 +929,9 @@ function checkEnd(): boolean {
     return true;
   }
   const T = enc.them;
+  // Someone only bleeds out once they're already unconscious: a single blow
+  // knocks them out, it doesn't kill them on the spot.
+  const wasOut = !!T.out;
   if (!T.out && T.blood <= T.maxBlood * PASS_OUT) {
     T.out = true;
     T.down = true;
@@ -937,7 +942,7 @@ function checkEnd(): boolean {
     say('info', "They're unconscious. They can't fight back.");
   }
   // Unconscious and still losing blood: they can bleed out.
-  if (T.out && T.blood <= T.maxBlood * DEATH) {
+  if (wasOut && T.blood <= T.maxBlood * DEATH) {
     T.dead = true;
     T.bleeding = 0;
     say('you', oneOf(["Their chest stops moving. The blood around them stops spreading. They're dead.", "One last rattling breath, then nothing. They've bled out."]));

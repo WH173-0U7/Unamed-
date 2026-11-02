@@ -125,6 +125,12 @@ function startGame(fresh: boolean) {
     return;
   }
   game = new Game(data, $('game'), renderer, glass);
+  // Death is final: the save goes the moment you die.
+  game.onDeath = () => {
+    deleteSave();
+    menu.setSaveInfo(null);
+  };
+  game.onExit = quitToMenu;
   game.setSize(innerWidth, innerHeight, pixelRatio);
   document.body.classList.add('in-game');
   if (fresh) {
@@ -142,7 +148,7 @@ function startGame(fresh: boolean) {
 }
 
 function pause() {
-  if (state !== 'playing' || !game) return;
+  if (state !== 'playing' || !game || game.dead) return;
   state = 'paused';
   game.pause();
   document.body.classList.add('paused');
@@ -164,11 +170,12 @@ function resume() {
 function quitToMenu() {
   if (!game) return;
   // Already saved when the game paused; quitting changes nothing.
+  const dead = game.dead;
   game.close();
   game = null;
   state = 'menu';
   document.body.classList.remove('in-game', 'paused');
-  menu.setSaveInfo(loadSave());
+  menu.setSaveInfo(dead ? null : loadSave());
   showMenu('main');
 }
 

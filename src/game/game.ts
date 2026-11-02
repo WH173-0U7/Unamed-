@@ -64,6 +64,12 @@ type Phase = 'idle' | 'cut' | 'waiting';
  */
 export class Game {
   running = false;
+  /** You bled out: the run is over (nothing more is saved). */
+  dead = false;
+  /** Called the moment you die (to wipe the save). */
+  onDeath?: () => void;
+  /** Called when you leave the death screen. */
+  onExit?: () => void;
   private readonly tv;
   private readonly powerBtn: HTMLButtonElement;
   private readonly lurkBtn: HTMLButtonElement;
@@ -189,10 +195,15 @@ export class Game {
 
   /** Rest: several hours pass, and you heal. */
   rest() {
-    if (!this.canLurk || !isHurt(this.health)) return;
+    if (!this.canLurk) return;
+    if (!isHurt(this.health)) {
+      this.note(["You're not hurt. There's nothing to rest off."]);
+      return;
+    }
     this.encounter = null;
     this.wipeBlood();
     const lines = ['You find somewhere quiet and rest for a few hours.', ...passHours(this.health, REST_HOURS, true)];
+    if (this.health.dead) return this.die(lines);
     this.refresh();
     this.note(lines);
     buzz(8);
@@ -232,6 +243,7 @@ export class Game {
     this.wipeBlood();
     // Time passes while you wait: wounds bleed, or heal.
     const lines = passHours(this.health, LURK_HOURS);
+    if (this.health.dead) return this.die(lines);
     this.refresh();
     this.lurkBtn.hidden = true;
     this.restBtn.hidden = true;
@@ -251,6 +263,8 @@ export class Game {
     if (!e || !this.running) return;
     if (id === 'lurk') return this.lurk();
     if (id === 'rest') return this.rest();
+    if (id === 'pockets') return this.openSheet('pockets');
+    if (id === 'go') return this.openSheet('places');
     // Approaching someone: bring your body as it is now.
     if (e.stage === 'seen') e.you = this.yourBody();
     const wasOver = e.stage === 'over';
@@ -273,6 +287,10 @@ export class Game {
       e.log = afterFight(this.health, e.you, e.result!).map((text) => ({ by: 'info' as const, text }));
     }
     for (const text of worse) e.log.push({ by: 'info', text });
+    if (this.health.dead) {
+      if (impacts.length) this.feel(impacts);
+      return this.die(e.log.map((l) => l.text));
+    }
     if (impacts.length) this.feel(impacts);
     else buzz(6);
     this.refresh();
@@ -316,8 +334,45 @@ export class Game {
     return this.running && this.tv.showingPicture && this.phase === 'idle' && (!e || e.stage === 'seen');
   }
 
+  /** Pockets and Go can be opened when idle, and once a fight is over (from its options). */
+  private get canOpenSheet() {
+    const e = this.encounter;
+    return this.idle || (this.running && !!e && e.stage === 'over');
+  }
+
+  /**
+   * You bled out. The save is wiped (there's no coming back from this), and
+   * the screen shows how it ended.
+   */
+  private die(lines: string[]) {
+    if (this.dead) return;
+    this.dead = true;
+    this.running = false;
+    this.closeSheet();
+    this.onDeath?.();
+    this.fx.impact(true, 900, true);
+    buzz([120, 80, 200, 120, 400]);
+    const h = this.humanity;
+    const lvl = humanityLevel(h.lost);
+    const el = document.createElement('div');
+    el.id = 'death';
+    const p = (t: string) => `<p>${t}</p>`;
+    el.innerHTML =
+      `<h2>You bled out.</h2>` +
+      `<div class="death-lines">${lines.slice(-2).map(p).join('')}</div>` +
+      `<dl class="death-sum">` +
+      `<div><dt>Lurked</dt><dd>${this.lurkState.times}</dd></div>` +
+      `<div><dt>Killed</dt><dd>${h.kills}</dd></div>` +
+      `<div><dt>Humanity</dt><dd>${lvl?.name ?? (h.lost ? 'Shaken' : 'Intact')}</dd></div>` +
+      `<div><dt>Cash</dt><dd>${dollars(this.inventory.cash)}</dd></div>` +
+      `</dl>` +
+      `<button type="button" class="death-btn">Begin again</button>`;
+    el.querySelector('button')!.addEventListener('click', () => this.onExit?.());
+    this.view.append(el);
+  }
+
   private openSheet(kind: 'places' | 'pockets') {
-    if (!this.idle) return;
+    if (!this.canOpenSheet) return;
     this.sheet = kind;
     this.renderSheet();
     this.sheetEl.hidden = false;
@@ -609,6 +664,7 @@ export class Game {
     this.bagBtn.hidden = true;
     this.shopEl.hidden = true;
     this.closeSheet();
+    this.view.querySelector('#death')?.remove();
   }
 
   setSize(width: number, height: number, pixelRatio = 1) {
@@ -640,12 +696,12 @@ export class Game {
     const idle = this.idle;
     if (this.goBtn.hidden === idle) this.goBtn.hidden = !idle;
     if (this.bagBtn.hidden === idle) this.bagBtn.hidden = !idle;
-    if (!idle && this.sheet) this.closeSheet();
+    if (this.sheet && !this.canOpenSheet) this.closeSheet();
     if (this.noteTimer > 0 && (this.noteTimer -= dt) <= 0) this.noteEl.hidden = true;
     this.tv.update(dt);
     // The red edge pulses when your blood is low.
     const e2 = this.encounter;
-    const body = e2 && e2.stage !== 'seen' ? e2.you : this.health;
+    const body = e2 && e2.stage !== 'seen' && e2.stage !== 'over' ? e2.you : this.health;
     const frac = body.blood / body.maxBlood;
     this.fx.setLow(this.tvState.on ? Math.min(1, Math.max(0, (0.82 - frac) / (0.82 - PASS_OUT))) : 0);
     this.hitUi.update(dt);

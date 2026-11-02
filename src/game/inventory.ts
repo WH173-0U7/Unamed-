@@ -50,7 +50,8 @@ export interface Med {
   use(h: Health): string;
 }
 
-const limbs = (h: Health) => h.broken.filter((p) => p !== 'nose' && p !== 'ribs');
+/** Broken arms and legs that haven't been splinted yet. */
+const limbs = (h: Health) => h.broken.filter((p) => p !== 'nose' && p !== 'ribs' && !h.splinted?.includes(p));
 
 export const MEDS: Med[] = [
   {
@@ -91,11 +92,12 @@ export const MEDS: Med[] = [
     name: 'Splint',
     price: 22,
     desc: 'Set a broken arm or leg: it heals twice as fast.',
-    blocked: (h) => (limbs(h).length ? null : 'No broken arm or leg'),
+    blocked: (h) => (limbs(h).length ? null : h.splinted?.length ? 'Already splinted' : 'No broken arm or leg'),
     use(h) {
       // The limb that will take longest to heal.
       const p = limbs(h).sort((a, b) => (h.mending[b] ?? 0) - (h.mending[a] ?? 0))[0];
       h.mending[p] = Math.ceil((h.mending[p] ?? 24) / 2);
+      (h.splinted ??= []).push(p);
       return `You splint your ${p}, biting down through the pain.`;
     },
   },

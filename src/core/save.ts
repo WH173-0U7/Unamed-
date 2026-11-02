@@ -75,9 +75,19 @@ export function hasSave(): boolean {
 export function writeSave(data: SaveData): boolean {
   try {
     data.savedAt = Date.now();
-    const previous = localStorage.getItem(KEY);
-    if (previous) localStorage.setItem(BACKUP_KEY, previous);
-    localStorage.setItem(KEY, JSON.stringify(data));
+    const write = () => {
+      const previous = localStorage.getItem(KEY);
+      if (previous) localStorage.setItem(BACKUP_KEY, previous);
+      localStorage.setItem(KEY, JSON.stringify(data));
+    };
+    try {
+      write();
+    } catch {
+      // Out of room: drop the stored picture of the screen's blood and grime
+      // (it's only cosmetic) and try again.
+      localStorage.removeItem('darcvoyd.glass');
+      write();
+    }
     return true;
   } catch {
     return false;

@@ -18,6 +18,7 @@ export function createTv(renderer: THREE.WebGLRenderer) {
       uniform float uLines;  // scanline count
       uniform sampler2D tPicture; // what the TV shows once warmed up
       uniform float uPicture;     // 0..1: how much of it is showing
+      uniform float uJam;         // 0..1: interference (signal cutting out)
       varying vec2 vUv;
       ${glslHash}
 
@@ -61,7 +62,7 @@ export function createTv(renderer: THREE.WebGLRenderer) {
         float halo = exp(-max(abs(c.y) - hh, 0.0) * 45.0) * exp(-max(abs(c.x) - hw, 0.0) * 25.0) * flash * 0.18;
 
         // 4. Static: a storm of snow that dies down, leaving a faint shimmer.
-        float snowAmt = smoothstep(0.55, 0.75, t) * (1.0 - smoothstep(0.85, 2.8, t)) * 0.85 + 0.03;
+        float snowAmt = smoothstep(0.55, 0.75, t) * (1.0 - smoothstep(0.85, 2.8, t)) * 0.85 + 0.03 + uJam * 0.8;
         // Analog noise is smeared sideways along each scanline, not square.
         float frame = floor(uTime * 30.0);
         float rowS = floor(uv.y * uLines * 2.0);
@@ -75,8 +76,8 @@ export function createTv(renderer: THREE.WebGLRenderer) {
         float glow = 0.05 + 0.035 * (1.0 - smoothstep(0.0, 0.7, length(c * vec2(aspect * 0.8, 1.0))));
         float bar = exp(-pow((fract(uv.y * 0.7 - uTime * 0.07) - 0.5) / 0.1, 2.0)) * 0.03;
 
-        // 6. The picture: the map, coming through once the tube has warmed up.
-        float pic = texture2D(tPicture, uv).g * uPicture;
+        // 6. The picture: the street camera, coming through once the tube has warmed up.
+        float pic = texture2D(tPicture, uv).g * uPicture * (1.0 - uJam * 0.75);
 
         return (glow + snow * snowAmt + bar + flash + pic) * inside + spark + halo;
       }
@@ -94,7 +95,7 @@ export function createTv(renderer: THREE.WebGLRenderer) {
         }
 
         // Losing horizontal sync while warming up: rows jump sideways.
-        float shake = smoothstep(0.6, 0.8, t) * (1.0 - smoothstep(0.9, 2.2, t));
+        float shake = max(smoothstep(0.6, 0.8, t) * (1.0 - smoothstep(0.9, 2.2, t)), uJam * 0.8);
         float row = floor(uv.y * uLines);
         uv.x += (hash(vec2(row, 0.0), floor(uTime * 30.0)) - 0.5) * 0.025 * shake;
         // Degauss: the tube's magnetic field settles, warping the picture and
@@ -136,6 +137,7 @@ export function createTv(renderer: THREE.WebGLRenderer) {
       uT: { value: -1 },
       tPicture: { value: null },
       uPicture: { value: 0 },
+      uJam: { value: 0 },
       uTime: { value: 0 },
       uRes: { value: new THREE.Vector2(1, 1) },
       uLines: { value: 240 },
@@ -175,6 +177,10 @@ export function createTv(renderer: THREE.WebGLRenderer) {
     },
     setPicture(texture: THREE.Texture) {
       pass.material.uniforms.tPicture.value = texture;
+    },
+    /** Interference, 0 (clear) to 1 (signal lost). */
+    setJam(v: number) {
+      pass.material.uniforms.uJam.value = v;
     },
     /** True once the picture is coming through. */
     get showingPicture() {

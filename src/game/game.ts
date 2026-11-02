@@ -1,37 +1,68 @@
 import type * as THREE from 'three';
 import { writeSave, type SaveData } from '../core/save';
 import { createTv } from './tv';
-import { createMapView, type RouteDisplay } from './mapView';
-import { Player, type PlayerSave } from './player';
-import { buildingAt, isWalkable, type Building } from './city';
-import { findPath, nearestWalkable, type Square } from './path';
+import { createStreet } from './street';
+import type { Kind } from './people';
 
 /** Progress stored in the save file under `state.tv`. */
 interface TvState {
   on: boolean;
 }
 
+/** Progress stored under `state.lurk`: how often you've lurked, who you've seen. */
+interface LurkState {
+  times: number;
+  seen: Record<Kind | 'nobody', number>;
+}
+
+/** The chances of who turns up each time you lurk (out of 100). */
+export const CHANCES: [Kind | 'nobody', number][] = [
+  ['civilian', 34],
+  ['drunk', 20],
+  ['homeless', 16],
+  ['junkie', 12],
+  ['nobody', 18],
+];
+
+const NAMES: Record<Kind | 'nobody', string> = {
+  civilian: 'A civilian',
+  drunk: 'A drunk',
+  homeless: 'Someone homeless',
+  junkie: 'A junkie',
+  nobody: 'Nobody',
+};
+
+const LINES: Record<Kind | 'nobody', string[]> = {
+  civilian: ['Walking home. They never look up.', 'Hurrying through the light.', 'Just passing through.'],
+  drunk: ['Talking to nobody, bottle in hand.', 'Staggering from one light to the next.', 'Holding on to the lamp post for a while.'],
+  homeless: ['Settling into the doorway for the night.', 'Everything they own, in a cart.', 'Pulling the blanket up against the cold.'],
+  junkie: ['Scratching at an arm, nodding off.', 'Under the lamp, somewhere else entirely.', 'Jerking awake, then sinking again.'],
+  nobody: ['Only the hum of the street lamp.', 'The street stays empty.', 'Something moved. Then nothing.'],
+};
+
+type Phase = 'idle' | 'cut' | 'waiting' | 'watching';
+
 /**
  * The game itself. It starts with a television in the dark and one option:
- * turn it on. Once it has warmed up, the TV shows a map of an endless city
- * grid. The player taps a spot once to see the route there, and taps it
- * again to confirm; the character then walks there by itself, square by
- * square. Each system keeps its progress in `save.state`, so it is saved at
- * every pause point automatically.
+ * turn it on. Once it has warmed up, the TV shows a security camera on a
+ * night street, and one option: lurk. Each time you lurk, the signal cuts to
+ * another camera and you wait to see who comes by: a civilian, a drunk,
+ * someone homeless, a junkie, or nobody at all. Each system keeps its
+ * progress in `save.state`, so it is saved at every pause point automatically.
  */
 export class Game {
   running = false;
   private readonly tv;
-  private readonly map = createMapView();
-  private readonly player: Player;
+  private readonly street = createStreet();
   private readonly powerBtn: HTMLButtonElement;
-  private readonly cleanups: (() => void)[] = [];
-  /** A route shown but not yet confirmed. */
-  private planned: Square[] | null = null;
-  /** The building that route leads to (if a building was tapped). */
-  private plannedBuilding: Building | null = null;
-  /** The building being walked to. */
-  private visiting: Building | null = null;
+  private readonly lurkBtn: HTMLButtonElement;
+  private readonly seenEl: HTMLElement;
+  private phase: Phase = 'idle';
+  private timer = 0;
+  private jam = 0;
+  /** Who is coming this time (null: nobody). */
+  private coming: Kind | null = null;
+  private named = false;
 
   constructor(
     readonly save: SaveData,
@@ -39,109 +70,92 @@ export class Game {
     renderer: THREE.WebGLRenderer,
   ) {
     this.tv = createTv(renderer);
-    this.tv.setPicture(this.map.texture);
-
-    const saved = save.state.player as PlayerSave | undefined;
-    // Start on the street corner at the centre of the city; an old save on a
-    // spot that's no longer walkable goes back there too.
-    this.player = new Player(saved && isWalkable(saved.x, saved.y) ? saved : undefined);
-
+    this.tv.setPicture(this.street.texture);
     this.powerBtn = view.querySelector('#power-btn') as HTMLButtonElement;
+    this.lurkBtn = view.querySelector('#lurk-btn') as HTMLButtonElement;
+    this.seenEl = view.querySelector('#seen') as HTMLElement;
     this.powerBtn.onclick = () => this.turnOn();
-    this.bindTaps();
+    this.lurkBtn.onclick = () => this.lurk();
+    this.lurkBtn.hidden = true;
+    this.seenEl.hidden = true;
   }
 
   private get tvState(): TvState {
     return (this.save.state.tv ??= { on: false }) as TvState;
   }
 
-  /** Can the player move right now? Only once the picture is on screen. */
-  private get canMove() {
-    return this.running && this.tv.showingPicture;
+  private get lurkState(): LurkState {
+    const s = (this.save.state.lurk ??= { times: 0, seen: {} }) as LurkState;
+    for (const [k] of CHANCES) s.seen[k] ??= 0;
+    return s;
   }
 
-  private bindTaps() {
-    // A tap = a quick press that barely moves (so a slipped finger isn't a tap).
-    let start: { id: number; x: number; y: number; t: number } | null = null;
-    const down = (e: PointerEvent) => {
-      if ((e.target as HTMLElement).closest('button')) return; // e.g. the pause button
-      start = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
-    };
-    const up = (e: PointerEvent) => {
-      if (!start || e.pointerId !== start.id) return;
-      const s0 = start;
-      start = null;
-      if (Math.hypot(e.clientX - s0.x, e.clientY - s0.y) > 14 || performance.now() - s0.t > 700) return;
-      this.tap(e.clientX, e.clientY);
-    };
-    const cancel = () => (start = null);
-    this.view.addEventListener('pointerdown', down);
-    this.view.addEventListener('pointerup', up);
-    this.view.addEventListener('pointercancel', cancel);
-    this.cleanups.push(() => {
-      this.view.removeEventListener('pointerdown', down);
-      this.view.removeEventListener('pointerup', up);
-      this.view.removeEventListener('pointercancel', cancel);
-    });
+  /** Can you lurk right now? Only once the picture is on screen and nothing's happening. */
+  private get canLurk() {
+    return this.running && this.tv.showingPicture && this.phase === 'idle';
   }
 
-  /**
-   * First tap: plan and show the route there. Tapping a building plans a
-   * route to its front door and outlines it.
-   * Tap the same building or destination again: confirm, and walk there.
-   * Tap anywhere else: plan a new route instead (stopping if already walking).
-   */
-  private tap(x: number, y: number) {
-    if (!this.canMove) return;
-    const hit = this.map.squareAt(x, y);
-    if (!hit) return;
-
-    // Tapping a building means "go to that building": its front door.
-    const building = buildingAt(hit.x + hit.fx, hit.y + hit.fy);
-    const visit = building && !building.courtyard && building.door ? building : null;
-    const target = visit ? visit.door! : nearestWalkable(hit.x, hit.y, hit.fx, hit.fy);
-
-    // A tap on the planned building, its door, or right by the marker confirms.
-    const dest = this.planned?.[this.planned.length - 1];
-    if (
-      dest &&
-      ((visit && visit.id === this.plannedBuilding?.id) ||
-        (target && target.x === dest.x && target.y === dest.y) ||
-        Math.max(Math.abs(hit.x - dest.x), Math.abs(hit.y - dest.y)) <= 1)
-    ) {
-      this.player.walk(this.planned!);
-      this.visiting = this.plannedBuilding;
-      this.planned = null;
-      this.plannedBuilding = null;
-      buzz(12);
-      return;
-    }
-
-    // Otherwise plan a new route, from the square the player is on (or stepping onto).
-    const from = this.player.nextSquare;
-    if (!target) return;
-    if (target.x === from.x && target.y === from.y) {
-      // Already standing there: just show it (a building's door you're at).
-      this.planned = null;
-      this.plannedBuilding = null;
-      return;
-    }
-    const route = findPath(from, target);
-    if (!route || !route.length) return;
-    if (this.player.walking) this.player.stop();
-    this.visiting = null;
-    this.planned = route;
-    this.plannedBuilding = visit;
-    buzz(6);
+  /** Lurk: cut to a camera and wait for whoever comes. `who` forces it (tests). */
+  lurk(who?: Kind | null) {
+    if (!this.canLurk) return;
+    this.coming = who !== undefined ? who : roll();
+    this.phase = 'cut';
+    this.timer = 0.45;
+    this.named = false;
+    this.lurkBtn.hidden = true;
+    this.seenEl.hidden = true;
+    buzz(10);
   }
 
-  /** What the map should show: a planned route, or what's left of the walk. */
-  private get routeDisplay(): RouteDisplay | null {
-    if (this.planned) return { squares: this.planned, confirmed: false, building: this.plannedBuilding };
-    if (this.player.walking) {
-      return { squares: [{ x: this.player.x, y: this.player.y }, ...this.player.route], confirmed: true, building: this.visiting };
+  /** Shows who was seen, in the caption at the top. */
+  private name(who: Kind | 'nobody') {
+    if (this.named) return;
+    this.named = true;
+    const lines = LINES[who];
+    (this.seenEl.querySelector('.seen-kind') as HTMLElement).textContent = NAMES[who];
+    (this.seenEl.querySelector('.seen-kind') as HTMLElement).dataset.text = NAMES[who];
+    (this.seenEl.querySelector('.seen-line') as HTMLElement).textContent = lines[Math.floor(Math.random() * lines.length)];
+    this.seenEl.hidden = false;
+    this.lurkState.seen[who]++;
+    this.lurkState.times++;
+  }
+
+  private stepLurk(dt: number) {
+    this.timer -= dt;
+    switch (this.phase) {
+      case 'cut':
+        // The signal drops out while it switches cameras.
+        this.jam = 1;
+        if (this.timer <= 0) {
+          this.street.newCamera();
+          this.phase = 'waiting';
+          this.timer = this.coming ? 1.4 + Math.random() * 2.2 : 4 + Math.random() * 2;
+        }
+        break;
+      case 'waiting':
+        // The wait: the odd flicker of interference.
+        if (Math.random() < dt * 0.7) this.jam = Math.max(this.jam, 0.18 + Math.random() * 0.2);
+        if (this.timer <= 0) {
+          if (this.coming) {
+            this.street.spawn(this.coming);
+            this.phase = 'watching';
+            this.timer = 40; // safety: never watch forever
+          } else {
+            this.name('nobody');
+            this.phase = 'idle';
+          }
+        }
+        break;
+      case 'watching': {
+        const p = this.street.person;
+        if (p?.revealed) this.name(p.kind);
+        if (!p || this.timer <= 0) {
+          if (this.coming) this.name(this.coming);
+          this.phase = 'idle';
+        }
+        break;
+      }
     }
-    return null;
   }
 
   /** Starts a new game from the beginning. */
@@ -160,7 +174,7 @@ export class Game {
 
   private showSavedScene() {
     if (this.tvState.on) {
-      // The set was already on at the save point: no warm-up, straight to the map.
+      // The set was already on at the save point: no warm-up, straight to the street camera.
       this.powerBtn.hidden = true;
       this.tv.powerOnSettled();
     } else {
@@ -192,12 +206,8 @@ export class Game {
   }
 
   pause() {
+    // Everything on the street holds still until you come back.
     this.running = false;
-    // Pausing ends any walk at the next square; the save holds where it stops.
-    this.player.stop();
-    this.planned = null;
-    this.plannedBuilding = null;
-    this.visiting = null;
   }
 
   resume() {
@@ -208,14 +218,16 @@ export class Game {
   close() {
     this.pause();
     this.view.classList.remove('active', 'jolt');
+    this.phase = 'idle';
     this.tv.powerOff();
-    for (const c of this.cleanups) c();
-    this.map.dispose();
+    this.lurkBtn.hidden = true;
+    this.seenEl.hidden = true;
+    this.street.dispose();
   }
 
   setSize(width: number, height: number, pixelRatio = 1) {
     this.tv.setSize(width, height);
-    this.map.setSize(width, height, pixelRatio);
+    this.street.setSize(width, height, pixelRatio);
   }
 
   /** Debug: freeze the TV sequence at a moment (seconds), or null to resume. */
@@ -226,16 +238,26 @@ export class Game {
   update(dt: number) {
     if (this.running) {
       this.save.playTime += dt;
-      this.player.update(dt);
+      this.stepLurk(dt);
+      this.street.step(dt);
     }
-    if (this.tv.isOn) this.map.draw(this.player, this.routeDisplay, dt);
+    this.jam = Math.max(0, this.jam - dt * 2.2);
+    this.tv.setJam(this.jam);
+    // The Lurk button shows whenever you're free to lurk.
+    const show = this.canLurk;
+    if (this.lurkBtn.hidden === show) {
+      this.lurkBtn.hidden = !show;
+      this.lurkBtn.querySelector('span')!.textContent = this.lurkState.times ? 'Lurk again' : 'Lurk';
+    }
+    if (this.tv.isOn) this.street.draw(dt);
     this.tv.update(dt);
   }
 
   /** Writes progress to the device. Returns false if storage is unavailable. */
   saveNow(): boolean {
-    this.save.state.player = this.player.toSave();
+    void this.lurkState;
     // Remove state from earlier versions of the game.
+    delete this.save.state.player;
     delete this.save.state.whisp;
     delete this.save.state.orb;
     return writeSave(this.save);
@@ -243,7 +265,7 @@ export class Game {
 
   /** For automated tests. */
   get debug() {
-    return { player: this.player, tv: this.tv, isWalkable, buildingAt, map: this.map, planned: this.planned, plannedBuilding: this.plannedBuilding };
+    return { tv: this.tv, street: this.street, phase: this.phase, lurk: this.lurkState };
   }
 }
 
@@ -253,4 +275,13 @@ function buzz(ms: number) {
   } catch {
     /* not allowed */
   }
+}
+
+/** Picks who comes, by the chances above. */
+function roll(): Kind | null {
+  let r = Math.random() * CHANCES.reduce((n, [, c]) => n + c, 0);
+  for (const [who, c] of CHANCES) {
+    if ((r -= c) < 0) return who === 'nobody' ? null : who;
+  }
+  return null;
 }

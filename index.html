@@ -19,7 +19,7 @@
     />
   </head>
   <body>
-    <!-- The game: a television that, once on, shows the map -->
+    <!-- The game: a television that, once on, shows a street camera -->
     <div id="game">
       <div id="screen"></div>
       <button id="power-btn" type="button">
@@ -28,6 +28,17 @@
           <path d="M24 8v15" />
         </svg>
         <span>Turn on</span>
+      </button>
+      <div id="seen" hidden>
+        <div class="seen-kind"></div>
+        <div class="seen-line"></div>
+      </div>
+      <button id="lurk-btn" type="button" hidden>
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M4 24c6-9 12.5-13 20-13s14 4 20 13c-6 9-12.5 13-20 13S10 33 4 24z" />
+          <circle cx="24" cy="24" r="5.5" />
+        </svg>
+        <span>Lurk</span>
       </button>
       <button id="pause-btn" type="button" aria-label="Pause"><span></span><span></span></button>
     </div>

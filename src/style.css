@@ -184,6 +184,80 @@ canvas {
   }
 }
 
+/* Lurk: an eye at the foot of the screen. */
+#lurk-btn {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--pad-bot) + 3vh);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 26px;
+  transform: translateX(-50%);
+  color: var(--ink-dim);
+  animation: power-in 1.2s ease both;
+  transition: color 0.3s;
+}
+#lurk-btn svg {
+  width: 42px;
+  height: 42px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 6px rgba(236, 235, 230, 0.35));
+  animation: breathe 3.2s ease-in-out 1.5s infinite;
+}
+#lurk-btn span {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5em;
+  margin-right: -0.5em;
+  text-transform: uppercase;
+}
+#lurk-btn:hover,
+#lurk-btn:focus-visible {
+  color: var(--ink);
+}
+
+/* Who you saw: named across the top of the screen. */
+#seen {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--pad-top) + 9vh);
+  padding: 0 24px;
+  text-align: center;
+  pointer-events: none;
+  animation: seen-in 1.4s ease both;
+}
+#seen .seen-kind {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(34px, min(10vw, 11vh), 72px);
+  line-height: 1;
+  color: var(--ink);
+  text-shadow:
+    -1.5px 0 rgba(255, 40, 60, 0.55),
+    1.5px 0 rgba(40, 220, 255, 0.55),
+    0 0 18px rgba(0, 0, 0, 0.9);
+}
+#seen .seen-line {
+  margin-top: 10px;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+  text-shadow: 0 0 10px #000;
+}
+@keyframes seen-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    letter-spacing: 0.2em;
+  }
+}
+
 #pause-btn {
   position: absolute;
   top: calc(var(--pad-top) - 8px);
@@ -697,6 +771,9 @@ body.in-game #menu {
   .screen.active,
   #power-btn,
   #power-btn svg,
+  #lurk-btn,
+  #lurk-btn svg,
+  #seen,
   #game.jolt #screen {
     animation: none;
   }

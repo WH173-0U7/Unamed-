@@ -23,10 +23,26 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
 
 - **Playing:** press *Turn on*, then *Lurk*. After a moment of static, who
   you saw shows up as a button (type, and race underneath). The chances each
-  time: civilian 42%, drunk 24%, homeless 20%, junkie 14%. Each
-  person's race is one of the 7 U.S. federal (OMB 2024) categories, equally
-  likely. Both tables are `CHANCES` and `RACE_CHANCES` in `src/game/game.ts`.
-  The buttons don't do anything yet. The game keeps count of who you've seen.
+  time: civilian 42%, drunk 24%, homeless 20%, junkie 14%. Each person's race
+  is one of the 7 U.S. federal (OMB 2024) categories, equally likely (race is
+  descriptive only; it changes nothing in play).
+- **Tap the person** to choose:
+  - **Surveil:** *Follow* to get closer (across the street → behind them →
+    right on them), then find out their **build** (which shows how hard a
+    fight would be: Easy, Fair, Hard or Brutal), what they're **carrying**
+    (needs you to follow first; some things are weapons), how **aware** they
+    are, and whether they're **male or female**. Everything you do fills the
+    *Noticed* bar, faster the more aware they are. If it fills, they run, or
+    turn and fight.
+  - **Violence:** *Bum rush* (can knock lighter builds down), *Sucker punch*
+    (hits hardest on someone unaware), or *Shove* (most likely to land, throws
+    them off balance). Getting close first helps. Then the fight: *Punch*,
+    *Kick*, *Grapple* or *Run*, turn by turn, with a log of what happens to
+    them and to you and both health bars. They may pull a weapon, pepper
+    spray you, or run when losing.
+  - **Leave them**, or just *Lurk* again.
+- Tables for all of this are in `src/game/person.ts`; the rules are in
+  `src/game/encounter.ts`.
 - **Fullscreen:** the game asks for fullscreen on every tap, click or key press
   whenever it isn't fullscreen. On iPhone, use Share → Add to Home Screen.
 - **Pause:** top-right button, or Esc on a computer.
@@ -56,7 +72,10 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | File | What it does |
 | --- | --- |
 | `src/main.ts` | Starts everything; switches between menu, game and pause |
-| `src/game/game.ts` | The game itself: the TV, lurking, the chances of who you see (and their race), saving its state |
+| `src/game/game.ts` | The game itself: the TV, lurking, saving its state (including an encounter in progress) |
+| `src/game/person.ts` | Who you can see: types, races, builds (fight difficulty), what they carry, awareness, and the chances of each |
+| `src/game/encounter.ts` | Surveil and violence: following, finding things out, being noticed, openers, turn-by-turn combat, the log |
+| `src/ui/encounterView.ts` | The encounter screen: what you know about them, the log, your options |
 | `src/game/tv.ts` | The CRT television, its power-on sequence, interference, and showing the picture |
 | `src/core/save.ts` | Save / load / delete, with a backup copy |
 | `src/core/settings.ts` | Player settings |

@@ -11,6 +11,9 @@ player unless the game itself chooses to reveal it.
   - Each person is one of the U.S. standard race categories: American Indian
     or Alaska Native; Asian; Black or African American; Hispanic or Latino;
     Middle Eastern or North African; Native Hawaiian or Pacific Islander; White.
+- Every person has a build, things they carry, a state of awareness, and is
+  male or female. You can find these out by watching them (**surveil**), or
+  go straight to **violence**: bum rush, sucker punch or shove, then fight.
 - The game keeps count of who you have seen.
 
 ## Scrapped ideas (kept for reference)

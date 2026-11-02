@@ -5,12 +5,14 @@ import { createFullscreenShader, glslHash } from './fullscreen';
  * The hit effects layer, drawn on the GPU over everything (the TV and the
  * game's buttons and text):
  *
- * - **Blood on the screen.** Each splatter is painted as a "thickness" map:
- *   an irregular main splash, finger-like streaks ending in droplets,
- *   satellite drops, fine mist, and drips that run down over time. A shader
- *   then lights it like wet blood: deep red where thick, thin and bright at
- *   the edges, darker dried rims, and a glossy highlight from the surface
- *   bumps.
+ * - **Blood on the screen.** Each splatter is painted as a field of soft
+ *   overlapping blobs: a main splash, streams thrown outward ending in round
+ *   beads, satellite drops with little tails, fine mist, and drips that run
+ *   down and gather into a bead where they stop. A shader takes the surface
+ *   where the field crosses a threshold (so drops merge smoothly, like real
+ *   liquid) and lights it like wet blood: nearly black-red where thick,
+ *   glowing red at thin edges, a dark meniscus line, light shining through
+ *   the domes, and sharp glossy highlights.
  * - **A red border** that flashes when you're hit, and stays (pulsing like a
  *   heartbeat) when you've lost a lot of blood.
  * - **Glitch bands and static** tearing across the screen on impact.
@@ -56,31 +58,50 @@ export function createBloodFx(host: HTMLElement) {
         float tear = step(1.0 - uGlitch * 0.55, hash(vec2(band, 3.0), frame));
         uv.x += (hash(vec2(band, 7.0), frame) - 0.5) * 0.08 * tear * uGlitch;
 
-        // Blood: thickness, smoothed, and its slope (for the light).
+        // Blood is a smooth field of overlapping soft blobs; its surface is
+        // where the field crosses a threshold (like surface tension: nearby
+        // drops merge with smooth necks, streaks end in round beads).
+        const float THR = 0.3;
         vec2 dx = vec2(uTexel.x, 0.0);
         vec2 dy = vec2(0.0, uTexel.y);
-        float t = (T(uv) * 4.0 + T(uv + dx) + T(uv - dx) + T(uv + dy) + T(uv - dy)) / 8.0;
-        float gx = (T(uv + dx * 2.0) - T(uv - dx * 2.0)) + 0.5 * (T(uv + dx * 4.0) - T(uv - dx * 4.0));
-        float gy = (T(uv + dy * 2.0) - T(uv - dy * 2.0)) + 0.5 * (T(uv + dy * 4.0) - T(uv - dy * 4.0));
-        vec3 n = normalize(vec3(-gx * 9.0, -gy * 9.0, 1.0));
+        // Lightly smoothed (the field is stored in 8 bits).
+        float f = (T(uv) * 4.0 + T(uv + dx) + T(uv - dx) + T(uv + dy) + T(uv - dy)) / 8.0;
+        float fw = fwidth(f) * 0.9 + 0.004;
+        float cover = smoothstep(THR - fw, THR + fw, f);
+        // Height above the surface line: domed drops, flat-topped pools.
+        float hgt = clamp((f - THR) / (1.0 - THR), 0.0, 1.0);
+        float gx = (T(uv + dx * 2.0) - T(uv - dx * 2.0)) * 0.6 + (T(uv + dx * 3.5) - T(uv - dx * 3.5)) * 0.4;
+        float gy = (T(uv + dy * 2.0) - T(uv - dy * 2.0)) * 0.6 + (T(uv + dy * 3.5) - T(uv - dy * 3.5)) * 0.4;
+        float slope = length(vec2(gx, gy));
+        vec3 n = normalize(vec3(-gx * 8.0, -gy * 8.0, 1.0));
 
-        float cover = smoothstep(0.02, 0.14, t);
-        // Thin films are bright and see-through; thick pools are near black-red
-        // (light passing through blood loses green and blue far faster than red).
-        // Fine grain inside the blood (not on its edges) so pools aren't flat.
-        float grain = 0.94 + 0.12 * hash(floor(vUv * uRes));
-        float depth = smoothstep(0.08, 0.85, t) * grain;
-        vec3 col = vec3(0.7, 0.05, 0.05) * exp(-vec3(1.4, 3.0, 2.6) * depth * 1.6);
-        // Edges dry first: a darker rim where the thickness changes fast.
-        float rim = clamp(length(vec2(gx, gy)) * 5.0, 0.0, 1.0) * smoothstep(0.12, 0.3, t);
-        col *= 1.0 - rim * 0.3;
-        // Wet gloss: a sharp highlight from a light up and to the left.
-        vec3 L = normalize(vec3(-0.45, 0.55, 0.75));
+        // Colour: light passing through blood loses blue and green much faster
+        // than red, so thin edges glow red and thick pools go almost black.
+        // Pools aren't perfectly even: slow variation in how thick they are.
+        vec2 q = vUv * uRes / 90.0;
+        vec2 qi = floor(q);
+        vec2 qf = q - qi;
+        qf = qf * qf * (3.0 - 2.0 * qf);
+        float pn = mix(mix(hash(qi, 9.0), hash(qi + vec2(1.0, 0.0), 9.0), qf.x), mix(hash(qi + vec2(0.0, 1.0), 9.0), hash(qi + vec2(1.0, 1.0), 9.0), qf.x), qf.y);
+        float depth = 0.12 + hgt * (1.05 + pn * 0.45);
+        vec3 col = vec3(0.8, 0.07, 0.06) * exp(-vec3(1.05, 3.2, 2.8) * depth);
+        // The meniscus: a thin darker line right at the edge of every drop.
+        float edgeBand = cover * (1.0 - smoothstep(0.0, 0.07, hgt));
+        col *= 1.0 - edgeBand * 0.4;
+        // Light from up and to the left.
+        vec3 L = normalize(vec3(-0.45, 0.6, 0.66));
         vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
-        float spec = pow(max(dot(n, H), 0.0), 90.0) * smoothstep(0.1, 0.3, t);
-        float broad = pow(max(dot(n, H), 0.0), 12.0) * 0.12 * cover;
-        float alpha = cover * (0.38 + 0.58 * depth) * uFade;
-        vec3 blood = col * alpha + vec3(0.9, 0.35, 0.33) * broad * uFade + vec3(1.0, 0.93, 0.9) * spec * 0.7 * uFade;
+        float nh = max(dot(n, H), 0.0);
+        // Only on the curved parts of the surface (not flat pools, not noise).
+        float curved = smoothstep(0.012, 0.045, slope) * smoothstep(0.02, 0.15, hgt);
+        float spec = (pow(nh, 140.0) * 1.1 + pow(nh, 24.0) * 0.12) * curved;
+        // Light shining through the far side of a dome: a red glow inside the edge.
+        float through = pow(max(dot(n.xy, -L.xy), 0.0), 1.5) * (1.0 - smoothstep(0.05, 0.5, hgt)) * cover;
+        col += vec3(0.55, 0.04, 0.03) * through * 0.6;
+        // A faint reflection of the room in the wet surface.
+        float env = smoothstep(0.2, 0.9, n.y * 0.5 + 0.5) * 0.05 * cover;
+        float alpha = cover * (0.8 + 0.18 * smoothstep(0.0, 0.25, hgt)) * uFade;
+        vec3 blood = (col + env) * alpha + vec3(1.0, 0.94, 0.9) * spec * uFade * cover;
 
         // The red border: a flash when hit, a heartbeat when blood is low.
         vec2 c = (vUv - 0.5) * vec2(aspect, 1.0);
@@ -138,108 +159,117 @@ export function createBloodFx(host: HTMLElement) {
   }
   let drips: Drip[] = [];
 
-  /** Paint a soft-edged dot of blood thickness. */
-  function dot(x: number, y: number, r: number, a: number) {
-    const R = Math.max(0.4, r * k);
-    if (R > 1.6) {
-      // Bigger drops are domed: thickest in the middle, so they catch the light.
-      const g = tctx.createRadialGradient(x * k - R * 0.2, y * k - R * 0.2, 0, x * k, y * k, R);
-      g.addColorStop(0, `rgba(255,255,255,${a})`);
-      g.addColorStop(0.7, `rgba(255,255,255,${a * 0.75})`);
-      g.addColorStop(1, `rgba(255,255,255,${a * 0.35})`);
-      tctx.fillStyle = g;
-    } else tctx.fillStyle = `rgba(255,255,255,${a})`;
+  /**
+   * One soft blob of blood in the field: a gaussian bump of height `a` and
+   * radius `r` (screen points), optionally stretched along `ang`. The visible
+   * drop is where the field passes the threshold, about half the radius.
+   */
+  function stamp(x: number, y: number, r: number, a: number, stretch = 1, ang = 0) {
+    const R = Math.max(0.8, r * k);
+    tctx.save();
+    tctx.translate(x * k, y * k);
+    if (stretch !== 1) {
+      tctx.rotate(ang);
+      tctx.scale(stretch, 1);
+    }
+    const g = tctx.createRadialGradient(0, 0, 0, 0, 0, R);
+    g.addColorStop(0, `rgba(255,255,255,${a})`);
+    g.addColorStop(0.25, `rgba(255,255,255,${a * 0.84})`);
+    g.addColorStop(0.5, `rgba(255,255,255,${a * 0.5})`);
+    g.addColorStop(0.75, `rgba(255,255,255,${a * 0.19})`);
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    tctx.fillStyle = g;
     tctx.beginPath();
-    tctx.arc(x * k, y * k, R, 0, Math.PI * 2);
+    tctx.arc(0, 0, R, 0, Math.PI * 2);
     tctx.fill();
+    tctx.restore();
   }
 
   /**
-   * One splatter at (x, y) in screen points, `size` its main radius, flying
-   * in direction `dir` (radians).
+   * One splatter at (x, y) in screen points: `size` is the main splash's
+   * radius, `dir` the direction it was flying (radians).
    */
   function splat(x: number, y: number, size: number, dir: number, heavy: boolean) {
     const rnd = Math.random;
     const g = (s = 1) => (rnd() + rnd() + rnd() - 1.5) * s; // rough gaussian
+    const cos = Math.cos;
+    const sin = Math.sin;
     tctx.globalCompositeOperation = 'lighter';
 
-    // 1. The main splash: an irregular blob, thickest in the middle.
-    const n = 72;
-    const harm = Array.from({ length: 7 }, (_, i) => ({ a: (0.22 / (i + 1)) * (0.5 + rnd()), p: rnd() * 6.28, k: i + 2 }));
-    tctx.beginPath();
-    for (let i = 0; i <= n; i++) {
-      const th = (i / n) * Math.PI * 2;
-      let r = 1;
-      for (const hh of harm) r += hh.a * Math.sin(hh.k * th + hh.p);
-      // Bulge towards the direction of travel.
-      r *= 1 + 0.35 * Math.max(0, Math.cos(th - dir));
-      const px = x + Math.cos(th) * size * r;
-      const py = y + Math.sin(th) * size * r;
-      if (i) tctx.lineTo(px * k, py * k);
-      else tctx.moveTo(px * k, py * k);
-    }
-    const grd = tctx.createRadialGradient(x * k, y * k, 0, x * k, y * k, size * 1.3 * k);
-    grd.addColorStop(0, 'rgba(255,255,255,0.75)');
-    grd.addColorStop(0.45, 'rgba(255,255,255,0.5)');
-    grd.addColorStop(0.85, 'rgba(255,255,255,0.28)');
-    grd.addColorStop(1, 'rgba(255,255,255,0.2)');
-    tctx.fillStyle = grd;
-    tctx.fill();
-
-    // 2. Fingers: tapering streaks thrown outward, each ending in a droplet.
-    const fingers = Math.round((heavy ? 9 : 5) + rnd() * 7);
-    for (let i = 0; i < fingers; i++) {
-      const a = dir + g(1.1);
-      const len = size * (0.5 + rnd() * (heavy ? 1.9 : 1.2));
-      const w0 = size * (0.1 + rnd() * 0.16);
-      const sx = x + Math.cos(a) * size * 0.8;
-      const sy = y + Math.sin(a) * size * 0.8;
-      const ex = sx + Math.cos(a) * len;
-      const ey = sy + Math.sin(a) * len;
-      const nx = -Math.sin(a);
-      const ny = Math.cos(a);
-      tctx.fillStyle = 'rgba(255,255,255,0.3)';
-      tctx.beginPath();
-      tctx.moveTo((sx + nx * w0) * k, (sy + ny * w0) * k);
-      tctx.quadraticCurveTo(((sx + ex) / 2 + nx * w0 * 0.3) * k, ((sy + ey) / 2 + ny * w0 * 0.3) * k, ex * k, ey * k);
-      tctx.quadraticCurveTo(((sx + ex) / 2 - nx * w0 * 0.3) * k, ((sy + ey) / 2 - ny * w0 * 0.3) * k, (sx - nx * w0) * k, (sy - ny * w0) * k);
-      tctx.fill();
-      dot(ex + Math.cos(a) * w0 * 0.6, ey + Math.sin(a) * w0 * 0.6, w0 * (0.7 + rnd() * 0.7), 0.55);
+    // 1. The main splash: a cluster of blobs, smeared in the direction of travel.
+    stamp(x, y, size * 1.6, 0.62);
+    const body = (heavy ? 12 : 8) + Math.floor(rnd() * 5);
+    for (let i = 0; i < body; i++) {
+      const along = g(size * 0.6) + size * 0.2;
+      const across = g(size * 0.5);
+      const px = x + cos(dir) * along - sin(dir) * across;
+      const py = y + sin(dir) * along + cos(dir) * across;
+      stamp(px, py, size * (0.4 + rnd() * 0.55), 0.24 + rnd() * 0.12);
     }
 
-    // 3. Satellite drops: flung along the same direction, smaller further out,
-    //    stretched the faster they flew.
-    const drops = Math.round((heavy ? 50 : 25) + rnd() * 30);
+    // 2. Arms: streams thrown out of the splash, thinning as they go, each
+    //    ending in a round bead (sometimes broken off into a separate drop).
+    const arms = (heavy ? 11 : 7) + Math.floor(rnd() * 6);
+    for (let i = 0; i < arms; i++) {
+      let a = dir + g(1.15);
+      const len = size * (0.8 + Math.pow(rnd(), 0.9) * (heavy ? 2.6 : 1.9));
+      const r0 = size * (0.24 + rnd() * 0.18);
+      const r1 = size * (0.08 + rnd() * 0.05);
+      let px = x + cos(a) * size * 0.7;
+      let py = y + sin(a) * size * 0.7;
+      const stepLen = Math.max(1.2, size * 0.07);
+      const steps = Math.ceil(len / stepLen);
+      const curl = g(0.012);
+      const broken = rnd() < 0.35 ? 0.75 + rnd() * 0.15 : 2;
+      for (let j = 0; j < steps; j++) {
+        const t = j / steps;
+        if (t > broken && t < broken + 0.12) {
+          px += cos(a) * stepLen;
+          py += sin(a) * stepLen;
+          continue;
+        }
+        a += curl;
+        px += cos(a) * stepLen;
+        py += sin(a) * stepLen;
+        stamp(px, py, r0 + (r1 - r0) * Math.pow(t, 0.7), 0.38);
+      }
+      // The bead at the end: blood gathers into a ball.
+      stamp(px + cos(a) * r1, py + sin(a) * r1, size * (0.2 + rnd() * 0.18), 0.62, 1.15, a);
+    }
+
+    // 3. Satellite drops: flung along the same line, smaller the further they
+    //    went, stretched by their speed, some with a little tail behind them.
+    const drops = (heavy ? 60 : 35) + Math.floor(rnd() * 30);
     for (let i = 0; i < drops; i++) {
-      const a = dir + g(1.3);
-      const dist = size * (1.3 + Math.pow(rnd(), 1.6) * (heavy ? 5 : 3.2));
-      const r = size * 0.11 * Math.pow(rnd(), 2.2) + 0.6;
-      const px = x + Math.cos(a) * dist;
-      const py = y + Math.sin(a) * dist;
-      const stretch = 1 + (dist / size) * 0.25 * rnd();
-      tctx.save();
-      tctx.translate(px * k, py * k);
-      tctx.rotate(a);
-      tctx.scale(stretch, 1);
-      tctx.fillStyle = `rgba(255,255,255,${0.3 + rnd() * 0.35})`;
-      tctx.beginPath();
-      tctx.arc(0, 0, Math.max(0.4, r * k), 0, Math.PI * 2);
-      tctx.fill();
-      tctx.restore();
+      const a = dir + g(1.35);
+      const dist = size * (1.6 + Math.pow(rnd(), 1.4) * (heavy ? 5 : 3.6));
+      const r = size * (0.05 + 0.28 * Math.pow(rnd(), 2.4)) + 1.4;
+      const px = x + cos(a) * dist;
+      const py = y + sin(a) * dist;
+      const stretch = 1 + rnd() * 0.5 * Math.min(1, dist / (size * 4));
+      stamp(px, py, r, 0.6 + rnd() * 0.15, stretch, a);
+      if (r > 4 && rnd() < 0.5) stamp(px - cos(a) * r * 0.9, py - sin(a) * r * 0.9, r * 0.45, 0.5, 1.6, a);
     }
 
-    // 4. Mist: a fine spray of tiny specks.
-    const mist = Math.round((heavy ? 130 : 70) + rnd() * 60);
+    // 4. Mist: a fine spray of tiny droplets.
+    const mist = (heavy ? 160 : 90) + Math.floor(rnd() * 80);
     for (let i = 0; i < mist; i++) {
-      const a = dir + g(1.4);
-      const dist = size * (0.8 + Math.pow(rnd(), 1.5) * (heavy ? 5 : 3.5));
-      dot(x + Math.cos(a) * dist, y + Math.sin(a) * dist, 0.4 + rnd() * 0.8, 0.18 + rnd() * 0.25);
+      const a = dir + g(1.6);
+      const dist = size * (1 + Math.pow(rnd(), 1.3) * (heavy ? 5.5 : 4));
+      stamp(x + cos(a) * dist, y + sin(a) * dist, 1.3 + rnd() * 2.2, 0.55 + rnd() * 0.2);
     }
 
-    // 5. Drips: heavy splashes run down the glass.
-    const nd = heavy ? 1 + Math.floor(rnd() * 3) : rnd() < 0.4 ? 1 : 0;
+    // 5. Drips: heavy blood runs down the glass from the bottom of the splash.
+    const nd = heavy ? 2 + Math.floor(rnd() * 3) : 1 + (rnd() < 0.5 ? 1 : 0);
     for (let i = 0; i < nd; i++) {
-      drips.push({ x: x + g(size * 0.6), y: y + size * 0.6, v: 40 + rnd() * 70, r: size * (0.07 + rnd() * 0.05) + 1.5, life: 1.5 + rnd() * 3, wob: rnd() * 6 });
+      drips.push({
+        x: x + g(size * 0.9),
+        y: y + size * (0.4 + rnd() * 0.5),
+        v: 55 + rnd() * 90,
+        r: size * (0.16 + rnd() * 0.1),
+        life: 2 + rnd() * 4,
+        wob: rnd() * 6,
+      });
     }
     tctx.globalCompositeOperation = 'source-over';
     dirty = true;
@@ -272,15 +302,15 @@ export function createBloodFx(host: HTMLElement) {
       glitch = Math.max(glitch, (hurtYou ? 0.55 : 0.3) + power * 0.45);
       if (hurtYou) hurt = Math.max(hurt, 0.5 + power * 0.5);
       const m = Math.min(w, h);
-      const count = hurtYou ? 1 + (power > 0.5 ? 1 : 0) + (severe ? 1 : 0) : amount > 120 ? 1 : 0;
+      const count = hurtYou ? 1 + (power > 0.45 ? 1 : 0) + (severe ? 1 : 0) : amount > 100 ? 1 : 0;
       for (let i = 0; i < count; i++) {
         // On the glass: mostly towards the edges and corners, flying inward.
         const ang = Math.random() * Math.PI * 2;
-        const rr = 0.32 + Math.random() * 0.22;
+        const rr = 0.25 + Math.random() * 0.25;
         const x = w / 2 + Math.cos(ang) * w * rr;
         const y = h / 2 + Math.sin(ang) * h * rr;
         const dir = Math.atan2(h / 2 - y, w / 2 - x) + (Math.random() - 0.5) * 1.2;
-        const size = m * (hurtYou ? 0.03 + power * 0.035 : 0.018 + power * 0.022);
+        const size = m * (hurtYou ? 0.042 + power * 0.04 : 0.026 + power * 0.026);
         splat(x, y, size, dir, hurtYou && power > 0.4);
       }
       if (!hurtYou && amount > 0) {
@@ -289,11 +319,11 @@ export function createBloodFx(host: HTMLElement) {
         const y = h * (0.2 + Math.random() * 0.6);
         const dir = Math.random() * Math.PI * 2;
         tctx.globalCompositeOperation = 'lighter';
-        const n = 30 + power * 90;
+        const n = 40 + power * 110;
         for (let i = 0; i < n; i++) {
           const a = dir + (Math.random() - 0.5) * 2;
-          const d = Math.random() * m * (0.08 + power * 0.15);
-          dot(x + Math.cos(a) * d, y + Math.sin(a) * d, 0.5 + Math.random() * (1 + power * 2), 0.3 + Math.random() * 0.4);
+          const d = Math.pow(Math.random(), 1.3) * m * (0.12 + power * 0.22);
+          stamp(x + Math.cos(a) * d, y + Math.sin(a) * d, 1.3 + Math.pow(Math.random(), 2) * (3 + power * 7), 0.6, 1 + Math.random() * 0.4, a);
         }
         tctx.globalCompositeOperation = 'source-over';
         dirty = true;
@@ -333,13 +363,15 @@ export function createBloodFx(host: HTMLElement) {
           const steps = Math.max(1, Math.ceil(step / 1.5));
           for (let i = 0; i < steps; i++) {
             d.y += step / steps;
-            dot(d.x + Math.sin(d.y * 0.05 + d.wob) * 1.2, d.y, d.r, 0.32);
+            stamp(d.x + Math.sin(d.y * 0.04 + d.wob) * 1.5, d.y, d.r, 0.16);
           }
-          d.v *= Math.pow(0.55, dt);
-          d.r *= Math.pow(0.9, dt);
+          d.v *= Math.pow(0.62, dt);
+          d.r *= Math.pow(0.93, dt);
           d.life -= dt;
+          // Where it stops, a bead of blood gathers.
+          if (d.life <= 0 || d.v <= 6) stamp(d.x + Math.sin(d.y * 0.04 + d.wob) * 1.5, d.y + d.r * 0.3, d.r * 1.35, 0.55);
         }
-        drips = drips.filter((d) => d.life > 0 && d.r > 1 && d.v > 4 && d.y < h);
+        drips = drips.filter((d) => d.life > 0 && d.r > 1.5 && d.v > 6 && d.y < h);
         tctx.globalCompositeOperation = 'source-over';
         dirty = true;
       }

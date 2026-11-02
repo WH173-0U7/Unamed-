@@ -67,9 +67,13 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
     concussed, dazed, or after losing a lot of blood.
 - **Feeling the hits:** every blow that lands shakes the screen, tears it
   with glitches and static, and fringes the text with colour; when you're
-  the one hit the edges flash red. Blood splashes onto the screen (lit on
-  the GPU like wet blood: dark where thick, thin and bright at the edges,
-  glossy highlights, drips running down) and drops land on the panels too.
+  the one hit the edges flash red. Blood splashes onto the screen: a main
+  splash, streams thrown outward ending in round beads, satellite drops
+  with little tails, fine mist, and drips that run down and bead where they
+  stop. It's built as a field of soft blobs cut at a surface (so drops merge
+  like real liquid) and lit on the GPU like wet blood: near black-red where
+  thick, glowing red at thin edges, a dark meniscus line, light shining
+  through the domes, glossy highlights. Splashes land on the panels too.
   When your blood is low, a red edge pulses like a heartbeat. The phone
   vibrates on every hit, harder when you're hurt (Android; iPhones don't
   let web pages vibrate). The blood is wiped when you lurk or rest.

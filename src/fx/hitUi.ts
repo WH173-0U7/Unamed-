@@ -9,68 +9,73 @@ export function createHitUi(game: HTMLElement) {
   let glitchT = 0;
   const panels = () => [...game.querySelectorAll<HTMLElement>('.enc-card, .enc-status, .enc-log, .enc-actions')];
 
-  /** A drop of blood for the interface, shaded like the blood on the screen. */
+  /**
+   * A splash of blood for the interface, made the same way as the blood on
+   * the screen: a field of soft blobs cut at a surface threshold, then shaded
+   * pixel by pixel (dark where thick, red at the edges, a dark meniscus line
+   * and a glossy highlight).
+   */
   function bloodSprite(size: number): string {
     const S = Math.round(size);
     const c = document.createElement('canvas');
     c.width = c.height = S;
     const x = c.getContext('2d')!;
-    // Thickness first (white), then shade every pixel from it.
-    x.fillStyle = '#fff';
-    const cx = S / 2;
-    const r0 = S * 0.22;
-    const harm = Array.from({ length: 6 }, (_, i) => ({ a: (0.25 / (i + 1)) * Math.random(), p: Math.random() * 6.28, k: i + 2 }));
-    const g = x.createRadialGradient(cx, cx, 0, cx, cx, r0 * 1.3);
-    g.addColorStop(0, 'rgba(255,255,255,1)');
-    g.addColorStop(1, 'rgba(255,255,255,0.45)');
-    x.fillStyle = g;
-    x.beginPath();
-    for (let i = 0; i <= 60; i++) {
-      const th = (i / 60) * Math.PI * 2;
-      let r = 1;
-      for (const h of harm) r += h.a * Math.sin(h.k * th + h.p);
-      x.lineTo(cx + Math.cos(th) * r0 * r, cx + Math.sin(th) * r0 * r);
-    }
-    x.fill();
-    x.fillStyle = 'rgba(255,255,255,0.7)';
-    for (let i = 0; i < 14; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const d = r0 * (1.2 + Math.random() * 1.0);
+    x.globalCompositeOperation = 'lighter';
+    const stamp = (px: number, py: number, r: number, a: number) => {
+      const g = x.createRadialGradient(px, py, 0, px, py, r);
+      g.addColorStop(0, `rgba(255,255,255,${a})`);
+      g.addColorStop(0.25, `rgba(255,255,255,${a * 0.84})`);
+      g.addColorStop(0.5, `rgba(255,255,255,${a * 0.5})`);
+      g.addColorStop(0.75, `rgba(255,255,255,${a * 0.19})`);
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = g;
       x.beginPath();
-      x.arc(cx + Math.cos(a) * d, cx + Math.sin(a) * d, 0.6 + Math.random() * S * 0.025, 0, Math.PI * 2);
+      x.arc(px, py, r, 0, Math.PI * 2);
       x.fill();
+    };
+    const cx = S / 2;
+    const base = S * 0.16;
+    const dir = Math.random() * Math.PI * 2;
+    stamp(cx, cx, base * 1.6, 0.62);
+    for (let i = 0; i < 5; i++) stamp(cx + (Math.random() - 0.5) * base, cx + (Math.random() - 0.5) * base, base * (0.5 + Math.random() * 0.4), 0.28);
+    // A few streams ending in beads, and loose drops.
+    for (let i = 0; i < 4; i++) {
+      const a = dir + (Math.random() - 0.5) * 2.2;
+      const len = base * (1 + Math.random() * 1.4);
+      for (let t = 0; t < 1; t += 0.08) stamp(cx + Math.cos(a) * (base * 0.6 + len * t), cx + Math.sin(a) * (base * 0.6 + len * t), base * (0.3 - t * 0.18), 0.4);
+      stamp(cx + Math.cos(a) * (base * 0.7 + len), cx + Math.sin(a) * (base * 0.7 + len), base * 0.3, 0.62);
+    }
+    for (let i = 0; i < 12; i++) {
+      const a = dir + (Math.random() - 0.5) * 3;
+      const d = base * (1.8 + Math.random() * 1.2);
+      stamp(cx + Math.cos(a) * d, cx + Math.sin(a) * d, 1.5 + Math.random() * base * 0.25, 0.62);
     }
     const img = x.getImageData(0, 0, S, S);
     const d = img.data;
-    const T = (i: number, j: number) => d[(Math.min(S - 1, Math.max(0, j)) * S + Math.min(S - 1, Math.max(0, i))) * 4 + 3] / 255;
+    const F = (i: number, j: number) => d[(Math.min(S - 1, Math.max(0, j)) * S + Math.min(S - 1, Math.max(0, i))) * 4 + 3] / 255;
     const out = x.createImageData(S, S);
     const o = out.data;
+    const THR = 0.3;
     for (let j = 0; j < S; j++) {
       for (let i = 0; i < S; i++) {
-        const t = T(i, j);
-        if (t < 0.03) continue;
-        const gx = T(i + 1, j) - T(i - 1, j);
-        const gy = T(i, j + 1) - T(i, j - 1);
-        const len = Math.hypot(gx * 4, gy * 4, 1);
-        // Light from up-left: specular glint.
-        const nx = -gx * 4 / len;
-        const ny = -gy * 4 / len;
-        const nz = 1 / len;
-        const hdot = Math.max(0, nx * -0.33 + ny * -0.4 + nz * 0.85);
-        const spec = Math.pow(hdot, 60) * (t > 0.3 ? 1 : 0);
-        const deep = Math.min(1, Math.max(0, (t - 0.2) / 0.7));
-        const rim = Math.min(1, Math.hypot(gx, gy) * 5);
-        let r = (130 - 100 * deep) * (1 - rim * 0.3);
-        let gg = 8 * (1 - deep);
-        let b = 10 * (1 - deep) + 2;
-        r += spec * 230;
-        gg += spec * 210;
-        b += spec * 200;
+        const f = F(i, j);
+        const cover = Math.min(1, Math.max(0, (f - THR + 0.03) / 0.06));
+        if (cover <= 0) continue;
+        const hgt = Math.min(1, Math.max(0, (f - THR) / (1 - THR)));
+        const gx = F(i + 2, j) - F(i - 2, j);
+        const gy = F(i, j + 2) - F(i, j - 2);
+        const len = Math.hypot(gx * 8, gy * 8, 1);
+        const nh = Math.max(0, (-gx * 8 * -0.3 + -gy * 8 * -0.4 + 0.87) / len);
+        const curved = Math.min(1, Math.max(0, (Math.hypot(gx, gy) - 0.02) / 0.05)) * (hgt > 0.03 ? 1 : 0);
+        const spec = (Math.pow(nh, 140) * 1.1 + Math.pow(nh, 24) * 0.12) * curved;
+        const depth = 0.12 + hgt * 1.2;
+        const edge = hgt < 0.07 ? 1 - hgt / 0.07 : 0;
+        const shade = 1 - edge * 0.4;
         const k = (j * S + i) * 4;
-        o[k] = Math.min(255, r);
-        o[k + 1] = Math.min(255, gg);
-        o[k + 2] = Math.min(255, b);
-        o[k + 3] = Math.min(255, (Math.min(1, t / 0.15) * 0.92 + spec * 0.08) * 255);
+        o[k] = Math.min(255, (204 * Math.exp(-1.05 * depth) * shade + spec * 255));
+        o[k + 1] = Math.min(255, (18 * Math.exp(-3.2 * depth) * shade + spec * 240));
+        o[k + 2] = Math.min(255, (15 * Math.exp(-2.8 * depth) * shade + spec * 230));
+        o[k + 3] = Math.min(255, cover * (0.82 + 0.16 * Math.min(1, hgt / 0.25)) * 255);
       }
     }
     x.putImageData(out, 0, 0);
@@ -92,7 +97,7 @@ export function createHitUi(game: HTMLElement) {
       for (let i = 0; i < count; i++) {
         const p = ps[Math.floor(Math.random() * ps.length)];
         if (p.querySelectorAll('.ui-blood').length > 4) continue;
-        const size = (big ? 70 : 40) + Math.random() * (big ? 70 : 40);
+        const size = (big ? 90 : 55) + Math.random() * (big ? 80 : 45);
         const el = document.createElement('i');
         el.className = 'ui-blood';
         el.style.width = el.style.height = `${size}px`;

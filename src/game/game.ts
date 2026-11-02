@@ -1,17 +1,17 @@
 import type * as THREE from 'three';
 import { writeSave, type SaveData } from '../core/save';
-import { Orb, type OrbSave } from './orb';
+import { Whisp, type WhispSave } from './whisp';
 import { createDarkness } from './darkness';
 
 /**
  * The game itself. It begins in a very dark place: wherever the player
- * touches, a small orb of light appears and feeds on their movement.
+ * touches, the Whisp (a small orb of light) appears and feeds on their movement.
  * Each system keeps its progress in `save.state`, so it is saved at every
  * pause point automatically.
  */
 export class Game {
   running = false;
-  private readonly orb: Orb;
+  private readonly whisp;
   private readonly darkness;
   private pointerId: number | null = null;
   private width = 1;
@@ -23,7 +23,8 @@ export class Game {
     private readonly view: HTMLElement,
     renderer: THREE.WebGLRenderer,
   ) {
-    this.orb = new Orb(save.state.orb as OrbSave | undefined);
+    // Saves from before the Whisp was named stored it as `orb`.
+    this.whisp = new Whisp((save.state.whisp ?? save.state.orb) as WhispSave | undefined);
     this.darkness = createDarkness(renderer);
     this.listen('pointerdown', this.onDown);
     this.listen('pointermove', this.onMove);
@@ -46,8 +47,8 @@ export class Game {
     } catch {
       /* not capturable */
     }
-    const firstTouch = this.orb.presence < 0.15;
-    this.orb.down(e.clientX, e.clientY);
+    const firstTouch = this.whisp.presence < 0.15;
+    this.whisp.down(e.clientX, e.clientY);
     if (firstTouch) {
       try {
         navigator.vibrate?.(8);
@@ -61,13 +62,13 @@ export class Game {
     if (e.pointerId !== this.pointerId) return;
     // Use every sample the device reported since last frame, for smooth feeding.
     const events = e.getCoalescedEvents?.() ?? [];
-    for (const ev of events.length ? events : [e]) this.orb.move(ev.clientX, ev.clientY);
+    for (const ev of events.length ? events : [e]) this.whisp.move(ev.clientX, ev.clientY);
   };
 
   private onUp = (e: PointerEvent) => {
     if (e.pointerId !== this.pointerId) return;
     this.pointerId = null;
-    this.orb.up();
+    this.whisp.up();
   };
 
   /** Starts a new game from the beginning. */
@@ -85,7 +86,7 @@ export class Game {
   pause() {
     this.running = false;
     this.pointerId = null;
-    this.orb.up();
+    this.whisp.up();
   }
 
   resume() {
@@ -109,21 +110,22 @@ export class Game {
   update(dt: number) {
     if (this.running) {
       this.save.playTime += dt;
-      this.orb.update(dt, this.width, this.height);
+      this.whisp.update(dt, this.width, this.height);
     }
     // While paused the world holds still, but keep drawing it behind the menu.
-    this.darkness.render(this.orb, this.running ? dt : 0);
+    this.darkness.render(this.whisp, this.running ? dt : 0);
   }
 
   /** Writes progress to the device. Returns false if storage is unavailable. */
   saveNow(): boolean {
-    this.save.state.orb = this.orb.toSave();
+    this.save.state.whisp = this.whisp.toSave();
+    delete this.save.state.orb; // older name
     delete this.save.state.tv; // from earlier versions
     return writeSave(this.save);
   }
 
   /** For automated tests. */
   get debug() {
-    return { orb: this.orb };
+    return { whisp: this.whisp };
   }
 }

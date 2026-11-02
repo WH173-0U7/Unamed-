@@ -1,27 +1,27 @@
 /**
- * The orb's behaviour (no drawing here).
+ * The Whisp's behaviour (no drawing here).
  *
- * The orb lives off the player's touch: it appears wherever they touch,
+ * The Whisp lives off the player's touch: it appears wherever they touch,
  * follows their thumb, and every bit of movement feeds it energy, making it
  * glow brighter and wider. Left alone it slowly fades back to an ember.
- * Wisps of light stream from the fingertip into the orb as it feeds.
+ * Threads of light stream from the fingertip into the Whisp as it feeds.
  */
 
-/** Progress stored in the save file under `state.orb`. */
-export interface OrbSave {
+/** Progress stored in the save file under `state.whisp`. */
+export interface WhispSave {
   energy: number;
 }
 
-export const MAX_WISPS = 600;
+export const MAX_THREADS = 600;
 
-/** Energy the orb settles back to when it isn't being fed. */
+/** Energy the Whisp settles back to when it isn't being fed. */
 const REST_ENERGY = 0.06;
 /** How long the glow takes to fade back towards rest (seconds, time constant). */
 const FADE_TIME = 9;
-/** How much a full screen-diagonal of thumb movement feeds the orb. */
+/** How much a full screen-diagonal of thumb movement feeds the Whisp. */
 const FEED_RATE = 0.55;
 
-export class Orb {
+export class Whisp {
   energy: number;
   /** 0 = not there, 1 = fully present. Rises while touched, fades after release. */
   presence = 0;
@@ -29,29 +29,29 @@ export class Orb {
   /** Has the player touched the darkness yet this session? */
   everTouched = false;
 
-  /** Where the orb is (screen points, y down). */
+  /** Where the Whisp is (screen points, y down). */
   readonly pos = { x: 0, y: 0 };
   /** Where the thumb is. */
   readonly finger = { x: 0, y: 0 };
 
-  /** Wisps: x, y, vx, vy, life (0..1), size. */
-  readonly wisps = new Float32Array(MAX_WISPS * 6);
-  private nextWisp = 0;
+  /** Threads: x, y, vx, vy, life (0..1), size. */
+  readonly threads = new Float32Array(MAX_THREADS * 6);
+  private nextThread = 0;
   private moved = 0;
   private spawnDebt = 0;
 
-  constructor(save?: OrbSave) {
+  constructor(save?: WhispSave) {
     this.energy = clamp(save?.energy ?? REST_ENERGY, 0, 1);
   }
 
-  toSave(): OrbSave {
+  toSave(): WhispSave {
     return { energy: Math.round(this.energy * 1000) / 1000 };
   }
 
   down(x: number, y: number) {
     this.touching = true;
     this.everTouched = true;
-    // If the orb has faded out, it is born right under the thumb.
+    // If the Whisp has faded out, it is born right under the thumb.
     if (this.presence < 0.15) {
       this.pos.x = x;
       this.pos.y = y;
@@ -89,35 +89,35 @@ export class Orb {
     const rate = this.touching ? 5 : 0.9;
     this.presence += (target - this.presence) * (1 - Math.exp(-dt * rate));
 
-    // Wisps: one per few points of movement, plus a trickle while held still.
+    // Threads: one per few points of movement, plus a trickle while held still.
     if (this.touching) {
       this.spawnDebt += this.moved / 5 + dt * 8;
       while (this.spawnDebt >= 1) {
         this.spawnDebt -= 1;
-        this.spawnWisp();
+        this.spawnThread();
       }
     }
     this.moved = 0;
-    this.updateWisps(dt);
+    this.updateThreads(dt);
   }
 
-  private spawnWisp() {
-    const i = this.nextWisp * 6;
-    this.nextWisp = (this.nextWisp + 1) % MAX_WISPS;
+  private spawnThread() {
+    const i = this.nextThread * 6;
+    this.nextThread = (this.nextThread + 1) % MAX_THREADS;
     const a = Math.random() * Math.PI * 2;
     const r = 6 + Math.random() * 26;
-    const w = this.wisps;
+    const w = this.threads;
     w[i] = this.finger.x + Math.cos(a) * r;
     w[i + 1] = this.finger.y + Math.sin(a) * r;
-    // A sideways swirl so wisps spiral in rather than fly straight.
+    // A sideways swirl so threads spiral in rather than fly straight.
     w[i + 2] = -Math.sin(a) * (30 + Math.random() * 50);
     w[i + 3] = Math.cos(a) * (30 + Math.random() * 50);
     w[i + 4] = 1;
     w[i + 5] = 1 + Math.random() * 2.5;
   }
 
-  private updateWisps(dt: number) {
-    const w = this.wisps;
+  private updateThreads(dt: number) {
+    const w = this.threads;
     const damp = Math.exp(-dt * 2.2);
     const swallow = 4 + this.energy * 10;
     for (let i = 0; i < w.length; i += 6) {
@@ -125,13 +125,13 @@ export class Orb {
       const dx = this.pos.x - w[i];
       const dy = this.pos.y - w[i + 1];
       const d = Math.hypot(dx, dy) || 1;
-      // Drawn towards the orb, harder the closer they get.
+      // Drawn towards the Whisp, harder the closer they get.
       const pull = 900 / (20 + d);
       w[i + 2] = (w[i + 2] + (dx / d) * pull * 60 * dt) * damp;
       w[i + 3] = (w[i + 3] + (dy / d) * pull * 60 * dt) * damp;
       w[i] += w[i + 2] * dt;
       w[i + 1] += w[i + 3] * dt;
-      // Fade with age; vanish when swallowed by the orb.
+      // Fade with age; vanish when swallowed by the Whisp.
       w[i + 4] -= dt * (d < swallow ? 6 : 0.45);
     }
   }

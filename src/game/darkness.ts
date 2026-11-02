@@ -1,15 +1,15 @@
 import * as THREE from 'three';
 import { createFullscreenShader, glslHash } from '../fx/fullscreen';
-import { MAX_WISPS, type Orb } from './orb';
+import { MAX_THREADS, type Whisp } from './whisp';
 
 /**
- * Draws the dark place and the orb, all on the GPU:
+ * Draws the dark place and the Whisp, all on the GPU:
  *
- * 1. Light layer: the orb's core and its wisps, drawn as soft points.
+ * 1. Light layer: the Whisp's core and its threads, drawn as soft points.
  * 2. Trails: each frame the previous image is faded, nudged by a slow swirl
  *    and the new light added on top, leaving smoky trails behind movement.
- * 3. Final image: fog and grit that only exist where the orb's light reaches,
- *    the orb's halo, the trails, then grain and vignette.
+ * 3. Final image: fog and grit that only exist where the Whisp's light reaches,
+ *    the Whisp's halo, the trails, then grain and vignette.
  */
 export function createDarkness(renderer: THREE.WebGLRenderer) {
   const floatTargets =
@@ -24,8 +24,8 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
   let trailA = new THREE.WebGLRenderTarget(1, 1, targetOpts);
   let trailB = new THREE.WebGLRenderTarget(1, 1, targetOpts);
 
-  // ---------- 1. Light layer: orb core + wisps as points ----------
-  const count = MAX_WISPS + 1;
+  // ---------- 1. Light layer: whisp core + threads as points ----------
+  const count = MAX_THREADS + 1;
   const positions = new Float32Array(count * 3);
   const sizes = new Float32Array(count);
   const alphas = new Float32Array(count);
@@ -101,7 +101,7 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
     /* glsl */ `
       uniform sampler2D tTrail;
       uniform vec2 uRes;      // screen size in points
-      uniform vec2 uOrb;      // orb position in points, y up
+      uniform vec2 uWhisp;      // whisp position in points, y up
       uniform float uEnergy;
       uniform float uPresence;
       uniform float uHint;
@@ -132,9 +132,9 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
         float m = min(uRes.x, uRes.y);
         float e = uEnergy;
         float pr = uPresence;
-        float d = length(p - uOrb);
+        float d = length(p - uWhisp);
 
-        // How far the orb's light reaches into the dark.
+        // How far the Whisp's light reaches into the dark.
         float reach = m * (0.06 + 0.45 * e);
         float light = pr * (0.3 + 0.7 * e) / (1.0 + pow(d / reach, 2.0) * 3.0);
 
@@ -148,7 +148,7 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
         float fog = smoothstep(0.35, 0.85, fbm(fp + fbm(fp * 1.7 + uTime * 0.03) * 1.5));
         vec3 place = (ground + vec3(0.4, 0.5, 0.65) * fog * 0.55) * light;
 
-        // The orb: a hot core and a halo that swells as it feeds. The halo's
+        // The Whisp: a hot core and a halo that swells as it feeds. The halo's
         // colours separate slightly at the edge, like light through old glass.
         float breathe = 1.0 + 0.08 * sin(uTime * (2.0 + e * 3.0));
         float hr = (8.0 + 70.0 * e) * breathe;
@@ -157,13 +157,13 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
         vec3 tint = mix(vec3(0.4, 0.75, 1.0), vec3(0.85, 0.95, 1.0), e);
         float coreR = (2.5 + 6.0 * e) * breathe;
         float core = 1.0 - smoothstep(coreR * 0.5, coreR, d);
-        vec3 orb = (tint * halo * (0.5 + 1.4 * e) + vec3(1.0) * core * 1.6) * pr;
+        vec3 whisp = (tint * halo * (0.5 + 1.4 * e) + vec3(1.0) * core * 1.6) * pr;
 
         // Before the first touch: a faint ember in the dark, breathing.
         float c = length(p - uRes * 0.5);
         float ember = exp(-c / 5.0) * (0.5 + 0.5 * sin(uTime * 1.6)) * 0.35 * uHint;
 
-        vec3 col = place + texture2D(tTrail, vUv).rgb * vec3(0.7, 0.85, 1.0) + orb + vec3(0.6, 0.8, 1.0) * ember;
+        vec3 col = place + texture2D(tTrail, vUv).rgb * vec3(0.7, 0.85, 1.0) + whisp + vec3(0.6, 0.8, 1.0) * ember;
         col = 1.0 - exp(-col * 1.4); // soft highlights
 
         // Grain and a heavy vignette: the dark closes in at the edges.
@@ -178,7 +178,7 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
     {
       tTrail: { value: null },
       uRes: { value: new THREE.Vector2(1, 1) },
-      uOrb: { value: new THREE.Vector2() },
+      uWhisp: { value: new THREE.Vector2() },
       uEnergy: { value: 0 },
       uPresence: { value: 0 },
       uHint: { value: 0 },
@@ -209,23 +209,23 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
       final.material.uniforms.uRes.value.set(w, h);
     },
 
-    render(orb: Orb, dt: number) {
+    render(whisp: Whisp, dt: number) {
       time += dt;
-      hint += ((orb.everTouched ? 0 : 1) - hint) * (1 - Math.exp(-dt * 2));
+      hint += ((whisp.everTouched ? 0 : 1) - hint) * (1 - Math.exp(-dt * 2));
 
       // 1. Light layer.
-      const w = orb.wisps;
-      for (let i = 0; i < MAX_WISPS; i++) {
+      const w = whisp.threads;
+      for (let i = 0; i < MAX_THREADS; i++) {
         const j = i * 6;
         positions[i * 3] = w[j];
         positions[i * 3 + 1] = w[j + 1];
-        sizes[i] = w[j + 5] * (2 + orb.energy * 2);
+        sizes[i] = w[j + 5] * (2 + whisp.energy * 2);
         alphas[i] = Math.max(0, w[j + 4]) * 0.9;
       }
-      positions[MAX_WISPS * 3] = orb.pos.x;
-      positions[MAX_WISPS * 3 + 1] = orb.pos.y;
-      sizes[MAX_WISPS] = 10 + orb.energy * 22;
-      alphas[MAX_WISPS] = orb.presence * (0.35 + orb.energy * 0.6);
+      positions[MAX_THREADS * 3] = whisp.pos.x;
+      positions[MAX_THREADS * 3 + 1] = whisp.pos.y;
+      sizes[MAX_THREADS] = 10 + whisp.energy * 22;
+      alphas[MAX_THREADS] = whisp.presence * (0.35 + whisp.energy * 0.6);
       geometry.attributes.position.needsUpdate = true;
       geometry.attributes.aSize.needsUpdate = true;
       geometry.attributes.aAlpha.needsUpdate = true;
@@ -247,9 +247,9 @@ export function createDarkness(renderer: THREE.WebGLRenderer) {
       // 3. Final image to the screen.
       const u = final.material.uniforms;
       u.tTrail.value = trailA.texture;
-      u.uOrb.value.set(orb.pos.x, height - orb.pos.y);
-      u.uEnergy.value = orb.energy;
-      u.uPresence.value = orb.presence;
+      u.uWhisp.value.set(whisp.pos.x, height - whisp.pos.y);
+      u.uEnergy.value = whisp.energy;
+      u.uPresence.value = whisp.presence;
       u.uHint.value = hint;
       u.uTime.value = time;
       renderer.setRenderTarget(null);

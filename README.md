@@ -3,8 +3,9 @@
 A GPU-heavy game for mobile, being built from scratch. Right now it has a
 black, film-styled menu (grain, flicker, colour fringing, glitches), settings,
 a pause-based save system, and the opening of the game: a very dark place
-where a small orb of light appears under the player's touch and feeds on
-their movement, glowing brighter and lighting up more of its surroundings.
+where a small orb of light (the Whisp, see [LORE.md](LORE.md)) appears under
+the player's touch and feeds on their movement, glowing brighter and lighting
+up more of its surroundings.
 
 ## Direction (planned, not built yet)
 
@@ -33,7 +34,7 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
 
 - TypeScript + [Three.js](https://threejs.org) on WebGL2, built with Vite.
 - GPU shaders draw the menu's film grain / glitch layer and the game's
-  darkness: the orb's light and halo, smoky feedback trails, wisps of light,
+  darkness: the Whisp's light and halo, smoky feedback trails, threads of light,
   and fog and rock revealed only where the light reaches.
 - Can later be wrapped as a native iOS / Android app (e.g. with Capacitor).
 
@@ -53,8 +54,8 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | --- | --- |
 | `src/main.ts` | Starts everything; switches between menu, game and pause |
 | `src/game/game.ts` | The game itself: touch input, saving its state |
-| `src/game/orb.ts` | How the orb behaves: following, feeding, fading, wisps |
-| `src/game/darkness.ts` | Drawing the dark place, the orb's light and trails (GPU) |
+| `src/game/whisp.ts` | How the Whisp behaves: following, feeding, fading, threads of light |
+| `src/game/darkness.ts` | Drawing the dark place, the Whisp's light and trails (GPU) |
 | `src/core/save.ts` | Save / load / delete, with a backup copy |
 | `src/core/settings.ts` | Player settings |
 | `src/core/fullscreen.ts` | Keeps the game fullscreen |

@@ -2,10 +2,9 @@
 
 A GPU-heavy game for mobile, being built from scratch. Right now it has a
 black, film-styled menu (grain, flicker, colour fringing, glitches), settings,
-a pause-based save system, and the opening of the game: an endless,
-procedurally generated cave of tunnels (see [LORE.md](LORE.md)) where a small orb of light (the Whisp) appears under
-the player's touch and feeds on their movement, glowing brighter and lighting
-up more of its surroundings.
+a pause-based save system, and the start of the game: a television in the dark
+with one option, Turn on. Once it warms up, the TV shows a map of an endless,
+procedurally generated city grid, and the character moves one square at a time.
 
 ## Direction (planned, not built yet)
 
@@ -20,11 +19,9 @@ up more of its surroundings.
 Every push to `main` (or the development branch) rebuilds the game and
 publishes it there automatically (see `.github/workflows/deploy.yml`).
 
-- **Playing:** touch anywhere and an orb appears under your thumb. Moving your
-  thumb feeds it: it glows bigger and brighter and lights up more of the dark.
-  Hold your thumb away from the centre to travel that way through the cave;
-  the walls block it.
-  Hold still and it slowly fades; lift your thumb and it dies away.
+- **Playing:** press *Turn on*. When the picture comes through, move one square
+  at a time with the on-screen arrows, the arrow keys or WASD. Hold to keep
+  moving. Buildings block the way; streets, alleys and open lots don't.
 - **Fullscreen:** the game asks for fullscreen on every tap, click or key press
   whenever it isn't fullscreen. On iPhone, use Share → Add to Home Screen.
 - **Pause:** top-right button, or Esc on a computer.
@@ -35,10 +32,8 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
 ## Tech
 
 - TypeScript + [Three.js](https://threejs.org) on WebGL2, built with Vite.
-- GPU shaders draw the menu's film grain / glitch layer and the game's world:
-  the procedural cave (the same maths runs on the CPU for collisions), soft
-  shadows, the living background (currents, pulsing veins, breathing), mist,
-  the Whisp's light, smoky feedback trails and threads of light.
+- GPU shaders draw the menu's film grain / glitch layer and the CRT television
+  (power-on sequence, static, scanlines, curved glass), which shows the map.
 - Can later be wrapped as a native iOS / Android app (e.g. with Capacitor).
 
 ## Develop
@@ -56,10 +51,11 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | File | What it does |
 | --- | --- |
 | `src/main.ts` | Starts everything; switches between menu, game and pause |
-| `src/game/game.ts` | The game itself: touch input, saving its state |
-| `src/game/whisp.ts` | How the Whisp behaves: following, feeding, fading, threads of light |
-| `src/game/cave.ts` | The procedural cave network, for both drawing and collisions |
-| `src/game/darkness.ts` | Drawing the cave, the living depths, light, shadows and trails (GPU) |
+| `src/game/game.ts` | The game itself: the TV, the map, controls, saving its state |
+| `src/game/tv.ts` | The CRT television, its power-on sequence, and showing the picture |
+| `src/game/city.ts` | The procedural city grid: streets, blocks, alleys, lots |
+| `src/game/player.ts` | The character's square-by-square movement |
+| `src/game/mapView.ts` | Drawing the map that the TV shows |
 | `src/core/save.ts` | Save / load / delete, with a backup copy |
 | `src/core/settings.ts` | Player settings |
 | `src/core/fullscreen.ts` | Keeps the game fullscreen |

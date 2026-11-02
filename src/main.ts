@@ -34,7 +34,7 @@ function applySize() {
   renderer.setPixelRatio(pixelRatio);
   renderer.setSize(innerWidth, innerHeight);
   film.setSize(pixelRatio);
-  game?.setSize(innerWidth, innerHeight);
+  game?.setSize(innerWidth, innerHeight, pixelRatio);
 }
 addEventListener('resize', applySize);
 
@@ -119,7 +119,7 @@ function startGame(fresh: boolean) {
     return;
   }
   game = new Game(data, $('game'), renderer);
-  game.setSize(innerWidth, innerHeight);
+  game.setSize(innerWidth, innerHeight, pixelRatio);
   document.body.classList.add('in-game');
   if (fresh) {
     state = 'playing';
@@ -184,9 +184,6 @@ enforceFullscreen();
 
 if (params.has('debug')) {
   // Handle for automated testing.
-  void import('./game/cave').then((cave) =>
-    import('./fx/fullscreen').then((fx) => Object.assign(window, { __cave: { ...cave, glslHash: fx.glslHash } })),
-  );
   Object.assign(window, {
     __app: {
       menu,

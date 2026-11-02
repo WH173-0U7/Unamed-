@@ -110,6 +110,132 @@ canvas {
   height: 100%;
 }
 
+/* The set jolts when the picture snaps on. */
+#game.jolt #screen {
+  animation: jolt 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes jolt {
+  0% {
+    transform: scale(1.012) translateY(-3px);
+  }
+  30% {
+    transform: scale(0.997) translateY(2px);
+  }
+  60% {
+    transform: translateY(-1px);
+  }
+}
+
+/* The one option: a power switch in the dark. */
+#power-btn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 26px;
+  transform: translate(-50%, -50%);
+  color: var(--ink-dim);
+  transition:
+    color 0.3s,
+    opacity 0.3s,
+    transform 0.3s;
+  animation: power-in 2.4s ease 0.6s both;
+}
+#power-btn svg {
+  width: 46px;
+  height: 46px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgba(236, 235, 230, 0.35));
+  animation: breathe 3.2s ease-in-out 3s infinite;
+}
+#power-btn span {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5em;
+  margin-right: -0.5em;
+  text-transform: uppercase;
+}
+#power-btn:hover,
+#power-btn:focus-visible {
+  color: var(--ink);
+}
+#power-btn.pressed {
+  color: #fff;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.92);
+  transition:
+    opacity 0.35s ease 0.05s,
+    transform 0.2s;
+}
+@keyframes power-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Arrow pad: moves the character one square per press (hold to keep going).
+   It appears once the TV has warmed up. */
+#dpad {
+  position: absolute;
+  left: calc(var(--pad-x-l) - 6px);
+  bottom: calc(var(--pad-bot) - 6px);
+  display: grid;
+  grid-template-columns: repeat(3, 56px);
+  grid-template-rows: repeat(3, 56px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+#dpad.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+#dpad button {
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--ink);
+  background: rgba(236, 235, 230, 0.07);
+  border: 1px solid rgba(236, 235, 230, 0.16);
+  touch-action: none;
+  transition: background 0.1s;
+}
+#dpad button.down {
+  background: rgba(236, 235, 230, 0.22);
+}
+#dpad svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+#dpad [data-dir='up'] {
+  grid-area: 1 / 2;
+}
+#dpad [data-dir='left'] {
+  grid-area: 2 / 1;
+}
+#dpad [data-dir='right'] {
+  grid-area: 2 / 3;
+}
+#dpad [data-dir='down'] {
+  grid-area: 3 / 2;
+}
+body.paused #dpad {
+  opacity: 0;
+  pointer-events: none;
+}
+
 #pause-btn {
   position: absolute;
   top: calc(var(--pad-top) - 8px);
@@ -620,7 +746,10 @@ body.in-game #menu {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .screen.active {
+  .screen.active,
+  #power-btn,
+  #power-btn svg,
+  #game.jolt #screen {
     animation: none;
   }
 }

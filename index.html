@@ -19,9 +19,22 @@
     />
   </head>
   <body>
-    <!-- The game: a very dark place, and an orb that lives off your touch -->
+    <!-- The game: a television that, once on, shows the map -->
     <div id="game">
       <div id="screen"></div>
+      <button id="power-btn" type="button">
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M16.5 13.5a14 14 0 1 0 15 0" />
+          <path d="M24 8v15" />
+        </svg>
+        <span>Turn on</span>
+      </button>
+      <div id="dpad">
+        <button type="button" data-dir="up" aria-label="Move up"><svg viewBox="0 0 24 24" aria-hidden="true" style="transform: rotate(0deg)"><path d="M12 5l7 9H5z" /></svg></button>
+        <button type="button" data-dir="left" aria-label="Move left"><svg viewBox="0 0 24 24" aria-hidden="true" style="transform: rotate(-90deg)"><path d="M12 5l7 9H5z" /></svg></button>
+        <button type="button" data-dir="right" aria-label="Move right"><svg viewBox="0 0 24 24" aria-hidden="true" style="transform: rotate(90deg)"><path d="M12 5l7 9H5z" /></svg></button>
+        <button type="button" data-dir="down" aria-label="Move down"><svg viewBox="0 0 24 24" aria-hidden="true" style="transform: rotate(180deg)"><path d="M12 5l7 9H5z" /></svg></button>
+      </div>
       <button id="pause-btn" type="button" aria-label="Pause"><span></span><span></span></button>
     </div>
 

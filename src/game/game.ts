@@ -1,111 +1,171 @@
 import type * as THREE from 'three';
 import { writeSave, type SaveData } from '../core/save';
-import { Whisp, WHISP_RADIUS, type View, type WhispSave } from './whisp';
-import { createDarkness } from './darkness';
-import { nearestOpen, pushOut, startPoint } from './cave';
+import { createTv } from './tv';
+import { createMapView } from './mapView';
+import { Player, type Direction, type PlayerSave } from './player';
+import { isWalkable } from './city';
 
-/** How quickly the view glides after the Whisp (higher = tighter). */
-const VIEW_FOLLOW = 1.6;
+/** Progress stored in the save file under `state.tv`. */
+interface TvState {
+  on: boolean;
+}
+
+const KEYS: Record<string, Direction> = {
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+  KeyW: 'up',
+  KeyS: 'down',
+  KeyA: 'left',
+  KeyD: 'right',
+};
 
 /**
- * The game itself: an endless, procedurally generated cave of tunnels and
- * chambers, like the inside of a living thing. Wherever the player
- * touches, the Whisp (a small orb of light) appears and feeds on their movement.
- * Each system keeps its progress in `save.state`, so it is saved at every
- * pause point automatically.
+ * The game itself. It starts with a television in the dark and one option:
+ * turn it on. Once it has warmed up, the TV shows a map of an endless city
+ * grid, and the player moves their character one square at a time with the
+ * arrows. Each system keeps its progress in `save.state`, so it is saved at
+ * every pause point automatically.
  */
 export class Game {
   running = false;
-  private readonly whisp;
-  private readonly darkness;
-  private pointerId: number | null = null;
-  /** The part of the void on screen; it glides after the Whisp. */
-  private readonly view: View = { x: 0, y: 0, width: 1, height: 1 };
-  private readonly listeners: [string, EventListener][] = [];
-  /** Drives the cave walls' breathing (shared by drawing and collisions). */
-  private worldTime = 0;
+  private readonly tv;
+  private readonly map = createMapView();
+  private readonly player: Player;
+  private readonly powerBtn: HTMLButtonElement;
+  private readonly dpad: HTMLElement;
+  private readonly cleanups: (() => void)[] = [];
 
   constructor(
     readonly save: SaveData,
-    private readonly el: HTMLElement,
+    private readonly view: HTMLElement,
     renderer: THREE.WebGLRenderer,
   ) {
-    // Saves from before the Whisp was named stored it as `orb`.
-    const saved = (save.state.whisp ?? save.state.orb) as WhispSave | undefined;
-    this.whisp = new Whisp(
-      saved,
-      (x, y, r) => pushOut(x, y, r, this.worldTime),
-      (x, y, r) => nearestOpen(x, y, r, this.worldTime),
-    );
-    // A new game starts in a chamber; an old save in what is now rock is
-    // moved to the nearest open space.
-    const at = saved?.x === undefined ? startPoint() : nearestOpen(saved.x, saved.y ?? 0, WHISP_RADIUS, 0);
-    this.whisp.pos.x = this.whisp.finger.x = at.x;
-    this.whisp.pos.y = this.whisp.finger.y = at.y;
-    this.view.x = this.whisp.pos.x;
-    this.view.y = this.whisp.pos.y;
-    this.darkness = createDarkness(renderer);
-    this.listen('pointerdown', this.onDown);
-    this.listen('pointermove', this.onMove);
-    this.listen('pointerup', this.onUp);
-    this.listen('pointercancel', this.onUp);
+    this.tv = createTv(renderer);
+    this.tv.setPicture(this.map.texture);
+
+    const saved = save.state.player as PlayerSave | undefined;
+    // Start on the street corner at the centre of the city; an old save on a
+    // spot that's no longer walkable goes back there too.
+    this.player = new Player(saved && isWalkable(saved.x, saved.y) ? saved : undefined);
+
+    this.powerBtn = view.querySelector('#power-btn') as HTMLButtonElement;
+    this.powerBtn.onclick = () => this.turnOn();
+    this.dpad = view.querySelector('#dpad') as HTMLElement;
+    this.bindControls();
   }
 
-  private listen(type: string, fn: (e: PointerEvent) => void) {
-    const l = fn as EventListener;
-    this.el.addEventListener(type, l);
-    this.listeners.push([type, l]);
+  private get tvState(): TvState {
+    return (this.save.state.tv ??= { on: false }) as TvState;
   }
 
-  private onDown = (e: PointerEvent) => {
-    if (!this.running || this.pointerId !== null) return;
-    if ((e.target as HTMLElement).closest('button')) return; // e.g. the pause button
-    this.pointerId = e.pointerId;
-    try {
-      this.el.setPointerCapture(e.pointerId);
-    } catch {
-      /* not capturable */
-    }
-    const firstTouch = this.whisp.presence < 0.15;
-    this.whisp.down(e.clientX, e.clientY, this.view);
-    if (firstTouch) {
-      try {
-        navigator.vibrate?.(8);
-      } catch {
-        /* not allowed */
-      }
-    }
-  };
+  /** Can the player move right now? Only once the picture is on screen. */
+  private get canMove() {
+    return this.running && this.tv.showingPicture;
+  }
 
-  private onMove = (e: PointerEvent) => {
-    if (e.pointerId !== this.pointerId) return;
-    // Use every sample the device reported since last frame, for smooth feeding.
-    const events = e.getCoalescedEvents?.() ?? [];
-    for (const ev of events.length ? events : [e]) this.whisp.move(ev.clientX, ev.clientY);
-  };
+  private bindControls() {
+    // Keyboard: arrows or WASD. Holding keeps moving.
+    const keyDown = (e: KeyboardEvent) => {
+      const dir = KEYS[e.code];
+      if (!dir || !this.canMove) return;
+      e.preventDefault();
+      if (!e.repeat) this.player.press(dir);
+    };
+    const keyUp = (e: KeyboardEvent) => {
+      const dir = KEYS[e.code];
+      if (dir) this.player.release(dir);
+    };
+    addEventListener('keydown', keyDown);
+    addEventListener('keyup', keyUp);
+    this.cleanups.push(() => {
+      removeEventListener('keydown', keyDown);
+      removeEventListener('keyup', keyUp);
+    });
 
-  private onUp = (e: PointerEvent) => {
-    if (e.pointerId !== this.pointerId) return;
-    this.pointerId = null;
-    this.whisp.up();
-  };
+    // On-screen arrows. Holding keeps moving.
+    for (const btn of this.dpad.querySelectorAll<HTMLButtonElement>('[data-dir]')) {
+      const dir = btn.dataset.dir as Direction;
+      const down = (e: PointerEvent) => {
+        if (!this.canMove) return;
+        e.preventDefault();
+        try {
+          btn.setPointerCapture(e.pointerId);
+        } catch {
+          /* not capturable */
+        }
+        btn.classList.add('down');
+        this.player.press(dir);
+      };
+      const up = () => {
+        btn.classList.remove('down');
+        this.player.release(dir);
+      };
+      btn.addEventListener('pointerdown', down);
+      btn.addEventListener('pointerup', up);
+      btn.addEventListener('pointercancel', up);
+      btn.addEventListener('lostpointercapture', up);
+      this.cleanups.push(() => {
+        btn.removeEventListener('pointerdown', down);
+        btn.removeEventListener('pointerup', up);
+        btn.removeEventListener('pointercancel', up);
+        btn.removeEventListener('lostpointercapture', up);
+        btn.classList.remove('down');
+      });
+    }
+  }
 
   /** Starts a new game from the beginning. */
   start() {
     this.running = true;
-    this.el.classList.add('active');
+    this.view.classList.add('active');
+    this.showSavedScene();
   }
 
-  /** Rebuilds the scene as it was saved, then waits paused. */
+  /** Rebuilds the scene exactly as it was saved, then waits paused. */
   restorePaused() {
     this.running = false;
-    this.el.classList.add('active');
+    this.view.classList.add('active');
+    this.showSavedScene();
+  }
+
+  private showSavedScene() {
+    if (this.tvState.on) {
+      // The set was already on at the save point: no warm-up, straight to the map.
+      this.powerBtn.hidden = true;
+      this.tv.powerOnSettled();
+    } else {
+      this.tv.powerOff();
+      this.powerBtn.hidden = false;
+      this.powerBtn.classList.remove('pressed');
+    }
+  }
+
+  turnOn() {
+    if (this.tvState.on || !this.running) return;
+    this.powerBtn.classList.add('pressed');
+    this.tvState.on = true;
+    window.setTimeout(() => {
+      this.powerBtn.hidden = true;
+      this.tv.powerOn();
+      // The picture snaps open ~0.45 s in: shake the set and buzz the phone.
+      window.setTimeout(() => {
+        this.view.classList.remove('jolt');
+        void this.view.offsetWidth;
+        this.view.classList.add('jolt');
+        try {
+          navigator.vibrate?.([12, 40, 25]);
+        } catch {
+          /* not allowed here */
+        }
+      }, 430);
+    }, 350);
   }
 
   pause() {
     this.running = false;
-    this.pointerId = null;
-    this.whisp.up();
+    this.player.releaseAll();
   }
 
   resume() {
@@ -115,40 +175,44 @@ export class Game {
   /** Closes the game view (back to the menu). */
   close() {
     this.pause();
-    this.el.classList.remove('active');
-    for (const [type, l] of this.listeners) this.el.removeEventListener(type, l);
-    this.darkness.dispose();
+    this.view.classList.remove('active', 'jolt');
+    this.dpad.classList.remove('show');
+    this.tv.powerOff();
+    for (const c of this.cleanups) c();
+    this.map.dispose();
   }
 
-  setSize(width: number, height: number) {
-    this.view.width = width;
-    this.view.height = height;
-    this.darkness.setSize(width, height);
+  setSize(width: number, height: number, pixelRatio = 1) {
+    this.tv.setSize(width, height);
+    this.map.setSize(width, height, pixelRatio);
+  }
+
+  /** Debug: freeze the TV sequence at a moment (seconds), or null to resume. */
+  freezeTv(t: number | null) {
+    this.tv.freeze(t);
   }
 
   update(dt: number) {
     if (this.running) {
       this.save.playTime += dt;
-      this.worldTime += dt;
-      this.whisp.update(dt, this.view);
-      const k = 1 - Math.exp(-dt * VIEW_FOLLOW);
-      this.view.x += (this.whisp.pos.x - this.view.x) * k;
-      this.view.y += (this.whisp.pos.y - this.view.y) * k;
+      this.player.update(dt);
     }
-    // While paused the world holds still, but keep drawing it behind the menu.
-    this.darkness.render(this.whisp, this.view, this.running ? dt : 0, this.worldTime);
+    this.dpad.classList.toggle('show', this.tv.showingPicture);
+    if (this.tv.isOn) this.map.draw(this.player);
+    this.tv.update(dt);
   }
 
   /** Writes progress to the device. Returns false if storage is unavailable. */
   saveNow(): boolean {
-    this.save.state.whisp = this.whisp.toSave();
-    delete this.save.state.orb; // older name
-    delete this.save.state.tv; // from earlier versions
+    this.save.state.player = this.player.toSave();
+    // Remove state from earlier versions of the game.
+    delete this.save.state.whisp;
+    delete this.save.state.orb;
     return writeSave(this.save);
   }
 
   /** For automated tests. */
   get debug() {
-    return { whisp: this.whisp, view: this.view, worldTime: this.worldTime };
+    return { player: this.player, tv: this.tv, isWalkable };
   }
 }

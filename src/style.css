@@ -322,6 +322,44 @@ canvas {
   transition: width 0.4s ease;
 }
 
+/* Hit effects: the blood layer over everything, fringed text, blood on panels. */
+#blood-fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+#game.hit #enc,
+#game.hit #stats,
+#game.hit #you-status {
+  text-shadow:
+    calc(var(--hitca) * -1) 0 rgba(255, 30, 50, 0.75),
+    var(--hitca) 0 rgba(30, 220, 255, 0.75);
+}
+.enc-card,
+.enc-status,
+.enc-log,
+.enc-actions {
+  position: relative;
+}
+.enc-card,
+.enc-actions {
+  overflow: hidden;
+}
+.ui-blood {
+  position: absolute;
+  background-size: 100% 100%;
+  pointer-events: none;
+  animation: ui-blood-in 0.25s ease-out both;
+}
+@keyframes ui-blood-in {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+
 /* Your blood and injuries between fights. */
 #you-status {
   position: absolute;

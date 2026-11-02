@@ -6,7 +6,9 @@ import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounte
 import { createEncounterView } from '../ui/encounterView';
 import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, type StatName, type Stats } from './stats';
 import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, isHurt, newHealth, passHours, type Health } from './health';
-import { PASS_OUT } from './encounter';
+import { PASS_OUT, type Impact } from './encounter';
+import { createBloodFx } from '../fx/blood';
+import { createHitUi } from '../fx/hitUi';
 
 /** Progress stored in the save file under `state.tv`. */
 interface TvState {
@@ -39,6 +41,9 @@ export class Game {
   private readonly lurkBtn: HTMLButtonElement;
   private readonly seenEl: HTMLElement;
   private readonly encView;
+  private readonly fx;
+  private readonly hitUi;
+  private readonly timers: number[] = [];
   private readonly statsEl: HTMLElement;
   private readonly youEl: HTMLElement;
   private readonly restBtn: HTMLButtonElement;
@@ -63,6 +68,8 @@ export class Game {
     this.noteEl = view.querySelector('#note') as HTMLElement;
     this.restBtn.onclick = () => this.rest();
     this.restBtn.hidden = true;
+    this.fx = createBloodFx(view);
+    this.hitUi = createHitUi(view);
     this.encView = createEncounterView(view.querySelector('#enc') as HTMLElement, (id) => this.act(id));
     this.powerBtn.onclick = () => this.turnOn();
     this.lurkBtn.onclick = () => this.lurk();
@@ -115,6 +122,7 @@ export class Game {
   rest() {
     if (!this.canLurk || !isHurt(this.health)) return;
     this.encounter = null;
+    this.wipeBlood();
     const lines = ['You find somewhere quiet and rest for a few hours.', ...passHours(this.health, REST_HOURS, true)];
     this.refresh();
     this.note(lines);
@@ -152,6 +160,7 @@ export class Game {
     this.timer = 0.45;
     this.encounter = null;
     this.noteEl.hidden = true;
+    this.wipeBlood();
     // Time passes while you wait: wounds bleed, or heal.
     const lines = passHours(this.health, LURK_HOURS);
     this.refresh();
@@ -176,12 +185,41 @@ export class Game {
     // Approaching someone: bring your body as it is now.
     if (e.stage === 'seen') e.you = this.yourBody();
     const wasOver = e.stage === 'over';
-    act(e, id, this.stats);
+    const impacts = act(e, id, this.stats);
     if (!wasOver && e.stage === 'over') {
       for (const text of afterFight(this.health, e.you, e.result!)) e.log.push({ by: 'info', text });
     }
-    buzz(e.stage === 'combat' ? 14 : 6);
+    if (impacts.length) this.feel(impacts);
+    else buzz(6);
     this.refresh();
+  }
+
+  /**
+   * Blows landing, felt on the screen and in the hand: glitches, static,
+   * shaking, colour fringing, blood on the glass and the panels, a red edge
+   * when you're the one hit, and vibration. One after another, a beat apart.
+   */
+  private feel(impacts: Impact[]) {
+    impacts.forEach((im, i) => {
+      const t = window.setTimeout(() => {
+        const you = im.target === 'you';
+        const power = Math.min(1, im.ml / 600) * (im.severe ? 1.3 : 1);
+        this.fx.impact(you, im.ml, im.severe);
+        this.hitUi.kick(power, you);
+        if (you && (power > 0.35 || Math.random() < 0.4)) this.hitUi.splash(im.severe ? 2 : 1, im.severe);
+        if (!you && im.severe && Math.random() < 0.6) this.hitUi.splash(1, false);
+        this.jam = Math.max(this.jam, (you ? 0.45 : 0.25) + power * 0.4);
+        if (you) buzz(im.severe ? [70, 40, 110] : [35 + Math.round(power * 30), 25, 45]);
+        else buzz(im.severe ? [25, 35, 45] : [14 + Math.round(power * 16)]);
+      }, i * 280);
+      this.timers.push(t);
+    });
+  }
+
+  /** Clean the blood off the screen and the panels. */
+  private wipeBlood() {
+    this.fx.wipe();
+    this.hitUi.clear();
   }
 
   /** Redraws the person button and the encounter screen from the saved state. */
@@ -324,6 +362,10 @@ export class Game {
 
   /** Closes the game view (back to the menu). */
   close() {
+    for (const t of this.timers) clearTimeout(t);
+    this.fx.dispose();
+    this.hitUi.clear();
+    this.view.style.transform = '';
     this.pause();
     this.view.classList.remove('active', 'jolt', 'in-encounter');
     this.tv.powerOff();
@@ -337,8 +379,9 @@ export class Game {
     this.noteEl.hidden = true;
   }
 
-  setSize(width: number, height: number, _pixelRatio = 1) {
+  setSize(width: number, height: number, pixelRatio = 1) {
     this.tv.setSize(width, height);
+    this.fx.setSize(width, height, pixelRatio);
   }
 
   /** Debug: freeze the TV sequence at a moment (seconds), or null to resume. */
@@ -364,6 +407,13 @@ export class Game {
     if (this.restBtn.hidden === rest) this.restBtn.hidden = !rest;
     if (this.noteTimer > 0 && (this.noteTimer -= dt) <= 0) this.noteEl.hidden = true;
     this.tv.update(dt);
+    // The red edge pulses when your blood is low.
+    const e2 = this.encounter;
+    const body = e2 && e2.stage !== 'seen' ? e2.you : this.health;
+    const frac = body.blood / body.maxBlood;
+    this.fx.setLow(this.tvState.on ? Math.min(1, Math.max(0, (0.82 - frac) / (0.82 - PASS_OUT))) : 0);
+    this.fx.update(dt);
+    this.hitUi.update(dt);
   }
 
   /** Writes progress to the device. Returns false if storage is unavailable. */
@@ -382,7 +432,7 @@ export class Game {
   }
 }
 
-function buzz(ms: number) {
+function buzz(ms: number | number[]) {
   try {
     navigator.vibrate?.(ms);
   } catch {

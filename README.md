@@ -59,6 +59,20 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
     back.
   - **Standing or on the floor:** on the floor you hit weaker and miss more,
     can't run, and get stomped on. Same for them.
+  - **When they're on the floor** your attacks become stomps, aimed at their
+    **head** (most likely to knock them out), **stomach** (knocks the wind
+    out of them: they lose their next move and stamina) or **ribs** (likely
+    to break them; stomping broken ribs can knock them out). Getting knocked
+    **unconscious** ends the fight, and it's far more likely on the floor,
+    concussed, dazed, or after losing a lot of blood.
+- **Feeling the hits:** every blow that lands shakes the screen, tears it
+  with glitches and static, and fringes the text with colour; when you're
+  the one hit the edges flash red. Blood splashes onto the screen (lit on
+  the GPU like wet blood: dark where thick, thin and bright at the edges,
+  glossy highlights, drips running down) and drops land on the panels too.
+  When your blood is low, a red edge pulses like a heartbeat. The phone
+  vibrates on every hit, harder when you're hurt (Android; iPhones don't
+  let web pages vibrate). The blood is wiped when you lurk or rest.
 - **Your injuries carry over** from one person to the next: your blood,
   bleeding, broken bones and concussion (shown under your stats). Stamina,
   being dazed and being on the floor reset after each fight.
@@ -118,6 +132,8 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | `src/game/encounter.ts` | Surveil and violence: following, finding things out, being noticed, ambushes, and combat (blood, stamina, injuries, falls), with the log |
 | `src/game/health.ts` | Your body between fights: blood, bleeding, broken bones and concussion carrying over, and healing with time and rest |
 | `src/game/stats.ts` | Your stats (sneak, strength, agility, stamina), levelling by use, and what each does |
+| `src/fx/blood.ts` | The hit effects layer: blood splatters on the screen, red border, glitch and static |
+| `src/fx/hitUi.ts` | Hit effects on the interface: shaking, colour fringing, panels glitching, blood on the panels |
 | `src/ui/encounterView.ts` | The encounter screen: what you know about them, the log, your options |
 | `src/game/tv.ts` | The CRT television, its power-on sequence, interference, and showing the picture |
 | `src/core/save.ts` | Save / load / delete, with a backup copy |

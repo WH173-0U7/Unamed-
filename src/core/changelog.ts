@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.54',
+    date: 'Nov 3',
+    items: [
+      'Knocked out by a beating, you now always wake up concussed, and whoever did it may have gone through your pockets (a junkie nearly always will; most people only defending themselves won’t). What they took is on them, if you ever run into them again.',
+      'A needle that hadn’t kicked in yet still does after the fight, even if you ran.',
+      'Coming round: if shaking doesn’t work, a tap does after a few seconds. Shakes are easier to pick up.',
+      'ER: stitches on a cut brow or lip are paid once (and a stitched brow heals to a faint line); casts are priced for what’s still broken after the wait.',
+      'Fixes: typing a big amount at the bank no longer freezes the game; you no longer learn someone’s race without seeing them; the Records Office wait really takes an hour.',
+    ],
+  },
+  {
     v: '0.53',
     date: 'Nov 3',
     items: [

@@ -15,7 +15,8 @@ import type { DrugLook } from '../fx/drugs';
 import { clockText, dateText, now, partOfDay } from './clock';
 import { RAIN_AMOUNT, WEATHER_NAME, newWeather, updateWeather, weatherLine, type WeatherState } from './weather';
 import { COLD_NAMES } from './health';
-import { maybeThief, newWorld, robBody, settle, type World } from './legacy';
+import { maybeThief, newWorld, robBody, robKnockedOut, settle, type World } from './legacy';
+import { isBrute } from './voices';
 import { HEAT_NAMES, applyTo, comeBack, heal, fade, heatLevel, historyText, injuriesText, meet, newInfamy, recognises, remember, repName, type Infamy, type Known } from './people';
 import { anonymity, conspicuous, describe, hasHood, lookClothes, wearing } from './look';
 import { marksText } from './encounter';
@@ -554,6 +555,12 @@ export class Game {
    * shake the phone; then the power button, and you come round.
    */
   private knockedOut(lines: string[]) {
+    // While you lay there, they may have gone through your pockets.
+    const beaten = this.encounter;
+    if (beaten) {
+      const robbed = robKnockedOut(this.world, this.inventory, beaten, isBrute(beaten.person.personality));
+      if (robbed) lines = [...lines, robbed];
+    }
     this.encounter = null;
     this.koLines = lines;
     this.tvState.on = false;
@@ -587,8 +594,10 @@ export class Game {
         const p = { x: a.x, y: a.y, z: a.z };
         if (last) {
           const d = Math.hypot(p.x - last.x, p.y - last.y, p.z - last.z);
+          // A jolt: a big change, or a lot more (or less) than gravity alone.
+          const off = Math.abs(Math.hypot(p.x, p.y, p.z) - 9.81);
           const t = performance.now();
-          if (d > 14) {
+          if (d > 9 || off > 7) {
             jolts = jolts.filter((j) => t - j < 900);
             jolts.push(t);
             if (jolts.length >= 2 && !this.koHint.hidden) comeRound();
@@ -611,8 +620,9 @@ export class Game {
     // A phone that won't share its motion (permission refused): a tap, after a while.
     this.timers.push(
       window.setTimeout(() => {
-        if (ko.signal.aborted || heard) return;
-        this.koHint.textContent = 'Tap to come round';
+        if (ko.signal.aborted) return;
+        // (Shaking not working, or the phone's lying flat: a tap does it too.)
+        this.koHint.textContent = heard ? 'Shake your phone (or tap) to come round' : 'Tap to come round';
         this.koHint.onclick = comeRound;
       }, 9000),
     );
@@ -1072,7 +1082,7 @@ export class Game {
     const h = this.health;
     const limbs = h.broken.filter((p) => /arm|leg/.test(p) && !h.splinted?.includes(p));
     return {
-      stitches: h.bleeding > 0 || !!h.marks?.brow || !!h.marks?.lip,
+      stitches: h.bleeding > 0 || (!!h.marks?.brow && !h.stitched?.brow) || (!!h.marks?.lip && !h.stitched?.lip),
       nose: h.broken.includes('nose') && (h.mending.nose ?? 0) > 6,
       cast: limbs,
       lung: !!h.lung,
@@ -1092,8 +1102,8 @@ export class Game {
     if (this.place !== 'hospital') return;
     const h = this.health;
     const inv = this.inventory;
-    const need = this.erNeeds();
-    const price = ER_PRICES[what] * (what === 'cast' ? Math.max(1, need.cast.length) : 1);
+    let need = this.erNeeds();
+    let price = ER_PRICES[what] * (what === 'cast' ? Math.max(1, need.cast.length) : 1);
     const can = what === 'cast' ? need.cast.length > 0 : need[what];
     if (!can || cashOf(inv) * 100 < price * 100) return;
     const lines: string[] = [];
@@ -1108,8 +1118,9 @@ export class Game {
       }
       this.erSeen = true;
       // By the time they call your name, it may not need doing.
-      const now_ = this.erNeeds();
-      if (what === 'cast' ? !now_.cast.length : !now_[what]) {
+      need = this.erNeeds();
+      price = ER_PRICES[what] * (what === 'cast' ? Math.max(1, need.cast.length) : 1);
+      if (what === 'cast' ? !need.cast.length : !need[what]) {
         lines.push('By the time they call your name, there’s nothing they need to do. They send you home.');
         this.refresh();
         this.note(lines);
@@ -1120,9 +1131,13 @@ export class Game {
       case 'stitches': {
         const was = h.bleeding;
         h.bleeding = 0;
-        if (h.marks?.lip) (h.markHours ??= {}).lip = Math.min(h.markHours.lip ?? 24, 12);
+        if (h.marks?.brow) (h.stitched ??= {}).brow = true;
+        if (h.marks?.lip) {
+          (h.stitched ??= {}).lip = true;
+          (h.markHours ??= {}).lip = Math.min(h.markHours.lip ?? 24, 12);
+        }
         lines.push(was ? 'A tired resident cleans you up, numbs it and sews you shut. The bleeding stops.' : 'They clean the cut out, glue it and tape it. It stings like hell.');
-        if (h.marks?.brow) lines.push('Stitched, the cut over your eye will still scar, but less.');
+        if (h.marks?.brow) lines.push('Stitched, the cut over your eye will heal to a faint line.');
         break;
       }
       case 'nose':
@@ -1165,8 +1180,10 @@ export class Game {
       return;
     }
     const paid = this.payLine(ID_FEE * 100);
+    const waited = passHours(this.health, 1);
+    if (this.health.dead) return this.die(waited);
     this.refresh();
-    this.note([`An hour of waiting, a photo where you look like a suspect, and a card still warm from the printer: ${me.name}.`, paid]);
+    this.note([...waited, `An hour of waiting, a photo where you look like a suspect, and a card still warm from the printer: ${me.name}.`, paid]);
     buzz(8);
   }
 
@@ -1215,10 +1232,13 @@ export class Game {
           this.note([`You've only got ${money(have)} on you.`]);
           return;
         }
-        // The teller takes it in whatever you've got, and gives you change.
-        const paid = this.payLine(want);
+        // You hand it all over; the teller counts it, keeps what you said,
+        // and gives the rest back in as few bills as it'll go.
+        inv.purse = {};
+        addTo(inv.purse, fewest(have - want));
         acct.cents += want;
-        line = `${paid.replace(/\s\S+ left\.$/, '')} The teller puts ${money(want)} in your account. Balance: ${money(acct.cents)}.`;
+        sound.coin();
+        line = `The teller counts your cash, puts ${money(want)} in your account and hands back ${money(have - want)}. Balance: ${money(acct.cents)}.`;
       } else {
         const want = what === 'w:all' ? acct.cents : Number(what.slice(2));
         const c = Math.min(acct.cents, want);
@@ -2303,7 +2323,7 @@ export class Game {
     const evil = Math.round(evilFear(this.humanity.lost));
     if (evil) rows.push(['Fear, from the look in your eyes', `+${evil}`]);
     if (conspicuous(this.inventory)) rows.push(['Fear, from the mask', '+6']);
-    if (this.inventory.items.some(isBlade)) rows.push(['Fear, when you show them your blade', '+10']);
+    if (this.inventory.items.some(isBlade)) rows.push(['Fear, when you show them your blade (mugging)', '+10']);
     return rows;
   }
 
@@ -2592,8 +2612,8 @@ export class Game {
         this.bleedClock = 3.2 - eb.you.bleeding * 0.55 + Math.random() * 1.2;
         this.fx.bleedTop(eb.you.bleeding);
       }
-    } else {
-      if (this.bleedClock < 0.5) this.fx.resetBleedTop();
+    } else if (this.bleedClock !== 0.6) {
+      this.fx.resetBleedTop();
       this.bleedClock = 0.6;
     }
   }

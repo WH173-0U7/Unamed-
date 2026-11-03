@@ -46,6 +46,8 @@ export interface Health {
   smokingUntil?: number;
   /** Teeth gone, scars, a split lip... (see Marks), and hours until the ones that heal do. */
   marks?: Marks;
+  /** Cuts the ER stitched (they heal to a faint line, not a scar). */
+  stitched?: { brow?: boolean; lip?: boolean };
   markHours?: Partial<Record<HealingMark, number>>;
 }
 
@@ -205,9 +207,38 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
   h.nerve = Math.min(100, (b.nerve ?? h.nerve ?? 0) + 2);
   // (Being wired wears off on the clock now, not at the end of a fight.)
   const lines: string[] = [];
+  // Something they put in you that hadn't hit yet: it does now.
+  if (b.dosing) {
+    const d = b.dosing.drug;
+    if (d !== 'meth') {
+      h.high = d;
+      h.highUntil = Date.now() + HIGH_HOURS[d] * 3_600_000;
+    } else {
+      h.wired = true;
+      h.wiredBy = 'meth';
+      h.wiredUntil = Date.now() + HIGH_HOURS.meth * 3_600_000;
+    }
+    lines.push(
+      d === 'heroin'
+        ? 'Whatever was in that needle hits you now: warmth floods up your arm, and your arms go heavy.'
+        : d === 'fentanyl'
+          ? 'What was in the needle hits you like a wall. Every breath is an effort.'
+          : d === 'tranq'
+            ? 'What was in the needle drags at you: your legs go heavy and the street swims.'
+            : 'What was in the needle hits: your heart slams and your jaw locks.',
+    );
+    // Strong enough, and you're out where you stand.
+    if ((d === 'fentanyl' && Math.random() < 0.3) || (d === 'tranq' && Math.random() < 0.5)) {
+      lines.push('You sit down hard against a wall, and then you are somewhere else.');
+      lines.push(...passHours(h, 3));
+    }
+  }
   if (result === 'lost') {
-    // Knocked out by a blow: a minute or two, and you come round.
-    if (h.blood > h.maxBlood * (PASS_OUT + 0.01)) return ['You come to on the pavement a minute or two later, your head ringing.', ...(h.bleeding ? ["You're still bleeding."] : [])];
+    // Knocked out by a blow: a minute or two, and you come round, concussed.
+    if (h.blood > h.maxBlood * (PASS_OUT + 0.01)) {
+      h.concussion = Math.max(h.concussion, CONCUSSION_HOURS);
+      return ['You come to on the pavement a minute or two later, your head ringing. You\'re concussed.', ...(h.bleeding ? ["You're still bleeding."] : []), ...lines];
+    }
     // Passed out from blood loss: out for hours, still bleeding. You may not wake up.
     const out = lieThere(h);
     if (!h.dead) out.unshift('You come to on the pavement, hours later.');
@@ -266,7 +297,8 @@ export function passHours(h: Health, hours: number, resting = false): string[] {
       delete h.markHours![k];
       if (h.marks) {
         h.marks[k] = false;
-        if (k === 'brow') (h.marks.scars ??= []).push('eyebrow');
+        if (k === 'brow') (h.marks.scars ??= []).push(h.stitched?.brow ? 'faint line through one eyebrow' : 'eyebrow');
+        if (h.stitched && (k === 'brow' || k === 'lip')) delete h.stitched[k];
         if (k === 'jaw') lines.push('Your jaw has knitted. You can open your mouth again.');
       }
     }
@@ -458,7 +490,7 @@ export function injuryEffects(h: Health): InjuryInfo[] {
   const looks = 'It shows on your face, nothing more: it doesn\'t slow you in a fight';
   if (m.jaw) out.push({ name: 'Broken jaw', effects: [looks], heals: markLeft('jaw') });
   if (m.eye) out.push({ name: 'Black eye', effects: [looks], heals: markLeft('eye') });
-  if (m.brow) out.push({ name: 'Cut over one eye', effects: [looks], heals: `${markLeft('brow')} Unstitched, it will leave a scar.` });
+  if (m.brow) out.push({ name: 'Cut over one eye', effects: [looks], heals: `${markLeft('brow')} ${h.stitched?.brow ? 'Stitched: it’ll leave a faint line.' : 'Unstitched, it will leave a scar.'}` });
   if (m.lip) out.push({ name: 'Split lip', effects: [looks], heals: markLeft('lip') });
   if (m.cheek) out.push({ name: 'Swollen face', effects: [looks], heals: markLeft('cheek') });
   if (m.teeth) out.push({ name: m.teeth === 1 ? 'A tooth missing' : `${m.teeth} teeth missing`, effects: [looks], heals: 'They never grow back.' });

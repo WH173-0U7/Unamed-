@@ -613,7 +613,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory, mov
   pendingTier = null;
   const out = actInner(e, id, stats, inv);
   // Face to face (a fight, a mugging, a word), you can see who they are.
-  if (e.stage !== 'seen' && e.stage !== 'menu' && e.stage !== 'surveil') e.known.sex = e.known.race = true;
+  if (e.stage === 'combat' || (e.stage === 'over' && (e.fought || e.facedYou))) e.known.sex = e.known.race = true;
   if (pendingTier) e.log.push({ by: 'info', text: pendingTier });
   pendingTier = null;
   return out;
@@ -1287,6 +1287,14 @@ function doseThem(drug: Exclude<import('./person').Drug, 'empty'>) {
 /** What you put in them, hitting. */
 function doseThemNow(drug: Exclude<import('./person').Drug, 'empty'>) {
   const T = enc.them;
+  // Already out cold: it only takes them further under.
+  if (T.out) {
+    if (drug !== 'meth') {
+      T.awake = Math.min(T.awake, -70);
+      say('them', 'Their breathing slows, and slows.');
+    }
+    return;
+  }
   if (drug === 'meth') {
     T.stamina = Math.min(T.maxStamina, T.stamina + 30);
     scare(-15);

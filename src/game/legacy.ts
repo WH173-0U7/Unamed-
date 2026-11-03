@@ -107,3 +107,38 @@ export function settle(w: World, e: Encounter) {
 }
 
 const newId = () => Math.random().toString(36).slice(2, 10);
+
+/**
+ * Knocked out and left lying there: whoever put you down may go through
+ * your pockets before they go. Who they are decides it (a junkie nearly
+ * always does; most people who were only defending themselves don't), and
+ * what they take is on them now, if you ever meet them again. Takes cash
+ * and the things worth taking; leaves your clothes and the junk. Returns
+ * what to tell you when you come round, or null.
+ */
+export function robKnockedOut(w: World, inv: Inventory, e: Encounter, brute: boolean): string | null {
+  const p = e.person;
+  const chance = ({ junkie: 0.85, homeless: 0.6, drunk: 0.4, civilian: 0.12 } as Record<string, number>)[p.kind] ?? 0.3;
+  if (Math.random() >= Math.min(0.95, chance + (brute ? 0.25 : 0))) return null;
+  const worth = (it: Inventory['items'][number]) =>
+    it.kind === 'phone' || it.kind === 'weapon' || it.kind === 'credit card' || it.kind === 'debit card' || it.kind === 'car keys' || (it.kind === 'id' && !it.own) || (!!it.secret && it.secret !== 'empty');
+  const took = inv.items.filter(worth);
+  const c = cents(inv.purse);
+  if (!took.length && c <= 0) return 'When you come round, your pockets have been turned out. There was nothing worth taking.';
+  const loot: Loot[] = [];
+  if (c > 0) loot.push({ kind: 'cash', name: 'Your cash', cash: c / 100, purse: { ...inv.purse }, where: 'stuffed in a pocket', yours: true });
+  for (const it of took) loot.push({ kind: it.kind, name: it.name, detail: it.detail, med: it.med, secret: it.secret, known: it.known, doses: it.doses, pin: it.pin, pinOk: it.pinOk, drained: it.drained, weapon: it.weapon, cuts: it.cuts, spray: it.spray, drink: it.drink, where: 'stuffed in a pocket', yours: true });
+  inv.purse = {};
+  inv.items = inv.items.filter((x) => !took.includes(x));
+  let thief = p.thief ? w.thieves.find((t) => t.id === p.thief) : undefined;
+  if (!thief) {
+    thief = { id: newId(), person: p };
+    w.thieves.push(thief);
+  }
+  p.thief = thief.id;
+  thief.person.clothes[0].loot.push(...loot);
+  for (const g of thief.person.clothes) g.searched = false;
+  while (w.thieves.length > MAX_THIEVES) w.thieves.shift();
+  const names = [...(c > 0 ? ['your cash'] : []), ...took.map((x) => x.name.toLowerCase())];
+  return `When you come round, your pockets have been turned out. Gone: ${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]}.`;
+}

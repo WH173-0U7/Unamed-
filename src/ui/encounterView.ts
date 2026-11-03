@@ -54,6 +54,10 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
 
   // In a fight the card folds to one line; tap it to see what you know.
   q('.enc-card').addEventListener('click', () => root.classList.toggle('facts-open'));
+  q('.enc-opts:not(.enc-extra)').addEventListener('scroll', (ev) => {
+    const el = ev.currentTarget as HTMLElement;
+    el.classList.toggle('more', el.scrollTop + el.clientHeight < el.scrollHeight - 4);
+  });
 
   q('.enc-actions').addEventListener('click', (ev) => {
     const b = (ev.target as HTMLElement).closest('button');
@@ -94,6 +98,8 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       void panel.offsetWidth;
       panel.classList.add('swap');
     }
+    // More than fits: a fade at the bottom says there's more to scroll to.
+    requestAnimationFrame(() => panel.classList.toggle('more', panel.scrollHeight > panel.clientHeight + 4 && panel.scrollTop + panel.clientHeight < panel.scrollHeight - 4));
     const extra = q('.enc-extra');
     extra.innerHTML = opts.filter((o) => !o.cat).map(button).join('');
     extra.hidden = !extra.innerHTML;
@@ -157,7 +163,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         (e.history ? `<p><b>${e.recognised ? 'They know you.' : 'You know them.'}</b> ${e.history}</p>` : '') +
         (e.looks?.length ? `<p class="looks">${e.looks.join(' · ')}</p>` : '');
       q('.enc-facts').innerHTML = facts
-        .map(([k, v], i) => `<div class="${i >= 4 ? 'wide' : ''}"><dt>${k}</dt><dd class="${v ? '' : 'unknown'}">${v ?? '?'}</dd></div>`)
+        .map(([k, v], i) => `<div class="${i >= 5 ? 'wide' : ''}"><dt>${k}</dt><dd class="${v ? '' : 'unknown'}">${v ?? '?'}</dd></div>`)
         .join('');
 
       // Status: how close you are and how close they are to noticing, or the fight.

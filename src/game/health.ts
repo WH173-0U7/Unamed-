@@ -303,7 +303,7 @@ export function injuryEffects(h: Health): InjuryInfo[] {
     }
     if (p === 'ribs') {
       effects.push(`Every move costs ${h.lung ? '2.4' : '1.8'}× the stamina`);
-      effects.push(`Fights start with ${h.lung ? '30%' : 'half'} your stamina, and you can't get back more than that`);
+      effects.push(`Fights start with ${h.lung ? '30% of' : 'half'} your stamina, and you can't get back more than that`);
       if (!h.lung) effects.push('A stamp or hard blow there can drive a rib into your lung');
     }
     if (p === 'nose') effects.push('It hurts and it shows, but it doesn\'t slow you in a fight');
@@ -320,7 +320,7 @@ export function injuryEffects(h: Health): InjuryInfo[] {
   if (h.lung) {
     out.push({
       name: 'Punctured lung',
-      effects: ['Every move costs 2.4× the stamina', 'Fights start with 30% of your stamina, and you can\'t get back more than that'],
+      effects: ['Every move costs 2.4× the stamina', "Fights start with 30% of your stamina, and you can't get back more than that"],
       heals: 'Heals when your ribs do.',
     });
   }
@@ -351,10 +351,10 @@ export function injuryEffects(h: Health): InjuryInfo[] {
   const looks = 'It shows on your face, nothing more: it doesn\'t slow you in a fight';
   if (m.jaw) out.push({ name: 'Broken jaw, wired shut', effects: [looks], heals: markLeft('jaw') });
   if (m.eye) out.push({ name: 'Black eye', effects: [looks], heals: markLeft('eye') });
-  if (m.brow) out.push({ name: 'Cut over your eye', effects: [looks], heals: `${markLeft('brow')} It will leave a scar.` });
+  if (m.brow) out.push({ name: 'Stitches over one eye', effects: [looks], heals: `${markLeft('brow')} It will leave a scar.` });
   if (m.lip) out.push({ name: 'Split lip', effects: [looks], heals: markLeft('lip') });
-  if (m.cheek) out.push({ name: 'Swollen cheek', effects: [looks], heals: markLeft('cheek') });
+  if (m.cheek) out.push({ name: 'Swollen face', effects: [looks], heals: markLeft('cheek') });
   if (m.teeth) out.push({ name: m.teeth === 1 ? 'A tooth missing' : `${m.teeth} teeth missing`, effects: [looks], heals: 'They never grow back.' });
-  if (m.scars?.length) out.push({ name: `Scar${m.scars.length > 1 ? 's' : ''}`, effects: [looks], heals: 'For good.' });
+  if (m.scars?.length) out.push({ name: `Scar${m.scars.length > 1 ? 's' : ''}: ${[...new Set(m.scars)].join(', ')}`, effects: [looks], heals: 'For good.' });
   return out;
 }

@@ -4,12 +4,12 @@ import { createTv } from './tv';
 import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf } from './person';
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
-import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, type StatName, type Stats } from './stats';
+import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, type StatName, type Stats } from './stats';
 import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
-import { PASS_OUT, addStress, type Impact } from './encounter';
+import { ALL_TECHNIQUES, PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
 import { uiGlitch } from '../fx/uiGlitch';
-import { clockText, dateText, now } from './clock';
+import { clockText, dateText, now, partOfDay } from './clock';
 import { RAIN_AMOUNT, WEATHER_NAME, newWeather, updateWeather, weatherLine, type WeatherState } from './weather';
 import { COLD_NAMES } from './health';
 import { maybeThief, newWorld, robBody, settle, type World } from './legacy';
@@ -178,6 +178,8 @@ export class Game {
   private get stats(): Stats {
     const s = (this.save.state.stats ??= newStats()) as Stats;
     const fresh = newStats();
+    // From before Unarmed: the fighting you'd done counts (Strength used to be it).
+    if (!s.unarmed && s.strength) s.unarmed = { level: s.strength.level, xp: 0 };
     for (const k of Object.keys(fresh) as StatName[]) s[k] ??= fresh[k];
     return s;
   }
@@ -755,12 +757,12 @@ export class Game {
     if (this.place !== 'pharmacy' || cashOf(inv) < m.price) return;
     const it = stow(inv, { kind: 'med', name: m.name, med: id });
     if (!it) {
-      this.note([`You've got nowhere to put ${m.name.toLowerCase()}. ${noRoomWhy(inv, measure({ kind: 'med', name: m.name, med: id }).size)}`]);
+      this.note([`You've got nowhere to put ${withA(m.name)}. ${noRoomWhy(inv, measure({ kind: 'med', name: m.name, med: id }).size)}`]);
       return;
     }
     const paid = this.payLine(m.price * 100);
     this.refresh();
-    this.note([`You buy ${m.name.toLowerCase()}. ${paid}`]);
+    this.note([`You buy ${withA(m.name)}. ${paid}`]);
     buzz(8);
   }
 
@@ -790,19 +792,19 @@ export class Game {
       }
       if (Math.random() < 0.2) {
         // Thrown out: back on the street, and he won't forget that face.
-        const line = `He looks at the ${id.name.toLowerCase()}, then at you, then at it again. "That's not you." He slides it back. "Get out of my shop."`;
+        const line = `He looks at the ${lc(id.name)}, then at you, then at it again. "That's not you." He slides it back. "Get out of my shop."`;
         this.save.state.pawnBan = now() + 30 * 60_000;
         this.goTo('street');
         this.note([line, 'You end up back on the street.']);
         return;
       }
-      lines.push(`He glances at the ${id.name.toLowerCase()} and copies the name into a book.`);
+      lines.push(`He glances at the ${lc(id.name)} and copies the name into a book.`);
     }
     inv.items.splice(i, 1);
     // The pawn shop pays from the till; the fence peels small bills off a roll.
     const got = place === 'pawn' ? fewest(o.cents) : cashLike(o.cents, 'small');
     addTo(inv.purse, got);
-    lines.push(`You sell the ${it.name.toLowerCase()} for ${money(o.cents)} (${purseText(got)}).`);
+    lines.push(`You sell the ${lc(it.name)} for ${money(o.cents)} (${purseText(got)}).`);
     this.refresh();
     this.note(lines);
     buzz(8);
@@ -825,31 +827,31 @@ export class Game {
     } else if (s.med) {
       const m = medById(s.med);
       if (!stow(inv, { kind: 'med', name: m.name, med: s.med })) {
-        this.note([`You've got nowhere to put ${m.name.toLowerCase()}. ${noRoomWhy(inv, measure({ kind: 'med', name: m.name, med: s.med }).size)}`]);
+        this.note([`You've got nowhere to put ${withA(m.name)}. ${noRoomWhy(inv, measure({ kind: 'med', name: m.name, med: s.med }).size)}`]);
         return;
       }
-      line = `You buy ${m.name.toLowerCase()} from behind the counter.`;
+      line = `You buy ${withA(m.name)} from behind the counter.`;
     } else if (s.slot === 'head' || s.slot === 'face' || s.slot === 'eyes') {
       // Something for your face: worn (a mask starts pulled down; pull it up in Pockets).
       const w = wearing(inv);
       const old = w[s.slot];
       w[s.slot] = s.name;
       if (s.slot === 'face') w.masked = false;
-      line = `You buy the ${s.name.toLowerCase()}${old ? ` and bin your old ${old.toLowerCase()}` : ''}.${s.slot === 'face' ? ' You keep it pulled down for now (Pockets: pull it up).' : /s$/i.test(s.name) ? ' You put them on.' : ' You put it on.'}`;
+      line = `You buy the ${lc(s.name)}${old ? ` and bin your old ${old.toLowerCase()}` : ''}.${s.slot === 'face' ? ' You keep it pulled down for now (Pockets: pull it up).' : /s$/i.test(s.name) ? ' You put them on.' : ' You put it on.'}`;
     } else if (s.slot) {
       const r = wear(inv, s.slot, s.name);
       if (!r.ok) {
-        this.note([`If you swap to the ${s.name.toLowerCase()}: ${r.why}`]);
+        this.note([`If you swap to the ${lc(s.name)}: ${r.why}`]);
         return;
       }
-      line = `You buy the ${s.name.toLowerCase()} and put it on${r.old ? `, and leave your old ${r.old.toLowerCase()} in the bin out front` : ''}.`;
+      line = `You buy the ${lc(s.name)} and put it on${r.old ? `, and leave your old ${r.old.toLowerCase()} in the bin out front` : ''}.`;
     } else {
       const brand = s.id === 'cigs' ? ['Red Crest', 'Mayfair Lights', 'Dakota Menthols', 'Ridgeway Reds', 'Union Blues', 'Harbor 100s'][Math.floor(Math.random() * 6)] : undefined;
       if (!stow(inv, { kind: 'misc', name: s.name, ...(brand ? { detail: brand } : {}), ...(s.doses ? { doses: s.doses } : s.id === 'lighter' ? { doses: 100 } : {}) })) {
         this.note([`Nowhere to put it. ${noRoomWhy(inv, 'small')}`]);
         return;
       }
-      line = s.id === 'cigs' ? `You buy a pack of ${brand}.` : s.id === 'matches' ? 'You buy a book of matches.' : `You buy the ${s.name.toLowerCase()}.`;
+      line = s.id === 'cigs' ? `You buy a pack of ${brand}.` : s.id === 'matches' ? 'You buy a book of matches.' : `You buy the ${lc(s.name)}.`;
     }
     const paid = this.payLine(s.price * 100);
     this.refresh();
@@ -1092,7 +1094,7 @@ export class Game {
       const evidence = inv.items.filter((x) => x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card' || x.secret);
       lines.push('They pat you down and go through your pockets.');
       if (evidence.length) {
-        lines.push(`They find ${evidence.length === 1 ? `the ${evidence[0].name.toLowerCase()}` : `${evidence.length} things that aren't yours`}. "Whose is this?"`);
+        lines.push(`They find ${evidence.length === 1 ? `the ${lc(evidence[0].name)}` : `${evidence.length} things that aren't yours`}. "Whose is this?"`);
         arrested = true;
       } else if (looks) {
         lines.push('One of them looks at you a long time, then at his phone. "That\'s him." The cuffs go on.');
@@ -1160,14 +1162,14 @@ export class Game {
     const lines: string[] = [];
     const tries = { clear: 0, drizzle: 0.15, rain: 0.35, downpour: 0.6 }[this.weather.now];
     if (Math.random() < tries) {
-      lines.push(`You crouch in a doorway and try to burn the ${it.name.toLowerCase()}, but the rain keeps killing the flame.`);
+      lines.push(`You crouch in a doorway and try to burn the ${lc(it.name)}, but the rain keeps killing the flame.`);
     } else {
       inv.items.splice(i, 1);
       const whose = it.detail ? it.detail.split(',')[0] : null;
       lines.push(
         it.kind === 'id'
-          ? `You hold the ${it.name.toLowerCase()} over the flame. The plastic bubbles and blackens, and ${whose ? `${whose}'s face` : 'the face'} curls away to nothing. You drop what's left down a drain.`
-          : `You hold the ${it.name.toLowerCase()} in the flame until the chip pops and the numbers melt into a black, stinking lump. You flick it into the gutter.`,
+          ? `You hold the ${lc(it.name)} over the flame. The plastic bubbles and blackens, and ${whose ? `${whose}'s face` : 'the face'} curls away to nothing. You drop what's left down a drain.`
+          : `You hold the ${lc(it.name)} in the flame until the chip pops and the numbers melt into a black, stinking lump. You flick it into the gutter.`,
       );
     }
     const out = this.useFlame(fire, 'burn');
@@ -1199,7 +1201,7 @@ export class Game {
     const lines: string[] = [];
     let kindling: string;
     if (paper >= 0) {
-      kindling = inv.items[paper].name.toLowerCase();
+      kindling = lc(inv.items[paper].name);
       inv.items.splice(paper, 1);
     } else if (Math.random() < 0.6) kindling = 'some cardboard from a skip';
     else {
@@ -1273,7 +1275,7 @@ export class Game {
     if (!it) return;
     inv.items.splice(i, 1);
     this.refresh();
-    this.note([`You drop the ${it.name.toLowerCase()}.`]);
+    this.note([`You drop the ${lc(it.name)}.`]);
     buzz(6);
   }
 
@@ -1296,7 +1298,9 @@ export class Game {
     const inv = this.inventory;
     const c = Math.round(cashOf(inv) * 100);
     const open = !info.hours || isOpen(info.hours);
-    const btn = (attr: string, v: string | number, label: string, no?: string | false | null) => `<button type="button" data-${attr}="${v}" ${no ? `disabled title="${no}"` : ''}>${label}</button>`;
+    // A button that can't be pressed says why, on the button (phones never show a tooltip).
+    const btn = (attr: string, v: string | number, label: string, no?: string | false | null) =>
+      `<button type="button" data-${attr}="${v}" ${no ? `disabled title="${no}"` : ''}>${label}${no ? `<small>${no}</small>` : ''}</button>`;
     const li = (name: string, small: string, button: string) => `<li><div><b>${name}</b><small>${small}</small></div>${button}</li>`;
     let body = '';
     if (place === 'pharmacy') {
@@ -1316,7 +1320,7 @@ export class Game {
       else {
         const sell = inv.items
           .map((x, i) => ({ x, i, o: offer(place, x) }))
-          .map(({ x, i, o }) => li(x.name, 'cents' in o ? `${x.detail ? `${x.detail} · ` : ''}He'll give you ${money(o.cents)}` : o.why, 'cents' in o ? btn('sell', i, `Sell ${money(o.cents)}`) : btn('sell', i, 'Sell', 'No')));
+          .map(({ x, i, o }) => li(x.name, 'cents' in o ? `${x.detail ? `${x.detail} · ` : ''}He'll give you ${money(o.cents)}` : o.why, 'cents' in o ? btn('sell', i, `Sell ${money(o.cents)}`) : ''));
         body = `<h3>Sell</h3>` + (sell.length ? `<ul class="shop-list">${sell.join('')}</ul>` : `<p class="shop-broke">You've got nothing to sell.</p>`);
         if (place === 'pawn') {
           body += `<h3>For sale</h3><ul class="shop-list">${PAWN_STOCK.map((s) => li(s.name, s.desc, btn('stock', s.id, money(s.price * 100), c < s.price * 100 && 'Not enough cash'))).join('')}</ul>`;
@@ -1339,13 +1343,12 @@ export class Game {
       const cards = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind));
       const usable = cards.filter(({ x }) => x.pin && !x.drained);
       body += usable.length
-        ? usable.map(({ x, i }) => li(`Cash machine: ${x.name.toLowerCase()}`, `${x.detail ? `${x.detail}'s card · ` : ''}PIN ${x.pin}. There's a camera over the screen.`, btn('atm', i, 'Withdraw'))).join('')
-        : li('Cash machine', cards.length ? "You've got cards, but no PIN for them. Someone would have to tell you." : 'Any hour. You need a card, and its PIN.', btn('atm', -1, 'Use', 'No card with a PIN'));
+        ? usable.map(({ x, i }) => li(`Cash machine · ${x.name}`, `${x.detail ? `${x.detail}'s card · ` : ''}PIN ${x.pin}. There's a camera over the screen.`, btn('atm', i, 'Withdraw'))).join('')
+        : li('Cash machine', cards.some(({ x }) => x.drained) && !cards.some(({ x }) => !x.drained && !x.pin) ? "The cards you had PINs for have been stopped." : cards.length ? "You've got cards, but no PIN for them. Someone would have to tell you." : 'Any hour. You need a card, and its PIN.', btn('atm', -1, 'Use', 'No card with a PIN'));
       body += `</ul>`;
     }
     this.shopEl.innerHTML =
       `<div class="shop-head"><h2>${info.name}</h2><p>${info.blurb}${info.hours ? ` <em>${hoursText(info.hours)}.</em>` : ''}</p></div>` +
-      `<div class="shop-cash"><span>Your cash</span><b>${money(c)}</b></div>` +
       `<p class="pocket-purse">${this.purseHtml()}</p>` +
       `<div class="shop-body">${body}</div>`;
   }
@@ -1358,7 +1361,7 @@ export class Game {
       card.innerHTML =
         `<div class="sheet-head"><h2>Police</h2></div><div class="sheet-body police">` +
         `<p>A patrol car pulls up beside you, lights off. Two of them get out. One has a hand on his belt.</p>` +
-        `<p>"${masked ? 'Take that off your face. ' : ''}Hold up. Where are you headed tonight?"</p>` +
+        `<p>"${masked ? 'Take that off your face. ' : ''}Hold up. Where are you headed ${partOfDay() === 'night' || partOfDay() === 'dusk' ? 'tonight' : 'today'}?"</p>` +
         `<button type="button" class="place" data-police="stay"><b>Stay calm</b><small>Let them talk. They'll want to search you.</small></button>` +
         `<button type="button" class="place" data-police="run"><b>Run</b><small>Agility, and your legs. If they catch you, it'll hurt.</small></button>` +
         `</div>`;
@@ -1490,7 +1493,10 @@ export class Game {
       const r = document.createElement('span');
       r.className = 'seen-race';
       r.textContent = e.person.race;
-      btn.append(k, r);
+      const tap = document.createElement('span');
+      tap.className = 'seen-tap';
+      tap.textContent = 'Tap to approach';
+      btn.append(k, r, tap);
       btn.onclick = () => this.act('open');
       this.seenEl.append(btn);
     }
@@ -1511,9 +1517,21 @@ export class Game {
     const now: Record<StatName, [string, string][]> = {
       sneak: [
         ['Ambushes land', sign(ambushBonus(st))],
-        ['Noticed while following', `${pct(noticeRate(st))} as fast`],
+        ['How fast you get noticed following', `${pct(noticeRate(st))}`],
       ],
-      strength: [['Damage from your blows', `×${damageMult(st).toFixed(2)}`]],
+      strength: [
+        ['Damage from your blows', `+${pct(strengthDamage(st))}`],
+        ['Fear of you', `+${(st.strength.level - 1) * 2}`],
+      ],
+      unarmed: [
+        ['Damage from your blows', `+${pct(unarmedDamage(st))}`],
+        ['All told (with Strength)', `×${damageMult(st).toFixed(2)}`],
+        ['Techniques', ALL_TECHNIQUES.filter((t) => t.level <= st.unarmed.level).map((t) => t.name).join(', ') || 'Just the basics'],
+        ...((): [string, string][] => {
+          const next = ALL_TECHNIQUES.find((t) => t.level > st.unarmed.level);
+          return next ? [['Next', `${next.name} (${next.where}) at level ${next.level}`]] : [];
+        })(),
+      ],
       agility: [
         ['Your blows land', sign(accuracyBonus(st))],
         ['Their blows land', sign(-dodgeBonus(st))],
@@ -1530,7 +1548,8 @@ export class Game {
     };
     const how: Record<StatName, string> = {
       sneak: 'Surveilling, and ambushes (bum rush, sucker punch, shove).',
-      strength: 'Landing blows.',
+      strength: 'Landing blows (slowly).',
+      unarmed: 'Landing blows, ambushes and techniques. Each new level can teach you a new move.',
       agility: 'Landing blows, and dodging theirs.',
       stamina: 'Fighting yourself to exhaustion.',
       intimidation: 'Mugging, threatening, making people give up, and torture. Scared people hand it over, tell the truth, and give up mid-fight.',
@@ -1648,7 +1667,7 @@ export class Game {
     const pct = (100 * h.blood) / h.maxBlood;
     this.youEl.innerHTML =
       `<div class="you-blood"><span>Blood</span><i><b style="width:${pct}%"></b><s style="left:${PASS_OUT * 100}%"></s></i><em>${(h.blood / 1000).toFixed(1)} L</em></div>` +
-      `<div class="enc-conds">${healthConditions(h).map((c) => `<span>${c}</span>`).join('')}</div>` +
+      `<div class="enc-conds">${((cs) => (cs.length > 4 ? [...cs.slice(0, 3), `+${cs.length - 3} more`] : cs))(healthConditions(h)).map((c) => `<span class="${/^\+\d+ more$/.test(c) ? 'more' : ''}">${c}</span>`).join('')}</div>` +
       `<div class="you-cash">${money(Math.round(cashOf(this.inventory) * 100))}</div>` +
       this.humanityLine();
   }
@@ -1929,4 +1948,15 @@ function buzz(ms: number | number[]) {
 function flameLeft(x: InvItem): number {
   if (x.doses == null) x.doses = /matches/i.test(x.name) ? 10 : 60;
   return x.doses;
+}
+
+/** Lower-case the first letter only ("the State ID", not "the state id"). */
+function lc(s: string): string {
+  return s.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase());
+}
+/** With an article where it takes one: "a splint", "bandages", "gauze and tape". */
+function withA(s: string): string {
+  const n = lc(s);
+  const first = n.split(',')[0].trim().split(' ').pop() ?? '';
+  return /^gauze/.test(n) || (/s$/.test(first) && !/ss$/.test(first)) ? n : /^[aeiou]/.test(n) ? `an ${n}` : `a ${n}`;
 }

@@ -207,6 +207,8 @@ export interface Encounter {
   canAsk?: boolean;
   /** Out in the rain (a lighter burns more fuel). */
   wet?: boolean;
+  /** Your Unarmed level (which techniques you know), set as you act. */
+  unarmedLevel?: number;
   /** What they told you: someone has your old things ('thief'), or nothing. */
   tip?: 'thief' | 'none';
 }
@@ -233,7 +235,7 @@ export const CATEGORY_NAMES: Record<Category, string> = {
   move: 'Move',
 };
 const SURVEIL_IDS = ['follow', 'build', 'carrying', 'awareness', 'sex', 'read'];
-const VIOLENCE_IDS = ['bumrush', 'sucker', 'shove', 'mug'];
+const VIOLENCE_IDS = ['bumrush', 'sucker', 'shove', 'mug', 'kneecap', 'rear-choke'];
 
 // ---------- Fear ----------
 
@@ -269,6 +271,17 @@ function searchOptions(e: Encounter): Option[] {
   return out.length ? out : [{ id: 'nothing', label: 'Nothing left on them', disabled: true, cat: 'search' }];
 }
 
+/**
+ * The techniques you've learned (by Unarmed level), and the next one you
+ * haven't, shown greyed out so you know what's coming.
+ */
+function learned(e: Encounter, list: (Omit<Option, 'cat'> & { level: number })[], cat: Category): Option[] {
+  const lvl = e.unarmedLevel ?? 1;
+  const known = list.filter((t) => t.level <= lvl).map(({ level: _l, ...o }) => ({ ...o, cat }));
+  const next = list.filter((t) => t.level > lvl).sort((a, b) => a.level - b.level)[0];
+  return next ? [...known, { id: `locked:${next.id}`, label: next.label, hint: `Learn at Unarmed ${next.level}`, disabled: true, cat }] : known;
+}
+
 /** They've given up: rob them, question them, hurt them, or let them go. */
 function yieldedOptions(e: Encounter): Option[] {
   const T = e.them;
@@ -293,7 +306,7 @@ function yieldedOptions(e: Encounter): Option[] {
   out.push({ id: 't-burn', label: 'Burn them', hint: e.flame ? 'With your lighter or matches' : 'Nothing to burn them with', disabled: !e.flame, cat: 'torture' });
   if (arms(T)) out.push({ id: 't-twist', label: 'Twist the broken arm', cat: 'torture' });
   out.push({ id: 'punch', label: 'Hit them anyway', hint: 'It turns back into a fight', cat: 'attack' });
-  out.push({ id: 'let-go', label: e.robbed ? 'Let them go' : 'Let them go', hint: e.robbed ? 'With what you took' : undefined });
+  out.push({ id: 'let-go', label: 'Let them go', hint: e.robbed ? 'With what you took' : undefined });
   return out;
 }
 
@@ -405,10 +418,14 @@ export function options(e: Encounter): Option[] {
         { id: 'carrying', label: 'What are they carrying?', disabled: e.known.carrying, hint: e.distance < 1 ? 'Need to be closer' : undefined, cat: 'surveil' },
         { id: 'awareness', label: 'How aware are they?', disabled: e.known.awareness, cat: 'surveil' },
         { id: 'sex', label: 'Male or female?', disabled: e.known.sex, cat: 'surveil' },
-        { id: 'read', label: 'Read them', hint: e.distance < 1 ? 'Need to be closer' : 'What kind of person?', disabled: !!e.known.personality, cat: 'surveil' },
+        { id: 'read', label: 'Read them', hint: e.known.personality ? undefined : e.distance < 1 ? 'Need to be closer' : 'What kind of person?', disabled: !!e.known.personality, cat: 'surveil' },
         { id: 'bumrush', label: 'Bum rush', hint: 'Knock them down', cat: 'violence' },
         { id: 'sucker', label: 'Sucker punch', hint: 'Hit them in the head', cat: 'violence' },
         { id: 'shove', label: 'Shove', hint: 'Easiest to land', cat: 'violence' },
+        ...learned(e, [
+          { id: 'kneecap', label: 'Kick out their knee', hint: 'Down they go', level: KNEE_AMBUSH_LEVEL },
+          { id: 'rear-choke', label: 'Choke from behind', hint: e.distance < 2 ? 'Get right behind them first' : 'Out cold, no blood', level: CHOKE_AMBUSH_LEVEL, disabled: e.distance < 2 },
+        ], 'violence'),
         { id: 'mug', label: 'Mug them', hint: oddsHint(yieldChance(e, mugSurprise(e))), cat: 'violence' },
         { id: 'leave', label: 'Leave them' },
       ];
@@ -441,11 +458,16 @@ export function options(e: Encounter): Option[] {
       }
       if (e.them.yielded) return yieldedOptions(e);
       const demand: Option = { id: 'demand', label: '"Give it up"', hint: oddsHint(yieldChance(e)), cat: 'threaten' };
-      if (e.them.down) return [...stomps(legHint), demand, run, breathe];
+      if (e.them.down) return [...stomps(legHint), ...learned(e, [{ id: 'choke', label: 'Choke them', hint: tired(14) ? 'Too tired' : armHint ?? 'Out cold, no blood', level: CHOKE_LEVEL, disabled: tired(14) }], 'attack'), demand, run, breathe];
       return [
         { id: 'punch', label: 'Punch', hint: armHint, cat: 'attack' },
         { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : legHint, disabled: tired(COST.kick), cat: 'attack' },
         { id: 'grapple', label: 'Grapple', hint: tired(COST.grapple) ? 'Too tired' : (armHint ?? 'Take them down'), disabled: tired(COST.grapple), cat: 'attack' },
+        ...learned(
+          e,
+          TECHNIQUES.map((t) => ({ id: t.id, label: t.name, hint: tired(t.cost) ? 'Too tired' : t.kind === 'kick' ? (legHint ?? t.hint) : (armHint ?? t.hint), level: t.level, disabled: tired(t.cost) })),
+          'attack',
+        ),
         demand,
         run,
         breathe,
@@ -481,6 +503,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
   impacts = [];
   landed = null;
   enc = e;
+  e.unarmedLevel = stats.unarmed?.level ?? 1;
   outBefore = !!e.them.out;
   you = {
     stats,
@@ -642,9 +665,11 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
   // ---------- Violence: the ambush ----------
   if (e.stage === 'violence') {
     const b = BUILDS[p.build];
+    const lvl = stats.unarmed?.level ?? 1;
+    if ((id === 'kneecap' && lvl < KNEE_AMBUSH_LEVEL) || (id === 'rear-choke' && (lvl < CHOKE_AMBUSH_LEVEL || e.distance < 2))) return impacts;
     // Lands more often the sneakier you are, the less aware they are, and the
     // closer you got first. Bum rush and shove are easier to land than a punch.
-    const extra = id === 'shove' ? 0.12 : id === 'bumrush' ? 0.06 : 0;
+    const extra = id === 'shove' ? 0.12 : id === 'bumrush' ? 0.06 : id === 'kneecap' ? 0.04 : id === 'rear-choke' ? -0.08 : 0;
     const chance = clamp([0.8, 0.65, 0.45, 0.3][aw] + e.distance * 0.06 + ambushBonus(stats) + extra - b.guard * 0.5, 0.05, 0.97);
     if (e.distance === 0) say('you', 'You cross the street toward them.');
     e.stage = 'combat';
@@ -655,9 +680,28 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
     if (Math.random() < chance) {
       // It lands.
       you.gain('sneak', 4);
-      you.gain('strength', 3);
+      you.gain('unarmed', 3);
+      you.gain('strength', 1);
       const str = damageMult(stats);
-      if (id === 'sucker') {
+      if (id === 'kneecap') {
+        const dmg = Math.round(roll(8, 13) * str);
+        say('you', `You come up behind them and stamp the side of their knee. ${wound('them', 'leg', dmg, 'kick')}`);
+        if (!e.them.down && Math.random() < (b.solid ? 0.5 : 0.8)) {
+          e.them.down = true;
+          say('them', "Their leg folds. They're on the floor.");
+        }
+      } else if (id === 'rear-choke') {
+        e.them.stamina = Math.max(0, e.them.stamina - 60);
+        if (Math.random() < 0.5 + (lvl - CHOKE_AMBUSH_LEVEL) * 0.04) {
+          e.them.out = true;
+          e.them.down = true;
+          say('you', 'You come up behind them and lock an arm round their throat. They kick, and claw at you, and then they sag. Out cold, and not a drop of blood.');
+        } else {
+          e.them.down = true;
+          say('you', 'You lock an arm round their throat from behind and drag them down. They tear free, choking, on the floor.');
+        }
+        scare(15);
+      } else if (id === 'sucker') {
         const dmg = Math.round(roll(16, 24) * (aw === 0 ? 1.3 : 1) * str);
         say('you', `You sucker punch them from behind, on the side of the head. ${wound('them', 'head', dmg, 'punch')}`);
       } else if (id === 'bumrush') {
@@ -688,7 +732,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
         ['dodge', 1 + b.guard * 10],
         ['counter', aw >= 2 ? 2 : 0.6],
       ]);
-      const move = { sucker: 'punch', bumrush: 'rush', shove: 'shove' }[id] ?? 'move';
+      const move = ({ sucker: 'punch', bumrush: 'rush', shove: 'shove', kneecap: 'kick', 'rear-choke': 'grab' } as Record<string, string>)[id] ?? 'move';
       if (how === 'block') {
         const dmg = Math.round(roll(2, 5) * damageMult(stats));
         say('them', `They turn just in time and block your ${move} with their arm. ${wound('them', 'arm', dmg, 'punch')}`);
@@ -727,12 +771,24 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
       e.them.offBalance = true;
       scare(8);
     }
+    const tech = TECHNIQUES.find((t) => t.id === id);
+    if (tech && tech.level > (stats.unarmed?.level ?? 1)) return impacts;
     switch (id) {
       case 'punch':
         strike('you', 'punch');
         break;
+      case 'choke':
+        if (!e.them.down || e.them.out || y.down || (stats.unarmed?.level ?? 1) < CHOKE_LEVEL) return impacts;
+        choke();
+        break;
       case 'kick':
         strike('you', 'kick');
+        break;
+      default:
+        if (tech) {
+          if (e.them.down && tech.effect === 'sweep') return impacts;
+          strike('you', tech.kind, undefined, tech);
+        }
         break;
       case 'stomp-head':
         strike('you', 'stomp', 'head');
@@ -813,7 +869,7 @@ function spend(side: Side, n: number) {
  * One blow: does it land, where, and what it does. `kind` is the attacker's
  * move (a weapon blow uses the weapon they've drawn).
  */
-function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc) {
+function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc, tech?: Technique): boolean {
   const d: Side = a === 'you' ? 'them' : 'you';
   const A = enc[a];
   const D = enc[d];
@@ -821,10 +877,10 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc)
   const b = BUILDS[enc.person.build];
   const weapon = kind === 'weapon' ? enc.person.carrying.find((i) => i.name === enc.them.weaponOut) : undefined;
   const tired = A.stamina < A.maxStamina * 0.25;
-  spend(a, kind === 'kick' || kind === 'stomp' ? COST.kick : kind === 'weapon' ? COST.weapon : COST.punch);
+  spend(a, tech ? tech.cost : kind === 'kick' || kind === 'stomp' ? COST.kick : kind === 'weapon' ? COST.weapon : COST.punch);
 
   // Will it land?
-  let hit = kind === 'punch' ? 0.8 : kind === 'kick' ? 0.66 : kind === 'stomp' ? 0.72 : 0.75;
+  let hit = (kind === 'punch' ? 0.8 : kind === 'kick' ? 0.66 : kind === 'stomp' ? 0.72 : 0.75) + (tech?.hit ?? 0);
   hit += a === 'you' ? accuracyBonus(you.stats) - stressPenalty(A) : 0;
   hit -= d === 'you' ? dodgeBonus(you.stats) - stressPenalty(D) : b.guard;
   if (kind === 'kick' || kind === 'stomp') hit -= legs(A) * 0.2;
@@ -862,12 +918,12 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc)
       say(a, oneOf(['Your punch glances off.', 'They slip the punch.', 'You miss.']));
     }
     if (d === 'you') you.gain('agility', 3);
-    return;
+    return false;
   }
 
   // Where it lands.
   const stomp = kind === 'stomp';
-  const loc: Loc = aim ?? pick<Loc>(
+  const loc: Loc = aim ?? tech?.aim ?? pick<Loc>(
     stomp
       ? [
           ['head', 4],
@@ -907,6 +963,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc)
     a === 'you'
       ? (stomp ? (loc === 'head' ? roll(11, 17) : loc === 'stomach' ? roll(9, 14) : roll(10, 15)) : kind === 'kick' ? roll(9, 15) : roll(6, 11)) * damageMult(you.stats)
       : b.power + roll(-3, 3) + (kind === 'kick' ? 3 : stomp ? 4 : 0) + (weapon?.weapon ?? 0);
+  if (tech) dmg *= tech.dmg;
   if (tired) dmg *= 0.75;
   if (A.stamina <= 0) dmg *= 0.7;
   if (A.down) dmg *= 0.6;
@@ -914,7 +971,9 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc)
 
   const where = { head: 'in the face', body: 'in the ribs', stomach: 'in the stomach', arm: 'on the arm', leg: 'in the leg' }[loc];
   let text: string;
-  if (kind === 'weapon' && weapon) {
+  if (tech) {
+    text = tech.text;
+  } else if (kind === 'weapon' && weapon) {
     text = weapon.cuts
       ? `${N.S} slash at ${N.o} with the ${weapon.name.toLowerCase()} and catch ${N.o} ${where}.`
       : `${N.S} hit ${N.o} with the ${weapon.name.toLowerCase()} ${where}.`;
@@ -927,9 +986,13 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc)
   }
   say(a, `${text} ${wound(d, loc, dmg, weapon?.cuts ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch')}`);
   if (a === 'you') {
-    you.gain('strength', 3);
+    // Landing blows: it's fighting that teaches you to fight (and builds a little muscle).
+    you.gain('unarmed', tech ? 4 : 3);
+    you.gain('strength', 1);
     you.gain('agility', 2);
+    if (tech) techEffect(tech);
   }
+  return true;
 }
 
 /**
@@ -1371,6 +1434,107 @@ function refuseLine(p: Personality | undefined, mugged: boolean): string {
     hard: ['They don\'t even blink. "Make me."', 'They spit on the ground. "Come and take it."'],
   };
   return oneOf(lines[p ?? 'calm']);
+}
+
+// ---------- Techniques (Unarmed) ----------
+
+/** Something you've learned to do with your hands, feet, knees and head. */
+interface Technique {
+  id: string;
+  name: string;
+  hint: string;
+  /** Unarmed level it comes at. */
+  level: number;
+  kind: 'punch' | 'kick';
+  aim: Loc;
+  /** Added to the chance it lands; damage multiplier; stamina. */
+  hit: number;
+  dmg: number;
+  cost: number;
+  /** What else it does, when it lands. */
+  effect?: 'cut' | 'sweep' | 'ko' | 'headbutt';
+  text: string;
+}
+
+/** In a fight, standing: learned one by one as Unarmed goes up. */
+export const TECHNIQUES: Technique[] = [
+  { id: 'tech:body', name: 'Body shot', hint: 'To the gut: winds them', level: 2, kind: 'punch', aim: 'stomach', hit: -0.04, dmg: 0.9, cost: 9, text: 'You drive a fist into their stomach.' },
+  { id: 'tech:hook', name: 'Hook', hint: 'Harder, to the head', level: 3, kind: 'punch', aim: 'head', hit: -0.1, dmg: 1.35, cost: 11, text: 'You throw a hook into the side of their head.' },
+  { id: 'tech:knee', name: 'Knee', hint: 'Up close: hurts', level: 5, kind: 'kick', aim: 'body', hit: -0.02, dmg: 1.3, cost: 13, text: 'You grab them by the shoulders and drive a knee into their ribs.' },
+  { id: 'tech:elbow', name: 'Elbow', hint: 'Splits the skin', level: 7, kind: 'punch', aim: 'head', hit: -0.05, dmg: 1.15, cost: 10, effect: 'cut', text: 'You snap an elbow across their face.' },
+  { id: 'tech:sweep', name: 'Leg sweep', hint: 'Puts them on the floor', level: 9, kind: 'kick', aim: 'leg', hit: 0, dmg: 0.4, cost: 12, effect: 'sweep', text: 'You hook their legs out from under them.' },
+  { id: 'tech:uppercut', name: 'Uppercut', hint: 'Can knock them out', level: 13, kind: 'punch', aim: 'head', hit: -0.12, dmg: 1.5, cost: 12, effect: 'ko', text: 'You come up under their chin with an uppercut.' },
+  { id: 'tech:headbutt', name: 'Headbutt', hint: 'Brutal. Hurts you too', level: 16, kind: 'punch', aim: 'head', hit: 0.05, dmg: 1.7, cost: 10, effect: 'headbutt', text: 'You grab them by the collar and headbutt them full in the face.' },
+];
+/** On someone who's on the floor: a choke (out cold, no blood). */
+export const CHOKE_LEVEL = 11;
+/** New ambushes: kick out their knee, and a choke from behind. */
+export const KNEE_AMBUSH_LEVEL = 4;
+export const CHOKE_AMBUSH_LEVEL = 11;
+/** Every technique and when it comes, for the stats sheet. */
+export const ALL_TECHNIQUES: { name: string; level: number; where: string }[] = [
+  ...TECHNIQUES.map((t) => ({ name: t.name, level: t.level, where: 'in a fight' })),
+  { name: 'Kick out their knee', level: KNEE_AMBUSH_LEVEL, where: 'ambush' },
+  { name: 'Choke', level: CHOKE_LEVEL, where: 'on someone on the floor' },
+  { name: 'Choke from behind', level: CHOKE_AMBUSH_LEVEL, where: 'ambush' },
+].sort((a, b) => a.level - b.level);
+
+/** What a technique does when it lands, beyond the blow itself. */
+function techEffect(t: Technique) {
+  const T = enc.them;
+  switch (t.effect) {
+    case 'cut':
+      if (Math.random() < 0.45) {
+        T.bleeding = Math.min(4, T.bleeding + 1);
+        (T.marks ??= {}).brow = true;
+        say('you', 'The elbow opens a cut over their eye. Blood runs into it.');
+        impacts.push({ target: 'them', ml: 0, severe: false, loc: 'head', spill: 'spatter' });
+      }
+      break;
+    case 'sweep':
+      if (!T.down && Math.random() < (BUILDS[enc.person.build].solid ? 0.55 : 0.85)) {
+        T.down = true;
+        say('them', "They go down hard. They're on the floor.");
+        scare(5);
+      }
+      break;
+    case 'ko':
+      if (!T.out && Math.random() < 0.16 + (1 - T.blood / T.maxBlood) * 0.4) {
+        T.out = true;
+        T.down = true;
+        say('them', "Their head snaps back and their legs go. They're out cold.");
+      }
+      break;
+    case 'headbutt': {
+      const ml = roll(40, 90);
+      enc.you.blood = Math.max(0, enc.you.blood - ml);
+      if (Math.random() < 0.2) enc.you.dazed = 1;
+      say('you', `Your own head rings with it. (−${ml} ml)`);
+      if (!T.dazed && Math.random() < 0.6) {
+        T.dazed = 2;
+        say('them', "They're dazed.");
+      }
+      break;
+    }
+  }
+}
+
+/** A choke on someone on the floor: no blood, and out cold if you hold it. */
+function choke() {
+  const T = enc.them;
+  spend('you', 14);
+  const odds = clamp(0.55 + accuracyBonus(you.stats) + (you.stats.unarmed.level - CHOKE_LEVEL) * 0.02 - arms(enc.you) * 0.25 + (T.dazed ? 0.15 : 0), 0.05, 0.95);
+  if (Math.random() >= odds) {
+    say('you', 'You go for their throat, but they twist away and fight you off.');
+    return;
+  }
+  T.stamina = Math.max(0, T.stamina - 40);
+  you.gain('unarmed', 3);
+  if (T.stamina === 0 || Math.random() < 0.3) {
+    T.out = true;
+    say('you', 'You get an arm round their neck and squeeze. They claw at you, slower, slower, then go limp. Out cold.');
+  } else say('you', 'You get an arm round their neck and squeeze. They claw at your arm, choking, and tear free.');
+  scare(15);
 }
 
 /** Getting the drop on them makes a mugging easier: close, and them not looking. */

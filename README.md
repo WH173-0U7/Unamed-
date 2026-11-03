@@ -241,6 +241,15 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   cigarettes, lighters, matches, bandages and painkillers (dearer than the
   pharmacy), caps, beanies and sunglasses. In any shop, what just happened
   shows in a strip at the bottom instead of behind the shop.
+- **Unarmed** is a skill of its own: it's most of the damage your blows do
+  (+6% a level; Strength adds only +2% a level now, and grows more slowly),
+  and it teaches you techniques. In a fight: Body shot (2, winds them), Hook
+  (3), Knee (5), Elbow (7, opens a cut), Leg sweep (9, puts them down),
+  Uppercut (13, can knock them out), Headbutt (16, hurts you too); a Choke on
+  someone on the floor (11, out cold with no blood). New ambushes: Kick out
+  their knee (4) and Choke from behind (11). The next one you'll learn shows
+  greyed out with its level, and the stats sheet lists them all. Saves from
+  before start Unarmed at their old Strength level.
 - **Intimidation** is a fifth stat, trained by all of the above. On small
   screens the stats along the top use short names.
 - **The cash machine** at the bank works any hour: a stolen card with the PIN

@@ -5,8 +5,11 @@
  *   sucker punch, shove) lands instead of being blocked, dodged or countered,
  *   and makes you harder to notice while following someone. Trained by
  *   surveilling and ambushing.
- * - **Strength:** how much damage you do with your body (and, later, melee
- *   weapons, especially blunt ones). Trained by landing blows.
+ * - **Strength:** adds a little to the damage of your blows, and to how
+ *   frightening you are. Trained (slowly) by landing blows.
+ * - **Unarmed:** fighting with your hands, feet, knees and head: most of the
+ *   damage your blows do, and the techniques you know (a hook at 3, an
+ *   uppercut at 13...). Trained by landing blows.
  * - **Agility:** how often your blows land, and how often you dodge theirs.
  *   Trained by landing blows and by dodging.
  * - **Stamina:** how long you can keep fighting before you're exhausted, and
@@ -16,7 +19,7 @@
  *   to know. Trained by threatening, mugging and torturing.
  */
 
-export type StatName = 'sneak' | 'strength' | 'agility' | 'stamina' | 'intimidation';
+export type StatName = 'sneak' | 'strength' | 'unarmed' | 'agility' | 'stamina' | 'intimidation';
 
 export interface Stat {
   level: number;
@@ -29,12 +32,13 @@ export type Stats = Record<StatName, Stat>;
 export const STAT_NAMES: Record<StatName, string> = {
   sneak: 'Sneak',
   strength: 'Strength',
+  unarmed: 'Unarmed',
   agility: 'Agility',
   stamina: 'Stamina',
   intimidation: 'Intimidation',
 };
 /** Shorter names for the stats along the top of a small screen. */
-export const STAT_SHORT: Record<StatName, string> = { sneak: 'Snk', strength: 'Str', agility: 'Agi', stamina: 'Stm', intimidation: 'Int' };
+export const STAT_SHORT: Record<StatName, string> = { sneak: 'Snk', strength: 'Str', unarmed: 'Unr', agility: 'Agi', stamina: 'Stm', intimidation: 'Itm' };
 
 export const MAX_LEVEL = 20;
 
@@ -42,6 +46,7 @@ export function newStats(): Stats {
   return {
     sneak: { level: 1, xp: 0 },
     strength: { level: 1, xp: 0 },
+    unarmed: { level: 1, xp: 0 },
     agility: { level: 1, xp: 0 },
     stamina: { level: 1, xp: 0 },
     intimidation: { level: 1, xp: 0 },
@@ -70,8 +75,10 @@ export function train(stats: Stats, name: StatName, xp: number): number | null {
 export const ambushBonus = (s: Stats) => (s.sneak.level - 1) * 0.04;
 /** Sneak: how fast you get noticed while following (lower is better). */
 export const noticeRate = (s: Stats) => 1 / (1 + (s.sneak.level - 1) * 0.1);
-/** Strength: damage multiplier for physical blows (+8% a level). */
-export const damageMult = (s: Stats) => 1 + (s.strength.level - 1) * 0.08;
+/** Damage multiplier for your blows: Unarmed most (+6% a level), Strength a little (+2% a level). */
+export const damageMult = (s: Stats) => 1 + unarmedDamage(s) + strengthDamage(s);
+export const unarmedDamage = (s: Stats) => (s.unarmed.level - 1) * 0.06;
+export const strengthDamage = (s: Stats) => (s.strength.level - 1) * 0.02;
 /** Agility: extra chance your blows land (+3% a level). */
 export const accuracyBonus = (s: Stats) => (s.agility.level - 1) * 0.03;
 /** Agility: less chance their blows land on you (−2.5% a level). */

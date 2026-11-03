@@ -8,8 +8,10 @@
  * - **Strength:** adds a little to the damage of your blows, and to how
  *   frightening you are. Trained (slowly) by landing blows.
  * - **Unarmed:** fighting with your hands, feet, knees and head: most of the
- *   damage your blows do, and the techniques you know (a hook at 3, an
- *   uppercut at 13...). Trained by landing blows.
+ *   damage your blows do, and the techniques you know: crude ones first (a
+ *   gut punch, kneeing, a haymaker, a headbutt), skilled ones later (an
+ *   uppercut, tripping, a headlock, a choke from behind). Trained by landing
+ *   blows.
  * - **Agility:** how often your blows land, and how often you dodge theirs.
  *   Trained by landing blows and by dodging.
  * - **Stamina:** how long you can keep fighting before you're exhausted, and

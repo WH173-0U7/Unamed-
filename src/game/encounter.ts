@@ -423,7 +423,7 @@ export function options(e: Encounter): Option[] {
         { id: 'sucker', label: 'Sucker punch', hint: 'Hit them in the head', cat: 'violence' },
         { id: 'shove', label: 'Shove', hint: 'Easiest to land', cat: 'violence' },
         ...learned(e, [
-          { id: 'kneecap', label: 'Kick out their knee', hint: 'Down they go', level: KNEE_AMBUSH_LEVEL },
+          { id: 'kneecap', label: 'Kick their knee', hint: 'From behind: down they go', level: KNEE_AMBUSH_LEVEL },
           { id: 'rear-choke', label: 'Choke from behind', hint: e.distance < 2 ? 'Get right behind them first' : 'Out cold, no blood', level: CHOKE_AMBUSH_LEVEL, disabled: e.distance < 2 },
         ], 'violence'),
         { id: 'mug', label: 'Mug them', hint: oddsHint(yieldChance(e, mugSurprise(e))), cat: 'violence' },
@@ -458,7 +458,7 @@ export function options(e: Encounter): Option[] {
       }
       if (e.them.yielded) return yieldedOptions(e);
       const demand: Option = { id: 'demand', label: '"Give it up"', hint: oddsHint(yieldChance(e)), cat: 'threaten' };
-      if (e.them.down) return [...stomps(legHint), ...learned(e, [{ id: 'choke', label: 'Choke them', hint: tired(14) ? 'Too tired' : armHint ?? 'Out cold, no blood', level: CHOKE_LEVEL, disabled: tired(14) }], 'attack'), demand, run, breathe];
+      if (e.them.down) return [...stomps(legHint), ...learned(e, [{ id: 'choke', label: 'Headlock', hint: tired(14) ? 'Too tired' : armHint ?? 'Squeeze till they go out', level: CHOKE_LEVEL, disabled: tired(14) }], 'attack'), demand, run, breathe];
       return [
         { id: 'punch', label: 'Punch', hint: armHint, cat: 'attack' },
         { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : legHint, disabled: tired(COST.kick), cat: 'attack' },
@@ -685,7 +685,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
       const str = damageMult(stats);
       if (id === 'kneecap') {
         const dmg = Math.round(roll(8, 13) * str);
-        say('you', `You come up behind them and stamp the side of their knee. ${wound('them', 'leg', dmg, 'kick')}`);
+        say('you', `You come up behind them and kick the back of their knee as hard as you can. ${wound('them', 'leg', dmg, 'kick')}`);
         if (!e.them.down && Math.random() < (b.solid ? 0.5 : 0.8)) {
           e.them.down = true;
           say('them', "Their leg folds. They're on the floor.");
@@ -810,7 +810,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
         if (Math.random() < odds) {
           const dmg = Math.round(roll(3, 6) * damageMult(stats));
           e.them.down = true;
-          say('you', `You get hold of them and throw them down. ${wound('them', 'body', dmg, 'fall')} They're on the floor.`);
+          say('you', `${novice() ? 'You grab hold of them and drag them down, falling half on top of them.' : 'You get hold of them and throw them down.'} ${wound('them', 'body', dmg, 'fall')} They're on the floor.`);
           you.gain('strength', 3);
           you.gain('agility', 2);
         } else say('you', b.solid ? "You grab them, but they're too strong. They shake you off." : 'They twist out of your grip.');
@@ -903,7 +903,9 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   // Someone out cold (or dead) can't roll away, duck or block: it lands.
   const helpless = D.out || D.dead;
   if (!helpless && Math.random() >= clamp(hit, 0.05, 0.95)) {
-    if (kind === 'stomp') {
+    if (tech) {
+      say(a, oneOf(['They see it coming and twist away.', 'They jerk back, and it misses.', 'You miss.']));
+    } else if (kind === 'stomp') {
       say(a, `${N.S} stomp down, but ${N.oSub} roll away from it.`);
     } else if (kind === 'kick') {
       say(a, `${N.S} miss the kick and lose ${N.p} balance.`);
@@ -980,9 +982,21 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   } else if (stomp) {
     text = { head: `${N.S} stomp on ${N.oP} head.`, stomach: `${N.S} stomp down on ${N.oP} stomach.`, body: `${N.S} stomp down on ${N.oP} ribs.` }[loc as 'head'] ?? `${N.S} stomp on ${N.o}.`;
   } else if (kind === 'kick') {
-    text = loc === 'leg' ? `${N.S} kick ${N.o} in the knee.` : `${N.S} kick ${N.o} ${where}.`;
+    text =
+      a === 'you' && novice()
+        ? oneOf([`You lash out with a clumsy kick and catch them ${loc === 'leg' ? 'in the knee' : where}.`, `You kick out, off balance, and catch them ${loc === 'leg' ? 'in the knee' : where}.`])
+        : loc === 'leg'
+          ? `${N.S} kick ${N.o} in the knee.`
+          : `${N.S} kick ${N.o} ${where}.`;
   } else {
-    text = loc === 'arm' ? `${N.S} hit ${N.o} on the arm as ${N.oSub} cover up.` : `${N.S} punch ${N.o} ${where}.`;
+    text =
+      loc === 'arm'
+        ? `${N.S} hit ${N.o} on the arm as ${N.oSub} cover up.`
+        : a === 'you' && novice()
+          ? oneOf([`You swing wild and catch them ${where}.`, `You throw a sloppy punch and it lands ${where}.`, `You flail at them and connect ${where}.`])
+          : a === 'you' && (enc.unarmedLevel ?? 1) >= 10
+            ? oneOf([`You snap a punch ${where.replace(/^in the /, 'into their ')}.`, `You punch them ${where}, short and hard.`])
+            : `${N.S} punch ${N.o} ${where}.`;
   }
   say(a, `${text} ${wound(d, loc, dmg, weapon?.cuts ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch')}`);
   if (a === 'you') {
@@ -1458,26 +1472,30 @@ interface Technique {
 
 /** In a fight, standing: learned one by one as Unarmed goes up. */
 export const TECHNIQUES: Technique[] = [
-  { id: 'tech:body', name: 'Body shot', hint: 'To the gut: winds them', level: 2, kind: 'punch', aim: 'stomach', hit: -0.04, dmg: 0.9, cost: 9, text: 'You drive a fist into their stomach.' },
-  { id: 'tech:hook', name: 'Hook', hint: 'Harder, to the head', level: 3, kind: 'punch', aim: 'head', hit: -0.1, dmg: 1.35, cost: 11, text: 'You throw a hook into the side of their head.' },
-  { id: 'tech:knee', name: 'Knee', hint: 'Up close: hurts', level: 5, kind: 'kick', aim: 'body', hit: -0.02, dmg: 1.3, cost: 13, text: 'You grab them by the shoulders and drive a knee into their ribs.' },
-  { id: 'tech:elbow', name: 'Elbow', hint: 'Splits the skin', level: 7, kind: 'punch', aim: 'head', hit: -0.05, dmg: 1.15, cost: 10, effect: 'cut', text: 'You snap an elbow across their face.' },
-  { id: 'tech:sweep', name: 'Leg sweep', hint: 'Puts them on the floor', level: 9, kind: 'kick', aim: 'leg', hit: 0, dmg: 0.4, cost: 12, effect: 'sweep', text: 'You hook their legs out from under them.' },
-  { id: 'tech:uppercut', name: 'Uppercut', hint: 'Can knock them out', level: 13, kind: 'punch', aim: 'head', hit: -0.12, dmg: 1.5, cost: 12, effect: 'ko', text: 'You come up under their chin with an uppercut.' },
-  { id: 'tech:headbutt', name: 'Headbutt', hint: 'Brutal. Hurts you too', level: 16, kind: 'punch', aim: 'head', hit: 0.05, dmg: 1.7, cost: 10, effect: 'headbutt', text: 'You grab them by the collar and headbutt them full in the face.' },
+  // Street fighting, from the crude to the skilled.
+  { id: 'tech:body', name: 'Gut punch', hint: 'Winds them', level: 2, kind: 'punch', aim: 'stomach', hit: -0.04, dmg: 0.9, cost: 9, text: 'You bury a fist in their gut.' },
+  { id: 'tech:knee', name: 'Knee them', hint: 'Grab them and knee', level: 3, kind: 'kick', aim: 'body', hit: -0.04, dmg: 1.2, cost: 13, text: 'You grab a fistful of their jacket and drive your knee into their ribs.' },
+  { id: 'tech:hook', name: 'Haymaker', hint: 'Big swing: hard to land', level: 4, kind: 'punch', aim: 'head', hit: -0.15, dmg: 1.4, cost: 12, text: 'You wind up and throw everything you have at their head.' },
+  { id: 'tech:headbutt', name: 'Headbutt', hint: 'Hurts you too', level: 6, kind: 'punch', aim: 'head', hit: 0, dmg: 1.45, cost: 10, effect: 'headbutt', text: 'You grab them by the collar and smash your forehead into their face.' },
+  { id: 'tech:elbow', name: 'Elbow', hint: 'Up close: splits skin', level: 8, kind: 'punch', aim: 'head', hit: -0.05, dmg: 1.15, cost: 10, effect: 'cut', text: 'You step in close and swing an elbow across their face.' },
+  { id: 'tech:uppercut', name: 'Uppercut', hint: 'Can knock them out', level: 10, kind: 'punch', aim: 'head', hit: -0.1, dmg: 1.45, cost: 12, effect: 'ko', text: 'You come up under their chin with an uppercut.' },
+  { id: 'tech:sweep', name: 'Trip them', hint: 'Puts them on the floor', level: 12, kind: 'kick', aim: 'leg', hit: 0, dmg: 0.4, cost: 12, effect: 'sweep', text: 'You hook a foot behind their ankle and shove.' },
 ];
 /** On someone who's on the floor: a choke (out cold, no blood). */
-export const CHOKE_LEVEL = 11;
+export const CHOKE_LEVEL = 13;
 /** New ambushes: kick out their knee, and a choke from behind. */
-export const KNEE_AMBUSH_LEVEL = 4;
-export const CHOKE_AMBUSH_LEVEL = 11;
+export const KNEE_AMBUSH_LEVEL = 5;
+export const CHOKE_AMBUSH_LEVEL = 15;
 /** Every technique and when it comes, for the stats sheet. */
 export const ALL_TECHNIQUES: { name: string; level: number; where: string }[] = [
   ...TECHNIQUES.map((t) => ({ name: t.name, level: t.level, where: 'in a fight' })),
-  { name: 'Kick out their knee', level: KNEE_AMBUSH_LEVEL, where: 'ambush' },
-  { name: 'Choke', level: CHOKE_LEVEL, where: 'on someone on the floor' },
+  { name: 'Kick their knee', level: KNEE_AMBUSH_LEVEL, where: 'ambush' },
+  { name: 'Headlock', level: CHOKE_LEVEL, where: 'on someone on the floor' },
   { name: 'Choke from behind', level: CHOKE_AMBUSH_LEVEL, where: 'ambush' },
 ].sort((a, b) => a.level - b.level);
+
+/** Barely knows how to throw a punch yet (Unarmed 1–3): it shows. */
+const novice = () => (enc.unarmedLevel ?? 1) <= 3;
 
 /** What a technique does when it lands, beyond the blow itself. */
 function techEffect(t: Technique) {
@@ -1525,15 +1543,15 @@ function choke() {
   spend('you', 14);
   const odds = clamp(0.55 + accuracyBonus(you.stats) + (you.stats.unarmed.level - CHOKE_LEVEL) * 0.02 - arms(enc.you) * 0.25 + (T.dazed ? 0.15 : 0), 0.05, 0.95);
   if (Math.random() >= odds) {
-    say('you', 'You go for their throat, but they twist away and fight you off.');
+    say('you', 'You try to get them in a headlock, but they twist away and fight you off.');
     return;
   }
   T.stamina = Math.max(0, T.stamina - 40);
   you.gain('unarmed', 3);
   if (T.stamina === 0 || Math.random() < 0.3) {
     T.out = true;
-    say('you', 'You get an arm round their neck and squeeze. They claw at you, slower, slower, then go limp. Out cold.');
-  } else say('you', 'You get an arm round their neck and squeeze. They claw at your arm, choking, and tear free.');
+    say('you', 'You get them in a headlock and squeeze. They claw at you, slower, slower, then go limp. Out cold.');
+  } else say('you', 'You get them in a headlock and squeeze. They claw at your arm, choking, and tear free.');
   scare(15);
 }
 

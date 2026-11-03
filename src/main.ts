@@ -196,12 +196,12 @@ addEventListener('keydown', (e) => {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     pause();
-    glass.persist();
+    glass.persist(true);
   }
 });
 addEventListener('pagehide', () => {
   pause();
-  glass.persist();
+  glass.persist(true);
 });
 
 menu.setSaveInfo(loadSave());
@@ -253,7 +253,8 @@ renderer.setAnimationLoop(() => {
   if (menuVisible) film.update(dt);
   // It only rains in a game (the weather is the save's).
   rain.setAmount(game?.rainAmount ?? 0);
-  rain.update(dt);
+  // Paused: the rain holds still under the menu (no need to draw it every frame).
+  if (state !== 'paused') rain.update(dt);
   senses.setStress(game && !game.dead ? game.stressNow : 0);
   senses.setSmoking(!!game && !game.dead && game.smoking);
   senses.update(dt);

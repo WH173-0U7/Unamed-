@@ -704,11 +704,12 @@ export function createGlass(opts: GlassOptions = {}) {
 
   // ---------- Keeping it on the device ----------
   // (The blood is soft: half resolution keeps the save quick and small.)
-  const PACK_MAX = 512;
+  const PACK_MAX = 400;
   const packRT = new THREE.WebGLRenderTarget(1, 1, { ...rtOpts, type: THREE.UnsignedByteType });
 
   /** Stores the glass on the device (PNG in local storage). */
-  function persist() {
+  /** Stores the glass. Off the main thread where it can be (`sync` when the page is going away). */
+  function persist(sync = false) {
     if ((!unsaved && !driedUnsaved) || !w) return;
     unsaved = false;
     driedUnsaved = false;
@@ -740,13 +741,23 @@ export function createGlass(opts: GlassOptions = {}) {
         d[q + 3] = 255;
       }
       x.putImageData(img, 0, 0);
-      const value = JSON.stringify({ w: pw, h: ph, png: c.toDataURL('image/png') });
-      try {
-        localStorage.setItem(STORE_KEY, value);
-      } catch {
-        // Storage full: the saved game matters more than the glass.
-        localStorage.removeItem(STORE_KEY);
-      }
+      const store = (png: string) => {
+        try {
+          localStorage.setItem(STORE_KEY, JSON.stringify({ w: pw, h: ph, png }));
+        } catch {
+          // Storage full: the saved game matters more than the glass.
+          localStorage.removeItem(STORE_KEY);
+        }
+      };
+      // Encoding the picture is the slow part: let the browser do it in the background.
+      if (sync || !c.toBlob) store(c.toDataURL('image/png'));
+      else
+        c.toBlob((blob) => {
+          if (!blob) return;
+          const r = new FileReader();
+          r.onload = () => typeof r.result === 'string' && store(r.result);
+          r.readAsDataURL(blob);
+        }, 'image/png');
     } catch {
       /* storage blocked: it just won't be kept */
     }
@@ -1012,7 +1023,8 @@ export function createGlass(opts: GlassOptions = {}) {
         pctx.globalCompositeOperation = 'lighter';
         for (const d of drips) {
           const st = d.v * dt;
-          const n = Math.max(1, Math.ceil(st / 1.5));
+          // A stamp every few pixels is enough for a smooth trail (every 1.5 px was hundreds a frame).
+          const n = Math.max(1, Math.ceil(st / Math.max(3, d.r * 0.6)));
           for (let i = 0; i < n; i++) {
             d.y += st / n;
             stamp(d.x + Math.sin(d.y * 0.04 + d.wob) * 1.5, d.y, d.r, 0.16);
@@ -1023,6 +1035,8 @@ export function createGlass(opts: GlassOptions = {}) {
           if (d.life <= 0 || d.v <= 6) stamp(d.x + Math.sin(d.y * 0.04 + d.wob) * 1.5, d.y + d.r * 0.3, d.r * 1.35, 0.55);
         }
         drips = drips.filter((d) => d.life > 0 && d.r > 1.5 && d.v > 6 && d.y < h);
+        // Never more than this many running at once (the oldest stop first).
+        if (drips.length > 60) drips = drips.slice(-60);
         pctx.globalCompositeOperation = 'source-over';
         painted(true);
       }

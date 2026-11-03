@@ -131,7 +131,7 @@ export class Game {
     // Tapping your injuries shows what they do.
     this.youEl.addEventListener('click', (ev) => {
       if ((ev.target as HTMLElement).closest('.enc-conds')) this.openSheet('stats');
-    });
+    }, { signal: this.listeners.signal });
     this.restBtn = view.querySelector('#rest-btn') as HTMLButtonElement;
     this.noteEl = view.querySelector('#note') as HTMLElement;
     this.clockEl = view.querySelector('#clock') as HTMLElement;
@@ -363,7 +363,8 @@ export class Game {
    */
   private get canLurk() {
     const e = this.encounter;
-    return this.running && this.tv.showingPicture && this.phase === 'idle' && this.place === 'street' && (!e || e.stage === 'seen' || e.stage === 'over');
+    // (Not while the police have you stopped.)
+    return this.running && this.tv.showingPicture && this.phase === 'idle' && this.place === 'street' && !this.save.state.policeStop && (!e || e.stage === 'seen' || e.stage === 'over');
   }
 
   /** Lurk: the signal cuts out while you wait for whoever comes. */
@@ -868,6 +869,7 @@ export class Game {
   private bank(what: string) {
     const inv = this.inventory;
     const p = inv.purse;
+    if (this.place !== 'bank') return;
     const teller = isOpen(placeInfo('bank').hours!);
     let line = '';
     if (what === 'machine') {

@@ -7,6 +7,7 @@ export function createHitUi(game: HTMLElement) {
   let shake = 0;
   let fringe = 0;
   let glitchT = 0;
+  let jumped = false;
   const panels = () => [...game.querySelectorAll<HTMLElement>('.enc-card, .enc-status, .enc-log, .enc-actions')];
 
   /**
@@ -140,7 +141,9 @@ export function createHitUi(game: HTMLElement) {
         game.style.setProperty('--hitca', ca);
       }
       game.classList.toggle('hit', fringe > 0.1);
-      // Panels jump sideways in glitchy bursts.
+      // Panels jump sideways in glitchy bursts (and are put back once, after).
+      if (glitchT <= 0 && !jumped) return;
+      jumped = glitchT > 0;
       for (const p of panels()) {
         if (glitchT > 0 && Math.random() < 0.35) {
           p.style.transform = `translateX(${(Math.random() - 0.5) * 18}px) skewX(${(Math.random() - 0.5) * 6}deg)`;

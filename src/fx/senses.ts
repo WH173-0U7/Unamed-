@@ -145,7 +145,7 @@ export function createSenses() {
         const beat = Math.pow(0.5 + 0.5 * Math.sin(time * (6 + s * 5)), 8) * s * 4;
         const clear = 74 - s * 52 - beat - out * 18;
         // (Only when it changes: each change repaints the whole screen.)
-        const key = `${clear.toFixed(0)}|${Math.min(0.97, 0.4 + s * 0.6).toFixed(2)}|${out.toFixed(2)}`;
+        const key = `${Math.round(clear / 2) * 2}|${Math.min(0.97, 0.4 + s * 0.6).toFixed(2)}|${out.toFixed(2)}`;
         if (key !== tunnelKey) {
           tunnelKey = key;
           const [c, d, o] = key.split('|');

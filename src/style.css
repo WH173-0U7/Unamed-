@@ -5,7 +5,7 @@
   --void: #000;
   --ink: #ecebe6;
   --ink-dim: rgba(236, 235, 230, 0.58);
-  --ink-faint: rgba(236, 235, 230, 0.3);
+  --ink-faint: rgba(236, 235, 230, 0.45);
   --fringe-r: rgba(255, 36, 72, 0.85);
   --fringe-c: rgba(0, 224, 255, 0.85);
   --glass: rgba(16, 16, 16, 0.72);
@@ -2508,4 +2508,200 @@ body[data-buttons='keyline'] .enc-tabs button.on {
 .sheet-body.police .place {
   width: 100%;
   margin-top: 8px;
+}
+
+/* ================= Polish pass (from a full screen review) ================= */
+/* The death screen sits above everything, the blood on the glass included. */
+#death {
+  position: fixed;
+  z-index: 26;
+  background: radial-gradient(ellipse at center, rgba(40, 0, 0, 0.95), rgba(0, 0, 0, 0.99));
+}
+@media (max-width: 360px) {
+  .death-sum {
+    gap: 6px 12px;
+  }
+  .death-btn {
+    padding: 12px 20px;
+    letter-spacing: 0.16em;
+    white-space: nowrap;
+  }
+}
+/* The menu over a game: the game doesn't show through the text, and the
+   tunnel and smoke stay under it. */
+body.in-game #menu {
+  z-index: 24;
+  background: rgba(0, 0, 0, 0.88);
+}
+body.paused #tunnel,
+body.paused #smoke {
+  opacity: 0 !important;
+}
+/* The fight screen: the card never pushes the options off; it scrolls. */
+#enc {
+  grid-template-rows: auto auto minmax(72px, 1fr) minmax(0, max-content);
+}
+.enc-card {
+  max-height: 40vh;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+}
+.enc-facts dd {
+  overflow-wrap: anywhere;
+}
+/* The clock only needs room beside the name, not the race under it. */
+.enc-who {
+  padding-right: 0;
+}
+.enc-kind {
+  padding-right: 4px;
+}
+.enc-race {
+  flex-basis: 100%;
+}
+.enc-kind {
+  padding-right: 110px;
+}
+/* Options that scroll fade at the bottom, so you can tell there's more. */
+.enc-opts:not(.enc-extra) {
+  mask-image: linear-gradient(#000 calc(100% - 14px), transparent);
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 14px), transparent);
+  padding-bottom: 10px;
+}
+.enc-tabs button {
+  white-space: nowrap;
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  .enc-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .enc-card {
+    max-height: 48vh;
+  }
+  .enc-kind {
+    padding-right: 4px;
+  }
+  .enc-tabs button {
+    min-height: 36px;
+  }
+}
+/* Drawers: the list scrolls; the rows never squash. */
+.sheet-body.places {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sheet-card .place {
+  flex: none;
+}
+/* Stats row clear of the pause button, at every width. */
+#stats {
+  right: calc(var(--pad-x-r) + 44px);
+  gap: 10px;
+}
+@media (max-width: 360px) {
+  #stats {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+  .stat {
+    font-size: 8px;
+    letter-spacing: 0.02em !important;
+  }
+  .stat b {
+    font-size: 13px;
+  }
+  .seg {
+    width: 100%;
+  }
+  .seg button {
+    flex: 1;
+    min-width: 0;
+    padding: 0 4px;
+    letter-spacing: 0;
+  }
+}
+.seg button {
+  min-height: 40px;
+}
+/* Blood bar and clock: room between them. */
+#you-status {
+  width: min(300px, calc(100% - 140px));
+}
+/* Shops use the screen down to the bottom (there's no lurk bar there), and
+   stay clear of the edge tabs. */
+#shop {
+  bottom: calc(var(--pad-bot) + 12px);
+  width: min(calc(100% - 64px), 520px);
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  #shop {
+    bottom: calc(var(--pad-bot) + 12px);
+  }
+}
+/* Bigger touch areas. */
+.pocket-list button,
+.shop-list button {
+  min-height: 40px !important;
+}
+.enc-opts.compact button {
+  min-height: 38px;
+}
+.edge-tab::before {
+  content: '';
+  position: absolute;
+  inset: 0 -14px;
+}
+.edge-left::before {
+  left: 0;
+}
+.edge-right::before {
+  right: 0;
+}
+/* Lines: the next step after a fight reads as one. */
+body[data-buttons='lines'] #enc[data-stage] .enc-extra button {
+  color: var(--ink);
+  justify-content: center;
+  text-align: center;
+}
+/* Ghost: a whisper of a fill, so buttons still look like buttons. */
+body[data-buttons='ghost'] .enc-opts button,
+body[data-buttons='ghost'] .pocket-list button,
+body[data-buttons='ghost'] .shop-list button {
+  background: rgba(236, 235, 230, 0.05);
+}
+.pocket-list li {
+  flex-wrap: nowrap;
+}
+@media (max-width: 360px) {
+  .pocket-list li {
+    flex-wrap: wrap;
+  }
+}
+/* Lines: the bars under the pockets read as bars. */
+body[data-buttons='lines'] .spot-bar {
+  border: 1px solid var(--line);
+}
+
+.sheet-x svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.enc-history {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #e2c0a0;
+}
+.enc-history p {
+  margin: 0 0 2px;
+}
+.enc-history b {
+  color: #f0c674;
+}
+.enc-history .looks {
+  color: var(--ink-dim);
 }

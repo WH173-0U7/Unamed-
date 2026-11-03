@@ -556,7 +556,8 @@ export class Game {
       }</p>` +
       `<button type="button" class="death-btn">Go on as someone new</button>`;
     el.querySelector('button')!.addEventListener('click', () => this.rebirth());
-    this.view.append(el);
+    // Above everything, the blood on the glass included, so it can be read.
+    document.body.append(el);
   }
 
   /** Off the death screen: a new character, same streets. */
@@ -1198,7 +1199,7 @@ export class Game {
         `<ul class="shop-list">${MEDS.map((m) => li(m.name, `${m.desc}${have(m.id) ? ` · You have ${have(m.id)}` : ''}`, btn('buy', m.id, money(m.price * 100), c < m.price * 100 && 'Not enough cash'))).join('')}</ul>` +
         (c < Math.min(...MEDS.map((m) => m.price)) * 100 ? `<p class="shop-broke">You can't afford anything. Cash only.</p>` : '');
     } else if (place === 'pawn' || place === 'fence') {
-      if (!open) body = `<p class="shop-closed">${place === 'pawn' ? 'The shutter is down.' : "There's nobody back here right now."} ${hoursText(info.hours!)}.</p>`;
+      if (!open) body = `<p class="shop-closed">${place === 'pawn' ? 'The shutter is down.' : "There's nobody back here right now."}</p>`;
       else {
         const sell = inv.items
           .map((x, i) => ({ x, i, o: offer(place, x) }))
@@ -1219,19 +1220,19 @@ export class Game {
             .map((d) => li(`Break a ${denomName(d)}`, `Into ${purseText(breaksInto(d))}`, btn('bank', `break:${d}`, 'Break')))
             .join('') +
           `</ul>`;
-      } else body = `<p class="shop-closed">The teller windows are dark. ${hoursText(info.hours!)}.</p>`;
+      } else body = `<p class="shop-closed">The teller windows are dark.</p>`;
       body += `<h3>Lobby</h3><ul class="shop-list">${li('Coin machine', `Turns coins into bills, any hour. Keeps ${COIN_MACHINE_FEE * 100}%.`, btn('bank', 'machine', 'Use', !coins && 'No coins'))}</ul>`;
     }
     this.shopEl.innerHTML =
       `<div class="shop-head"><h2>${info.name}</h2><p>${info.blurb}${info.hours ? ` <em>${hoursText(info.hours)}.</em>` : ''}</p></div>` +
       `<div class="shop-cash"><span>Your cash</span><b>${money(c)}</b></div>` +
-      `<p class="shop-purse">${purseText(inv.purse)}</p>` +
+      `<p class="pocket-purse">${this.purseHtml()}</p>` +
       `<div class="shop-body">${body}</div>`;
   }
 
   private renderSheet() {
     const card = this.sheetEl.firstElementChild as HTMLElement;
-    const close = `<button type="button" class="sheet-x" data-close aria-label="Close">×</button>`;
+    const close = `<button type="button" class="sheet-x" data-close aria-label="Close"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" /></svg></button>`;
     if (this.sheet === 'police') {
       const masked = wearing(this.inventory).masked;
       card.innerHTML =
@@ -1249,11 +1250,12 @@ export class Game {
     }
     if (this.sheet === 'places') {
       card.innerHTML =
-        `<div class="sheet-head"><h2>Where to?</h2>${close}</div>` +
+        `<div class="sheet-head"><h2>Where to?</h2>${close}</div><div class="sheet-body places">` +
         PLACES.map(
           (p) =>
             `<button type="button" class="place ${p.id === this.place ? 'here' : ''}" data-place="${p.id}"><b>${p.name}</b><small>${p.id === this.place ? "You're here" : p.desc}${p.hours && p.id !== this.place ? `<i class="${isOpen(p.hours) ? 'open' : 'shut'}">${hoursText(p.hours)}</i>` : ''}</small></button>`,
-        ).join('');
+        ).join('') +
+        `</div>`;
       return;
     }
     const inv = this.inventory;

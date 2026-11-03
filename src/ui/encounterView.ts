@@ -29,6 +29,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
   root.innerHTML = `
     <div class="enc-card">
       <div class="enc-who"><span class="enc-kind"></span><span class="enc-race"></span></div>
+      <div class="enc-history" hidden></div>
       <dl class="enc-facts"></dl>
     </div>
     <div class="enc-status"></div>
@@ -144,11 +145,15 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         ['Awareness', e.known.awareness ? p.awareness : null],
         ['Wearing', (p.clothes ?? []).map((g) => g.name).join(', ') || null],
       ];
-      // Someone you've met: what you did, and how they look now (casts, teeth...).
-      if (e.looks?.length) facts.push(['How they look', e.looks.join(' · ')]);
-      if (e.history) facts.push([e.recognised ? 'They know you' : 'You know them', e.history]);
+      // Someone you've met: what you did, and how they look now (casts,
+      // teeth...), up top where it can't be missed (and stays in a fight).
+      const hist = q('.enc-history');
+      hist.hidden = !e.history && !e.looks?.length;
+      hist.innerHTML =
+        (e.history ? `<p><b>${e.recognised ? 'They know you.' : 'You know them.'}</b> ${e.history}</p>` : '') +
+        (e.looks?.length ? `<p class="looks">${e.looks.join(' · ')}</p>` : '');
       q('.enc-facts').innerHTML = facts
-        .map(([k, v], i) => `<div class="${i >= 4 ? 'wide' : ''}${i > 4 ? ' known' : ''}"><dt>${k}</dt><dd class="${v ? '' : 'unknown'}">${v ?? '?'}</dd></div>`)
+        .map(([k, v], i) => `<div class="${i >= 4 ? 'wide' : ''}"><dt>${k}</dt><dd class="${v ? '' : 'unknown'}">${v ?? '?'}</dd></div>`)
         .join('');
 
       // Status: how close you are and how close they are to noticing, or the fight.

@@ -163,6 +163,56 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   you can, otherwise the smallest overpay, and you get change back the way a
   cashier gives it. Coins have weight (a quarter is 5.67 g) and count toward
   what you carry.
+- **People remember you.** Everyone you fight and leave alive is kept, as a
+  person: who they are, the state you left them in, what you did to them,
+  whether they saw your face (or only what you were wearing), and how much
+  they hate you for it (**grudge**). Their injuries heal on the **real
+  clock**, the way they would: a broken arm is in a cast for six weeks, a
+  leg for eight (on crutches), a nose taped for three, a split lip four
+  days, a black eye ten, a cut brow leaves a scar, and teeth you knock out
+  stay out. Lurk, and now and then it's one of them (the angrier they are,
+  the more likely): their card says how they look ("Left arm in a cast · 2
+  teeth missing") and what you did ("You broke their left arm and knocked
+  them out. 3 days ago."), and they fight as they are, cast and all.
+  - **If they know you** (your face, unless it's covered, or the clothes you
+    wore that night): the angry ones come straight at you; someone on
+    crutches can't run, and backs against the wall; the rest run.
+  - **Vengeance:** the ones who hate you most come looking. Sometimes,
+    instead of you finding them, they find you: a hand on your shoulder,
+    "Remember me?", and the fight starts with them.
+- **Lasting injuries, consistent descriptions:** every blow's description
+  sticks. A tooth knocked out is gone (and the count goes up); a split lip
+  splits *again*; a broken jaw grinds; a cut leaves a scar where it was. The
+  same goes for you: your marks show with your conditions, and heal (or
+  don't) with time.
+- **Your face, and anonymity.** The pawn shop sells a **ski mask** (hides
+  90% of your face), a **bandana** (55%), a **surgical mask** (40%), a
+  **baseball cap**, a **beanie** and **sunglasses**; a hood helps too (pull
+  it up in Pockets). Masks are pulled up and down in Pockets ("Your face: 90%
+  hidden"). A mask hides you but draws eyes: people get wary of you faster
+  while you follow them, and you pull it down before you go inside anywhere.
+  What they saw of you is what they remember: masked, they only know your
+  clothes, so change your coat.
+- **Reputation and the police.** Every victim who saw your face talks
+  (*Nobody*, *Talked about*, *Known*, *Feared*, *Notorious*); a killing
+  someone saw is talked about most. With a reputation, strangers start to
+  know your face, and run. Victims go to the police (most civilians, few
+  junkies), and so do witnesses: **heat**. Both fade with time (real days).
+  With heat on you, a lurk can turn up a **patrol car** instead: **stay
+  calm** (they make you take your mask off, and search you: stolen IDs or
+  cards or drugs on you, or a face that matches what they've been told, and
+  you're arrested) or **run** (agility against your injuries; caught, and
+  they put you on the ground first). Arrested: they keep the evidence, and
+  you spend the night in a cell. Burn the evidence first.
+- **Tap your stats** (top left) to see what each one does for you right now,
+  in numbers ("Ambushes land +12%", "Damage ×1.24"), how far to the next
+  level and how it grows; and the rest of you: stress, nerve, humanity,
+  reputation, heat, how hidden your face is, how many people remember you.
+- **Settings: Lettering and Buttons.** Lettering: *Report* (Courier, like a
+  police report; the default), *Typed* (worn typewriter keys), *CRT* (an old
+  terminal), *Clean* (the old rounded look). Buttons: *Lines* (just words on
+  hairlines; the default), *Ghost* (no borders at all), *Keyline* (thin square
+  outlines), *Boxes* (the old look). Try them in the game.
 - **Stress** builds up: every round of a fight, every blow that lands on
   you, every blow you land, and most of all a kill. It's shown with your
   conditions (*On edge*, *Stressed*, *Panicking*) and it costs you: your
@@ -351,6 +401,8 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | `src/core/quality.ts` | Graphics presets and adaptive resolution |
 | `src/ui/menu.ts` | Main menu, pause menu, settings, confirm dialogs |
 | `src/fx/uiGlitch.ts` | The quick glitch when the screen changes |
+| `src/game/people.ts` | People who remember you: their injuries healing on the real clock, grudges, recognition; reputation and heat |
+| `src/game/look.ts` | Masks, caps, hoods, sunglasses: how hidden your face is |
 | `src/game/money.ts` | Bills and coins: paying and change, changing up, breaking bills |
 | `src/game/shops.ts` | Places, their opening hours, what the pawn shop and the fence pay, what's for sale |
 | `src/game/weather.ts` | The weather on the real clock: dry spells and rain |

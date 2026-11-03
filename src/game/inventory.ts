@@ -48,6 +48,8 @@ export interface Inventory {
   items: InvItem[];
   /** What you're wearing, and any bag. */
   clothes: string[];
+  /** Caps, masks, sunglasses, and whether the mask and hood are up (see look.ts). */
+  wearing?: import('./look').Wearing;
   spots: Spot[];
 }
 

@@ -1,6 +1,6 @@
 import { uiGlitch } from '../fx/uiGlitch';
 import { isMobile } from '../core/quality';
-import { onSettingsChange, updateSettings, type GraphicsQuality } from '../core/settings';
+import { onSettingsChange, updateSettings, type ButtonStyle, type FontStyle, type GraphicsQuality } from '../core/settings';
 import { formatAgo, formatPlayTime, type SaveData } from '../core/save';
 
 export type Screen = 'main' | 'pause' | 'settings' | 'confirm';
@@ -96,6 +96,26 @@ export function createMenu(handlers: MenuHandlers) {
     b.addEventListener('click', () => updateSettings({ quality: b.dataset.v as GraphicsQuality })),
   );
   fps.addEventListener('change', () => updateSettings({ showFps: fps.checked }));
+  // Lettering and buttons: tried out live, all over the game.
+  const segs: [HTMLElement, 'font' | 'buttons'][] = [
+    [$('set-font'), 'font'],
+    [$('set-buttons'), 'buttons'],
+  ];
+  for (const [el, key] of segs) {
+    el.querySelectorAll<HTMLButtonElement>('button').forEach((b) =>
+      b.addEventListener('click', () => updateSettings(key === 'font' ? { font: b.dataset.v as FontStyle } : { buttons: b.dataset.v as ButtonStyle })),
+    );
+  }
+  const STYLE_NOTES: Record<string, string> = {
+    report: 'Courier, like a police report.',
+    typewriter: 'Worn typewriter keys.',
+    terminal: 'The glow of an old CRT.',
+    clean: 'Plain and rounded (the old look).',
+    lines: 'Just words, with a thin line under each.',
+    ghost: 'No borders at all, until you touch one.',
+    keyline: 'Thin, square outlines.',
+    boxes: 'Rounded boxes (the old look).',
+  };
 
   onSettingsChange((s) => {
     seg.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
@@ -105,6 +125,16 @@ export function createMenu(handlers: MenuHandlers) {
     });
     $('quality-note').textContent = QUALITY_NOTES[s.quality];
     fps.checked = s.showFps;
+    for (const [el, key] of segs) {
+      el.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
+        const on = b.dataset.v === s[key];
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-checked', String(on));
+      });
+    }
+    $('style-note').textContent = `${STYLE_NOTES[s.font]} ${STYLE_NOTES[s.buttons]}`;
+    document.body.dataset.font = s.font;
+    document.body.dataset.buttons = s.buttons;
   });
 
   // ---------- Toast ----------

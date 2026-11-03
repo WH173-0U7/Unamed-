@@ -2010,7 +2010,12 @@ body.in-game #menu {
   right: calc(50% - min(calc(100% - 32px), 560px) / 2 + 16px);
 }
 .enc-who {
-  padding-right: 78px;
+  padding-right: 150px;
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  .enc-who {
+    padding-right: 0;
+  }
 }
 /* Landscape: in the top bar, next to the pause button. */
 @media (orientation: landscape) and (max-height: 560px) {
@@ -2285,4 +2290,222 @@ body.smoking .sheet-card {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* ================= Lettering (Settings) ================= */
+body[data-font='report'] {
+  --font-ui: 'Courier Prime', 'Courier New', ui-monospace, monospace;
+}
+body[data-font='typewriter'] {
+  --font-ui: 'Special Elite', 'Courier New', ui-monospace, monospace;
+}
+body[data-font='terminal'] {
+  --font-ui: 'VT323', ui-monospace, monospace;
+  font-size-adjust: 0.62;
+}
+body[data-font='report'] {
+  font-size-adjust: 0.5;
+}
+/* Monospaced letters are wide already: less tracking on the small capitals. */
+body:not([data-font='clean']) .enc-tabs button,
+body:not([data-font='clean']) .enc-title,
+body:not([data-font='clean']) .stat,
+body:not([data-font='clean']) #lurk-btn span,
+body:not([data-font='clean']) #rest-btn span {
+  letter-spacing: 0.08em;
+}
+
+/* ================= Button styles (Settings) ================= */
+/* Lines: just words, each on its own line with a hairline under it. */
+body[data-buttons='lines'] .enc-opts {
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+body[data-buttons='lines'] .enc-opts button,
+body[data-buttons='lines'] .sheet-card .place {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  padding: 9px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  text-align: left;
+}
+body[data-buttons='lines'] .sheet-card .place {
+  flex-direction: column;
+  gap: 2px;
+}
+body[data-buttons='lines'] .enc-opts button small {
+  text-align: right;
+}
+body[data-buttons='lines'] .enc-opts button:active,
+body[data-buttons='lines'] .sheet-card .place:active {
+  background: rgba(236, 235, 230, 0.06);
+}
+body[data-buttons='lines'] .enc-opts button:disabled {
+  opacity: 0.35;
+}
+body[data-buttons='lines'] #enc[data-stage] .enc-extra button {
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  color: var(--ink-dim);
+}
+body[data-buttons='lines'] .enc-tabs {
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+}
+body[data-buttons='lines'] .enc-tabs button {
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+body[data-buttons='lines'] .enc-tabs button.on {
+  background: none;
+  border-bottom-color: var(--ink);
+}
+body[data-buttons='lines'] .pocket-list li,
+body[data-buttons='lines'] .shop-list li {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  padding: 8px 2px;
+}
+body[data-buttons='lines'] .pocket-list button,
+body[data-buttons='lines'] .shop-list button {
+  border: 0;
+  min-height: 34px;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 4px;
+}
+
+/* Ghost: no borders at all; the words float, and light up when touched. */
+body[data-buttons='ghost'] .enc-opts button,
+body[data-buttons='ghost'] .sheet-card .place,
+body[data-buttons='ghost'] .pocket-list button,
+body[data-buttons='ghost'] .shop-list button,
+body[data-buttons='ghost'] .enc-tabs,
+body[data-buttons='ghost'] .pocket-list li,
+body[data-buttons='ghost'] .shop-list li {
+  border-color: transparent;
+  background: none;
+}
+body[data-buttons='ghost'] .enc-opts button:active,
+body[data-buttons='ghost'] .sheet-card .place:active,
+body[data-buttons='ghost'] .pocket-list button:active,
+body[data-buttons='ghost'] .shop-list button:active {
+  background: rgba(236, 235, 230, 0.1);
+}
+body[data-buttons='ghost'] .enc-opts button {
+  font-size: 14px;
+  letter-spacing: 0.06em;
+}
+body[data-buttons='ghost'] .enc-tabs button.on {
+  background: none;
+  color: var(--ink);
+  text-shadow: 0 0 8px rgba(236, 235, 230, 0.5);
+}
+
+/* Keyline: thin square outlines, nothing filled. */
+body[data-buttons='keyline'] .enc-opts button,
+body[data-buttons='keyline'] .sheet-card .place,
+body[data-buttons='keyline'] .pocket-list button,
+body[data-buttons='keyline'] .shop-list button,
+body[data-buttons='keyline'] .enc-tabs,
+body[data-buttons='keyline'] .enc-tabs button,
+body[data-buttons='keyline'] .pocket-list li,
+body[data-buttons='keyline'] .shop-list li {
+  border-radius: 2px;
+  background: none;
+}
+body[data-buttons='keyline'] .enc-tabs button.on {
+  background: none;
+  outline: 1px solid var(--ink-dim);
+}
+
+/* ================= Your stats (tap them) ================= */
+#stats {
+  pointer-events: auto;
+  cursor: pointer;
+}
+#stats:active {
+  opacity: 0.7;
+}
+.stat-card {
+  padding: 10px 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+.stat-card h3 {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0 0 8px !important;
+  font-size: 12px !important;
+  color: var(--ink) !important;
+}
+.stat-card h3 b {
+  font-size: 18px;
+  letter-spacing: 0;
+}
+.stat-now {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+}
+.stat-now div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+.stat-now dt {
+  color: var(--ink-dim);
+}
+.stat-now dd {
+  margin: 0;
+  text-align: right;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.stat-how {
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--ink-faint);
+}
+
+/* Someone you've met before: their card says so. */
+.enc-facts div.wide {
+  grid-column: 1 / -1;
+}
+.enc-facts div.known dd {
+  color: #e2c0a0;
+}
+/* In a fight the card folds, but someone who knows you stays marked. */
+#enc[data-stage='combat']:not(.facts-open) .enc-facts,
+#enc[data-stage='over']:not(.facts-open) .enc-facts {
+  display: none;
+}
+
+/* Stopped by the police. */
+.sheet-body.police p {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
+.sheet-body.police .place {
+  width: 100%;
+  margin-top: 8px;
 }

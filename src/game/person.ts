@@ -76,6 +76,8 @@ export interface Person {
   clothes: Garment[];
   /** They went through a dead you's pockets (see legacy.ts). Never shown. */
   thief?: string;
+  /** Someone you've met before (see people.ts). */
+  known?: string;
 }
 
 /** Things you can take off someone. */

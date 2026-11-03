@@ -21,6 +21,10 @@ export interface World {
   lives: number;
   /** Your lurk count when this life began (for the death screen). */
   lifeStart: number;
+  /** Everyone you've hurt and left alive (see people.ts). */
+  people?: import('./people').Known[];
+  /** Your reputation and the police's interest (see people.ts). */
+  infamy?: import('./people').Infamy;
 }
 
 export const newWorld = (): World => ({ thieves: [], lives: 1, lifeStart: 0 });

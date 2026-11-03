@@ -15,7 +15,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Grenze+Gotisch:wght@300;400&family=Quicksand:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Grenze+Gotisch:wght@300;400&family=Quicksand:wght@400;500;600&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Special+Elite&family=VT323&display=swap"
     />
   </head>
   <body>
@@ -136,6 +136,26 @@
             </div>
           </div>
           <p class="note" id="quality-note"></p>
+
+          <div class="row">
+            <span class="label" id="font-label">Lettering</span>
+            <div class="seg" id="set-font" role="radiogroup" aria-labelledby="font-label">
+              <button type="button" role="radio" data-v="report">Report</button>
+              <button type="button" role="radio" data-v="typewriter">Typed</button>
+              <button type="button" role="radio" data-v="terminal">CRT</button>
+              <button type="button" role="radio" data-v="clean">Clean</button>
+            </div>
+          </div>
+          <div class="row">
+            <span class="label" id="buttons-label">Buttons</span>
+            <div class="seg" id="set-buttons" role="radiogroup" aria-labelledby="buttons-label">
+              <button type="button" role="radio" data-v="lines">Lines</button>
+              <button type="button" role="radio" data-v="ghost">Ghost</button>
+              <button type="button" role="radio" data-v="keyline">Keyline</button>
+              <button type="button" role="radio" data-v="boxes">Boxes</button>
+            </div>
+          </div>
+          <p class="note" id="style-note"></p>
 
           <label class="row" for="set-fps">
             <span class="label">Show frame rate</span>

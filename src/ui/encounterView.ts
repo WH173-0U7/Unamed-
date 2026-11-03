@@ -144,11 +144,16 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         ['Awareness', e.known.awareness ? p.awareness : null],
         ['Wearing', (p.clothes ?? []).map((g) => g.name).join(', ') || null],
       ];
-      q('.enc-facts').innerHTML = facts.map(([k, v]) => `<div><dt>${k}</dt><dd class="${v ? '' : 'unknown'}">${v ?? '?'}</dd></div>`).join('');
+      // Someone you've met: what you did, and how they look now (casts, teeth...).
+      if (e.looks?.length) facts.push(['How they look', e.looks.join(' · ')]);
+      if (e.history) facts.push([e.recognised ? 'They know you' : 'You know them', e.history]);
+      q('.enc-facts').innerHTML = facts
+        .map(([k, v], i) => `<div class="${i >= 4 ? 'wide' : ''}${i > 4 ? ' known' : ''}"><dt>${k}</dt><dd class="${v ? '' : 'unknown'}">${v ?? '?'}</dd></div>`)
+        .join('');
 
       // Status: how close you are and how close they are to noticing, or the fight.
       // The fight view once there's been a fight (your own old injuries don't count).
-      const fought = e.stage === 'combat' || e.stage === 'over' || e.them.blood < e.them.maxBlood;
+      const fought = e.stage === 'combat' || e.stage === 'over';
       q('.enc-status').innerHTML = fought
         ? `<div class="enc-fighters">${fighter('You', e.you, 'you')}${fighter('Them', e.them, 'them')}</div>`
         : `<div class="enc-note">${distanceLabel(e)}</div>` + bar('Noticed', Math.min(100, Math.round(e.suspicion)), 100, 'notice');

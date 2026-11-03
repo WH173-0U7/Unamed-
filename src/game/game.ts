@@ -4,7 +4,7 @@ import { createTv } from './tv';
 import { CHANCES, RACE_CHANCES, NAMES, makePerson } from './person';
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
-import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, type StatName, type Stats } from './stats';
+import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, type StatName, type Stats } from './stats';
 import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, isHurt, newHealth, passHours, type Health } from './health';
 import { PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
@@ -13,6 +13,9 @@ import { clockText, dateText, now } from './clock';
 import { RAIN_AMOUNT, WEATHER_NAME, newWeather, updateWeather, weatherLine, type WeatherState } from './weather';
 import { COLD_NAMES } from './health';
 import { maybeThief, newWorld, robBody, settle, type World } from './legacy';
+import { HEAT_NAMES, applyTo, comeBack, fade, heatLevel, historyText, injuriesText, meet, newInfamy, recognises, remember, repName, type Infamy, type Known } from './people';
+import { anonymity, conspicuous, describe, hasHood, lookClothes, wearing } from './look';
+import { marksText } from './encounter';
 import { MEDS, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type MedId } from './inventory';
 
 /**
@@ -91,7 +94,7 @@ export class Game {
   private readonly bagBtn: HTMLButtonElement;
   private readonly shopEl: HTMLElement;
   private readonly sheetEl: HTMLElement;
-  private sheet: 'places' | 'pockets' | null = null;
+  private sheet: 'places' | 'pockets' | 'stats' | 'police' | null = null;
   private noteTimer = 0;
   private readonly clockEl: HTMLElement;
   private clockShown = '';
@@ -111,6 +114,7 @@ export class Game {
     this.lurkBtn = view.querySelector('#lurk-btn') as HTMLButtonElement;
     this.seenEl = view.querySelector('#seen') as HTMLElement;
     this.statsEl = view.querySelector('#stats') as HTMLElement;
+    this.statsEl.onclick = () => this.openSheet('stats');
     this.youEl = view.querySelector('#you-status') as HTMLElement;
     this.restBtn = view.querySelector('#rest-btn') as HTMLButtonElement;
     this.noteEl = view.querySelector('#note') as HTMLElement;
@@ -211,7 +215,36 @@ export class Game {
   }
 
   private get world(): World {
-    return (this.save.state.world ??= newWorld()) as World;
+    const w = (this.save.state.world ??= newWorld()) as World;
+    w.people ??= [];
+    return w;
+  }
+
+  private get people(): Known[] {
+    return this.world.people!;
+  }
+
+  /** Your reputation and heat, faded up to now. */
+  private get infamy(): Infamy {
+    const f = (this.world.infamy ??= newInfamy());
+    fade(f);
+    return f;
+  }
+
+  /**
+   * After an encounter with someone who lives: they remember you (see
+   * people.ts). If they saw your face they talk, and some go to the police.
+   */
+  private rememberThem(e: Encounter) {
+    const inv = this.inventory;
+    const before = e.person.known ? this.people.find((k) => k.id === e.person.known)?.memory.sawFace : false;
+    const k = remember(this.people, e, { anon: anonymity(inv), looked: describe(inv), clothes: lookClothes(inv) }, { robbed: !!e.robbed, stomped: !!e.stomped });
+    if (!k || k.memory.beatYou) return;
+    const f = this.infamy;
+    if (k.memory.sawFace && !before) f.rep += k.memory.grudge / 8;
+    // Who goes to the police: most civilians, few junkies.
+    const reports = { civilian: 0.7, drunk: 0.4, homeless: 0.25, junkie: 0.15 }[k.person.kind];
+    if (Math.random() < reports) f.heat = Math.min(100, f.heat + (k.memory.grudge / 5) * (k.memory.sawFace ? 1 : 0.4));
   }
 
   private get humanity(): Humanity {
@@ -292,7 +325,10 @@ export class Game {
     // Done with whoever was there: if they had your old things, remember
     // what's left on them.
     const old = this.encounter;
-    if (old && old !== e) settle(this.world, old);
+    if (old && old !== e) {
+      settle(this.world, old);
+      if (old.stage !== 'seen') this.rememberThem(old);
+    }
     this.save.state.encounter = e ?? undefined;
   }
 
@@ -319,6 +355,16 @@ export class Game {
     if (this.health.dead) return this.die(lines);
     const c = this.chill();
     if (c) lines.push(c);
+    // With heat on you, a patrol might stop you instead of anyone turning up.
+    const heat = this.infamy.heat;
+    if (heat > 5 && Math.random() < Math.min(0.3, heat / 250)) {
+      this.phase = 'idle';
+      this.refresh();
+      this.note(lines);
+      this.openSheet('police');
+      buzz([30, 30, 30]);
+      return;
+    }
     this.refresh();
     this.lurkBtn.hidden = true;
     this.restBtn.hidden = true;
@@ -345,6 +391,11 @@ export class Game {
     if (e.stage === 'seen') {
       if (this.smoking && id !== 'leave') delete this.health.smokingUntil;
       e.you = this.yourBody();
+      // Whether they know you depends on how you look as you walk up.
+      const inv = this.inventory;
+      e.conspicuous = conspicuous(inv);
+      const k = e.person.known ? this.people.find((x) => x.id === e.person.known) : undefined;
+      if (k) e.recognised = recognises(k, anonymity(inv), lookClothes(inv));
     }
     const wasOver = e.stage === 'over';
     const wasOut = !!e.them.out;
@@ -352,6 +403,7 @@ export class Game {
     const worse: string[] = [];
     // Stamping on someone who can't defend themselves.
     if (wasOut && id.startsWith('stomp')) {
+      e.stomped = true;
       const l = this.loseHumanity(STOMP_HELPLESS_COST);
       if (l) worse.push(l);
     }
@@ -359,6 +411,14 @@ export class Game {
       if (e.result === 'killed') {
         // Killing someone: the worst of it, unless you're long past caring.
         addStress(e.you, 30);
+        // Was anyone watching? A face in a window, a car going past.
+        const anon = anonymity(this.inventory);
+        if (Math.random() < 0.3) {
+          const f = this.infamy;
+          f.rep += 15 * (1 - anon * 0.7);
+          f.heat = Math.min(100, f.heat + 35 * (1 - anon * 0.6));
+          worse.push(anon > 0.6 ? 'Someone saw that. A face in a window, then gone. At least your face was covered.' : 'Someone saw that. A face in a window, then gone. They saw yours.');
+        }
         this.humanity.kills++;
         const l = this.loseHumanity(KILL_COST);
         if (l) worse.push(l);
@@ -509,6 +569,7 @@ export class Game {
     const down = (id: number, x: number, y: number, target: EventTarget | null) => {
       drag = null;
       if (!this.running) return;
+      if (this.sheet === 'police') return;
       if (this.sheet) {
         // On the open drawer: a push back towards its edge closes it.
         const side = this.sheetEl.classList.contains('from-right') ? 'right' : 'left';
@@ -546,8 +607,9 @@ export class Game {
     addEventListener('pointerup', (e) => e.pointerType === 'mouse' && up(-1), opt);
   }
 
-  private openSheet(kind: 'places' | 'pockets') {
-    if (!this.canOpenSheet) return;
+  private openSheet(kind: 'places' | 'pockets' | 'stats' | 'police') {
+    // Your stats can be looked at any time, even mid-fight; the police don't ask.
+    if (kind === 'stats' || kind === 'police' ? !this.tvState.on || this.dead : !this.canOpenSheet) return;
     this.sheet = kind;
     this.renderSheet();
     // Where to go comes in from the left, pockets from the right.
@@ -566,6 +628,12 @@ export class Game {
 
   private sheetClick(ev: MouseEvent) {
     const t = ev.target as HTMLElement;
+    if (this.sheet === 'police') {
+      // No walking away from this one: you answer.
+      const b = t.closest('button');
+      if (b?.dataset.police) this.police(b.dataset.police as 'run' | 'stay');
+      return;
+    }
     if (t === this.sheetEl) return this.closeSheet(); // tapped outside the card
     const b = t.closest('button');
     if (!b) return;
@@ -576,6 +644,8 @@ export class Game {
     else if (b.dataset.fire) this.fire(Number(b.dataset.fire));
     else if (b.dataset.smoke) this.smoke(Number(b.dataset.smoke));
     else if (b.dataset.burn) this.burn(Number(b.dataset.burn));
+    else if (b.dataset.mask !== undefined) this.toggleCover('mask');
+    else if (b.dataset.hood !== undefined) this.toggleCover('hood');
     else if (b.dataset.taste) this.identify(Number(b.dataset.taste), false);
     else if (b.dataset.test) this.identify(Number(b.dataset.test), true);
     else if (b.dataset.bump) this.bump(Number(b.dataset.bump));
@@ -609,6 +679,11 @@ export class Game {
     ];
     const h = this.health;
     this.exposure = 0;
+    const w = wearing(this.inventory);
+    if (info.indoors && w.masked) {
+      w.masked = false;
+      lines.push(`You pull the ${w.face!.toLowerCase()} down before you go in.`);
+    }
     if (info.indoors && h.cold) lines.push("It's warm in here. Stay a while and you'll thaw out.");
     if (!info.indoors && RAIN_AMOUNT[this.weather.now] > 0) lines.push(`It's still raining (${WEATHER_NAME[this.weather.now].toLowerCase()}).`);
     this.note(lines);
@@ -681,7 +756,14 @@ export class Game {
     const inv = this.inventory;
     if (!s || this.place !== 'pawn' || !isOpen(placeInfo('pawn').hours!) || cashOf(inv) < s.price) return;
     let line: string;
-    if (s.slot) {
+    if (s.slot === 'head' || s.slot === 'face' || s.slot === 'eyes') {
+      // Something for your face: worn (a mask starts pulled down; pull it up in Pockets).
+      const w = wearing(inv);
+      const old = w[s.slot];
+      w[s.slot] = s.name;
+      if (s.slot === 'face') w.masked = false;
+      line = `You buy the ${s.name.toLowerCase()}${old ? ` and bin your old ${old.toLowerCase()}` : ''}.${s.slot === 'face' ? ' You keep it pulled down for now (Pockets: pull it up).' : ' You put it on.'}`;
+    } else if (s.slot) {
       const r = wear(inv, s.slot, s.name);
       if (!r.ok) {
         this.note([`If you swap to the ${s.name.toLowerCase()}: ${r.why}`]);
@@ -835,6 +917,92 @@ export class Game {
     delete h.smokingUntil;
     if (this.running && this.tvState.on) this.note(['The cigarette burns down to the filter. You flick it away.']);
     this.refresh();
+  }
+
+  /**
+   * The police stop you (see lurk). Stay calm: they look at you and search
+   * you; anything stolen on you, or a face that matches what they've been
+   * told, and you're arrested. Run: agility against your injuries; get
+   * caught and they put you on the ground first.
+   */
+  private police(choice: 'run' | 'stay') {
+    const inv = this.inventory;
+    const h = this.health;
+    const f = this.infamy;
+    const w = wearing(inv);
+    this.sheet = null;
+    this.sheetEl.hidden = true;
+    const lines: string[] = [];
+    let arrested = false;
+    if (choice === 'run') {
+      const legs = h.broken.filter((p) => p.endsWith('leg')).length;
+      const odds = 0.35 + (this.stats.agility.level - 1) * 0.03 - legs * 0.3 - (h.cold ?? 0) * 0.05 - (h.stress ?? 0) * 0.002 - (h.blood < h.maxBlood * 0.75 ? 0.15 : 0);
+      if (Math.random() < odds) {
+        lines.push('You bolt. Shouts behind you, a car door, footsteps. You go over a fence and through a yard and down an alley, and when you stop, they\'re gone.');
+        f.heat = Math.min(100, f.heat + 10);
+      } else {
+        lines.push('You bolt, and get about ten yards. One of them takes your legs out and you hit the pavement face first. A knee in your back, your arms wrenched behind you.');
+        h.blood = Math.max(h.maxBlood * 0.6, h.blood - 350);
+        h.stress = Math.min(100, (h.stress ?? 0) + 25);
+        this.fx.impact(true, 350, true, 'spatter');
+        arrested = true;
+      }
+    } else {
+      if (w.masked) {
+        w.masked = false;
+        lines.push(`You pull the ${w.face!.toLowerCase()} down.`);
+      }
+      // Do you look like who they're after?
+      const looks = Math.random() < (f.heat / 100) * (1 - anonymity(inv) * 0.5);
+      const evidence = inv.items.filter((x) => x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card' || x.secret);
+      lines.push('They pat you down and go through your pockets.');
+      if (evidence.length) {
+        lines.push(`They find ${evidence.length === 1 ? `the ${evidence[0].name.toLowerCase()}` : `${evidence.length} things that aren't yours`}. "Whose is this?"`);
+        arrested = true;
+      } else if (looks) {
+        lines.push('One of them looks at you a long time, then at his phone. "That\'s him." The cuffs go on.');
+        arrested = true;
+      } else {
+        lines.push('They find nothing. "Stay out of trouble." They get back in the car and roll away.');
+        f.heat = Math.max(0, f.heat - 5);
+      }
+    }
+    if (arrested) {
+      // Whatever's stolen is taken; a night in a cell.
+      const before = inv.items.length;
+      inv.items = inv.items.filter((x) => !(x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card' || x.secret));
+      const took = before - inv.items.length;
+      lines.push(`You're arrested.${took ? ` They keep ${took === 1 ? 'the evidence' : `all ${took} things that weren't yours`}.` : ''} You spend the night in a holding cell that smells of bleach and piss, and in the morning they let you go: not enough to charge you. This time.`);
+      lines.push(...passHours(h, 8, true));
+      if (h.dead) return this.die(lines);
+      f.heat = Math.max(0, f.heat - 45);
+      f.rep += 5;
+      h.stress = Math.min(100, (h.stress ?? 0) + 15);
+    }
+    this.refresh();
+    this.note(lines);
+    buzz(arrested ? [80, 60, 120] : 12);
+  }
+
+  /** Pull your mask or hood up or down. */
+  private toggleCover(what: 'mask' | 'hood') {
+    const inv = this.inventory;
+    const w = wearing(inv);
+    if (what === 'mask' && w.face) {
+      if (!w.masked && placeInfo(this.place).indoors) {
+        this.note([`Not in here. You'd be thrown out, or worse.`]);
+        return;
+      }
+      w.masked = !w.masked;
+      this.note([w.masked ? `You pull the ${w.face.toLowerCase()} up over your face.` : `You pull the ${w.face.toLowerCase()} down.`]);
+    } else if (what === 'hood' && hasHood(inv)) {
+      w.hood = !w.hood;
+      this.note([w.hood ? 'You pull your hood up.' : 'You push your hood back.']);
+    }
+    const e = this.encounter;
+    if (e) e.conspicuous = conspicuous(inv);
+    this.refresh();
+    buzz(5);
   }
 
   /** Why you can't burn something right now, or null. */
@@ -1040,6 +1208,21 @@ export class Game {
   private renderSheet() {
     const card = this.sheetEl.firstElementChild as HTMLElement;
     const close = `<button type="button" class="sheet-x" data-close aria-label="Close">×</button>`;
+    if (this.sheet === 'police') {
+      const masked = wearing(this.inventory).masked;
+      card.innerHTML =
+        `<div class="sheet-head"><h2>Police</h2></div><div class="sheet-body police">` +
+        `<p>A patrol car pulls up beside you, lights off. Two of them get out. One has a hand on his belt.</p>` +
+        `<p>"${masked ? 'Take that off your face. ' : ''}Hold up. Where are you headed tonight?"</p>` +
+        `<button type="button" class="place" data-police="stay"><b>Stay calm</b><small>Let them talk. They'll want to search you.</small></button>` +
+        `<button type="button" class="place" data-police="run"><b>Run</b><small>Agility, and your legs. If they catch you, it'll hurt.</small></button>` +
+        `</div>`;
+      return;
+    }
+    if (this.sheet === 'stats') {
+      card.innerHTML = `<div class="sheet-head"><h2>You</h2>${close}</div><div class="sheet-body">${this.statsHtml()}</div>`;
+      return;
+    }
     if (this.sheet === 'places') {
       card.innerHTML =
         `<div class="sheet-head"><h2>Where to?</h2>${close}</div>` +
@@ -1056,6 +1239,21 @@ export class Game {
       `<div class="pocket-cash"><span>Cash</span><b>${money(Math.round(cashOf(inv) * 100))}</b></div>` +
       `<p class="pocket-purse">${this.purseHtml()}</p>` +
       `<p class="pocket-wear">Wearing ${inv.clothes.map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total + purseKg(inv))}.</p>`;
+    // Your face: what's on it, and how hard you are to know.
+    {
+      const w = wearing(inv);
+      const anon = anonymity(inv);
+      const row = (name: string, small: string, btn: string) => `<li><div><b>${name}</b><small>${small}</small></div><span class="acts">${btn}</span></li>`;
+      const rows: string[] = [];
+      if (w.face) rows.push(row(w.face, w.masked ? 'Pulled up over your face' : 'Pulled down', `<button type="button" data-mask>${w.masked ? 'Pull down' : 'Pull up'}</button>`));
+      if (hasHood(inv)) rows.push(row('Hood', w.hood ? 'Up' : 'Down', `<button type="button" data-hood>${w.hood ? 'Down' : 'Up'}</button>`));
+      if (w.head) rows.push(row(w.head, 'On', ''));
+      if (w.eyes) rows.push(row(w.eyes, 'On', ''));
+      body +=
+        `<div class="spot"><h3><span>Your face</span><em>${Math.round(anon * 100)}% hidden</em></h3>` +
+        (rows.length ? `<ul class="pocket-list">${rows.join('')}</ul>` : `<p class="pocket-empty">Nothing hides your face. Anyone who sees you will know you again.</p>`) +
+        `</div>`;
+    }
     // Every pocket and bag with something in it: how full, and what's there.
     // The empty ones are listed small at the end.
     const empty = inv.spots.filter((sp) => !inv.items.some((x) => x.spot === sp.id));
@@ -1141,6 +1339,76 @@ export class Game {
     if (this.sheet) this.renderSheet();
   }
 
+  /** The stats sheet: each stat, what it does for you right now, how it grows; then the rest of you. */
+  private statsHtml(): string {
+    const st = this.stats;
+    const pct = (x: number) => `${Math.round(x * 100)}%`;
+    const sign = (x: number) => `${x >= 0 ? '+' : '−'}${pct(Math.abs(x))}`;
+    const now: Record<StatName, [string, string][]> = {
+      sneak: [
+        ['Ambushes land', sign(ambushBonus(st))],
+        ['Noticed while following', `${pct(noticeRate(st))} as fast`],
+      ],
+      strength: [['Damage from your blows', `×${damageMult(st).toFixed(2)}`]],
+      agility: [
+        ['Your blows land', sign(accuracyBonus(st))],
+        ['Their blows land', sign(-dodgeBonus(st))],
+      ],
+      stamina: [
+        ['Stamina', `${maxStamina(st)}`],
+        ['Breath back each turn', `${staminaRegen(st).toFixed(1)}`],
+      ],
+    };
+    const how: Record<StatName, string> = {
+      sneak: 'Surveilling, and ambushes (bum rush, sucker punch, shove).',
+      strength: 'Landing blows.',
+      agility: 'Landing blows, and dodging theirs.',
+      stamina: 'Fighting yourself to exhaustion.',
+    };
+    const rows = (xs: [string, string][]) => xs.map(([a, b]) => `<div><dt>${a}</dt><dd>${b}</dd></div>`).join('');
+    let html = (Object.keys(STAT_NAMES) as StatName[])
+      .map((k) => {
+        const { level, xp } = st[k];
+        const max = level >= MAX_LEVEL;
+        const need = xpToNext(level);
+        return (
+          `<section class="stat-card"><h3><span>${STAT_NAMES[k]}</span><b>${level}${max ? ' · max' : ''}</b></h3>` +
+          `<div class="spot-bar"><i style="width:${max ? 100 : (100 * xp) / need}%"></i><span>${max ? 'Maxed out' : `${Math.floor(xp)} / ${need} to level ${level + 1}`}</span></div>` +
+          `<dl class="stat-now">${rows(now[k])}</dl><p class="stat-how">Grows by: ${how[k]}</p></section>`
+        );
+      })
+      .join('');
+    // The rest of you.
+    const h = this.health;
+    const stress = this.stressNow;
+    const nerve = h.nerve ?? 0;
+    const hu = this.humanity;
+    const lvl = humanityLevel(hu.lost);
+    html +=
+      `<section class="stat-card"><h3><span>Your state</span></h3><dl class="stat-now">` +
+      rows([
+        ['Stress', `${Math.round(stress)} / 100${stress >= 1 ? ` (blows land ${sign(-stress / 400)}, dodging ${sign(-stress / 400)})` : ''}`],
+        ['Nerve', `${Math.round(nerve)} / 100 (violence stresses you ${pct(1 - nerve / 100)} as much)`],
+        ['Humanity', `${lvl?.name ?? (hu.lost ? 'Shaken' : 'Intact')} · ${hu.kills} killed`],
+        ...this.extraStatRows(),
+      ]) +
+      `</dl><p class="stat-how">Stress builds in fights and eases with time and cigarettes. Nerve grows with every fight you live through.</p></section>`;
+    return html;
+  }
+
+  /** More rows for the stats sheet (reputation, anonymity...). */
+  private extraStatRows(): [string, string][] {
+    const f = this.infamy;
+    const inv = this.inventory;
+    const anon = anonymity(inv);
+    return [
+      ['Reputation', `${repName(f.rep)} (${Math.round(f.rep)})`],
+      ['Police', HEAT_NAMES[heatLevel(f.heat)]],
+      ['Anonymity', `${Math.round(anon * 100)}%${conspicuous(inv) ? ' · masked: people notice you faster' : ''}`],
+      ['People who remember you', `${this.people.length}`],
+    ];
+  }
+
   /** Your stats in the top corner, each with progress towards its next level. */
   private renderStats() {
     this.statsEl.hidden = !this.tvState.on;
@@ -1188,12 +1456,40 @@ export class Game {
       // The wait: the odd flicker of interference.
       if (Math.random() < dt * 0.9) this.jam = Math.max(this.jam, 0.2 + Math.random() * 0.25);
       if (this.timer <= 0) {
-        const person = maybeThief(this.world) ?? makePerson();
+        // Someone with your things, someone you've met, or a stranger.
+        const thief = maybeThief(this.world);
+        const known = thief ? null : comeBack(this.people);
+        const person = thief ?? (known ? meet(known) : makePerson());
         const s = this.lurkState;
         s.times++;
         s.seen[person.kind]++;
         s.races[person.race]++;
-        this.encounter = newEncounter(person, this.yourBody());
+        const e = newEncounter(person, this.yourBody());
+        const inv = this.inventory;
+        const anon = anonymity(inv);
+        e.conspicuous = conspicuous(inv);
+        if (known) {
+          applyTo(known, e.them);
+          e.recognised = recognises(known, anon, lookClothes(inv));
+          e.grudge = known.memory.grudge;
+          e.history = historyText(known);
+          e.looks = [...injuriesText(known), ...marksText(known.marks)];
+        } else if (Math.random() < Math.min(0.5, this.infamy.rep / 200) * (1 - anon)) {
+          // A stranger who's heard about you, and knows your face.
+          e.recognised = true;
+          e.grudge = 0;
+          e.history = "You've never met. But they know your face: people talk.";
+        }
+        this.encounter = e;
+        // The ones who hate you most come looking: they find you first.
+        if (known && e.recognised && (e.grudge ?? 0) >= 70 && !known.broken.some((p) => p.endsWith('leg')) && Math.random() < 0.5) {
+          this.phase = 'idle';
+          const impacts = act(e, 'ambushed', this.stats, this.inventory);
+          if (impacts.length) this.feel(impacts);
+          this.refresh();
+          buzz([60, 40, 90]);
+          return;
+        }
         this.phase = 'idle';
         // Whoever it is takes the middle of the screen: the note goes.
         this.noteEl.hidden = true;
@@ -1323,7 +1619,7 @@ export class Game {
     this.jam = Math.max(0, this.jam - dt * 2.2);
     this.tv.setJam(this.jam);
     this.syncButtons();
-    if (this.sheet && !this.canOpenSheet) this.closeSheet();
+    if (this.sheet && this.sheet !== 'stats' && this.sheet !== 'police' && !this.canOpenSheet) this.closeSheet();
     if (this.noteTimer > 0 && (this.noteTimer -= dt) <= 0) this.noteEl.hidden = true;
     this.tv.update(dt);
     // The red edge pulses when your blood is low.

@@ -120,7 +120,7 @@ export interface Stock {
   price: number;
   desc: string;
   /** Something to wear: which slot it goes in. */
-  slot?: 'top' | 'bottom' | 'bag';
+  slot?: 'top' | 'bottom' | 'bag' | 'head' | 'face' | 'eyes';
 }
 
 export const PAWN_STOCK: Stock[] = [
@@ -132,4 +132,10 @@ export const PAWN_STOCK: Stock[] = [
   { id: 'hoodie', name: 'Hoodie', price: 14, desc: 'One big front pocket.', slot: 'top' },
   { id: 'cargo', name: 'Cargo pants', price: 18, desc: 'Two cargo pockets for medium things.', slot: 'bottom' },
   { id: 'lighter', name: 'Lighter', price: 2, desc: 'A cheap plastic one.' },
+  { id: 'skimask', name: 'Ski mask', price: 8, desc: 'Hides almost all of your face. People stare.', slot: 'face' },
+  { id: 'bandana', name: 'Bandana', price: 4, desc: 'Over your nose and mouth. Hides about half.', slot: 'face' },
+  { id: 'surgical', name: 'Surgical mask', price: 1, desc: 'Hides a little. Nobody looks twice.', slot: 'face' },
+  { id: 'cap', name: 'Baseball cap', price: 6, desc: 'Shades your eyes from cameras.', slot: 'head' },
+  { id: 'beanie', name: 'Beanie', price: 5, desc: 'Covers your hair.', slot: 'head' },
+  { id: 'shades', name: 'Sunglasses', price: 5, desc: 'Hides your eyes. At night, a bit odd.', slot: 'eyes' },
 ];

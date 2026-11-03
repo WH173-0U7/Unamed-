@@ -1,4 +1,4 @@
-import { BLEEDING, DEATH, PASS_OUT, STRESS_NAMES, stressLevel, type Body, type Part, type Result } from './encounter';
+import { BLEEDING, DEATH, PASS_OUT, STRESS_NAMES, marksText, stressLevel, type Body, type Marks, type Part, type Result } from './encounter';
 
 /**
  * Your body between fights. Blood, bleeding, broken bones and concussion
@@ -33,7 +33,14 @@ export interface Health {
   nerve?: number;
   /** Smoking a cigarette until this time (ms, real clock). */
   smokingUntil?: number;
+  /** Teeth gone, scars, a split lip... (see Marks), and hours until the ones that heal do. */
+  marks?: Marks;
+  markHours?: Partial<Record<HealingMark, number>>;
 }
+
+type HealingMark = 'lip' | 'cheek' | 'eye' | 'brow' | 'jaw';
+/** Hours for a mark to heal (game time). A cut brow leaves a scar. */
+export const MARK_HOURS: Record<HealingMark, number> = { lip: 24, cheek: 36, eye: 72, brow: 96, jaw: 48 };
 
 /** Stress lost per hour of game time (more when resting). */
 const STRESS_EASE = 6;
@@ -76,6 +83,7 @@ export function healthConditions(h: Health): string[] {
   if (h.lung) c.push('Punctured lung');
   if (h.cold) c.push(COLD_NAMES[h.cold]);
   if (h.wired) c.push('Wired');
+  c.push(...marksText(h.marks));
   const sl = stressLevel(h.stress ?? 0);
   if (sl) c.push(STRESS_NAMES[sl]);
   return c;
@@ -93,6 +101,7 @@ export function bodyFrom(h: Health, stamina: number): Body {
     maxStamina: Math.round(stamina * (h.wired ? 1.25 : 1)),
     lung: h.lung,
     stress: h.stress ?? 0,
+    marks: JSON.parse(JSON.stringify(h.marks ?? {})) as Marks,
     nerve: h.nerve ?? 0,
     bleeding: h.bleeding,
     dazed: 0,
@@ -117,6 +126,10 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
   if (b.concussed && h.concussion <= 0) h.concussion = CONCUSSION_HOURS;
   if (b.lung) h.lung = true;
   h.stress = b.stress ?? h.stress;
+  // New marks start healing (teeth and scars never do).
+  const was = h.marks ?? {};
+  h.marks = b.marks ?? was;
+  for (const k of Object.keys(MARK_HOURS) as HealingMark[]) if (h.marks[k] && !was[k]) (h.markHours ??= {})[k] = MARK_HOURS[k];
   // Every fight you live through, you get a little more used to it.
   h.nerve = Math.min(100, (b.nerve ?? h.nerve ?? 0) + 2);
   const lines: string[] = [];
@@ -168,6 +181,19 @@ export function passHours(h: Health, hours: number, resting = false): string[] {
   }
   // Time takes the edge off.
   if (h.stress) h.stress = Math.max(0, h.stress - hours * STRESS_EASE * (resting ? 1.5 : 1));
+  // Cuts and bruises heal; a cut brow leaves a scar.
+  for (const [k, left] of Object.entries(h.markHours ?? {}) as [HealingMark, number][]) {
+    const now = left - hours * (resting ? 1.5 : 1);
+    if (now > 0) h.markHours![k] = now;
+    else {
+      delete h.markHours![k];
+      if (h.marks) {
+        h.marks[k] = false;
+        if (k === 'brow') (h.marks.scars ??= []).push('eyebrow');
+        if (k === 'jaw') lines.push('Your jaw has knitted. You can open your mouth again.');
+      }
+    }
+  }
   for (let i = 0; i < hours; i++) {
     if (h.bleeding) {
       h.blood -= BLEED_PER_HOUR[h.bleeding];

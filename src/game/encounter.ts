@@ -236,7 +236,7 @@ export const CATEGORY_NAMES: Record<Category, string> = {
   move: 'Move',
 };
 const SURVEIL_IDS = ['follow', 'build', 'carrying', 'awareness', 'sex', 'read'];
-const VIOLENCE_IDS = ['bumrush', 'sucker', 'shove', 'mug', 'kneecap', 'rear-choke'];
+const VIOLENCE_IDS = ['bumrush', 'sucker', 'shove', 'mug', 'kneecap', 'slam', 'rear-choke'];
 
 // ---------- Fear ----------
 
@@ -425,6 +425,7 @@ export function options(e: Encounter): Option[] {
         { id: 'shove', label: 'Shove', hint: 'Easiest to land', cat: 'violence' },
         ...learned(e, [
           { id: 'kneecap', label: 'Kick their knee', hint: 'From behind: down they go', level: KNEE_AMBUSH_LEVEL },
+          { id: 'slam', label: 'Slam them into the wall', hint: 'Head first', level: SLAM_AMBUSH_LEVEL },
           { id: 'rear-choke', label: 'Choke from behind', hint: e.distance < 2 ? 'Get right behind them first' : 'Out cold, no blood', level: CHOKE_AMBUSH_LEVEL, disabled: e.distance < 2 },
         ], 'violence'),
         { id: 'mug', label: 'Mug them', hint: oddsHint(yieldChance(e, mugSurprise(e))), cat: 'violence' },
@@ -439,14 +440,17 @@ export function options(e: Encounter): Option[] {
       const run: Option = { id: 'run', label: 'Run', hint: legHint ?? (tired(COST.run) ? 'Too tired' : undefined), cat: 'move' };
       const breathe: Option = { id: 'breathe', label: 'Catch your breath', cat: 'move' };
       const stomps = (why?: string, t = tired(COST.kick)): Option[] => [
-        { id: 'stomp-head', label: 'Head', hint: t ? 'Too tired' : (why ?? 'Can knock them out'), disabled: t, cat: 'stomp' },
-        { id: 'stomp-stomach', label: 'Stomach', hint: t ? 'Too tired' : (why ?? 'Winds them'), disabled: t, cat: 'stomp' },
-        { id: 'stomp-ribs', label: 'Ribs', hint: t ? 'Too tired' : (why ?? 'Can break them'), disabled: t, cat: 'stomp' },
+        { id: 'stomp-head', label: 'Stomp: head', hint: t ? 'Too tired' : (why ?? 'Can knock them out'), disabled: t, cat: 'stomp' },
+        { id: 'stomp-stomach', label: 'Stomp: stomach', hint: t ? 'Too tired' : (why ?? 'Winds them'), disabled: t, cat: 'stomp' },
+        { id: 'stomp-ribs', label: 'Stomp: ribs', hint: t ? 'Too tired' : (why ?? 'Can break them'), disabled: t, cat: 'stomp' },
       ];
+      // On them while they're down: knee drop, ground and pound, wrenching an arm.
+      const ground = (): Option[] => learned(e, GROUND.map((t) => ({ id: t.id, label: t.name, hint: tired(t.cost) ? 'Too tired' : t.kind === 'punch' ? (armHint ?? t.hint) : t.hint, level: t.level, disabled: tired(t.cost) })), 'stomp');
       if (y.down) {
         return [
           { id: 'punch', label: 'Punch', hint: armHint ?? 'From the floor', cat: 'attack' },
           { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : 'From the floor', disabled: tired(COST.kick), cat: 'attack' },
+          ...(e.them.down ? [] : learned(e, FLOOR.map((t) => ({ id: t.id, label: t.name, hint: tired(t.cost) ? 'Too tired' : t.hint, level: t.level, disabled: tired(t.cost) })), 'attack')),
           { id: 'getup', label: 'Get up', hint: legHint ?? (y.dazed ? 'Dazed' : undefined), cat: 'move' },
           out ? { id: 'walk', label: 'Crawl away', hint: "They're unconscious", cat: 'move' } : breathe,
         ];
@@ -455,11 +459,11 @@ export function options(e: Encounter): Option[] {
         // They're unconscious: it isn't a fight any more. Keep going, go
         // through their pockets, wake them up to talk, or walk away.
         const wake: Option[] = e.them.dead ? [] : [{ id: 'wake', label: 'Slap them awake', hint: canWake(e) ? 'Have a word with them' : "They're too far gone", disabled: !canWake(e), cat: 'threaten' }];
-        return [...stomps(), ...searchOptions(e), ...wake, breathe, { id: 'walk', label: 'Walk away', cat: 'move' }];
+        return [...stomps(), ...ground(), ...searchOptions(e), ...wake, breathe, { id: 'walk', label: 'Walk away', cat: 'move' }];
       }
       if (e.them.yielded) return yieldedOptions(e);
       const demand: Option = { id: 'demand', label: '"Give it up"', hint: oddsHint(yieldChance(e)), cat: 'threaten' };
-      if (e.them.down) return [...stomps(legHint), ...learned(e, [{ id: 'choke', label: 'Headlock', hint: tired(14) ? 'Too tired' : armHint ?? 'Squeeze till they go out', level: CHOKE_LEVEL, disabled: tired(14) }], 'attack'), demand, run, breathe];
+      if (e.them.down) return [...stomps(legHint), ...ground(), ...learned(e, [{ id: 'choke', label: 'Headlock', hint: tired(14) ? 'Too tired' : armHint ?? 'Squeeze till they go out', level: CHOKE_LEVEL, disabled: tired(14) }], 'attack'), demand, run, breathe];
       return [
         { id: 'punch', label: 'Punch', hint: armHint, cat: 'attack' },
         { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : legHint, disabled: tired(COST.kick), cat: 'attack' },
@@ -667,10 +671,10 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
   if (e.stage === 'violence') {
     const b = BUILDS[p.build];
     const lvl = stats.unarmed?.level ?? 1;
-    if ((id === 'kneecap' && lvl < KNEE_AMBUSH_LEVEL) || (id === 'rear-choke' && (lvl < CHOKE_AMBUSH_LEVEL || e.distance < 2))) return impacts;
+    if ((id === 'kneecap' && lvl < KNEE_AMBUSH_LEVEL) || (id === 'slam' && lvl < SLAM_AMBUSH_LEVEL) || (id === 'rear-choke' && (lvl < CHOKE_AMBUSH_LEVEL || e.distance < 2))) return impacts;
     // Lands more often the sneakier you are, the less aware they are, and the
     // closer you got first. Bum rush and shove are easier to land than a punch.
-    const extra = id === 'shove' ? 0.12 : id === 'bumrush' ? 0.06 : id === 'kneecap' ? 0.04 : id === 'rear-choke' ? -0.08 : 0;
+    const extra = id === 'shove' ? 0.12 : id === 'bumrush' ? 0.06 : id === 'kneecap' ? 0.04 : id === 'slam' ? -0.02 : id === 'rear-choke' ? -0.08 : 0;
     const chance = clamp([0.8, 0.65, 0.45, 0.3][aw] + e.distance * 0.06 + ambushBonus(stats) + extra - b.guard * 0.5, 0.05, 0.97);
     if (e.distance === 0) say('you', 'You cross the street toward them.');
     e.stage = 'combat';
@@ -690,6 +694,17 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
         if (!e.them.down && Math.random() < (b.solid ? 0.5 : 0.8)) {
           e.them.down = true;
           say('them', "Their leg folds. They're on the floor.");
+        }
+      } else if (id === 'slam') {
+        const dmg = Math.round(roll(15, 23) * str);
+        say('you', `You grab them by the back of the neck and drive their face into the wall. ${wound('them', 'head', dmg, 'fall')}`);
+        if (!e.them.out && !e.them.dazed) {
+          e.them.dazed = 2;
+          say('them', "They're dazed.");
+        }
+        if (!e.them.down && !e.them.out && Math.random() < 0.5) {
+          e.them.down = true;
+          say('them', "They slide down the wall. They're on the floor.");
         }
       } else if (id === 'rear-choke') {
         e.them.stamina = Math.max(0, e.them.stamina - 60);
@@ -733,7 +748,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
         ['dodge', 1 + b.guard * 10],
         ['counter', aw >= 2 ? 2 : 0.6],
       ]);
-      const move = ({ sucker: 'punch', bumrush: 'rush', shove: 'shove', kneecap: 'kick', 'rear-choke': 'grab' } as Record<string, string>)[id] ?? 'move';
+      const move = ({ sucker: 'punch', bumrush: 'rush', shove: 'shove', kneecap: 'kick', slam: 'grab', 'rear-choke': 'grab' } as Record<string, string>)[id] ?? 'move';
       if (how === 'block') {
         const dmg = Math.round(roll(2, 5) * damageMult(stats));
         say('them', `They turn just in time and block your ${move} with their arm. ${wound('them', 'arm', dmg, 'punch')}`);
@@ -772,8 +787,12 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
       e.them.offBalance = true;
       scare(8);
     }
-    const tech = TECHNIQUES.find((t) => t.id === id);
+    const tech = ALL_MOVES().find((t) => t.id === id);
     if (tech && tech.level > (stats.unarmed?.level ?? 1)) return impacts;
+    // Each kind of move only where it makes sense.
+    if (tech && GROUND.includes(tech) && (!e.them.down || y.down)) return impacts;
+    if (tech && FLOOR.includes(tech) && (!y.down || e.them.down)) return impacts;
+    if (tech && TECHNIQUES.includes(tech) && (y.down || e.them.down)) return impacts;
     switch (id) {
       case 'punch':
         strike('you', 'punch');
@@ -1460,14 +1479,14 @@ interface Technique {
   hint: string;
   /** Unarmed level it comes at. */
   level: number;
-  kind: 'punch' | 'kick';
+  kind: 'punch' | 'kick' | 'stomp';
   aim: Loc;
   /** Added to the chance it lands; damage multiplier; stamina. */
   hit: number;
   dmg: number;
   cost: number;
   /** What else it does, when it lands. */
-  effect?: 'cut' | 'sweep' | 'ko' | 'headbutt';
+  effect?: 'cut' | 'sweep' | 'ko' | 'headbutt' | 'pound' | 'break-arm';
   text: string;
 }
 
@@ -1483,6 +1502,22 @@ export const TECHNIQUES: Technique[] = [
   { id: 'tech:uppercut', name: 'Uppercut', hint: 'Can knock them out', level: 40, kind: 'punch', aim: 'head', hit: -0.1, dmg: 1.45, cost: 12, effect: 'ko', text: 'You come up under their chin with an uppercut.' },
   { id: 'tech:sweep', name: 'Trip them', hint: 'Puts them on the floor', level: 50, kind: 'kick', aim: 'leg', hit: 0, dmg: 0.4, cost: 12, effect: 'sweep', text: 'You hook a foot behind their ankle and shove.' },
 ];
+/** On someone who's on the floor (you standing over them), besides stamping. */
+export const GROUND: Technique[] = [
+  { id: 'ground:kneedrop', name: 'Knee drop', hint: 'Your weight on their chest', level: 12, kind: 'stomp', aim: 'body', hit: 0, dmg: 1.2, cost: 14, text: 'You drop your full weight onto their chest, knee first.' },
+  { id: 'ground:pound', name: 'Ground and pound', hint: 'Sit on them and punch', level: 30, kind: 'punch', aim: 'head', hit: 0.1, dmg: 1.3, cost: 14, effect: 'pound', text: 'You kneel on their chest and rain punches down into their face.' },
+  { id: 'ground:arm', name: 'Wrench an arm', hint: 'Can break it', level: 45, kind: 'punch', aim: 'arm', hit: 0.05, dmg: 0.7, cost: 12, effect: 'break-arm', text: 'You pin their wrist and wrench their arm back against the elbow.' },
+];
+/** When you're the one on the floor (and they're standing). */
+export const FLOOR: Technique[] = [
+  { id: 'floor:legs', name: 'Kick their legs', hint: 'Bring them down too', level: 18, kind: 'kick', aim: 'leg', hit: 0, dmg: 0.5, cost: 12, effect: 'sweep', text: 'From the floor, you kick hard at their ankles.' },
+  { id: 'floor:pull', name: 'Drag them down', hint: 'Down here with you', level: 36, kind: 'punch', aim: 'body', hit: 0.05, dmg: 0.3, cost: 12, effect: 'sweep', text: 'You grab their legs and haul them down onto the pavement with you.' },
+];
+/** Every learned move, wherever it's used. */
+const ALL_MOVES = () => [...TECHNIQUES, ...GROUND, ...FLOOR];
+/** A new ambush: slam them into the wall. */
+export const SLAM_AMBUSH_LEVEL = 35;
+
 /** On someone who's on the floor: a choke (out cold, no blood). */
 export const CHOKE_LEVEL = 58;
 /** New ambushes: kick out their knee, and a choke from behind. */
@@ -1491,7 +1526,10 @@ export const CHOKE_AMBUSH_LEVEL = 66;
 /** Every technique and when it comes, for the stats sheet. */
 export const ALL_TECHNIQUES: { name: string; level: number; where: string }[] = [
   ...TECHNIQUES.map((t) => ({ name: t.name, level: t.level, where: 'in a fight' })),
+  ...GROUND.map((t) => ({ name: t.name, level: t.level, where: 'on someone on the floor' })),
+  ...FLOOR.map((t) => ({ name: t.name, level: t.level, where: 'from the floor' })),
   { name: 'Kick their knee', level: KNEE_AMBUSH_LEVEL, where: 'ambush' },
+  { name: 'Slam them into the wall', level: SLAM_AMBUSH_LEVEL, where: 'ambush' },
   { name: 'Headlock', level: CHOKE_LEVEL, where: 'on someone on the floor' },
   { name: 'Choke from behind', level: CHOKE_AMBUSH_LEVEL, where: 'ambush' },
 ].sort((a, b) => a.level - b.level);
@@ -1525,6 +1563,22 @@ function techEffect(t: Technique) {
         say('them', "Their head snaps back and their legs go. They're out cold.");
       }
       break;
+    case 'pound':
+      if (!T.out && !T.dazed && Math.random() < 0.5) {
+        T.dazed = 2;
+        say('them', "Their eyes won't focus. They're dazed.");
+      }
+      break;
+    case 'break-arm': {
+      const arm = (['left arm', 'right arm'] as Part[]).find((x) => !T.broken.includes(x));
+      if (arm && Math.random() < 0.35 + ((enc.unarmedLevel ?? 1) - 45) * 0.005) {
+        T.broken.push(arm);
+        say('you', `There's a crack, and their ${arm} bends the wrong way. They scream.`);
+        impacts.push({ target: 'them', ml: 0, severe: true, loc: 'arm', spill: 'none' });
+        scare(15);
+      }
+      break;
+    }
     case 'headbutt': {
       const ml = roll(40, 90);
       enc.you.blood = Math.max(0, enc.you.blood - ml);

@@ -253,8 +253,13 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   fight: Gut punch (5, winds them), Knee them (10), Haymaker (15, big and
   wild), Headbutt (25, hurts you too), Elbow (32, opens a cut), Uppercut (40,
   can knock them out), Trip them (50, puts them down), and a Headlock on
-  someone on the floor (58, out cold with no blood). Ambushes: Kick their
-  knee (20) and Choke from behind (66). A beginner's punches and kicks read
+  someone on the floor (58, out cold with no blood). Ambushes: Shove, Bum
+  rush and Sucker punch from the start, then Kick their knee (20), Slam them
+  into the wall (35, head first: dazes, often puts them down) and Choke from
+  behind (66). On someone who's down, besides the three stamps: Knee drop
+  (12), Ground and pound (30, dazes), Wrench an arm (45, can break it); doing
+  these to someone unconscious costs humanity, like stamping. When you're the
+  one on the floor: Kick their legs (18) and Drag them down (36). A beginner's punches and kicks read
   like it (wild swings, clumsy kicks, up to Unarmed 10); a trained fighter's
   (40+) are short and hard. The next move you'll learn shows greyed out with
   its level, and the stats sheet lists them all.

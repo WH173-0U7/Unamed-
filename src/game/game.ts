@@ -451,7 +451,7 @@ export class Game {
       delete e.tip;
     }
     // Stamping on someone who can't defend themselves.
-    if (wasOut && id.startsWith('stomp')) {
+    if (wasOut && (id.startsWith('stomp') || id.startsWith('ground:'))) {
       e.stomped = true;
       const l = this.loseHumanity(STOMP_HELPLESS_COST);
       if (l) worse.push(l);

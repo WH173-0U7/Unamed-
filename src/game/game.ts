@@ -1,7 +1,7 @@
 import type * as THREE from 'three';
 import { writeSave, type SaveData } from '../core/save';
 import { createTv } from './tv';
-import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf } from './person';
+import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf, randomName } from './person';
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
 import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
@@ -55,7 +55,7 @@ const STOMP_HELPLESS_COST = 1;
 const TORTURE_COST = 3;
 const MUG_COST = 0.5;
 
-import { COIN_MACHINE_FEE, GAS_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type Place } from './shops';
+import { COIN_MACHINE_FEE, GAS_STOCK, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type Place } from './shops';
 import { BILLS, COINS, addTo, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
 import { hoursText, isOpen } from './clock';
 import { createHitUi } from '../fx/hitUi';
@@ -159,6 +159,7 @@ export class Game {
       else if (b.dataset.stock) this.buyStock(b.dataset.stock);
       else if (b.dataset.bank) this.bank(b.dataset.bank);
       else if (b.dataset.atm) this.atm(Number(b.dataset.atm));
+      else if (b.dataset.records) this.getId();
     };
     this.restBtn.hidden = true;
     this.hitUi = createHitUi(view);
@@ -449,7 +450,7 @@ export class Game {
     const tortured = e.tortured ?? 0;
     const mugged = !!e.mugged;
     const levelsBefore = Object.values(this.stats).reduce((n, x) => n + x.level, 0);
-    const impacts = act(e, id, this.stats, this.inventory);
+    const impacts = act(e, id, this.stats, this.inventory, (this.save.state.moves ??= {}) as Record<string, number>);
     if (Object.values(this.stats).reduce((n, x) => n + x.level, 0) > levelsBefore) sound.levelUp();
     // Knocked out of your mouth (or you're out cold): the cigarette's gone.
     if (!wasOver && this.smoking && e.you && (e.you.smoking === false || e.you.out || e.result === 'lost')) {
@@ -609,7 +610,8 @@ export class Game {
     if (e) settle(w, e);
     const robbed = robBody(w, this.inventory, e);
     // A new you: nothing carried over but the world.
-    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop']) delete this.save.state[k];
+    // (Your name, your ID and your bank account were that character's.)
+    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves']) delete this.save.state[k];
     // Nobody knows this face. The people the old you hurt are still out there
     // (and your things on some of them), but they'd be looking for someone else.
     this.world.infamy = newInfamy();
@@ -807,6 +809,8 @@ export class Game {
         pawn: 'You walk over to the pawn shop.',
         fence: 'You slip down the alley behind the laundromat.',
         bank: 'You walk to the bank.',
+        liquor: 'You walk into the liquor store. A bell jangles over the door.',
+        records: 'You push through the doors of the City Records Office and take a ticket.',
       }[p],
     ];
     const h = this.health;
@@ -861,21 +865,9 @@ export class Game {
     if (!('cents' in o)) return;
     const lines: string[] = [];
     if (place === 'pawn') {
-      // He wants to see photo ID, and he looks at it.
-      const id = inv.items.find((x) => x.kind === 'id' && !/expired/i.test(x.name));
-      if (!id) {
-        this.note(['"I need to see some ID." He taps the sign: all sellers must show photo ID.']);
-        return;
-      }
-      if (Math.random() < 0.2) {
-        // Thrown out: back on the street, and he won't forget that face.
-        const line = `He looks at the ${lc(id.name)}, then at you, then at it again. "That's not you." He slides it back. "Get out of my shop."`;
-        this.save.state.pawnBan = now() + 30 * 60_000;
-        this.goTo('street');
-        this.note([line, 'You end up back on the street.']);
-        return;
-      }
-      lines.push(`He glances at the ${lc(id.name)} and copies the name into a book.`);
+      const check = this.showId('pawn');
+      if (!check) return;
+      lines.push(check);
     }
     inv.items.splice(i, 1);
     // The pawn shop pays from the till; the fence peels small bills off a roll.
@@ -891,9 +883,16 @@ export class Game {
   /** Buy something at the pawn shop or the gas station (and put it on, if it's clothes). */
   private buyStock(id: string) {
     const place = this.place;
-    const s = (place === 'gas' ? GAS_STOCK : PAWN_STOCK).find((x) => x.id === id);
+    const s = (place === 'gas' ? GAS_STOCK : place === 'liquor' ? LIQUOR_STOCK : PAWN_STOCK).find((x) => x.id === id);
     const inv = this.inventory;
-    if (!s || (place !== 'pawn' && place !== 'gas') || (place === 'pawn' && !isOpen(placeInfo('pawn').hours!)) || cashOf(inv) < s.price) return;
+    if (!s || (place !== 'pawn' && place !== 'gas' && place !== 'liquor') || (place !== 'gas' && !isOpen(placeInfo(place).hours!)) || cashOf(inv) < s.price) return;
+    // The pawn shop and the liquor store want to see ID first.
+    let idLine = '';
+    if (place === 'pawn' || place === 'liquor') {
+      const check = this.showId(place);
+      if (!check) return;
+      idLine = check;
+    }
     let line: string;
     if (s.drink) {
       // Hot coffee, drunk standing at the counter.
@@ -930,11 +929,65 @@ export class Game {
         this.note([`Nowhere to put it. ${noRoomWhy(inv, 'small')}`]);
         return;
       }
-      line = s.id === 'energy' ? 'You buy an energy drink.' : s.id === 'beer' ? 'You buy a can of beer.' : s.id === 'vodka' ? 'You buy a pint of vodka in a paper bag.' : s.id === 'cigs' ? `You buy a pack of ${brand}.` : s.id === 'matches' ? 'You buy a book of matches.' : `You buy the ${lc(s.name)}.`;
+      line = s.id === 'energy' ? 'You buy an energy drink.' : s.id === 'beer' ? 'You buy a can of beer.' : s.id === 'vodka' ? 'You buy a pint of vodka in a paper bag.' : s.id === 'whiskey' ? 'You buy a pint of whiskey in a paper bag.' : s.id === 'wine' ? 'You buy a bottle of cheap red.' : s.id === 'cigs' ? `You buy a pack of ${brand}.` : s.id === 'matches' ? 'You buy a book of matches.' : `You buy the ${lc(s.name)}.`;
     }
     const paid = this.payLine(s.price * 100);
     this.refresh();
-    this.note([line, paid]);
+    this.note([...(idLine ? [idLine] : []), line, paid]);
+    buzz(8);
+  }
+
+  /** Who you are, this time round: a name (for your ID), and an age. */
+  private get me(): { name: string; age: number } {
+    return (this.save.state.me ??= { name: randomName(), age: 22 + Math.floor(Math.random() * 25) }) as { name: string; age: number };
+  }
+  /** Your bank account, once you've opened one (this character's). */
+  private get account(): { cents: number } | undefined {
+    return this.save.state.account as { cents: number } | undefined;
+  }
+  /** Your own ID, if you have it on you. */
+  private ownId(): InvItem | undefined {
+    return this.inventory.items.find((x) => x.kind === 'id' && x.own === this.world.lives);
+  }
+  /**
+   * Showing ID at the pawn shop or the liquor store: your own is fine; a
+   * stolen one might not look like you (thrown out); none, and no sale.
+   * Returns the line to show, or null if it went wrong (and says so).
+   */
+  private showId(place: 'pawn' | 'liquor'): string | null {
+    const inv = this.inventory;
+    const mine = this.ownId();
+    if (mine) return place === 'pawn' ? `He glances at your ${lc(mine.name)} and copies the name into a book.` : 'The clerk glances at your ID and nods.';
+    const id = inv.items.find((x) => x.kind === 'id' && !/expired/i.test(x.name));
+    if (!id) {
+      this.note([place === 'pawn' ? '"I need to see some ID." He taps the sign: all customers must show photo ID.' : '"ID?" You haven\'t got any. "Then no."']);
+      return null;
+    }
+    if (Math.random() < (place === 'pawn' ? 0.2 : 0.25)) {
+      // It isn't you, and they can tell.
+      const line = place === 'pawn' ? `He looks at the ${lc(id.name)}, then at you, then at it again. "That's not you." He slides it back. "Get out of my shop."` : `The clerk looks at the photo, then at you. "Nice try." They keep the bottle.`;
+      if (place === 'pawn') {
+        this.save.state.pawnBan = now() + 30 * 60_000;
+        this.goTo('street');
+        this.note([line, 'You end up back on the street.']);
+      } else this.note([line]);
+      return null;
+    }
+    return place === 'pawn' ? `He glances at the ${lc(id.name)} and copies the name into a book.` : `The clerk squints at the ${lc(id.name)}, and lets it go.`;
+  }
+  /** At the Records Office: your own State ID, in your name. */
+  private getId() {
+    const inv = this.inventory;
+    if (this.place !== 'records' || !isOpen(placeInfo('records').hours!) || this.ownId() || cashOf(inv) < ID_FEE) return;
+    const me = this.me;
+    const it = stow(inv, { kind: 'id', name: 'State ID', detail: `${me.name}, ${me.age}`, own: this.world.lives });
+    if (!it) {
+      this.note([`Nowhere to put it. ${noRoomWhy(inv, 'small')}`]);
+      return;
+    }
+    const paid = this.payLine(ID_FEE * 100);
+    this.refresh();
+    this.note([`An hour of waiting, a photo where you look like a suspect, and a card still warm from the printer: ${me.name}.`, paid]);
     buzz(8);
   }
 
@@ -945,6 +998,41 @@ export class Game {
     if (this.place !== 'bank') return;
     const teller = isOpen(placeInfo('bank').hours!);
     let line = '';
+    // Your account: opening it, and using it, take your own ID.
+    if (what === 'open' || what === 'deposit' || what.startsWith('w:')) {
+      if (!teller) return;
+      const mine = this.ownId();
+      if (!mine) {
+        this.note(['"I\'ll need to see your ID." Your own. The City Records Office can make you one.']);
+        return;
+      }
+      const acct = this.account;
+      if (what === 'open') {
+        if (acct) return;
+        this.save.state.account = { cents: 0 };
+        line = `The teller checks your ${lc(mine.name)}, types for a long time, and slides a form across. "You're all set, ${this.me.name.split(' ')[0]}."`;
+      } else if (!acct) return;
+      else if (what === 'deposit') {
+        const c = Math.round(cashOf(inv) * 100);
+        if (!c) return;
+        acct.cents += c;
+        inv.purse = {};
+        sound.coin();
+        line = `You hand over everything: ${money(c)}. Your balance is ${money(acct.cents)}.`;
+      } else {
+        const want = what === 'w:all' ? acct.cents : Number(what.slice(2));
+        const c = Math.min(acct.cents, want);
+        if (c <= 0) return;
+        acct.cents -= c;
+        addTo(p, fewest(c));
+        sound.coin();
+        line = `The teller counts out ${money(c)}. ${money(acct.cents)} left in your account.`;
+      }
+      this.refresh();
+      this.note([line]);
+      buzz(8);
+      return;
+    }
     if (what === 'machine') {
       if (!count(p, COINS)) return;
       const fee = coinsToBills(p, COIN_MACHINE_FEE);
@@ -1131,7 +1219,7 @@ export class Game {
       lines.push(h.cold ? "It feels warmer, for a while. (You're not, really.)" : 'The warmth spreads out from your stomach. You stop shivering.');
     }
     if ((it.doses ?? 0) <= 0) {
-      if (beer || /vodka/i.test(it.name)) {
+      if (beer || /vodka|whiskey|wine/i.test(it.name)) {
         inv.items.splice(inv.items.indexOf(it), 1);
         lines.push(beer ? 'You crush the can and drop it.' : 'That was the last of it. You leave the bottle in a doorway.');
       } else lines.push("That's the last of it. The bottle's empty.");
@@ -1139,8 +1227,16 @@ export class Game {
     const now_ = drunkLevel(h.drunk);
     if (h.drunk >= 90) {
       lines.push('The street tips over. You sit down hard, and then you are somewhere else entirely.');
+      // Hours go by, as with resting: whoever you were watching is long gone.
+      if (this.encounter?.stage === 'seen') this.encounter = null;
+      this.wipeBlood();
       lines.push(...passHours(h, 3));
-      if (h.dead) return this.die(lines, 'You never woke up.');
+      if (h.dead) return this.die(lines);
+      if (h.wired) {
+        h.wired = false;
+        delete h.wiredBy;
+        lines.push('Whatever you took wore off while you were gone.');
+      }
       h.drunk = 40;
       h.drunkAt = now();
       lines.push('You come round in a doorway, hours later, with your mouth tasting of sick.');
@@ -1279,7 +1375,7 @@ export class Game {
         f.heat = Math.min(100, f.heat + 6);
         lines.push(`They find ${list2(blades.map((x) => `the ${lc(x.name)}`))} and take ${blades.length > 1 ? 'them' : 'it'}. "What's this for, then?"`);
       }
-      const evidence = inv.items.filter((x) => x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card' || (x.secret && x.secret !== 'empty'));
+      const evidence = inv.items.filter((x) => (x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card' || (x.secret && x.secret !== 'empty'));
       if (evidence.length) {
         lines.push(`They find ${evidence.length === 1 ? `the ${lc(evidence[0].name)}` : `${evidence.length} things that aren't yours`}. "Whose is this?"`);
         arrested = true;
@@ -1294,7 +1390,7 @@ export class Game {
     if (arrested) {
       // Whatever's stolen is taken; a night in a cell.
       const before = inv.items.length;
-      inv.items = inv.items.filter((x) => !(x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card' || x.kind === 'weapon' || (x.secret && x.secret !== 'empty')));
+      inv.items = inv.items.filter((x) => !((x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card' || x.kind === 'weapon' || (x.secret && x.secret !== 'empty')));
       const took = before - inv.items.length;
       lines.push(`You're arrested.${took ? ` They keep ${took === 1 ? 'the evidence' : `all ${took} things that weren't yours`}.` : ''} You spend the night in a holding cell that smells of bleach and piss, and in the morning they let you go: not enough to charge you. This time.`);
       lines.push(...passHours(h, 8, true));
@@ -1593,6 +1689,17 @@ export class Game {
       body =
         `<ul class="shop-list">${MEDS.map((m) => li(m.name, `${m.desc}${have(m.id) ? ` · You have ${have(m.id)}` : ''}`, btn('buy', m.id, money(m.price * 100), c < m.price * 100 && 'Not enough cash'))).join('')}</ul>` +
         (c < Math.min(...MEDS.map((m) => m.price)) * 100 ? `<p class="shop-broke">You can't afford anything. Cash only.</p>` : '');
+    } else if (place === 'records') {
+      const mine = this.ownId();
+      body = open
+        ? `<ul class="shop-list">${li('State ID', mine ? `You have one: ${mine.detail}.` : `Your name, your photo, your address (more or less). ${money(ID_FEE * 100)}.`, btn('records', 'id', money(ID_FEE * 100), (mine && 'You have one') || (c < ID_FEE * 100 && 'Not enough cash')))}</ul>` +
+          `<p class="shop-broke">With your own ID you can open a bank account, sell to and buy from the pawn shop, and buy drink, without anyone looking at you twice.</p>`
+        : `<p class="shop-closed">The doors are locked. Open weekdays, 9 to 4.</p>`;
+    } else if (place === 'liquor') {
+      body = open
+        ? `<ul class="shop-list">${LIQUOR_STOCK.map((s) => li(s.name, s.desc, btn('stock', s.id, money(s.price * 100), c < s.price * 100 && 'Not enough cash'))).join('')}</ul>` +
+          `<p class="shop-broke">${this.ownId() ? 'They know your face now.' : 'They’ll want to see ID.'}</p>`
+        : `<p class="shop-closed">The grille is down.</p>`;
     } else if (place === 'gas') {
       const have = (name: string) => inv.items.filter((x) => x.name === name).length;
       body =
@@ -1621,6 +1728,16 @@ export class Game {
           BILLS.filter((d) => p[d])
             .map((d) => li(`Break a ${denomName(d)}`, `Into ${purseText(breaksInto(d))}`, btn('bank', `break:${d}`, 'Break')))
             .join('') +
+          `</ul>`;
+        // Your account (it takes your own ID).
+        const acct = this.account;
+        const mine = !!this.ownId();
+        body +=
+          `<h3>Your account</h3><ul class="shop-list">` +
+          (!acct
+            ? li('Open an account', mine ? 'Free. Keep your money where nobody can take it off you.' : 'You need your own ID: the City Records Office makes them.', btn('bank', 'open', 'Open', !mine && 'Need your own ID'))
+            : li(`Balance: ${money(acct.cents)}`, 'Deposit what you carry; take some out when you need it.', btn('bank', 'deposit', 'Deposit all', (!c && 'No cash on you') || (!mine && 'Need your own ID'))) +
+              li('Withdraw', '$20, $100, or everything.', [2000, 10000].map((v) => btn('bank', `w:${v}`, money(v), (acct.cents < v && 'Not that much') || (!mine && 'Need your ID'))).join('') + btn('bank', 'w:all', 'All', (!acct.cents && 'Empty') || (!mine && 'Need your ID')))) +
           `</ul>`;
       } else body = `<p class="shop-closed">The teller windows are dark.</p>`;
       body += `<h3>Lobby</h3><ul class="shop-list">${li('Coin machine', `Turns coins into bills, any hour. Keeps ${COIN_MACHINE_FEE * 100}%.`, btn('bank', 'machine', 'Use', !coins && 'No coins'))}`;

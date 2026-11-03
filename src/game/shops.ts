@@ -20,7 +20,7 @@ import type { InvItem } from './inventory';
  *   and breaks big ones down. After hours, the coin machine in the lobby
  *   still turns coins into bills, for a cut.
  */
-export type Place = 'street' | 'pharmacy' | 'gas' | 'pawn' | 'fence' | 'bank';
+export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records';
 
 export interface PlaceInfo {
   id: Place;
@@ -72,9 +72,25 @@ export const PLACES: PlaceInfo[] = [
     indoors: false,
   },
   {
+    id: 'liquor',
+    name: 'Corner Liquors',
+    desc: 'Beer, wine and spirits. They check ID.',
+    hours: EVERY(10, 2),
+    blurb: 'Bars on the windows, bottles floor to ceiling, and a sign by the till: WE ID EVERYONE.',
+    indoors: true,
+  },
+  {
+    id: 'records',
+    name: 'City Records Office',
+    desc: 'Get your State ID made. Weekdays.',
+    hours: WEEKDAYS(9, 16),
+    blurb: 'A long room of plastic chairs and a ticket machine. Everyone looks like they have been waiting forever.',
+    indoors: true,
+  },
+  {
     id: 'bank',
     name: 'First Civic Bank',
-    desc: 'Changes bills and coins. Office hours; a coin machine in the lobby.',
+    desc: 'Change money, and keep it in an account (with ID). Office hours; a coin machine in the lobby.',
     hours: WEEKDAYS(9, 17, [9, 13]),
     blurb: 'Marble and quiet. A guard by the door watches you come in.',
     indoors: true,
@@ -107,7 +123,7 @@ export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'kno
   if (/lighter/.test(n)) return 2;
   if (/^beer$/.test(n)) return 3;
   if (/energy drink/.test(n)) return 3;
-  if (/vodka/.test(n)) return 2 * (x.doses ?? 0);
+  if (/vodka|whiskey|wine/.test(n)) return 2 * (x.doses ?? 0);
   if (x.kind === 'weapon') return /knife/.test(n) ? 18 : /box cutter/.test(n) ? 6 : /pepper spray/.test(n) ? 12 : 0;
   return 0;
 }
@@ -150,12 +166,20 @@ export interface Stock {
   drinkType?: 'beer' | 'liquor' | 'energy';
 }
 
+/** The liquor store (they check ID): every drink's swigs in `doses`. */
+export const LIQUOR_STOCK: Stock[] = [
+  { id: 'beer', name: 'Beer', price: 3, desc: 'One cold can. Eases the nerves and the cold.', doses: 1, drinkType: 'beer' },
+  { id: 'wine', name: 'Bottle of wine', price: 9, desc: 'Cheap red. Five swigs.', doses: 5, drinkType: 'liquor' },
+  { id: 'whiskey', name: 'Pint of whiskey', price: 14, desc: 'Six swigs. Burns all the way down.', doses: 6, drinkType: 'liquor' },
+  { id: 'vodka', name: 'Pint of vodka', price: 12, desc: 'Six swigs, in a paper bag.', doses: 6, drinkType: 'liquor' },
+];
+/** Getting your own State ID made, at the Records Office. */
+export const ID_FEE = 30;
+
 /** The gas station: what's behind the counter and on the spinner. */
 export const GAS_STOCK: Stock[] = [
   { id: 'coffee', name: 'Hot coffee', price: 2, desc: 'Burnt, and scalding. Warms you through; about 95 mg of caffeine.', drink: true },
   { id: 'energy', name: 'Energy drink', price: 4, desc: '160 mg of caffeine in a can. Kicks in after half an hour; lasts for hours.', doses: 1, drinkType: 'energy' },
-  { id: 'beer', name: 'Beer', price: 3, desc: 'One cold can. Eases the nerves and the cold.', doses: 1, drinkType: 'beer' },
-  { id: 'vodka', name: 'Pint of vodka', price: 12, desc: 'Six swigs, in a paper bag.', doses: 6, drinkType: 'liquor' },
   { id: 'cigs', name: 'Cigarettes', price: 9, desc: 'A pack of 20. Takes the edge off stress.', doses: 20 },
   { id: 'lighter', name: 'Lighter', price: 3, desc: 'Full of fuel.', doses: 100 },
   { id: 'matches', name: 'Matches', price: 1, desc: 'A book of 20.', doses: 20 },

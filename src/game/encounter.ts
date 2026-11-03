@@ -1,3 +1,4 @@
+import { AMBUSH_TEXT, TECH_TEXT, kickText, missText, punchText, stompText, tierOf, tierUpLine, weaponText, type Tier } from './practice';
 import { AWARENESS, BUILDS, NAMES, personalityOf, type Item, type Loot, type Person } from './person';
 import { money } from './money';
 import { isBrute, voice, type Moment } from './voices';
@@ -561,6 +562,22 @@ function rawOptions(e: Encounter): Option[] {
 
 /** Your stats, and a way to train them, for the move being played out. */
 let you: { stats: Stats; gain: (name: StatName, xp: number) => void };
+/** How many times you've tried each move (yours, kept between fights). */
+let practice: Record<string, number> = {};
+/**
+ * Trying a move: one more use of it, and how practiced it now reads (see
+ * practice.ts). Says so when it moves up a tier.
+ */
+function practise(key: string, skill: 'unarmed' | 'weapons' = 'unarmed'): Tier {
+  const lvl = you.stats[skill]?.level ?? 1;
+  const before = tierOf(practice[key] ?? 0, lvl);
+  practice[key] = (practice[key] ?? 0) + 1;
+  const now = tierOf(practice[key], lvl);
+  if (now > before) pendingTier = tierUpLine(key, now);
+  return before;
+}
+/** A move got better this turn: said at the end of it. */
+let pendingTier: string | null = null;
 let enc: Encounter;
 let impacts: Impact[] = [];
 /** Were they already unconscious when this move began? */
@@ -573,7 +590,16 @@ const say = (by: LogLine['by'], text: string) => {
 };
 
 /** Does one thing (an option id, or 'open' to start from the person button). */
-export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impact[] {
+export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory, moves?: Record<string, number>): Impact[] {
+  practice = moves ?? {};
+  pendingTier = null;
+  const out = actInner(e, id, stats, inv);
+  if (pendingTier) e.log.push({ by: 'info', text: pendingTier });
+  pendingTier = null;
+  return out;
+}
+
+function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impact[] {
   impacts = [];
   landed = null;
   enc = e;
@@ -764,6 +790,8 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
     spend('you', COST.ambush);
     you.gain('sneak', 4);
     let theyGoFirst = false;
+    const at = AMBUSH_TEXT[id] ? practise(id) : 1;
+    const amb = (k: string) => vary(AMBUSH_TEXT[k][at]);
 
     if (Math.random() < chance) {
       // It lands.
@@ -773,14 +801,14 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
       const str = damageMult(stats);
       if (id === 'kneecap') {
         const dmg = Math.round(roll(8, 13) * str);
-        say('you', `You come up behind them and kick the back of their knee as hard as you can. ${wound('them', 'leg', dmg, 'kick')}`);
+        say('you', `${amb('kneecap')} ${wound('them', 'leg', dmg, 'kick')}`);
         if (!e.them.down && Math.random() < (b.solid ? 0.5 : 0.8)) {
           e.them.down = true;
           say('them', "Their leg folds. They're on the floor.");
         }
       } else if (id === 'slam') {
         const dmg = Math.round(roll(15, 23) * str);
-        say('you', `You grab them by the back of the neck and drive their face into the wall. ${wound('them', 'head', dmg, 'punch')}`);
+        say('you', `${amb('slam')} ${wound('them', 'head', dmg, 'punch')}`);
         if (!e.them.out && !e.them.dazed) {
           e.them.dazed = 2;
           say('them', "They're dazed.");
@@ -794,7 +822,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
         if (Math.random() < 0.5 + (lvl - CHOKE_AMBUSH_LEVEL) * 0.01) {
           e.them.out = true;
           e.them.down = true;
-          say('you', 'You come up behind them and lock an arm round their throat. They kick, and claw at you, and then they sag. Out cold, and not a drop of blood.');
+          say('you', `${amb('rear-choke')} They kick, and claw at you, and then they sag. Out cold, and not a drop of blood.`);
         } else {
           e.them.down = true;
           say('you', 'You lock an arm round their throat from behind and drag them down. They tear free, choking, on the floor.');
@@ -802,14 +830,14 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
         scare(15);
       } else if (id === 'sucker') {
         const dmg = Math.round(roll(16, 24) * (aw === 0 ? 1.3 : 1) * str);
-        say('you', `You sucker punch them from behind, on the side of the head. ${wound('them', 'head', dmg, 'punch')}`);
+        say('you', `${amb('sucker')} ${wound('them', 'head', dmg, 'punch')}`);
       } else if (id === 'bumrush') {
         const dmg = Math.round(roll(10, 15) * str);
         if (!b.solid) {
           e.them.down = true;
-          say('you', `You bum rush them and slam them into the pavement. ${wound('them', 'body', dmg, 'fall')} They're on the floor.`);
+          say('you', `${amb('bumrush').replace(/\.$/, '')}, and slam them into the pavement. ${wound('them', 'body', dmg, 'fall')} They're on the floor.`);
         } else {
-          say('you', `You bum rush them. They're heavy and hold their ground. ${wound('them', 'body', dmg, 'fall')}`);
+          say('you', `${amb('bumrush')} They're heavy and hold their ground. ${wound('them', 'body', dmg, 'fall')}`);
           if (Math.random() < 0.35) {
             e.you.down = true;
             say('them', "You bounce off them and land on your back. You're on the floor.");
@@ -817,7 +845,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
         }
       } else {
         const dmg = Math.round(roll(4, 8) * str);
-        say('you', `You shove them hard into the wall. ${wound('them', 'body', dmg, 'fall')}`);
+        say('you', `${amb('shove').replace(/\.$/, '')}, into the wall. ${wound('them', 'body', dmg, 'fall')}`);
         if (Math.random() < 0.7) {
           e.them.down = true;
           say('them', "They lose their footing and go down. They're on the floor.");
@@ -995,6 +1023,9 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   const weapon = kind !== 'weapon' ? undefined : a === 'you' ? mine : enc.person.carrying.find((i) => i.name === enc.them.weaponOut);
   const tired = A.stamina < A.maxStamina * 0.25;
   const downBefore = D.down;
+  // How practiced you are at this one (it reads that way).
+  const wkind = weapon ? (/bottle/i.test(weapon.name) ? 'bottle' : /syringe/i.test(weapon.name) ? 'needle' : weapon.cuts ? 'blade' : 'blunt') : null;
+  const t: Tier = a !== 'you' ? 1 : tech ? practise(tech.id) : wkind ? practise(`wpn:${wkind}`, 'weapons') : practise(kind);
   spend(a, tech ? tech.cost : kind === 'kick' || kind === 'stomp' ? COST.kick : kind === 'weapon' ? COST.weapon : COST.punch);
 
   // Will it land?
@@ -1033,12 +1064,14 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   // Someone out cold (or dead) can't roll away, duck or block: it lands.
   const helpless = D.out || D.dead;
   if (!helpless && Math.random() >= clamp(hit, 0.05, 0.95)) {
-    if (tech) {
+    if (a === 'you' && t !== 1 && kind !== 'kick') {
+      say(a, vary(missText(t, tech ? 'tech' : kind)));
+    } else if (tech) {
       say(a, oneOf(['They see it coming and twist away.', 'They jerk back, and it misses.', 'You miss.']));
     } else if (kind === 'stomp') {
       say(a, `${N.S} stomp down, but ${N.oSub} roll away from it.`);
     } else if (kind === 'kick') {
-      say(a, `${N.S} miss the kick and lose ${N.p} balance.`);
+      say(a, a === 'you' && t !== 1 ? `${vary(missText(t, 'kick'))} ${t === 0 ? 'You lose your balance.' : "You're left a step off balance."}` : `${N.S} miss the kick and lose ${N.p} balance.`);
       A.offBalance = true;
       if (!A.down && Math.random() < 0.15) {
         A.down = true;
@@ -1119,7 +1152,17 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   );
   const into = { head: `into ${N.oP} face`, body: `into ${N.oP} ribs`, stomach: `into ${N.oP} gut`, arm: `into ${N.oP} arm`, leg: `into ${N.oP} leg` }[loc];
   let text: string;
-  if (tech) {
+  if (a === 'you' && tech) {
+    text = t === 1 || !TECH_TEXT[tech.id] ? tech.text : vary(TECH_TEXT[tech.id][t === 0 ? 0 : 1]);
+  } else if (a === 'you' && wkind) {
+    text = vary(weaponText(t, wkind, lc(weapon!.name), where, into));
+  } else if (a === 'you' && stomp) {
+    text = vary(stompText(t, loc === 'head' ? 'head' : loc === 'stomach' ? 'stomach' : 'body'));
+  } else if (a === 'you' && kind === 'kick') {
+    text = vary(kickText(t, where, into));
+  } else if (a === 'you' && loc !== 'arm') {
+    text = vary(punchText(t, where, into));
+  } else if (tech) {
     text = tech.text;
   } else if (kind === 'weapon' && weapon) {
     const w = lc(weapon.name);
@@ -1138,19 +1181,12 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
           ? vary([`${N.S} stomp down on ${N.oP} stomach.`, `${N.S} drive ${N.p} heel into ${N.oP} gut.`])
           : vary([`${N.S} stomp down on ${N.oP} ribs.`, `${N.S} drop ${N.p} heel into ${N.oP} side.`, `${N.S} stamp on ${N.oP} chest.`]);
   } else if (kind === 'kick') {
-    text =
-      a === 'you' && novice()
-        ? vary([`You lash out with a clumsy kick and catch them ${where}.`, `You kick out, off balance, and catch them ${where}.`, `You swing a wild kick; it connects ${where}.`])
-        : vary([`${N.S} kick ${N.o} ${where}.`, `${N.S} drive a boot ${into}.`, `${N.S} plant a kick ${where}.`, `${N.S} catch ${N.o} with a kick ${where}.`]);
+    text = vary([`${N.S} kick ${N.o} ${where}.`, `${N.S} drive a boot ${into}.`, `${N.S} plant a kick ${where}.`, `${N.S} catch ${N.o} with a kick ${where}.`]);
   } else {
     text =
       loc === 'arm'
         ? vary([`${N.S} hit ${N.o} on the arm as ${N.oSub} cover up.`, `${N.S} catch ${N.o} on the forearm as ${N.oSub} block.`, `${N.oSubCap} get an arm up; ${N.S.toLowerCase()} hit it anyway.`])
-        : a === 'you' && novice()
-          ? vary([`You swing wild and catch them ${where}.`, `You throw a sloppy punch and it lands ${where}.`, `You flail at them and connect ${where}.`, `You throw everything into a clumsy swing; it lands ${where}.`])
-          : a === 'you' && (enc.unarmedLevel ?? 1) >= 40
-            ? vary([`You snap a punch ${into}.`, `You punch them ${where}, short and hard.`, `You slip inside and drive a fist ${into}.`, `A tight punch, ${where}.`])
-            : vary([`${N.S} punch ${N.o} ${where}.`, `${N.S} catch ${N.o} ${where} with a right.`, `${N.S} land a fist ${where}.`, `${N.S} hit ${N.o} ${where}.`, `${N.S} drive a punch ${into}.`, `A left from ${a === 'you' ? 'you' : 'them'} lands ${where}.`]);
+        : vary([`${N.S} punch ${N.o} ${where}.`, `${N.S} catch ${N.o} ${where} with a right.`, `${N.S} land a fist ${where}.`, `${N.S} hit ${N.o} ${where}.`, `${N.S} drive a punch ${into}.`, `A left from ${a === 'you' ? 'you' : 'them'} lands ${where}.`]);
   }
   // (A needle punctures; it doesn't slice.)
   say(a, `${text} ${wound(d, loc, dmg, weapon && /syringe/i.test(weapon.name) ? 'jab' : weapon?.cuts ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch')}`);

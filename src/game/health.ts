@@ -460,6 +460,15 @@ export function injuryEffects(h: Health): InjuryInfo[] {
   if (m.lip) out.push({ name: 'Split lip', effects: [looks], heals: markLeft('lip') });
   if (m.cheek) out.push({ name: 'Swollen face', effects: [looks], heals: markLeft('cheek') });
   if (m.teeth) out.push({ name: m.teeth === 1 ? 'A tooth missing' : `${m.teeth} teeth missing`, effects: [looks], heals: 'They never grow back.' });
-  if (m.scars?.length) out.push({ name: `Scar${m.scars.length > 1 ? 's' : ''}: ${[...new Set(m.scars)].join(', ')}`, effects: [looks], heals: 'For good.' });
+  if (m.scars?.length) {
+    // Where each one actually is (a face scar shows; one on the forearm doesn't, much).
+    const places = [...new Set(m.scars)];
+    const face = places.filter((p) => /cheek|eyebrow|lip|jaw|face/.test(p));
+    out.push({
+      name: `Scar${places.length > 1 ? 's' : ''}: ${places.join(', ')}`,
+      effects: [face.length ? `On your face (${face.join(', ')}): people will remember it. It doesn't slow you in a fight.` : `On your ${places.join(' and ')}. It doesn't slow you in a fight.`],
+      heals: 'For good.',
+    });
+  }
   return out;
 }

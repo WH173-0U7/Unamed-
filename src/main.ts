@@ -330,7 +330,7 @@ renderer.setAnimationLoop(() => {
     renderer.clear();
   }
 
-  if (menuVisible) film.update(dt);
+  if (menuVisible && !film.off) film.update(dt);
   // In the game (not under the menu, which has its own).
   if (game && !menuVisible && !filmGame.off) filmGame.update(dt);
   filmGame.visible(!!game && !menuVisible);

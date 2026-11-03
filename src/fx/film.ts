@@ -154,6 +154,7 @@ export function createFilm(container: HTMLElement, game = false) {
 
   let time = 0;
   let filmFrame = -1;
+  let drawnFrame = -1;
   let weave = 0;
   let glitch = 0;
   let burstEnd = 0;
@@ -221,6 +222,10 @@ export function createFilm(container: HTMLElement, game = false) {
       setSlice(1, bursting && Math.random() < 0.8);
       setSlice(2, bursting && Math.random() < 0.6);
 
+      // The grain only changes 24 times a second: no need to redraw it at 60
+      // (unless a glitch or static is playing).
+      if (f === drawnFrame && glitch < 0.01 && noise < 0.01 && !bursting) return;
+      drawnFrame = f;
       pass.material.uniforms.uTime.value = time;
       pass.material.uniforms.uGlitch.value = glitch;
       pass.material.uniforms.uGrain.value = levels.grain;

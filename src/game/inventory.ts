@@ -31,6 +31,8 @@ export interface InvItem {
   pin?: string;
   pinOk?: boolean;
   drained?: boolean;
+  /** Your own ID (which life it's for: see World.lives). Never evidence. */
+  own?: number;
   /** Something to drink (beer, liquor, an energy drink), swigs in `doses`. */
   drink?: 'beer' | 'liquor' | 'energy';
   /** A weapon: extra damage, whether it cuts, pepper spray (uses in `doses`). */
@@ -142,7 +144,7 @@ export function measure(x: { kind: string; name: string; med?: MedId }): { size:
     return { size: 'small', kg: 0.05 }; // box cutter, syringe
   }
   if (/^beer$/i.test(n)) return { size: 'medium', kg: 0.37 };
-  if (/vodka/i.test(n)) return { size: 'medium', kg: 0.55 };
+  if (/vodka|whiskey|wine/i.test(n)) return { size: 'medium', kg: /wine/i.test(n) ? 1.2 : 0.55 };
   if (x.kind === 'phone') return { size: 'small', kg: 0.2 };
   if (x.kind === 'car keys') return { size: 'small', kg: 0.08 };
   if (x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card') return { size: 'small', kg: 0.005 };

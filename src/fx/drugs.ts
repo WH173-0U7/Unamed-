@@ -59,7 +59,9 @@ export function createDrugs() {
       const ks = (Math.round(shown * 50) / 50).toFixed(2);
       if (ks !== kShown) {
         kShown = ks;
-        document.body.style.setProperty('--k', ks);
+        // Only on the two layers that read it (on body it restyled the whole page).
+        el.style.setProperty('--k', ks);
+        document.getElementById('game')?.style.setProperty('--k', ks);
       }
     },
   };

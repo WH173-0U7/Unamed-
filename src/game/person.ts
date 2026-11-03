@@ -377,6 +377,8 @@ function spotsOf(name: string): string[] {
   return ['front pocket', 'back pocket'];
 }
 
+/** A name for someone (or for you, when you start as someone new). */
+export const randomName = () => `${FIRST[Math.floor(Math.random() * FIRST.length)]} ${LAST[Math.floor(Math.random() * LAST.length)]}`;
 const FIRST = ['Maria', 'James', 'Wei', 'Aisha', 'Diego', 'Tamika', 'Ryan', 'Priya', 'Omar', 'Hannah', 'Luis', 'Keisha', 'Daniel', 'Mei', 'Tyrone', 'Fatima', 'Kai', 'Grace', 'Marcus', 'Leilani', 'Nadia', 'Joseph', 'Ana', 'Dakota'];
 const LAST = ['Lopez', 'Smith', 'Chen', 'Johnson', 'Haddad', 'Nguyen', 'Williams', 'Garcia', 'Patel', 'Brown', 'Kim', 'Davis', 'Begay', 'Rivera', 'Okafor', 'Kealoha', 'Miller', 'Mansour', 'Jackson', 'Silva', 'Murphy', 'Tran'];
 const STORES = ['Corner Mart', 'Gas & Go', "Lucky's Liquor", 'Dollar Barn', 'Pho 88', 'QuickWash Laundromat', 'Night Owl Diner', 'Rite Way Pharmacy', 'Metro Transit'];

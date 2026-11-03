@@ -47,6 +47,10 @@ export interface Known {
   markEnds: Partial<Record<'lip' | 'cheek' | 'eye' | 'brow' | 'jaw', number>>;
   /** When you last left them. */
   at: number;
+  /** When their healing was last brought up to date. */
+  healedAt?: number;
+  /** How bad the worst thing you did was (to keep the worst in `memory.worst`). */
+  worstLevel?: number;
   memory: Memory;
 }
 
@@ -71,9 +75,10 @@ export function heal(k: Known, t = now()) {
       if (m === 'brow') (k.marks.scars ??= []).push('eyebrow');
     }
   }
-  // Blood comes back over a few days.
-  const days = (t - k.at) / DAY;
-  k.blood = Math.min(k.maxBlood, k.blood + days * k.maxBlood * 0.25);
+  // Blood comes back over a few days (counted once; a clock set back heals nothing).
+  const days = Math.max(0, t - (k.healedAt ?? k.at)) / DAY;
+  k.blood = Math.min(k.maxBlood, Math.max(k.blood, 0) + days * k.maxBlood * 0.25);
+  k.healedAt = Math.max(t, k.healedAt ?? 0);
 }
 
 /** How their injuries show ("Left arm in a cast", "Nose taped"...). */
@@ -87,7 +92,9 @@ const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 /** The worst thing that happened to them in this encounter, in words. */
 function worstOf(e: Encounter, robbed: boolean, stomped: boolean): { worst: string; grudge: number } {
   const T = e.them;
-  const newBreaks = T.broken;
+  // Only what happened this time: old injuries they came in with don't count.
+  const start = e.start ?? { blood: T.maxBlood, broken: [] };
+  const newBreaks = T.broken.filter((p) => !start.broken.includes(p));
   let worst = 'came at them';
   let grudge = 15;
   if (e.result === 'lost') return { worst: 'fought you, and won', grudge: 5 };
@@ -95,7 +102,7 @@ function worstOf(e: Encounter, robbed: boolean, stomped: boolean): { worst: stri
     worst = 'came at them, and they got away';
     grudge = 20;
   }
-  if (T.blood < T.maxBlood * 0.85) {
+  if (T.blood < start.blood - T.maxBlood * 0.15) {
     worst = 'beat them';
     grudge = 35;
   }
@@ -130,10 +137,18 @@ export function remember(
   did: { robbed: boolean; stomped: boolean },
 ): Known | null {
   const T = e.them;
-  if (T.dead) return null;
-  const fought = !!e.facedYou || T.blood < T.maxBlood || e.result === 'lost';
-  if (!fought) return null;
-  let k = e.person.known ? people.find((x) => x.id === e.person.known) : undefined;
+  const existing = e.person.known ? people.findIndex((x) => x.id === e.person.known) : -1;
+  // The dead remember nothing.
+  if (T.dead) {
+    if (existing >= 0) people.splice(existing, 1);
+    return null;
+  }
+  // Only violence is remembered: blows, or blood drawn. (Someone who saw you
+  // and ran, or spotted you following, isn't your victim.)
+  const start = e.start ?? { blood: T.maxBlood, broken: [] };
+  const hurt = T.blood < start.blood - 1 || T.broken.some((p) => !start.broken.includes(p));
+  if (!e.fought && !hurt && e.result !== 'lost') return null;
+  let k = existing >= 0 ? people[existing] : undefined;
   if (!k) {
     k = {
       id: Math.random().toString(36).slice(2, 10),
@@ -152,7 +167,12 @@ export function remember(
   }
   const t = now();
   k.at = t;
+  k.healedAt = t;
   k.blood = T.blood;
+  // Whatever's still on them (you may have taken some), as they are now.
+  const id = k.id;
+  k.person = JSON.parse(JSON.stringify(e.person)) as Person;
+  k.person.known = id;
   // New breaks start healing now; teeth and scars stay.
   for (const p of T.broken) {
     if (!k.broken.includes(p)) {
@@ -174,9 +194,14 @@ export function remember(
     mem.clothes = look.clothes;
   }
   const w = worstOf(e, did.robbed, did.stomped);
-  if (e.result === 'lost') mem.beatYou = true;
-  mem.worst = w.worst;
-  mem.grudge = Math.min(100, Math.max(mem.grudge, w.grudge) + (mem.times > 1 ? 10 : 0));
+  mem.beatYou = e.result === 'lost';
+  // Keep the worst thing you've done to them.
+  if (w.grudge >= (k.worstLevel ?? 0) || mem.beatYou) {
+    mem.worst = w.worst;
+    k.worstLevel = w.grudge;
+  }
+  // A grudge grows when you hurt them again.
+  mem.grudge = Math.min(100, Math.max(mem.grudge, w.grudge) + (mem.times > 1 && (hurt || did.robbed) ? 10 : 0));
   while (people.length > MAX_PEOPLE) people.shift();
   return k;
 }

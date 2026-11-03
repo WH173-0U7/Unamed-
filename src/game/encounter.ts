@@ -178,6 +178,10 @@ export interface Encounter {
   looks?: string[];
   /** A mask over your face: people get wary of you faster. */
   conspicuous?: boolean;
+  /** How they were when this began (blood, broken bones), to tell what's new. */
+  start?: { blood: number; broken: Part[] };
+  /** It came to blows (a round of a fight was fought). */
+  fought?: boolean;
   /** You went through their pockets / stamped on them while they were down. */
   robbed?: boolean;
   stomped?: boolean;
@@ -808,7 +812,9 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   // Hit in the face: the cigarette goes flying.
   if (d === 'you' && loc === 'head' && enc.you.smoking) {
     enc.you.smoking = false;
+    landed = null;
     say('info', 'The blow knocks the cigarette out of your mouth in a burst of sparks.');
+    landed = d; // (the highlight stays with the blow)
   }
   // Being hurt is frightening; hurting someone shakes you too.
   if (d === 'you') addStress(enc.you, 3 + dmg * 0.35);
@@ -1100,6 +1106,7 @@ function endOfRound() {
   if (enc.stage !== 'combat') return;
   // Awake through a round of it: they've seen you.
   if (!enc.them.out) enc.facedYou = true;
+  enc.fought = true;
   // Every round of a fight: adrenaline, fear. And you get a little more used to it.
   addStress(enc.you, 1);
   enc.you.nerve = Math.min(100, (enc.you.nerve ?? 0) + 0.35);
@@ -1173,6 +1180,14 @@ function spotted() {
     say('them', oneOf(['They spin around. "The hell do you want?" They come at you.', "They spot you, and they don't run. They come straight for you."]));
     enc.stage = 'combat';
     enc.facedYou = true;
+    say('info', 'The fight is on.');
+    theirTurn();
+    endOfRound();
+  } else if (legs(enc.them) > 0) {
+    // On crutches, they can't outrun anyone.
+    enc.facedYou = true;
+    say('them', 'They see you and try to hobble away on their crutches. They get nowhere. They turn, cornered, and swing a crutch at you.');
+    enc.stage = 'combat';
     say('info', 'The fight is on.');
     theirTurn();
     endOfRound();

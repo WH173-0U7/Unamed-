@@ -361,6 +361,7 @@ export class Game {
       this.phase = 'idle';
       this.refresh();
       this.note(lines);
+      this.save.state.policeStop = true;
       this.openSheet('police');
       buzz([30, 30, 30]);
       return;
@@ -401,7 +402,7 @@ export class Game {
     const wasOut = !!e.them.out;
     const impacts = act(e, id, this.stats, this.inventory);
     // Knocked out of your mouth (or you're out cold): the cigarette's gone.
-    if (this.smoking && e.you && (e.you.smoking === false || e.you.out)) {
+    if (this.smoking && e.you && (e.you.smoking === false || e.you.out || e.result === 'lost')) {
       delete this.health.smokingUntil;
       e.you.smoking = false;
     }
@@ -525,7 +526,14 @@ export class Game {
     if (e) settle(w, e);
     const robbed = robBody(w, this.inventory, e);
     // A new you: nothing carried over but the world.
-    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place']) delete this.save.state[k];
+    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop']) delete this.save.state[k];
+    // Nobody knows this face. The people the old you hurt are still out there
+    // (and your things on some of them), but they'd be looking for someone else.
+    this.world.infamy = newInfamy();
+    for (const k of this.people) {
+      k.memory.sawFace = false;
+      k.memory.clothes = [];
+    }
     w.lives++;
     w.lifeStart = this.lurkState.times;
     this.onDeath?.();
@@ -690,6 +698,10 @@ export class Game {
       lines.push(`You pull the ${w.face!.toLowerCase()} down before you go in.`);
     }
     if (info.indoors && h.cold) lines.push("It's warm in here. Stay a while and you'll thaw out.");
+    if (info.indoors && this.smoking) {
+      delete h.smokingUntil;
+      lines.push('You stub the cigarette out on the wall before you go in.');
+    }
     if (!info.indoors && RAIN_AMOUNT[this.weather.now] > 0) lines.push(`It's still raining (${WEATHER_NAME[this.weather.now].toLowerCase()}).`);
     this.note(lines);
     buzz(10);
@@ -924,6 +936,8 @@ export class Game {
       return;
     }
     delete h.smokingUntil;
+    const e = this.encounter;
+    if (e?.you) e.you.smoking = false;
     if (this.running && this.tvState.on) this.note(['The cigarette burns down to the filter. You flick it away.']);
     this.refresh();
   }
@@ -941,6 +955,7 @@ export class Game {
     const w = wearing(inv);
     this.sheet = null;
     this.sheetEl.hidden = true;
+    delete this.save.state.policeStop;
     const lines: string[] = [];
     let arrested = false;
     if (choice === 'run') {
@@ -951,7 +966,7 @@ export class Game {
         f.heat = Math.min(100, f.heat + 10);
       } else {
         lines.push('You bolt, and get about ten yards. One of them takes your legs out and you hit the pavement face first. A knee in your back, your arms wrenched behind you.');
-        h.blood = Math.max(h.maxBlood * 0.6, h.blood - 350);
+        h.blood = Math.min(h.blood, Math.max(h.maxBlood * 0.6, h.blood - 350));
         h.stress = Math.min(100, (h.stress ?? 0) + 25);
         this.fx.impact(true, 350, true, 'spatter');
         arrested = true;
@@ -1467,7 +1482,7 @@ export class Game {
       if (this.timer <= 0) {
         // Someone with your things, someone you've met, or a stranger.
         const thief = maybeThief(this.world);
-        const known = thief ? null : comeBack(this.people);
+        const known = thief ? (thief.known ? (this.people.find((k) => k.id === thief.known) ?? null) : null) : comeBack(this.people);
         const person = thief ?? (known ? meet(known) : makePerson());
         const s = this.lurkState;
         s.times++;
@@ -1478,7 +1493,11 @@ export class Game {
         const anon = anonymity(inv);
         e.conspicuous = conspicuous(inv);
         if (known) {
-          applyTo(known, e.them);
+          if (!thief) applyTo(known, e.them);
+          else {
+            known.healedAt ??= known.at;
+            applyTo(known, e.them);
+          }
           e.recognised = recognises(known, anon, lookClothes(inv));
           e.grudge = known.memory.grudge;
           e.history = historyText(known);
@@ -1489,13 +1508,14 @@ export class Game {
           e.grudge = 0;
           e.history = "You've never met. But they know your face: people talk.";
         }
+        // How they were when it began (to tell, later, what you did this time).
+        e.start = { blood: e.them.blood, broken: [...e.them.broken] };
         this.encounter = e;
         // The ones who hate you most come looking: they find you first.
         if (known && e.recognised && (e.grudge ?? 0) >= 70 && !known.broken.some((p) => p.endsWith('leg')) && Math.random() < 0.5) {
+          // Through the normal path, so a fight that ends at once is dealt with properly.
           this.phase = 'idle';
-          const impacts = act(e, 'ambushed', this.stats, this.inventory);
-          if (impacts.length) this.feel(impacts);
-          this.refresh();
+          this.act('ambushed');
           buzz([60, 40, 90]);
           return;
         }
@@ -1534,6 +1554,8 @@ export class Game {
       this.powerBtn.classList.remove('pressed');
     }
     this.refresh();
+    // Stopped by the police when the game was saved: they're still there.
+    if (this.save.state.policeStop && this.tvState.on) this.openSheet('police');
   }
 
   turnOn() {

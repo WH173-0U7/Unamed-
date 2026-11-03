@@ -222,7 +222,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         const el = document.createElement('p');
         el.className = `by-${line.by}${line.hit ? ` hit-${line.hit}` : ''}`;
         // The blood it cost stands out on a hit.
-        const m = line.hit ? /^(.*?)(\(−\d+ ml\))(.*)$/.exec(line.text) : null;
+        const m = line.hit ? /^(.*?)(\(−\d+\s?ml\))(.*)$/.exec(line.text) : null;
         if (m) {
           const b = document.createElement('b');
           b.textContent = m[2];

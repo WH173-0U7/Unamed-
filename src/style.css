@@ -3352,11 +3352,11 @@ body[data-drug='tranq'] #game {
     rotate: 0deg;
   }
   30% {
-    translate: -6px 2px;
+    translate: -3px 1px;
     rotate: -0.7deg;
   }
   70% {
-    translate: 5px -1px;
+    translate: 3px -1px;
     rotate: 0.6deg;
   }
 }
@@ -3404,7 +3404,7 @@ body[data-drug='drunk'] #game {
     rotate: 0deg;
   }
   25% {
-    translate: calc(var(--k, 1) * -9px) calc(var(--k, 1) * 3px);
+    translate: calc(var(--k, 1) * -5px) calc(var(--k, 1) * 2px);
     rotate: calc(var(--k, 1) * -1.1deg);
   }
   48% {
@@ -3412,7 +3412,7 @@ body[data-drug='drunk'] #game {
     rotate: calc(var(--k, 1) * 0.5deg);
   }
   52% {
-    translate: calc(var(--k, 1) * 11px) calc(var(--k, 1) * -2px);
+    translate: calc(var(--k, 1) * 6px) calc(var(--k, 1) * -1px);
     rotate: calc(var(--k, 1) * 1.4deg);
   }
   78% {
@@ -3702,8 +3702,8 @@ body[data-buttons] .enc-opts button:disabled {
 #game,
 .sheet-card {
   text-shadow:
-    calc(var(--fk, 1) * -0.6px) 0 rgba(255, 36, 72, 0.32),
-    calc(var(--fk, 1) * 0.6px) 0 rgba(0, 224, 255, 0.28);
+    calc(var(--fk, 1) * -0.45px) 0 rgba(255, 36, 72, 0.24),
+    calc(var(--fk, 1) * 0.45px) 0 rgba(0, 224, 255, 0.2);
 }
 /* Settings: the effect sliders. */
 .fx-sliders {
@@ -3970,4 +3970,157 @@ body[data-buttons] .enc-opts button:disabled {
   min-width: 140px;
   min-height: 44px;
   margin-top: 4px;
+}
+
+/* ================= Polish pass 4 ================= */
+/* Upright phones: the encounter is a column. The card and status at the top,
+   the options at the bottom taking the room they need (they scroll, with a
+   fade, if even that's too much), and the log gets what's left, never less
+   than a few lines. Nothing overlaps whatever the font. */
+@media (orientation: portrait) {
+  #enc,
+  #enc:not(.log-open) {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  #enc .enc-card,
+  #enc .enc-status {
+    flex: none;
+  }
+  #enc .enc-log,
+  #enc:not(.log-open) .enc-log {
+    flex: 1 1 0;
+    min-height: 64px;
+    max-height: none;
+    align-self: stretch;
+    overflow-y: auto;
+  }
+  #enc .enc-actions,
+  #enc:not(.log-open) .enc-actions {
+    flex: 0 1 auto;
+    min-height: 150px;
+    max-height: 58%;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+  }
+  #enc .enc-opts:not(.enc-extra) {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+  }
+  /* The log opened: it gets more of the screen, the options less. */
+  #enc.log-open .enc-actions {
+    max-height: 40%;
+  }
+}
+/* The count of earlier lines stays at the top of the log as it scrolls. */
+.enc-log .log-more {
+  position: sticky;
+  top: -10px;
+  z-index: 1;
+  padding: 6px 0 4px;
+  background: linear-gradient(to bottom, rgba(16, 16, 16, 0.95) 70%, transparent);
+}
+
+/* Shops: what just happened shows inside the card (the street note is hidden
+   there), so the card keeps its whole height for the list. */
+#game.in-shop #note,
+#game:has(#sheet:not([hidden])) #note {
+  display: none;
+}
+#game.in-shop #shop,
+#game.in-shop:has(#note:not([hidden])) #shop {
+  bottom: calc(var(--pad-bot) + 14px);
+}
+.shop-note,
+.sheet-note {
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  animation: opts-in 0.25s ease both;
+}
+.shop-note p,
+.sheet-note p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-dim);
+}
+.shop-note p + p,
+.sheet-note p + p {
+  margin-top: 4px;
+}
+/* Landscape shops: the full height, beside the edge tabs. */
+@media (orientation: landscape) and (max-height: 560px) {
+  #shop,
+  #game.in-shop #shop {
+    top: calc(var(--pad-top) + 40px);
+    bottom: calc(var(--pad-bot) + 10px);
+    width: min(calc(100% - 140px), 620px);
+  }
+  .shop-head p {
+    display: none;
+  }
+}
+/* Pockets: rows with several buttons put them under the name, so nothing is
+   squeezed or pushed off. */
+.pocket-list li:has(.acts button:nth-of-type(3)) {
+  flex-wrap: wrap;
+}
+.pocket-list li:has(.acts button:nth-of-type(3)) > div {
+  flex: 1 1 100%;
+}
+.pocket-list li:has(.acts button:nth-of-type(3)) .acts {
+  flex: 1 1 100%;
+  justify-content: flex-end;
+}
+.pocket-list .acts {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pocket-list button small {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  text-decoration: none;
+  color: var(--ink-faint);
+}
+/* Settings on narrow phones: the pills fit. */
+@media (max-width: 380px) {
+  .seg {
+    flex-wrap: wrap;
+  }
+  .seg button {
+    padding: 0 6px;
+    font-size: 11px;
+    letter-spacing: 0;
+  }
+  .row.slider {
+    grid-template-columns: 1fr minmax(90px, 44%) 34px;
+  }
+  .row.slider .label {
+    font-size: 13px;
+  }
+}
+.row.slider input[type='range'] {
+  height: 36px;
+}
+/* Tap targets. */
+#enc .enc-extra button,
+body[data-buttons] #enc .enc-extra button {
+  min-height: 44px !important;
+}
+/* The street note stays clear of the edge tabs. */
+#note {
+  width: min(calc(100vw - 80px), 420px);
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  #game.in-shop #clock {
+    display: none;
+  }
 }

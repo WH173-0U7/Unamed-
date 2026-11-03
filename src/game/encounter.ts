@@ -498,8 +498,8 @@ function rawOptions(e: Encounter): Option[] {
     case 'combat': {
       const y = e.you;
       const tired = (n: number) => y.stamina < cost(y, n);
-      const armHint = arms(y) ? `Broken arm${arms(y) > 1 ? 's' : ''}` : undefined;
-      const legHint = legs(y) ? `Broken leg${legs(y) > 1 ? 's' : ''}` : undefined;
+      const armHint = arms(y) ? `Your arm${arms(y) > 1 ? 's are' : ' is'} broken` : undefined;
+      const legHint = legs(y) ? `Your leg${legs(y) > 1 ? 's are' : ' is'} broken` : undefined;
       const out = !!e.them.out;
       const run: Option = { id: 'run', label: 'Run', hint: legHint ?? (tired(COST.run) ? 'Too tired' : undefined), cat: 'move' };
       const breathe: Option = { id: 'breathe', label: 'Catch your breath', cat: 'move' };
@@ -1239,6 +1239,7 @@ function dose(drug: Exclude<import('./person').Drug, 'empty'>) {
 function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | 'fall' | 'stomp' | 'jab'): string {
   const D = enc[d];
   const brokenBefore = [...D.broken];
+  const wasDown = D.down;
   landed = d;
   // Hit in the face: the cigarette goes flying.
   if (d === 'you' && loc === 'head' && enc.you.smoking) {
@@ -1255,7 +1256,7 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   const N = names(d === 'you' ? 'them' : 'you'); // the attacker's view: N.o is the one hurt
   const ml = Math.round((dmg * (D.maxBlood * (1 - PASS_OUT))) / D.toughness);
   D.blood = Math.max(0, D.blood - ml);
-  const out: string[] = [`(−${ml} ml)`];
+  const out: string[] = [`(−${ml}\u00a0ml)`];
   const re = N.oRe;
   let severe = ml >= 450;
   const bledBefore = D.bleeding;
@@ -1374,7 +1375,7 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   if (D.lung && loc !== 'head' && dmg >= 8 && Math.random() < 0.35) spills('cough');
   if (D.dazed && how !== 'fall') fall(0.15);
   // What it looks like, sounds like.
-  const g = how === 'jab' ? '' : gore(d, loc, how, ml, { newBreaks: D.broken.filter((p) => !brokenBefore.includes(p)), bleed });
+  const g = how === 'jab' ? '' : gore(d, loc, how, ml, { newBreaks: D.broken.filter((p) => !brokenBefore.includes(p)), bleed, wasDown });
   if (g) out.splice(1, 0, g);
   // The blood on the screen matches what's described.
   if (g && /blood|red\b|pink/.test(g)) {
@@ -1395,7 +1396,7 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
  * Worse the more blood it costs; lines said recently in this fight aren't
  * said again. `newBreaks`: what broke with this blow.
  */
-function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[]; bleed: (n: number) => void }): string {
+function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[]; bleed: (n: number) => void; wasDown: boolean }): string {
   const you = d === 'you';
   const P = you ? 'your' : 'their';
   const Pc = you ? 'Your' : 'Their';
@@ -1465,7 +1466,7 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
       [
         [`It lands flush, and ${P} eyes go blank for a moment.`, daze],
         ...(m.jaw ? ([] as Line[]) : ([[`There's a crack, and ${P} jaw hangs wrong: it's broken.`, () => ((m.jaw = true), fx.bleed(1))]] as Line[])),
-        ...(D.down ? ([[`${Pc} head bounces off the pavement.`, daze]] as Line[]) : []),
+        ...(fx.wasDown ? ([[`${Pc} head bounces off the pavement.`, daze]] as Line[]) : []),
         ...(teeth < 8 ? ([[`Teeth go. ${S} spit them out with a mouthful of blood.`, () => ((m.teeth = Math.min(12, teeth + 2 + Math.floor(Math.random() * 2))), fx.bleed(1))]] as Line[]) : []),
         ...(bleeding ? ([[`Blood runs freely down ${P} face now.`]] as Line[]) : []),
       ],
@@ -1509,7 +1510,7 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
     pool = pool?.filter(([t]) => !standing.test(t));
     const lying: Line[] = D.out
       ? [[`${Pc} body jerks with it.`], [`${S} don't react. ${S === 'You' ? "You're" : "They're"} out.`], [`${Pc} limp body rocks with the blow.`]]
-      : [[`${S} curl up on the pavement around it.`], [`${S} writhe on the ground.`], [`${S} try to cover up, and can't.`]];
+      : [...(loc === 'stomach' ? [] : ([[`${S} curl up on the pavement around it.`]] as Line[])), [`${S} writhe on the ground.`], [`${S} try to cover up, and can't.`]];
     pool = [...(pool ?? []), ...lying];
   }
   // A light blow often needs no more said; a break already says plenty.
@@ -1826,7 +1827,7 @@ function techEffect(t: Technique) {
       const ml = roll(40, 90);
       enc.you.blood = Math.max(0, enc.you.blood - ml);
       if (Math.random() < 0.2) enc.you.dazed = 1;
-      say('you', `Your own head rings with it. (−${ml} ml)`);
+      say('you', `Your own head rings with it. (−${ml}\u00a0ml)`);
       if (!T.dazed && Math.random() < 0.6) {
         T.dazed = 2;
         say('them', "They're dazed.");
@@ -2184,7 +2185,7 @@ function torture(how: string, inv?: Inventory) {
   ml = Math.round((ml * T.maxBlood) / 5000);
   if (ml) T.blood = Math.max(0, T.blood - ml);
   landed = 'them';
-  say('you', ml ? `${text} (−${ml} ml)` : text);
+  say('you', ml ? `${text} (−${ml}\u00a0ml)` : text);
   if (dry) say('info', dry);
   impacts.push({ target: 'them', ml, severe: false, loc: how === 'burn' ? 'head' : 'arm', spill: ml >= 60 ? 'drip' : 'none' });
   // Fear like nothing else; and some of it gets into you.

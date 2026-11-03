@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.42',
+    date: 'Nov 3',
+    items: [
+      'Fight screen rebuilt for small phones: the options never slide over the log any more, whatever the lettering; the log keeps its “earlier lines” count in view.',
+      'When someone dies, the last blows stay in the log.',
+      'Shops and Pockets show what just happened inside them (buying, testing a syringe, drinking), not hidden behind.',
+      'Landscape shops use the whole height; Pockets rows with three buttons wrap neatly; greyed-out buttons say why.',
+      'Smaller fixes: “ml” stays with its number, Settings fits on small phones, bigger buttons, a softer colour fringe on text, gentler drunk and tranq sway.',
+    ],
+  },
+  {
     v: '0.41',
     date: 'Nov 3',
     items: [
@@ -42,7 +53,7 @@ export const CHANGES: Release[] = [
     v: '0.38',
     date: 'Nov 3',
     items: [
-      'One Violence tab in a fight, in sections (Strikes, Weapons, On the ground, Torture); Run and Catch your breath are buttons under the tabs.',
+      'One Violence tab in a fight, in sections (Strikes, Weapons, On the ground, Torture); Run and Catch your breath are buttons under the options.',
       'The You sheet only closes from its top bar (or a long pull), so scrolling doesn’t put it away.',
     ],
   },

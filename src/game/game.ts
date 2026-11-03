@@ -307,6 +307,15 @@ export class Game {
   /** A few lines shown in the middle of the screen for a while. */
   private note(lines: string[]) {
     if (!lines.length) return;
+    // In a shop, or with a sheet open, what happened shows right there (the
+    // street's note would be behind it).
+    if (this.sheet) {
+      this.sheetNote = lines;
+      this.renderSheet();
+    } else if (this.place !== 'street' && this.tvState.on && !this.encounter) {
+      this.shopNote = lines;
+      this.renderShop();
+    }
     this.noteEl.replaceChildren(...lines.map((l) => Object.assign(document.createElement('p'), { textContent: l })));
     this.noteEl.hidden = false;
     this.noteEl.style.animation = 'none';
@@ -448,6 +457,7 @@ export class Game {
       e.you.smoking = false;
     }
     const worse: string[] = [];
+    let after: string[] = [];
     // Torturing someone; robbing someone who'd given up.
     if ((e.tortured ?? 0) > tortured) {
       const l = this.loseHumanity(TORTURE_COST * ((e.tortured ?? 0) - tortured));
@@ -484,11 +494,12 @@ export class Game {
         const l = this.loseHumanity(KILL_COST);
         if (l) worse.push(l);
       }
-      // It's done: the log is cleared (the title says how it ended), keeping
-      // only what happens to you afterwards.
+      // It's done. The fight's log stays (a body stays to be searched, and the
+      // last blows should still be there); what happens to you afterwards is
+      // added, and is what the closing note says.
       // Walked away before anything happened: nothing carries over (no nerve, the coke still in you).
       const nothing = !e.fought && (e.result === 'left' || e.result === 'lost-them');
-      e.log = nothing ? [] : afterFight(this.health, e.you, e.result!).map((text) => ({ by: 'info' as const, text }));
+      after = nothing ? [] : afterFight(this.health, e.you, e.result!);
       // How it sits with you: what you did to them, and who they were.
       if (e.result !== 'lost' && e.result !== 'killed') {
         const start = e.start?.blood ?? e.them.maxBlood;
@@ -496,23 +507,24 @@ export class Game {
         const what = (e.tortured ?? 0) > 0 ? 'torture' : e.mugged || (e.robbed && e.result === 'mugged') ? 'mug' : beat ? 'beat' : null;
         if (what) {
           const g = guilt(e, what, this.humanity.lost);
-          for (const text of g.lines) e.log.push({ by: 'info', text });
+          after.push(...g.lines);
           const h = this.health;
           h.stress = Math.max(0, Math.min(100, (h.stress ?? 0) + g.stress));
         }
       }
     }
-    for (const text of worse) e.log.push({ by: 'info', text });
+    after.push(...worse);
+    for (const text of after) e.log.push({ by: 'info', text });
     if (this.health.dead) {
       if (impacts.length) this.feel(impacts);
-      return this.die(e.log.map((l) => l.text));
+      return this.die(after.length ? after : e.log.map((l) => l.text));
     }
     if (impacts.length) this.feel(impacts);
     else buzz(6);
     // It's over and they're gone (or you are): the screen closes, and how it
     // ended is a note. A body stays, to be searched, until you walk away.
     if (!wasOver && e.stage === 'over' && e.result !== 'killed') {
-      return this.closeEncounter([RESULT[e.result ?? 'left'], ...e.log.map((l) => l.text)]);
+      return this.closeEncounter([RESULT[e.result ?? 'left'], ...after]);
     }
     this.refresh();
   }
@@ -734,6 +746,7 @@ export class Game {
   }
 
   private closeSheet() {
+    this.sheetNote = [];
     if (this.sheet) uiGlitch(null, 0.25);
     this.sheet = null;
     this.sheetEl.hidden = true;
@@ -769,6 +782,7 @@ export class Game {
 
   /** Walk somewhere else. */
   private goTo(p: Place) {
+    this.shopNote = [];
     this.closeSheet();
     if (p === this.place) return;
     // Thrown out of the pawn shop: he won't let you back in for a while.
@@ -1601,6 +1615,7 @@ export class Game {
     }
     const html =
       `<div class="shop-head"><h2>${info.name}</h2><p>${info.blurb}${info.hours ? ` <em>${hoursText(info.hours)}.</em>` : ''}</p></div>` +
+      this.noteHtml(this.shopNote, 'shop-note') +
       `<p class="pocket-purse">${this.purseHtml()}</p>` +
       `<div class="shop-body">${body}</div>`;
     // Only when something changed, and keep your place in the list (buying
@@ -1615,6 +1630,12 @@ export class Game {
     requestAnimationFrame(() => this.shopEl.classList.toggle('more', this.shopEl.scrollTop + this.shopEl.clientHeight < this.shopEl.scrollHeight - 6));
   }
   private shopHtml = '';
+  /** The last thing that happened in this shop / sheet, shown inside it. */
+  private shopNote: string[] = [];
+  private sheetNote: string[] = [];
+  private noteHtml(lines: string[], cls: string) {
+    return lines.length ? `<div class="${cls}">${lines.map((l) => `<p>${l}</p>`).join('')}</div>` : '';
+  }
 
   /** In a shop, or a sheet (Pockets, stats, Go) is open: the screen stays clear of what you're on. */
   get inMenu(): boolean {
@@ -1638,7 +1659,7 @@ export class Game {
     if (this.sheet === 'stats') {
       const h = this.health;
       const summary = `<p class="you-summary"><span>Blood <b>${(h.blood / 1000).toFixed(1)} L</b></span><span>Cash <b>${money(Math.round(cashOf(this.inventory) * 100))}</b></span><span>Character <b>#${this.world.lives}</b></span></p>`;
-      card.innerHTML = `<div class="sheet-head"><h2>You</h2>${close}</div><div class="sheet-body">${summary}${this.statsHtml()}</div>`;
+      card.innerHTML = `<div class="sheet-head"><h2>You</h2>${close}</div><div class="sheet-body">${this.noteHtml(this.sheetNote, 'sheet-note')}${summary}${this.statsHtml()}</div>`;
       return;
     }
     if (this.sheet === 'places') {
@@ -1716,10 +1737,10 @@ export class Game {
                             : /card/.test(x.kind) && (x.pin || x.drained)
                             ? `${x.detail ? `${x.detail} · ` : ''}${x.drained ? 'Stopped' : `PIN ${x.pin} (cash machine at the bank)`}`
                             : x.detail;
-                const act = (attr: string, label: string, no?: string | null) => `<button type="button" data-${attr}="${i}" ${no ? `disabled title="${no}"` : ''}>${label}</button>`;
+                const act = (attr: string, label: string, no?: string | null) => `<button type="button" data-${attr}="${i}" ${no ? `disabled title="${no}"` : ''}>${label}${no ? `<small>${no}</small>` : ''}</button>`;
                 let acts = m && m.id !== 'testkit' ? act('use', 'Use', why) : '';
                 if (/^(lighter|matches)$/i.test(x.name)) acts += act('fire', 'Fire', this.fireBlocked());
-                if (/^(loose )?cigarettes$/i.test(x.name)) acts += act('smoke', this.smoking ? 'Smoking' : 'Smoke', (x.doses ?? 0) <= 0 ? 'Empty' : this.smokeBlocked());
+                if (/^(loose )?cigarettes$/i.test(x.name)) acts += act('smoke', this.smoking ? 'Smoking' : 'Smoke', (x.doses ?? 1) <= 0 ? 'Empty' : this.smokeBlocked());
                 if (x.drink) acts += act('drink', 'Drink', (x.doses ?? 0) <= 0 ? 'Empty' : this.canOpenSheet ? null : 'Not now');
                 // Loose ones into a pack with room in it.
                 if (/^loose cigarettes$/i.test(x.name) && inv.items.some((y) => /^cigarettes$/i.test(y.name) && (y.doses ?? 0) < 20))
@@ -1751,7 +1772,7 @@ export class Game {
     if (!inv.spots.length) body += `<p class="pocket-empty">Nothing you're wearing has pockets.</p>`;
     // Keep your place in the list when it's redrawn.
     const scroll = card.querySelector('.sheet-body')?.scrollTop ?? 0;
-    card.innerHTML = `<div class="sheet-head"><h2>Pockets</h2>${close}</div><div class="sheet-body">${body}</div>`;
+    card.innerHTML = `<div class="sheet-head"><h2>Pockets</h2>${close}</div><div class="sheet-body">${this.noteHtml(this.sheetNote, 'sheet-note')}${body}</div>`;
     card.querySelector('.sheet-body')!.scrollTop = scroll;
   }
 
@@ -1809,7 +1830,7 @@ export class Game {
     const now: Record<StatName, [string, string][]> = {
       sneak: [
         ['Ambushes land', sign(ambushBonus(st))],
-        ['How quickly they notice you following', `${pct(noticeRate(st))} (lower is better)`],
+        ['Noticed while following', `${pct(noticeRate(st))} as quickly`],
       ],
       strength: [
         ['Damage from your blows', `+${pct(strengthDamage(st))}`],

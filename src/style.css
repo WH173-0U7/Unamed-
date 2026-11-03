@@ -2718,3 +2718,37 @@ body[data-buttons='lines'] .spot-bar {
   background: radial-gradient(ellipse 66% 74% at 50% 50%, transparent 50%, rgba(115, 0, 5, 0.55) 80%, rgba(115, 0, 5, 0.9) 100%);
   will-change: opacity;
 }
+
+/* Injuries on the stats sheet: what each one does to you. */
+.stat-card.injuries h3 b {
+  color: #d9776a;
+}
+.injury {
+  padding: 6px 0 8px;
+}
+.injury + .injury {
+  border-top: 1px dashed var(--line);
+}
+.injury h4 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2a596;
+}
+.injury ul {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 13px;
+  color: var(--ink);
+}
+.injury li + li {
+  margin-top: 2px;
+}
+.injury .stat-how {
+  margin-top: 4px;
+}
+/* Your injuries under the blood bar open the stats sheet. */
+#you-status .enc-conds {
+  pointer-events: auto;
+  cursor: pointer;
+}

@@ -5,7 +5,7 @@ import { CHANCES, RACE_CHANCES, NAMES, makePerson } from './person';
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
 import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, type StatName, type Stats } from './stats';
-import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, isHurt, newHealth, passHours, type Health } from './health';
+import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
 import { PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
 import { uiGlitch } from '../fx/uiGlitch';
@@ -117,6 +117,10 @@ export class Game {
     this.statsEl = view.querySelector('#stats') as HTMLElement;
     this.statsEl.onclick = () => this.openSheet('stats');
     this.youEl = view.querySelector('#you-status') as HTMLElement;
+    // Tapping your injuries shows what they do.
+    this.youEl.addEventListener('click', (ev) => {
+      if ((ev.target as HTMLElement).closest('.enc-conds')) this.openSheet('stats');
+    });
     this.restBtn = view.querySelector('#rest-btn') as HTMLButtonElement;
     this.noteEl = view.querySelector('#note') as HTMLElement;
     this.clockEl = view.querySelector('#clock') as HTMLElement;
@@ -1394,7 +1398,16 @@ export class Game {
       stamina: 'Fighting yourself to exhaustion.',
     };
     const rows = (xs: [string, string][]) => xs.map(([a, b]) => `<div><dt>${a}</dt><dd>${b}</dd></div>`).join('');
-    let html = (Object.keys(STAT_NAMES) as StatName[])
+    // What's wrong with you comes first: each injury and what it's doing to you.
+    const hurts = injuryEffects(this.health);
+    let html = hurts.length
+      ? `<section class="stat-card injuries"><h3><span>Injuries</span><b>${hurts.length}</b></h3>` +
+        hurts
+          .map((i) => `<div class="injury"><h4>${i.name}</h4><ul>${i.effects.map((x) => `<li>${x}</li>`).join('')}</ul><p class="stat-how">${i.heals}</p></div>`)
+          .join('') +
+        `</section>`
+      : '';
+    html += (Object.keys(STAT_NAMES) as StatName[])
       .map((k) => {
         const { level, xp } = st[k];
         const max = level >= MAX_LEVEL;

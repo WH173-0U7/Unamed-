@@ -213,6 +213,10 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   in numbers ("Ambushes land +12%", "Damage ×1.24"), how far to the next
   level and how it grows; and the rest of you: stress, nerve, humanity,
   reputation, heat, how hidden your face is, how many people remember you.
+- **Injuries, explained.** When you're hurt, the stats sheet opens with an
+  Injuries card: every injury, exactly what it does to you ("Kicks and stomps
+  land −20%", "Every move costs 1.8× the stamina"), how long it has left and
+  what helps. Tapping your injuries under the blood bar opens it too.
 - **Settings: Lettering and Buttons.** Lettering: *Report* (Courier, like a
   police report; the default), *Typed* (worn typewriter keys), *CRT* (an old
   terminal), *Clean* (the old rounded look). Buttons: *Lines* (just words on

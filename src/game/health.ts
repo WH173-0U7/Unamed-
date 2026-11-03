@@ -236,3 +236,121 @@ export function passHours(h: Health, hours: number, resting = false): string[] {
   h.blood = Math.round(h.blood);
   return lines;
 }
+
+/** One injury, for the stats sheet: what it is, what it does to you, how long it lasts. */
+export interface InjuryInfo {
+  name: string;
+  /** What it does to you, line by line. */
+  effects: string[];
+  /** How long it has left, and what helps. */
+  heals: string;
+}
+
+const hrs = (n: number) => {
+  const h = Math.max(1, Math.ceil(n));
+  return `${h} hour${h === 1 ? '' : 's'}`;
+};
+const litres = (ml: number) => `${(ml / 1000).toFixed(2).replace(/0$/, '')} L`;
+
+/**
+ * Everything wrong with you and exactly what it does (the same numbers the
+ * fights use: see encounter.ts strike, fleeChance, getUpChance, staminaCap,
+ * and the police chase in game.ts). Hours are game hours: a lurk is one,
+ * resting is four, and resting heals half as fast again.
+ */
+export function injuryEffects(h: Health): InjuryInfo[] {
+  const out: InjuryInfo[] = [];
+  const legs = h.broken.filter((p) => p.endsWith('leg')).length;
+  const lost = 1 - h.blood / h.maxBlood;
+
+  if (h.bleeding) {
+    const ml = BLEED_PER_HOUR[h.bleeding];
+    out.push({
+      name: `Bleeding: ${BLEEDING[h.bleeding]}`,
+      effects: [
+        `Losing ${litres(ml)} of blood an hour, and more each turn in a fight`,
+        'No blood comes back until it stops',
+        `Pass out at ${litres(h.maxBlood * PASS_OUT)}; bleed out at ${litres(h.maxBlood * DEATH)}`,
+      ],
+      heals: `About a ${Math.round(CLOT[h.bleeding] * 100)}% chance an hour it eases a level. Bandages, gauze or resting help.`,
+    });
+  }
+  if (h.blood < h.maxBlood) {
+    const effects = [`${litres(h.blood)} of ${litres(h.maxBlood)}. At ${litres(h.maxBlood * PASS_OUT)} you pass out`];
+    if (lost >= 0.01) effects.push(`Easier to knock out: +${Math.round(lost * 20)}% from a head blow (+${Math.round(lost * 45)}% on the floor)`);
+    if (h.blood < h.maxBlood * 0.75) effects.push('Running from the police: −15%');
+    const regen = REGEN_PER_HOUR * ((h.cold ?? 0) >= 3 ? 0.4 : (h.cold ?? 0) === 2 ? 0.75 : 1);
+    out.push({
+      name: 'Blood lost',
+      effects,
+      heals: h.bleeding
+        ? 'Comes back once the bleeding stops.'
+        : `Back to full in about ${hrs((h.maxBlood - h.blood) / regen)}. Iron tablets give 0.4 L.`,
+    });
+  }
+  for (const p of h.broken) {
+    const effects: string[] = [];
+    if (p.endsWith('arm')) effects.push('Punches and weapon blows land: −20%');
+    if (p.endsWith('leg')) {
+      effects.push('Kicks and stomps land: −20%');
+      effects.push(`Running away: ${legs >= 2 ? '8%' : '35%'} of the usual chance${legs >= 2 ? ' (both legs)' : ''}`);
+      effects.push('Getting up off the floor: −30%');
+      effects.push('Running from the police: −30%');
+    }
+    if (p === 'ribs') {
+      effects.push(`Every move costs ${h.lung ? '2.4' : '1.8'}× the stamina`);
+      effects.push(`Fights start with ${h.lung ? '30%' : 'half'} your stamina, and you can't get back more than that`);
+      if (!h.lung) effects.push('A stamp or hard blow there can drive a rib into your lung');
+    }
+    if (p === 'nose') effects.push('It hurts and it shows, but it doesn\'t slow you in a fight');
+    const left = h.mending[p] ?? 0;
+    const splinted = h.splinted?.includes(p);
+    out.push({
+      name: `Broken ${p}${splinted ? ' (splinted)' : ''}`,
+      effects,
+      heals:
+        `Heals in about ${hrs(left)}.` +
+        (p.endsWith('arm') || p.endsWith('leg') ? (splinted ? '' : ' A splint halves that.') : ''),
+    });
+  }
+  if (h.lung) {
+    out.push({
+      name: 'Punctured lung',
+      effects: ['Every move costs 2.4× the stamina', 'Fights start with 30% of your stamina, and you can\'t get back more than that'],
+      heals: 'Heals when your ribs do.',
+    });
+  }
+  if (h.concussion > 0) {
+    out.push({
+      name: 'Concussed',
+      effects: ['Your blows land: −10%', 'Dazed more easily: 1.5× the chance', 'Easier to knock out: +5% from a head blow (+12% on the floor)'],
+      heals: `Clears in about ${hrs(h.concussion)}. Painkillers clear 3 hours of it.`,
+    });
+  }
+  if (h.cold) {
+    const effects = [`Fights start with ${h.cold * 10}% less stamina`, `Running from the police: −${h.cold * 5}%`];
+    if (h.cold >= 2) effects.push(`Your body makes blood back ${h.cold >= 3 ? '40%' : '75%'} as fast`);
+    out.push({ name: COLD_NAMES[h.cold], effects, heals: 'Get out of the rain: indoors, or by a fire.' });
+  }
+  if (h.wired) {
+    out.push({
+      name: 'Wired',
+      effects: ['Next fight: 25% more stamina'],
+      heals: 'Wears off when that fight is over, and leaves you hollow.',
+    });
+  }
+  const m = h.marks ?? {};
+  const markLeft = (k: HealingMark) => {
+    const left = h.markHours?.[k];
+    return left ? `Heals in about ${hrs(left)}.` : 'Heals with time.';
+  };
+  const looks = 'It shows on your face, nothing more: it doesn\'t slow you in a fight';
+  if (m.jaw) out.push({ name: 'Broken jaw, wired shut', effects: [looks], heals: markLeft('jaw') });
+  if (m.eye) out.push({ name: 'Black eye', effects: [looks], heals: markLeft('eye') });
+  if (m.brow) out.push({ name: 'Cut over your eye', effects: [looks], heals: `${markLeft('brow')} It will leave a scar.` });
+  if (m.lip) out.push({ name: 'Split lip', effects: [looks], heals: markLeft('lip') });
+  if (m.cheek) out.push({ name: 'Swollen cheek', effects: [looks], heals: markLeft('cheek') });
+  if (m.teeth) out.push({ name: m.teeth === 1 ? 'A tooth missing' : `${m.teeth} teeth missing`, effects: [looks], heals: 'They never grow back.' });
+  if (m.scars?.length) out.push({ name: `Scar${m.scars.length > 1 ? 's' : ''}`, effects: [looks], heals: 'For good.' });
+  return out;
+}

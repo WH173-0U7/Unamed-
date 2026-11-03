@@ -42,7 +42,8 @@ export const STAT_NAMES: Record<StatName, string> = {
 /** Shorter names for the stats along the top of a small screen. */
 export const STAT_SHORT: Record<StatName, string> = { sneak: 'Snk', strength: 'Str', unarmed: 'Unr', agility: 'Agi', stamina: 'Stm', intimidation: 'Itm' };
 
-export const MAX_LEVEL = 20;
+/** Levels go to 100, and each one takes longer than the last. */
+export const MAX_LEVEL = 100;
 
 export function newStats(): Stats {
   return {
@@ -55,8 +56,12 @@ export function newStats(): Stats {
   };
 }
 
-/** Experience needed to go from this level to the next. */
-export const xpToNext = (level: number) => 15 + level * 15;
+/**
+ * Experience needed to go from this level to the next: 32 for the first, a
+ * couple of hundred around 10, a couple of thousand by 50, about 7,000 at the
+ * end. The first levels come in a few fights; the last take a long time.
+ */
+export const xpToNext = (level: number) => Math.round(20 + level * 12 + level * level * 0.6);
 
 /** Adds experience from using a stat. Returns the new level if it went up. */
 export function train(stats: Stats, name: StatName, xp: number): number | null {
@@ -73,21 +78,26 @@ export function train(stats: Stats, name: StatName, xp: number): number | null {
   return up;
 }
 
-/** Sneak: extra chance for an ambush to land (+4% a level). */
-export const ambushBonus = (s: Stats) => (s.sneak.level - 1) * 0.04;
+// Every effect is per level above 1, sized so that level 100 is a master.
+/** Sneak: extra chance for an ambush to land (+0.8% a level, +79% at 100). */
+export const ambushBonus = (s: Stats) => (s.sneak.level - 1) * 0.008;
 /** Sneak: how fast you get noticed while following (lower is better). */
-export const noticeRate = (s: Stats) => 1 / (1 + (s.sneak.level - 1) * 0.1);
-/** Damage multiplier for your blows: Unarmed most (+6% a level), Strength a little (+2% a level). */
+export const noticeRate = (s: Stats) => 1 / (1 + (s.sneak.level - 1) * 0.02);
+/** Damage multiplier for your blows: Unarmed most (+1.2% a level), Strength a little (+0.4% a level). */
 export const damageMult = (s: Stats) => 1 + unarmedDamage(s) + strengthDamage(s);
-export const unarmedDamage = (s: Stats) => (s.unarmed.level - 1) * 0.06;
-export const strengthDamage = (s: Stats) => (s.strength.level - 1) * 0.02;
-/** Agility: extra chance your blows land (+3% a level). */
-export const accuracyBonus = (s: Stats) => (s.agility.level - 1) * 0.03;
-/** Agility: less chance their blows land on you (−2.5% a level). */
-export const dodgeBonus = (s: Stats) => (s.agility.level - 1) * 0.025;
-/** Stamina: how much you have (+6 a level). */
-export const maxStamina = (s: Stats) => 100 + (s.stamina.level - 1) * 6;
-/** Stamina: how much comes back each turn (+0.6 a level). */
-export const staminaRegen = (s: Stats) => 7 + (s.stamina.level - 1) * 0.6;
-/** Intimidation: how much more scared of you people are (+3 fear a level). */
-export const fearBonus = (s: Stats) => (s.intimidation.level - 1) * 3;
+export const unarmedDamage = (s: Stats) => (s.unarmed.level - 1) * 0.012;
+export const strengthDamage = (s: Stats) => (s.strength.level - 1) * 0.004;
+/** Strength: how much more scared of you people are (+0.4 fear a level). */
+export const strengthFear = (s: Stats) => Math.round((s.strength.level - 1) * 0.4);
+/** Strength: a better grip when you grab someone (+0.4% a level). */
+export const gripBonus = (s: Stats) => (s.strength.level - 1) * 0.004;
+/** Agility: extra chance your blows land (+0.6% a level). */
+export const accuracyBonus = (s: Stats) => (s.agility.level - 1) * 0.006;
+/** Agility: less chance their blows land on you (−0.5% a level). */
+export const dodgeBonus = (s: Stats) => (s.agility.level - 1) * 0.005;
+/** Stamina: how much you have (+1.2 a level). */
+export const maxStamina = (s: Stats) => 100 + Math.round((s.stamina.level - 1) * 1.2);
+/** Stamina: how much comes back each turn (+0.12 a level). */
+export const staminaRegen = (s: Stats) => 7 + (s.stamina.level - 1) * 0.12;
+/** Intimidation: how much more scared of you people are (+0.6 fear a level). */
+export const fearBonus = (s: Stats) => Math.round((s.intimidation.level - 1) * 0.6);

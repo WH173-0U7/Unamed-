@@ -241,17 +241,23 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   cigarettes, lighters, matches, bandages and painkillers (dearer than the
   pharmacy), caps, beanies and sunglasses. In any shop, what just happened
   shows in a strip at the bottom instead of behind the shop.
-- **Unarmed** is a skill of its own: it's most of the damage your blows do
-  (+6% a level; Strength adds only +2% a level now, and grows more slowly),
-  and it teaches you moves, crude street fighting first and skill later. In a
-  fight: Gut punch (2, winds them), Knee them (3), Haymaker (4, big and wild),
-  Headbutt (6, hurts you too), Elbow (8, opens a cut), Uppercut (10, can
-  knock them out), Trip them (12, puts them down), and a Headlock on someone
-  on the floor (13, out cold with no blood). New ambushes: Kick their knee (5)
-  and Choke from behind (15). A beginner's punches and kicks read like it
-  (wild swings, clumsy kicks); a trained fighter's are short and hard. The
-  next move you'll learn shows greyed out with its level, and the stats sheet
-  lists them all. Saves from before start Unarmed at their old Strength level.
+- **Levels go to 100**, and each takes longer than the last (32 experience
+  for the first, about 200 around level 10, a couple of thousand by 50,
+  about 7,000 at the end). Every stat's effect is per level and sized so that
+  100 is a master (e.g. Sneak +0.8% to land an ambush a level, +79% at 100).
+  Saves from when levels went to 20 are scaled up (level L becomes 1 + 5×(L−1)).
+- **Unarmed** is a skill of its own: most of the damage your blows do
+  (+1.2% a level; Strength adds +0.4% a level, and grows more slowly), and it
+  teaches you moves, crude street fighting first and skill later, spread over
+  1–100 with room for more (and for upgraded versions to replace them). In a
+  fight: Gut punch (5, winds them), Knee them (10), Haymaker (15, big and
+  wild), Headbutt (25, hurts you too), Elbow (32, opens a cut), Uppercut (40,
+  can knock them out), Trip them (50, puts them down), and a Headlock on
+  someone on the floor (58, out cold with no blood). Ambushes: Kick their
+  knee (20) and Choke from behind (66). A beginner's punches and kicks read
+  like it (wild swings, clumsy kicks, up to Unarmed 10); a trained fighter's
+  (40+) are short and hard. The next move you'll learn shows greyed out with
+  its level, and the stats sheet lists them all.
 - **Intimidation** is a fifth stat, trained by all of the above. On small
   screens the stats along the top use short names.
 - **The cash machine** at the bank works any hour: a stolen card with the PIN

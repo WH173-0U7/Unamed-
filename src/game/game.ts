@@ -4,7 +4,7 @@ import { createTv } from './tv';
 import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf } from './person';
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
-import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, type StatName, type Stats } from './stats';
+import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, type StatName, type Stats } from './stats';
 import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
 import { ALL_TECHNIQUES, PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
@@ -180,6 +180,11 @@ export class Game {
     const fresh = newStats();
     // From before Unarmed: the fighting you'd done counts (Strength used to be it).
     if (!s.unarmed && s.strength) s.unarmed = { level: s.strength.level, xp: 0 };
+    // From when levels went to 20: the same skill is five times the level now.
+    if (!this.save.state.statScale) {
+      for (const k of Object.keys(s) as StatName[]) if (s[k]) s[k] = { level: Math.min(MAX_LEVEL, 1 + (s[k].level - 1) * 5), xp: 0 };
+      this.save.state.statScale = 100;
+    }
     for (const k of Object.keys(fresh) as StatName[]) s[k] ??= fresh[k];
     return s;
   }
@@ -1073,7 +1078,7 @@ export class Game {
     let arrested = false;
     if (choice === 'run') {
       const legs = h.broken.filter((p) => p.endsWith('leg')).length;
-      const odds = 0.35 + (this.stats.agility.level - 1) * 0.03 - legs * 0.3 - (h.cold ?? 0) * 0.05 - (h.stress ?? 0) * 0.002 - (h.blood < h.maxBlood * 0.75 ? 0.15 : 0);
+      const odds = 0.35 + accuracyBonus(this.stats) - legs * 0.3 - (h.cold ?? 0) * 0.05 - (h.stress ?? 0) * 0.002 - (h.blood < h.maxBlood * 0.75 ? 0.15 : 0);
       if (Math.random() < odds) {
         lines.push('You bolt. Shouts behind you, a car door, footsteps. You go over a fence and through a yard and down an alley, and when you stop, they\'re gone.');
         f.heat = Math.min(100, f.heat + 10);
@@ -1521,7 +1526,7 @@ export class Game {
       ],
       strength: [
         ['Damage from your blows', `+${pct(strengthDamage(st))}`],
-        ['Fear of you', `+${(st.strength.level - 1) * 2}`],
+        ['Fear of you', `+${strengthFear(st)}`],
       ],
       unarmed: [
         ['Damage from your blows', `+${pct(unarmedDamage(st))}`],
@@ -1600,11 +1605,11 @@ export class Game {
    */
   private menace(): number {
     const st = this.stats;
-    return fearBonus(st) + (st.strength.level - 1) * 2 + evilFear(this.humanity.lost) + (conspicuous(this.inventory) ? 6 : 0);
+    return fearBonus(st) + strengthFear(st) + evilFear(this.humanity.lost) + (conspicuous(this.inventory) ? 6 : 0);
   }
   private menaceRows(): [string, string][] {
     const st = this.stats;
-    const rows: [string, string][] = [['Fear, from your Strength', `+${(st.strength.level - 1) * 2}`]];
+    const rows: [string, string][] = [['Fear, from your Strength', `+${strengthFear(st)}`]];
     const evil = Math.round(evilFear(this.humanity.lost));
     if (evil) rows.push(['Fear, from how far gone you are', `+${evil}`]);
     if (conspicuous(this.inventory)) rows.push(['Fear, from the mask', '+6']);

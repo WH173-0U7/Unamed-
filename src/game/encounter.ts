@@ -5,6 +5,7 @@ import {
   STAT_NAMES,
   accuracyBonus,
   ambushBonus,
+  gripBonus,
   damageMult,
   dodgeBonus,
   noticeRate,
@@ -692,7 +693,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
         }
       } else if (id === 'rear-choke') {
         e.them.stamina = Math.max(0, e.them.stamina - 60);
-        if (Math.random() < 0.5 + (lvl - CHOKE_AMBUSH_LEVEL) * 0.04) {
+        if (Math.random() < 0.5 + (lvl - CHOKE_AMBUSH_LEVEL) * 0.01) {
           e.them.out = true;
           e.them.down = true;
           say('you', 'You come up behind them and lock an arm round their throat. They kick, and claw at you, and then they sag. Out cold, and not a drop of blood.');
@@ -803,7 +804,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
         spend('you', COST.grapple);
         const b = BUILDS[p.build];
         const odds = clamp(
-          0.6 + accuracyBonus(stats) + (stats.strength.level - 1) * 0.02 + (b.solid ? -0.15 : 0.1) - arms(y) * 0.2 - (y.dazed ? 0.2 : 0) + (e.them.dazed ? 0.15 : 0),
+          0.6 + accuracyBonus(stats) + gripBonus(stats) + (b.solid ? -0.15 : 0.1) - arms(y) * 0.2 - (y.dazed ? 0.2 : 0) + (e.them.dazed ? 0.15 : 0),
           0.05,
           0.95,
         );
@@ -994,7 +995,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
         ? `${N.S} hit ${N.o} on the arm as ${N.oSub} cover up.`
         : a === 'you' && novice()
           ? oneOf([`You swing wild and catch them ${where}.`, `You throw a sloppy punch and it lands ${where}.`, `You flail at them and connect ${where}.`])
-          : a === 'you' && (enc.unarmedLevel ?? 1) >= 10
+          : a === 'you' && (enc.unarmedLevel ?? 1) >= 40
             ? oneOf([`You snap a punch ${where.replace(/^in the /, 'into their ')}.`, `You punch them ${where}, short and hard.`])
             : `${N.S} punch ${N.o} ${where}.`;
   }
@@ -1472,20 +1473,21 @@ interface Technique {
 
 /** In a fight, standing: learned one by one as Unarmed goes up. */
 export const TECHNIQUES: Technique[] = [
-  // Street fighting, from the crude to the skilled.
-  { id: 'tech:body', name: 'Gut punch', hint: 'Winds them', level: 2, kind: 'punch', aim: 'stomach', hit: -0.04, dmg: 0.9, cost: 9, text: 'You bury a fist in their gut.' },
-  { id: 'tech:knee', name: 'Knee them', hint: 'Grab them and knee', level: 3, kind: 'kick', aim: 'body', hit: -0.04, dmg: 1.2, cost: 13, text: 'You grab a fistful of their jacket and drive your knee into their ribs.' },
-  { id: 'tech:hook', name: 'Haymaker', hint: 'Big swing: hard to land', level: 4, kind: 'punch', aim: 'head', hit: -0.15, dmg: 1.4, cost: 12, text: 'You wind up and throw everything you have at their head.' },
-  { id: 'tech:headbutt', name: 'Headbutt', hint: 'Hurts you too', level: 6, kind: 'punch', aim: 'head', hit: 0, dmg: 1.45, cost: 10, effect: 'headbutt', text: 'You grab them by the collar and smash your forehead into their face.' },
-  { id: 'tech:elbow', name: 'Elbow', hint: 'Up close: splits skin', level: 8, kind: 'punch', aim: 'head', hit: -0.05, dmg: 1.15, cost: 10, effect: 'cut', text: 'You step in close and swing an elbow across their face.' },
-  { id: 'tech:uppercut', name: 'Uppercut', hint: 'Can knock them out', level: 10, kind: 'punch', aim: 'head', hit: -0.1, dmg: 1.45, cost: 12, effect: 'ko', text: 'You come up under their chin with an uppercut.' },
-  { id: 'tech:sweep', name: 'Trip them', hint: 'Puts them on the floor', level: 12, kind: 'kick', aim: 'leg', hit: 0, dmg: 0.4, cost: 12, effect: 'sweep', text: 'You hook a foot behind their ankle and shove.' },
+  // Street fighting, from the crude to the skilled, spread across Unarmed 1–100
+  // (room to add more, and for upgraded versions to replace these later).
+  { id: 'tech:body', name: 'Gut punch', hint: 'Winds them', level: 5, kind: 'punch', aim: 'stomach', hit: -0.04, dmg: 0.9, cost: 9, text: 'You bury a fist in their gut.' },
+  { id: 'tech:knee', name: 'Knee them', hint: 'Grab them and knee', level: 10, kind: 'kick', aim: 'body', hit: -0.04, dmg: 1.2, cost: 13, text: 'You grab a fistful of their jacket and drive your knee into their ribs.' },
+  { id: 'tech:hook', name: 'Haymaker', hint: 'Big swing: hard to land', level: 15, kind: 'punch', aim: 'head', hit: -0.15, dmg: 1.4, cost: 12, text: 'You wind up and throw everything you have at their head.' },
+  { id: 'tech:headbutt', name: 'Headbutt', hint: 'Hurts you too', level: 25, kind: 'punch', aim: 'head', hit: 0, dmg: 1.45, cost: 10, effect: 'headbutt', text: 'You grab them by the collar and smash your forehead into their face.' },
+  { id: 'tech:elbow', name: 'Elbow', hint: 'Up close: splits skin', level: 32, kind: 'punch', aim: 'head', hit: -0.05, dmg: 1.15, cost: 10, effect: 'cut', text: 'You step in close and swing an elbow across their face.' },
+  { id: 'tech:uppercut', name: 'Uppercut', hint: 'Can knock them out', level: 40, kind: 'punch', aim: 'head', hit: -0.1, dmg: 1.45, cost: 12, effect: 'ko', text: 'You come up under their chin with an uppercut.' },
+  { id: 'tech:sweep', name: 'Trip them', hint: 'Puts them on the floor', level: 50, kind: 'kick', aim: 'leg', hit: 0, dmg: 0.4, cost: 12, effect: 'sweep', text: 'You hook a foot behind their ankle and shove.' },
 ];
 /** On someone who's on the floor: a choke (out cold, no blood). */
-export const CHOKE_LEVEL = 13;
+export const CHOKE_LEVEL = 58;
 /** New ambushes: kick out their knee, and a choke from behind. */
-export const KNEE_AMBUSH_LEVEL = 5;
-export const CHOKE_AMBUSH_LEVEL = 15;
+export const KNEE_AMBUSH_LEVEL = 20;
+export const CHOKE_AMBUSH_LEVEL = 66;
 /** Every technique and when it comes, for the stats sheet. */
 export const ALL_TECHNIQUES: { name: string; level: number; where: string }[] = [
   ...TECHNIQUES.map((t) => ({ name: t.name, level: t.level, where: 'in a fight' })),
@@ -1494,8 +1496,8 @@ export const ALL_TECHNIQUES: { name: string; level: number; where: string }[] = 
   { name: 'Choke from behind', level: CHOKE_AMBUSH_LEVEL, where: 'ambush' },
 ].sort((a, b) => a.level - b.level);
 
-/** Barely knows how to throw a punch yet (Unarmed 1–3): it shows. */
-const novice = () => (enc.unarmedLevel ?? 1) <= 3;
+/** Barely knows how to throw a punch yet (Unarmed 1–10): it shows. */
+const novice = () => (enc.unarmedLevel ?? 1) <= 10;
 
 /** What a technique does when it lands, beyond the blow itself. */
 function techEffect(t: Technique) {
@@ -1541,7 +1543,7 @@ function techEffect(t: Technique) {
 function choke() {
   const T = enc.them;
   spend('you', 14);
-  const odds = clamp(0.55 + accuracyBonus(you.stats) + (you.stats.unarmed.level - CHOKE_LEVEL) * 0.02 - arms(enc.you) * 0.25 + (T.dazed ? 0.15 : 0), 0.05, 0.95);
+  const odds = clamp(0.55 + accuracyBonus(you.stats) + (you.stats.unarmed.level - CHOKE_LEVEL) * 0.005 - arms(enc.you) * 0.25 + (T.dazed ? 0.15 : 0), 0.05, 0.95);
   if (Math.random() >= odds) {
     say('you', 'You try to get them in a headlock, but they twist away and fight you off.');
     return;

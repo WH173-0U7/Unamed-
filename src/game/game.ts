@@ -80,6 +80,9 @@ export class Game {
   private readonly encView;
   private readonly hitUi;
   private readonly timers: number[] = [];
+  private readonly listeners = new AbortController();
+  /** Real seconds spent where you are, for warming up or getting cold. */
+  private exposure = 0;
   private readonly statsEl: HTMLElement;
   private readonly youEl: HTMLElement;
   private readonly restBtn: HTMLButtonElement;
@@ -409,6 +412,7 @@ export class Game {
         else buzz(im.severe ? [25, 35, 45] : [14 + Math.round(power * 16)]);
       }, i * 280);
       this.timers.push(t);
+      if (this.timers.length > 40) this.timers.splice(0, this.timers.length - 40);
     });
   }
 
@@ -532,7 +536,7 @@ export class Game {
     const up = (id: number) => {
       if (drag?.id === id) drag = null;
     };
-    const opt = { capture: true, passive: true } as const;
+    const opt = { capture: true, passive: true, signal: this.listeners.signal } as const;
     addEventListener('touchstart', (e) => e.touches.length === 1 && down(e.changedTouches[0].identifier, e.changedTouches[0].clientX, e.changedTouches[0].clientY, e.target), opt);
     addEventListener('touchmove', (e) => { for (const t of e.changedTouches) move(t.identifier, t.clientX, t.clientY); }, opt);
     addEventListener('touchend', (e) => { for (const t of e.changedTouches) up(t.identifier); }, opt);
@@ -581,6 +585,11 @@ export class Game {
   private goTo(p: Place) {
     this.closeSheet();
     if (p === this.place) return;
+    // Thrown out of the pawn shop: he won't let you back in for a while.
+    if (p === 'pawn' && ((this.save.state.pawnBan as number) ?? 0) > now()) {
+      this.note(['He sees you through the glass and shakes his head. The door stays locked.']);
+      return;
+    }
     this.place = p;
     this.encounter = null;
     this.noteEl.hidden = true;
@@ -599,12 +608,8 @@ export class Game {
       }[p],
     ];
     const h = this.health;
-    // Inside and out of the weather, you warm up a little.
-    if (info.indoors && h.cold) {
-      h.cold--;
-      lines.push(h.cold ? "It's warm inside. You thaw out a little." : "It's warm inside. You stop shivering.");
-      this.refresh();
-    }
+    this.exposure = 0;
+    if (info.indoors && h.cold) lines.push("It's warm in here. Stay a while and you'll thaw out.");
     if (!info.indoors && RAIN_AMOUNT[this.weather.now] > 0) lines.push(`It's still raining (${WEATHER_NAME[this.weather.now].toLowerCase()}).`);
     this.note(lines);
     buzz(10);
@@ -620,8 +625,9 @@ export class Game {
       this.note([`You've got nowhere to put ${m.name.toLowerCase()}. ${noRoomWhy(inv, measure({ kind: 'med', name: m.name, med: id }).size)}`]);
       return;
     }
+    const paid = this.payLine(m.price * 100);
     this.refresh();
-    this.note([`You buy ${m.name.toLowerCase()}. ${this.payLine(m.price * 100)}`]);
+    this.note([`You buy ${m.name.toLowerCase()}. ${paid}`]);
     buzz(8);
   }
 
@@ -650,7 +656,11 @@ export class Game {
         return;
       }
       if (Math.random() < 0.2) {
-        this.note([`He looks at the ${id.name.toLowerCase()}, then at you, then at it again. "That's not you." He slides it back. "Get out of my shop."`]);
+        // Thrown out: back on the street, and he won't forget that face.
+        const line = `He looks at the ${id.name.toLowerCase()}, then at you, then at it again. "That's not you." He slides it back. "Get out of my shop."`;
+        this.save.state.pawnBan = now() + 30 * 60_000;
+        this.goTo('street');
+        this.note([line, 'You end up back on the street.']);
         return;
       }
       lines.push(`He glances at the ${id.name.toLowerCase()} and copies the name into a book.`);
@@ -685,8 +695,9 @@ export class Game {
       }
       line = `You buy the ${s.name.toLowerCase()}.`;
     }
+    const paid = this.payLine(s.price * 100);
     this.refresh();
-    this.note([line, this.payLine(s.price * 100)]);
+    this.note([line, paid]);
     buzz(8);
   }
 
@@ -787,6 +798,30 @@ export class Game {
     const e = this.encounter;
     if (!this.tvState.on) return 0;
     return (e && e.stage !== 'seen' && e.stage !== 'over' ? e.you.stress : this.health.stress) ?? 0;
+  }
+
+  /**
+   * Time spent somewhere besides lurking (real time): indoors you thaw out,
+   * a level every couple of minutes; out in the alley in the rain, you get
+   * colder. (On the street, lurking does it.)
+   */
+  private tickExposure(dt: number) {
+    const h = this.health;
+    const info = placeInfo(this.place);
+    if (this.place === 'street' || !this.tvState.on) return;
+    if ((this.exposure += dt) < 120) return;
+    this.exposure = 0;
+    if (info.indoors && h.cold) {
+      h.cold--;
+      this.note([h.cold ? 'The warmth is getting into you. You thaw out a little.' : "You've warmed up. You stop shivering."]);
+      this.refresh();
+    } else if (!info.indoors) {
+      const c = this.chill();
+      if (c) {
+        this.note([c]);
+        this.refresh();
+      }
+    }
   }
 
   /** While a cigarette burns, stress eases; when it's done, you flick it away. */
@@ -1070,7 +1105,10 @@ export class Game {
         `</ul>`;
     }
     if (!inv.spots.length) body += `<p class="pocket-empty">Nothing you're wearing has pockets.</p>`;
+    // Keep your place in the list when it's redrawn.
+    const scroll = card.querySelector('.sheet-body')?.scrollTop ?? 0;
     card.innerHTML = `<div class="sheet-head"><h2>Pockets</h2>${close}</div><div class="sheet-body">${body}</div>`;
+    card.querySelector('.sheet-body')!.scrollTop = scroll;
   }
 
   /** Redraws the person button and the encounter screen from the saved state. */
@@ -1157,6 +1195,8 @@ export class Game {
         s.races[person.race]++;
         this.encounter = newEncounter(person, this.yourBody());
         this.phase = 'idle';
+        // Whoever it is takes the middle of the screen: the note goes.
+        this.noteEl.hidden = true;
         this.refresh();
         uiGlitch(this.seenEl, 0.3);
         buzz(14);
@@ -1229,6 +1269,9 @@ export class Game {
   /** Closes the game view (back to the menu). */
   close() {
     for (const t of this.timers) clearTimeout(t);
+    this.timers.length = 0;
+    // This game is done with: its window listeners go too.
+    this.listeners.abort();
     this.fx.setLow(0);
     this.hitUi.clear();
     this.view.style.transform = '';
@@ -1261,11 +1304,14 @@ export class Game {
   }
 
   update(dt: number) {
-    if (this.running) this.tickSmoke(dt);
+    if (this.running) {
+      this.tickSmoke(dt);
+      this.tickExposure(dt);
+    }
     if ((this.weatherTimer -= dt) <= 0) {
       this.weatherTimer = 2;
       const was = this.weather.now;
-      if (updateWeather(this.weather) && this.running && this.tvState.on && this.weather.now !== was && this.place === 'street') {
+      if (updateWeather(this.weather) && this.running && this.tvState.on && this.weather.now !== was && !placeInfo(this.place).indoors) {
         this.note([weatherLine(this.weather.now, was)]);
       }
     }

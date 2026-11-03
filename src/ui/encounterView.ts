@@ -147,7 +147,8 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       q('.enc-facts').innerHTML = facts.map(([k, v]) => `<div><dt>${k}</dt><dd class="${v ? '' : 'unknown'}">${v ?? '?'}</dd></div>`).join('');
 
       // Status: how close you are and how close they are to noticing, or the fight.
-      const fought = e.stage === 'combat' || e.you.blood < e.you.maxBlood || e.them.blood < e.them.maxBlood;
+      // The fight view once there's been a fight (your own old injuries don't count).
+      const fought = e.stage === 'combat' || e.stage === 'over' || e.them.blood < e.them.maxBlood;
       q('.enc-status').innerHTML = fought
         ? `<div class="enc-fighters">${fighter('You', e.you, 'you')}${fighter('Them', e.them, 'them')}</div>`
         : `<div class="enc-note">${distanceLabel(e)}</div>` + bar('Noticed', Math.min(100, Math.round(e.suspicion)), 100, 'notice');

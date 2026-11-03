@@ -2123,7 +2123,7 @@ body.in-game #menu {
 #enc[data-stage='combat'] .enc-who::after,
 #enc[data-stage='over'] .enc-who::after {
   content: '▾';
-  margin-left: auto;
+  margin-left: -4px;
   font-size: 12px;
   color: var(--ink-faint);
 }
@@ -2242,4 +2242,47 @@ body.smoking .sheet-card {
   #tunnel::after {
     display: none;
   }
+}
+
+/* ================= Small phones (320 wide, or short) ================= */
+@media (max-width: 360px) {
+  /* The stats row stays clear of the pause button. */
+  #stats {
+    gap: 2px 8px;
+    right: calc(var(--pad-x-r) + 48px);
+    flex-wrap: wrap;
+  }
+  .stat {
+    gap: 1px 4px;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+  }
+}
+@media (max-height: 600px) and (orientation: portrait) {
+  #enc {
+    grid-template-rows: auto auto minmax(84px, 1fr) minmax(0, max-content);
+    gap: 6px;
+  }
+  .enc-status {
+    padding: 6px 10px;
+  }
+  .enc-opts:not(.enc-extra) {
+    max-height: 30vh;
+  }
+}
+/* In an encounter the edge tabs shrink so they don't sit on the buttons. */
+#game:has(#enc:not([hidden])) .edge-tab {
+  width: 14px;
+  opacity: 0.55;
+}
+#game:has(#enc:not([hidden])) .edge-tab svg,
+#game:has(#enc:not([hidden])) .edge-tab span {
+  display: none;
+}
+/* Loot hints stay on one line (cut short with an ellipsis). */
+.enc-opts.compact button small {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }

@@ -1,4 +1,5 @@
 import { AWARENESS, BUILDS, NAMES, type Item, type Loot, type Person } from './person';
+import { money } from './money';
 import { lootLabel, take, type Inventory } from './inventory';
 import {
   STAT_NAMES,
@@ -222,7 +223,7 @@ export const distanceLabel = (e: Encounter) => DISTANCE[e.distance];
 /** The states someone is in, for showing (e.g. "On the floor", "Bleeding: Heavy"). */
 export function conditions(f: Body): string[] {
   const c: string[] = [];
-  c.push(f.out ? 'Unconscious' : f.down ? 'On the floor' : 'Standing');
+  c.push(f.dead ? 'Dead' : f.out ? 'Unconscious' : f.down ? 'On the floor' : 'Standing');
   if (f.winded) c.push('Winded');
   if (f.dazed > 0) c.push('Dazed');
   if (f.concussed) c.push('Concussed');
@@ -327,6 +328,8 @@ export function options(e: Encounter): Option[] {
 let you: { stats: Stats; gain: (name: StatName, xp: number) => void };
 let enc: Encounter;
 let impacts: Impact[] = [];
+/** Were they already unconscious when this move began? */
+let outBefore = false;
 /** Who the last blow landed on, for the next line said (see LogLine.hit). */
 let landed: Side | null = null;
 const say = (by: LogLine['by'], text: string) => {
@@ -339,6 +342,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
   impacts = [];
   landed = null;
   enc = e;
+  outBefore = !!e.them.out;
   you = {
     stats,
     gain(name, xp) {
@@ -1005,7 +1009,8 @@ function checkEnd(): boolean {
   const T = enc.them;
   // Someone only bleeds out once they're already unconscious: a single blow
   // knocks them out, it doesn't kill them on the spot.
-  const wasOut = !!T.out;
+  // (Out before this move: knocked out by this very blow doesn't count.)
+  const wasOut = outBefore;
   if (!T.out && T.blood <= T.maxBlood * PASS_OUT) {
     T.out = true;
     T.down = true;
@@ -1088,7 +1093,7 @@ function search(id: string, inv?: Inventory) {
         g.loot.splice(g.loot.indexOf(l), 1);
       }
     }
-    if (cash) lines.unshift(`$${Math.round(cash * 100) / 100} in cash`);
+    if (cash) lines.unshift(`${money(Math.round(cash * 100))} in cash`);
     if (lines.length) say('you', `You take ${left.length ? 'what you can carry' : 'everything'}: ${list(lines)}.`);
     if (left.length) say('you', `There's no room for ${list(left)}. You leave ${left.length > 1 ? 'them' : 'it'}.`);
     return;

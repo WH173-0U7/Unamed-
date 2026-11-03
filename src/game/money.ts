@@ -82,41 +82,61 @@ export function cashLike(c: number, style: 'wallet' | 'small' | 'change'): Purse
 }
 
 /**
- * Pay `price` cents: hands over what's needed (exact if you can, otherwise
- * the smallest overpay) and takes the change. Returns what you handed over
- * and got back, or null if you don't have enough.
+ * Pay `price` cents: hands over exact money if you can make it, otherwise
+ * the smallest overpay you can (with the fewest notes and coins), and takes
+ * the change. Returns what you handed over and got back, or null if you
+ * don't have enough.
  */
 export function pay(p: Purse, price: number): { gave: Purse; change: Purse } | null {
   if (cents(p) < price) return null;
-  const gave: Purse = {};
-  let left = price;
-  // Largest first while it doesn't overshoot.
-  for (const d of DENOMS) {
-    while (left >= d && (p[d] ?? 0) - (gave[d] ?? 0) > 0) {
-      gave[d] = (gave[d] ?? 0) + 1;
-      left -= d;
-    }
-  }
-  if (left > 0) {
-    // Not exact: one more of the smallest denomination that covers the rest.
-    const up = [...DENOMS].reverse().find((d) => d >= left && (p[d] ?? 0) - (gave[d] ?? 0) > 0);
-    if (up) {
-      gave[up] = (gave[up] ?? 0) + 1;
-      left -= up;
-    } else {
-      // Only small things left that don't cover it alone: keep adding.
-      for (const d of [...DENOMS].reverse()) {
-        while (left > 0 && (p[d] ?? 0) - (gave[d] ?? 0) > 0) {
-          gave[d] = (gave[d] ?? 0) + 1;
-          left -= d;
+  const gave = bestHandover(p, price);
+  for (const d of DENOMS) if (gave[d]) take(p, d, gave[d]);
+  const change = fewest(cents(gave) - price);
+  addTo(p, change);
+  return { gave, change };
+}
+
+/**
+ * The notes and coins to hand over: of every amount you could make from
+ * your purse that covers the price, the smallest; and of the ways to make
+ * it, the one with the fewest pieces. (A small table over the amounts from
+ * the price up to the price plus your biggest note.)
+ */
+function bestHandover(p: Purse, price: number): Purse {
+  const have = DENOMS.filter((d) => p[d]);
+  const top = Math.min(cents(p), price + Math.max(...have));
+  const INF = 1e9;
+  // best[i][s]: fewest pieces to make s from the first i denominations.
+  let best = new Array<number>(top + 1).fill(INF);
+  best[0] = 0;
+  const used: Int32Array[] = [];
+  for (const d of have) {
+    const next = new Array<number>(top + 1).fill(INF);
+    const k = new Int32Array(top + 1);
+    const n = p[d];
+    for (let s = 0; s <= top; s++) {
+      for (let c = 0; c <= n && c * d <= s; c++) {
+        const v = best[s - c * d] + c;
+        if (v < next[s]) {
+          next[s] = v;
+          k[s] = c;
         }
       }
     }
+    best = next;
+    used.push(k);
   }
-  for (const d of DENOMS) if (gave[d]) take(p, d, gave[d]);
-  const change = fewest(-left);
-  addTo(p, change);
-  return { gave, change };
+  let s = price;
+  while (s <= top && best[s] >= INF) s++;
+  // (Can't happen if you have enough, but just in case: hand over it all.)
+  if (s > top) return { ...p };
+  const gave: Purse = {};
+  for (let i = have.length - 1; i >= 0; i--) {
+    const c = used[i][s];
+    if (c) gave[have[i]] = c;
+    s -= c * have[i];
+  }
+  return gave;
 }
 
 /** Changes everything up: the fewest bills, with coins only for the cents. */

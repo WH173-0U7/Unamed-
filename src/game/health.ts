@@ -25,8 +25,9 @@ export interface Health {
   dead?: boolean;
   /** Soaked and cold from the rain: 0 fine, 1 chilled, 2 cold, 3 freezing. */
   cold?: number;
-  /** On cocaine: the next fight, you've energy to burn and feel less. */
+  /** On cocaine (or meth): the next fight, you've energy to burn and feel less. */
   wired?: boolean;
+  wiredBy?: 'coke' | 'meth';
   /** On something from a syringe, until this time (ms, real clock). */
   high?: 'heroin' | 'fentanyl' | 'meth' | 'tranq';
   highUntil?: number;
@@ -135,7 +136,7 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
   if (b.lung) h.lung = true;
   h.stress = b.stress ?? h.stress;
   // Stuck with a needle in the fight: it lasts.
-  if (b.high && b.high !== h.high) {
+  if (b.high && !(h.high === b.high && (h.highUntil ?? 0) > Date.now())) {
     h.high = b.high;
     h.highUntil = Date.now() + HIGH_HOURS[b.high] * 3_600_000;
   }
@@ -148,7 +149,8 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
   const lines: string[] = [];
   if (h.wired) {
     h.wired = false;
-    lines.push('The coke wears off. Your jaw aches, and you feel hollow.');
+    lines.push(h.wiredBy === 'meth' ? 'The meth crash starts: your jaw aches, your skin crawls, and you feel hollow.' : 'The coke wears off. Your jaw aches, and you feel hollow.');
+    delete h.wiredBy;
   }
   if (result === 'lost') {
     // Out cold for a few hours, still bleeding. You may not wake up.
@@ -171,6 +173,12 @@ function lieThere(h: Health): string[] {
       h.blood -= BLEED_PER_HOUR[h.bleeding];
     }
     if (h.blood <= h.maxBlood * DEATH) {
+      // Sometimes someone finds you in time and presses on the wound.
+      if (Math.random() < 0.5) {
+        h.blood = Math.round(h.maxBlood * (DEATH + 0.04));
+        h.bleeding = 0;
+        return ['Someone finds you lying there. They press on the wound until the bleeding stops, and leave before you can thank them.'];
+      }
       h.blood = Math.max(0, Math.round(h.blood));
       h.dead = true;
       return ['You never wake up. You bleed out where you fell.'];

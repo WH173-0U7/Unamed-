@@ -61,11 +61,11 @@ export function newStats(): Stats {
 }
 
 /**
- * Experience needed to go from this level to the next: 32 for the first, a
- * couple of hundred around 10, a couple of thousand by 50, about 7,000 at the
- * end. The first levels come in a few fights; the last take a long time.
+ * Experience needed to go from this level to the next: 15 for the first,
+ * about 100 around level 10, 1,200 by 50, about 4,500 at the end. The first
+ * levels come in a fight or two; the last take a very long time.
  */
-export const xpToNext = (level: number) => Math.round(20 + level * 12 + level * level * 0.6);
+export const xpToNext = (level: number) => Math.round(10 + level * 4 + level * level * 0.42);
 
 /** Adds experience from using a stat. Returns the new level if it went up. */
 export function train(stats: Stats, name: StatName, xp: number): number | null {

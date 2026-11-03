@@ -329,7 +329,8 @@ export class Game {
     }
     if (h.wired) {
       h.wired = false;
-      lines.push('The coke wears off while you sit there. You feel hollow.');
+      lines.push(h.wiredBy === 'meth' ? 'The meth wears off while you sit there. Your skin crawls, and you feel hollow.' : 'The coke wears off while you sit there. You feel hollow.');
+      delete h.wiredBy;
     }
     this.refresh();
     this.note(lines);
@@ -556,7 +557,7 @@ export class Game {
    * takes everything on it (see legacy.ts), and you go on as someone new,
    * with nothing. The world remembers.
    */
-  private die(lines: string[]) {
+  private die(lines: string[], title = 'You bled out.') {
     if (this.dead) return;
     this.dead = true;
     this.running = false;
@@ -588,7 +589,7 @@ export class Game {
     el.id = 'death';
     const p = (t: string) => `<p>${t}</p>`;
     el.innerHTML =
-      `<h2>You bled out.</h2>` +
+      `<h2>${title}</h2>` +
       `<div class="death-lines">${lines.slice(-2).map(p).join('')}</div>` +
       `<dl class="death-sum">` +
       `<div><dt>Lurked</dt><dd>${lurked}</dd></div>` +
@@ -1112,15 +1113,15 @@ export class Game {
       }
       // Do you look like who they're after?
       const looks = Math.random() < (f.heat / 100) * (1 - anonymity(inv) * 0.5);
-      const evidence = inv.items.filter((x) => x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card' || (x.secret && x.secret !== 'empty'));
       lines.push('They pat you down and go through your pockets.');
-      // Blades get taken off you, and they remember it.
-      const blades = inv.items.filter((x) => x.kind === 'weapon' && x.cuts);
+      // Weapons get taken off you, and they remember it. (A loaded syringe is evidence instead.)
+      const blades = inv.items.filter((x) => x.kind === 'weapon' && !(x.secret && x.secret !== 'empty'));
       if (blades.length) {
         inv.items = inv.items.filter((x) => !blades.includes(x));
         f.heat = Math.min(100, f.heat + 6);
         lines.push(`They find ${list2(blades.map((x) => `the ${lc(x.name)}`))} and take ${blades.length > 1 ? 'them' : 'it'}. "What's this for, then?"`);
       }
+      const evidence = inv.items.filter((x) => x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card' || (x.secret && x.secret !== 'empty'));
       if (evidence.length) {
         lines.push(`They find ${evidence.length === 1 ? `the ${lc(evidence[0].name)}` : `${evidence.length} things that aren't yours`}. "Whose is this?"`);
         arrested = true;
@@ -1135,7 +1136,7 @@ export class Game {
     if (arrested) {
       // Whatever's stolen is taken; a night in a cell.
       const before = inv.items.length;
-      inv.items = inv.items.filter((x) => !(x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card' || x.secret));
+      inv.items = inv.items.filter((x) => !(x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card' || x.kind === 'weapon' || (x.secret && x.secret !== 'empty')));
       const took = before - inv.items.length;
       lines.push(`You're arrested.${took ? ` They keep ${took === 1 ? 'the evidence' : `all ${took} things that weren't yours`}.` : ''} You spend the night in a holding cell that smells of bleach and piss, and in the morning they let you go: not enough to charge you. This time.`);
       lines.push(...passHours(h, 8, true));
@@ -1324,7 +1325,7 @@ export class Game {
       if (Math.random() >= chance) return false;
       if (Math.random() < deadly) {
         lines.push('Your breathing slows. Slower. Then it stops, and nobody comes.');
-        this.die(lines);
+        this.die(lines, 'You overdosed.');
         return true;
       }
       lines.push('Your breathing slows to almost nothing, and the world goes out.');
@@ -1354,6 +1355,7 @@ export class Game {
     } else if (drug === 'meth') {
       lines.push('Your heart slams. Your jaw locks tight. Everything is fast and bright and loud, and you could fight anyone.');
       h.wired = true;
+      h.wiredBy = 'meth';
       h.high = 'meth';
       h.highUntil = now() + HIGH_HOURS.meth * 3_600_000;
       h.stress = Math.min(100, (h.stress ?? 0) + 15);
@@ -1381,6 +1383,7 @@ export class Game {
     if (it?.secret !== 'cocaine' || !it.known || h.wired) return;
     it.doses = (it.doses ?? 1) - 1;
     h.wired = true;
+    h.wiredBy = 'coke';
     h.concussion = Math.max(0, h.concussion - 1);
     const lines = ['You do a bump off the end of a key. Your heart kicks, your teeth buzz, and everything goes sharp and bright.'];
     if (it.doses <= 0) {
@@ -1605,7 +1608,7 @@ export class Game {
       ? inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind) && x.detail === e.holder && !x.pin).map(({ x, i }) => ({ i, name: x.name }))
       : [];
     e.canAsk = this.world.thieves.length > 0 && !e.person.thief;
-    e.weapons = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'weapon').map(({ x, i }) => ({ i, name: x.name, weapon: x.weapon, cuts: x.cuts, spray: x.spray, doses: x.doses }));
+    e.weapons = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'weapon').map(({ x, i }) => ({ i, name: x.name, weapon: x.weapon, cuts: x.cuts, spray: x.spray, doses: x.doses, loaded: x.secret && x.secret !== 'empty' && x.secret !== 'cocaine' ? x.secret : undefined, known: x.known }));
     e.wet = RAIN_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors;
   }
 
@@ -1740,7 +1743,7 @@ export class Game {
    */
   private menace(): number {
     const st = this.stats;
-    return fearBonus(st) + strengthFear(st) + evilFear(this.humanity.lost) + (conspicuous(this.inventory) ? 6 : 0) + (this.inventory.items.some((x) => x.cuts) ? 8 : 0);
+    return fearBonus(st) + strengthFear(st) + evilFear(this.humanity.lost) + (conspicuous(this.inventory) ? 6 : 0) + (this.inventory.items.some(isBlade) ? 8 : 0);
   }
   private menaceRows(): [string, string][] {
     const st = this.stats;
@@ -1748,7 +1751,7 @@ export class Game {
     const evil = Math.round(evilFear(this.humanity.lost));
     if (evil) rows.push(['Fear, from how far gone you are', `+${evil}`]);
     if (conspicuous(this.inventory)) rows.push(['Fear, from the mask', '+6']);
-    if (this.inventory.items.some((x) => x.cuts)) rows.push(['Fear, from the blade on you', '+8']);
+    if (this.inventory.items.some(isBlade)) rows.push(['Fear, from the blade on you', '+8']);
     return rows;
   }
 
@@ -2113,3 +2116,8 @@ const DRUG_TEST: Record<'heroin' | 'fentanyl' | 'meth' | 'tranq', { name: string
   meth: { name: 'meth', line: 'The liquid goes orange, then dark brown: methamphetamine.' },
   tranq: { name: 'tranq', line: "The liquid doesn't change at all, but the little xylazine strip does. Tranq: an animal sedative." },
 };
+
+/** A knife or a box cutter (a bottle or a needle doesn't frighten like a blade). */
+function isBlade(x: { kind: string; name: string }): boolean {
+  return x.kind === 'weapon' && /knife|box cutter/i.test(x.name);
+}

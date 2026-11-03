@@ -212,7 +212,7 @@ export interface Encounter {
   cardsHeld?: { i: number; name: string }[];
   canAsk?: boolean;
   /** Your weapons (index in your items), set by the game as it draws. */
-  weapons?: { i: number; name: string; weapon?: number; cuts?: boolean; spray?: boolean; doses?: number }[];
+  weapons?: { i: number; name: string; weapon?: number; cuts?: boolean; spray?: boolean; doses?: number; loaded?: string; known?: boolean }[];
   /** Out in the rain (a lighter burns more fuel). */
   wet?: boolean;
   /** Your Unarmed level (which techniques you know), set as you act. */
@@ -288,11 +288,11 @@ function searchOptions(e: Encounter): Option[] {
 function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolean): Option[] {
   const seen = new Set<string>();
   return (e.weapons ?? [])
-    .filter((w) => !seen.has(w.name) && seen.add(w.name))
+    .filter((w) => { const key = `${w.name}|${w.loaded ?? ''}`; return !seen.has(key) && !!seen.add(key); })
     .map((w) =>
       w.spray
         ? { id: `wpn:${w.i}`, label: 'Pepper spray them', hint: `${w.doses ?? 0} left · blinds them`, cat }
-        : { id: `wpn:${w.i}`, label: /bottle/i.test(w.name) ? 'Swing the bottle' : /syringe/i.test(w.name) ? 'Stab with the syringe' : `${w.cuts ? 'Slash' : 'Hit'} with the ${lc(w.name)}`, hint: tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0}${w.cuts ? ', cuts' : ''}`, disabled: tired(COST.weapon), cat },
+        : { id: `wpn:${w.i}`, label: /bottle/i.test(w.name) ? 'Swing the bottle' : /syringe/i.test(w.name) ? (w.loaded ? `Stab with the syringe (${w.known ? w.loaded : 'loaded'})` : 'Stab with the empty syringe') : `${w.cuts ? 'Slash' : 'Hit'} with the ${lc(w.name)}`, hint: tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0}${w.cuts ? ', cuts' : ''}`, disabled: tired(COST.weapon), cat },
     );
 }
 
@@ -401,6 +401,7 @@ export function conditions(f: Body): string[] {
   for (const p of f.broken) c.push(`Broken ${p}`);
   if (f.blinded > 0) c.push('Blinded');
   if (f.stamina <= 0) c.push('Exhausted');
+  if (f.high) c.push(`High: ${f.high}`);
   if (f.yielded) c.push('Given up');
   else if (f.fear != null && !f.out && !f.dead && fearLevel(f.fear)) c.push(FEAR_NAMES[fearLevel(f.fear)]);
   const sl = stressLevel(f.stress ?? 0);
@@ -738,7 +739,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
         }
       } else if (id === 'slam') {
         const dmg = Math.round(roll(15, 23) * str);
-        say('you', `You grab them by the back of the neck and drive their face into the wall. ${wound('them', 'head', dmg, 'fall')}`);
+        say('you', `You grab them by the back of the neck and drive their face into the wall. ${wound('them', 'head', dmg, 'punch')}`);
         if (!e.them.out && !e.them.dazed) {
           e.them.dazed = 2;
           say('them', "They're dazed.");
@@ -854,7 +855,13 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
           const it = inv.items[Number(id.slice(4))];
           if (!it || it.kind !== 'weapon') return impacts;
           if (it.spray) spray(Number(id.slice(4)), inv);
-          else strike('you', 'weapon', undefined, undefined, it);
+          else if (strike('you', 'weapon', undefined, undefined, it) && it.secret && it.secret !== 'cocaine' && it.secret !== 'empty' && Math.random() < 0.5) {
+            doseThem(it.secret);
+            it.secret = 'empty';
+            it.known = true;
+            it.name = 'Syringe';
+            it.detail = 'Empty. Used.';
+          }
         } else return impacts;
         break;
       case 'stomp-head':
@@ -1038,7 +1045,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   let dmg =
     a === 'you'
       ? weapon
-        ? (roll(6, 11) + (weapon.weapon ?? 0) * 1.4) * (1 + weaponDamage(you.stats) + strengthDamage(you.stats))
+        ? (roll(6, 11) + (weapon.weapon ?? 0)) * (1 + weaponDamage(you.stats) + strengthDamage(you.stats))
         : (stomp ? (loc === 'head' ? roll(11, 17) : loc === 'stomach' ? roll(9, 14) : roll(10, 15)) : kind === 'kick' ? roll(9, 15) : roll(6, 11)) * damageMult(you.stats)
       : b.power + roll(-3, 3) + (kind === 'kick' ? 3 : stomp ? 4 : 0) + (weapon?.weapon ?? 0);
   if (tech) dmg *= tech.dmg;
@@ -1080,7 +1087,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
             : `${N.S} punch ${N.o} ${where}.`;
   }
   // (A needle punctures; it doesn't slice.)
-  say(a, `${text} ${wound(d, loc, dmg, weapon?.cuts && !/syringe/i.test(weapon.name) ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch')}`);
+  say(a, `${text} ${wound(d, loc, dmg, weapon && /syringe/i.test(weapon.name) ? 'jab' : weapon?.cuts ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch')}`);
   if (a === 'you') {
     // Landing blows: it's fighting that teaches you to fight (and builds a little muscle).
     if (weapon) you.gain('weapons', 4);
@@ -1098,6 +1105,27 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
     }
   }
   return true;
+}
+
+/** Your loaded syringe, pushed into them. */
+function doseThem(drug: Exclude<import('./person').Drug, 'empty'>) {
+  const T = enc.them;
+  say('you', 'The needle goes in, and you press the plunger.');
+  if (drug === 'meth') {
+    T.stamina = Math.min(T.maxStamina, T.stamina + 30);
+    scare(-15);
+    say('them', 'Their eyes go wide and wild. They come at you harder.');
+    return;
+  }
+  if (Math.random() < (drug === 'heroin' ? 0.25 : drug === 'fentanyl' ? 0.55 : 0.6)) {
+    T.out = true;
+    T.down = true;
+    say('them', drug === 'tranq' ? 'Their legs fold and they slump to the pavement, out.' : "Their eyes roll up. They sag to the pavement, breathing slow and shallow. They're out.");
+  } else {
+    T.dazed = 3;
+    T.stamina = Math.max(0, T.stamina - 30);
+    say('them', 'They sway, heavy-lidded, slow. They can barely lift their hands.');
+  }
 }
 
 /** Something from a syringe, in the middle of a fight. */
@@ -1142,7 +1170,7 @@ function dose(drug: Exclude<import('./person').Drug, 'empty'>) {
  * (dazed, concussed, bleeding, broken bones, knocked down). Returns the text
  * describing it.
  */
-function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | 'fall' | 'stomp'): string {
+function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | 'fall' | 'stomp' | 'jab'): string {
   const D = enc[d];
   landed = d;
   // Hit in the face: the cigarette goes flying.
@@ -1275,7 +1303,7 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   if (D.lung && loc !== 'head' && dmg >= 8 && Math.random() < 0.35) spills('cough');
   if (D.dazed && how !== 'fall') fall(0.15);
   // What it looks like, sounds like.
-  const g = gore(d, loc, how, ml, out.join(' '));
+  const g = how === 'jab' ? '' : gore(d, loc, how, ml, out.join(' '));
   if (g) out.splice(1, 0, g);
   // The blood matches what's described.
   if (g && /blood|red\b/.test(g)) {
@@ -1426,14 +1454,16 @@ function theirTurn() {
   }
   // Pepper spray, once.
   const spray = p.carrying.find((i) => i.spray);
-  if (spray && !T.sprayed && Math.random() < 0.6) {
+  if (spray && !T.sprayed && !e.emptied && Math.random() < 0.6) {
     T.sprayed = true;
+    (spray as { doses?: number }).doses = Math.max(0, ((spray as { doses?: number }).doses ?? 3) - 1);
     e.you.blinded = 2;
     say('them', 'They pepper spray you in the face. You can barely see.');
     return;
   }
   // Pulling a weapon.
-  const weapon: Item | undefined = p.carrying.find((i) => i.weapon);
+  // (Not what they dropped at your feet.)
+  const weapon: Item | undefined = e.emptied ? undefined : p.carrying.find((i) => i.weapon);
   if (weapon && !T.weaponOut && arms(T) < 2 && Math.random() < 0.5) {
     T.weaponOut = weapon.name;
     say('them', `They pull out a ${weapon.name.toLowerCase()}.`);

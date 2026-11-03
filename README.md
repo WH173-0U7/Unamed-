@@ -241,9 +241,9 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   cigarettes, lighters, matches, bandages and painkillers (dearer than the
   pharmacy), caps, beanies and sunglasses. In any shop, what just happened
   shows in a strip at the bottom instead of behind the shop.
-- **Levels go to 100**, and each takes longer than the last (32 experience
-  for the first, about 200 around level 10, a couple of thousand by 50,
-  about 7,000 at the end). Every stat's effect is per level and sized so that
+- **Levels go to 100**, and each takes longer than the last (about 15
+  experience for the first, 100 around level 10, 1,200 by 50, 4,500 at the
+  end). Every stat's effect is per level and sized so that
   100 is a master (e.g. Sneak +0.8% to land an ambush a level, +79% at 100).
   Saves from when levels went to 20 are scaled up (level L becomes 1 + 5×(L−1)).
 - **Unarmed** is a skill of its own: most of the damage your blows do

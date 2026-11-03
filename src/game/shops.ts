@@ -93,7 +93,7 @@ export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'kno
   if (x.secret && !x.known) return x.secret === 'cocaine' ? 40 : 20;
   if (x.secret === 'cocaine') return 60 * (x.doses ?? 1);
   if (x.secret && x.secret !== 'empty') return { heroin: 40, fentanyl: 50, meth: 35, tranq: 15 }[x.secret];
-  if (x.med) return { bandages: 8, gauze: 15, painkillers: 6, splint: 22, iron: 12, testkit: 10 }[x.med];
+  if (x.med) return { bandages: 8, gauze: 15, painkillers: 6, splint: 22, iron: 12, testkit: 10, caffeine: 5 }[x.med];
   if (x.kind === 'phone') return 180;
   if (x.kind === 'car keys') return 80;
   if (x.kind === 'id') return /expired/.test(n) ? 10 : 60;
@@ -106,6 +106,7 @@ export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'kno
   if (/cigarettes/.test(n)) return 0.5 * (x.doses ?? 10);
   if (/lighter/.test(n)) return 2;
   if (/^beer$/.test(n)) return 3;
+  if (/energy drink/.test(n)) return 3;
   if (/vodka/.test(n)) return 2 * (x.doses ?? 0);
   if (x.kind === 'weapon') return /knife/.test(n) ? 18 : /box cutter/.test(n) ? 6 : /pepper spray/.test(n) ? 12 : 0;
   return 0;
@@ -146,12 +147,13 @@ export interface Stock {
   /** Had there and then (a hot coffee), not carried. */
   drink?: boolean;
   /** Something to drink later: beer or liquor. */
-  drinkType?: 'beer' | 'liquor';
+  drinkType?: 'beer' | 'liquor' | 'energy';
 }
 
 /** The gas station: what's behind the counter and on the spinner. */
 export const GAS_STOCK: Stock[] = [
-  { id: 'coffee', name: 'Hot coffee', price: 2, desc: 'Burnt, and scalding. Warms you through; steadies your nerves a little.', drink: true },
+  { id: 'coffee', name: 'Hot coffee', price: 2, desc: 'Burnt, and scalding. Warms you through; about 95 mg of caffeine.', drink: true },
+  { id: 'energy', name: 'Energy drink', price: 4, desc: '160 mg of caffeine in a can. Kicks in after half an hour; lasts for hours.', doses: 1, drinkType: 'energy' },
   { id: 'beer', name: 'Beer', price: 3, desc: 'One cold can. Eases the nerves and the cold.', doses: 1, drinkType: 'beer' },
   { id: 'vodka', name: 'Pint of vodka', price: 12, desc: 'Six swigs, in a paper bag.', doses: 6, drinkType: 'liquor' },
   { id: 'cigs', name: 'Cigarettes', price: 9, desc: 'A pack of 20. Takes the edge off stress.', doses: 20 },

@@ -363,6 +363,13 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   opens after an update, a What's new list says what changed since you last
   played (Main menu → What's new to see it again). Every update adds to it
   (`src/core/changelog.ts`).
+- **Caffeine.** Hot coffee (about 95 mg) and energy drinks (160 mg) at the gas
+  station, caffeine pills (200 mg) at the pharmacy. Like the real thing: each
+  dose is absorbed over about 45 minutes, and half of what's in you is gone
+  every 5 hours of real time, so it adds up. Alert (40+ mg): a little better at
+  landing and dodging blows; Jittery (400+): your hands shake, you miss more,
+  stress builds faster; Heart racing (600+): worse. Its own look: a clean
+  brightness, then a fine tremor. The You sheet shows the mg and when it fades.
 - **Intimidation** is a fifth stat, trained by all of the above. On small
   screens the stats along the top use short names.
 - **The cash machine** at the bank works any hour: a stolen card with the PIN

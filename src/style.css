@@ -3421,6 +3421,58 @@ body[data-drug='drunk'] #game {
   }
 }
 
+/* Caffeine: clear and bright, a clean lift at the edges. */
+body[data-drug='caffeine'] {
+  --line: rgba(236, 235, 230, 0.3);
+}
+body[data-drug='caffeine'] #drug .d-tint {
+  opacity: 1;
+  background: rgba(255, 250, 235, 0.05);
+  mix-blend-mode: screen;
+}
+body[data-drug='caffeine'] #drug .d-glow {
+  opacity: 1;
+  background: radial-gradient(ellipse 85% 80% at 50% 50%, transparent 70%, rgba(255, 245, 225, 0.12) 100%);
+  mix-blend-mode: screen;
+}
+/* Too much caffeine: a fine tremor, and the edges pulse with your heart. */
+body[data-drug='jitters'] {
+  --line: rgba(255, 240, 220, 0.34);
+}
+body[data-drug='jitters'] #drug .d-tint {
+  opacity: 1;
+  background: rgba(255, 245, 230, 0.06);
+  mix-blend-mode: screen;
+}
+body[data-drug='jitters'] #drug .d-glow {
+  opacity: 1;
+  background: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 58%, rgba(255, 235, 200, 0.2) 100%);
+  mix-blend-mode: screen;
+  animation: d-pound 0.55s ease-out infinite;
+}
+body[data-drug='jitters'] #game {
+  animation: d-tremor 0.07s steps(2) infinite;
+}
+@keyframes d-pound {
+  0% {
+    opacity: 1;
+  }
+  30% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0.35;
+  }
+}
+@keyframes d-tremor {
+  0% {
+    translate: calc(var(--k, 1) * 0.6px) 0;
+  }
+  50% {
+    translate: calc(var(--k, 1) * -0.6px) calc(var(--k, 1) * 0.3px);
+  }
+}
+
 /* No shaking or swaying for people who'd rather not. */
 @media (prefers-reduced-motion: reduce) {
   body[data-drug] #game {

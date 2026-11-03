@@ -12,16 +12,18 @@
  *   at the edges, a fast jitter, and flashes on a racing heartbeat.
  * - **Drunk:** warm and reeling. A golden haze, the room swaying and now
  *   and then lurching, the edges going soft. Stronger the more you drink.
+ * - **Caffeine:** clear and bright: a clean lift at the edges; too much, and a
+ *   fine tremor and a pulse at the edges (`jitters`).
  * - **Tranq:** sick and swimming. A green murk, a slow sway as if you're
  *   about to go over, and dark blotches drifting through.
  *
  * Only opacity and transforms are animated (see #drug in style.css), so it's
  * cheap; the strength (`--k`) fades as a high wears off.
  */
-export type DrugLook = 'cocaine' | 'heroin' | 'fentanyl' | 'meth' | 'tranq' | 'drunk';
+export type DrugLook = 'cocaine' | 'heroin' | 'fentanyl' | 'meth' | 'tranq' | 'drunk' | 'caffeine' | 'jitters';
 
 /** How long each takes to come on (seconds to most of the way there). */
-const ONSET: Record<DrugLook, number> = { fentanyl: 12, cocaine: 15, meth: 18, heroin: 25, tranq: 30, drunk: 20 };
+const ONSET: Record<DrugLook, number> = { fentanyl: 12, cocaine: 15, meth: 18, heroin: 25, tranq: 30, drunk: 20, caffeine: 20, jitters: 20 };
 
 export function createDrugs() {
   const el = document.createElement('div');

@@ -1,6 +1,7 @@
 import { AWARENESS, BUILDS, NAMES, personalityOf, type Item, type Loot, type Person } from './person';
 import { money } from './money';
 import { isBrute, voice, type Moment } from './voices';
+import { caffeineEdge } from './health';
 import { lootLabel, take, type Inventory } from './inventory';
 import {
   STAT_NAMES,
@@ -115,8 +116,9 @@ export interface Body {
   smoking?: boolean;
   /** Yours: on something from a syringe (see `dose`), for this fight. */
   high?: 'heroin' | 'fentanyl' | 'meth' | 'tranq';
-  /** Yours: how drunk (0..100). */
+  /** Yours: how drunk (0..100), and how much caffeine is in you (mg). */
   drunk?: number;
+  caffeine?: number;
   /** Theirs: how scared of you they are, 0..100 (see `scare`). */
   fear?: number;
   /** Theirs: they've given up. They won't fight; they'll hand it over. */
@@ -165,7 +167,7 @@ export function marksText(m: Marks | undefined): string[] {
  */
 export function addStress(f: Body, n: number) {
   // A cigarette in your mouth keeps you cool: it gets to you less.
-  const k = (1 - Math.min(100, f.nerve ?? 0) / 100) * (f.smoking ? 0.6 : 1);
+  const k = (1 - Math.min(100, f.nerve ?? 0) / 100) * (f.smoking ? 0.6 : 1) * ((f.caffeine ?? 0) >= 400 ? 1.25 : 1);
   f.stress = Math.min(100, Math.max(0, (f.stress ?? 0) + n * k));
 }
 /** Stressed hands shake and eyes narrow: less accurate, slower to dodge. */
@@ -415,6 +417,7 @@ export function conditions(f: Body): string[] {
   if (f.blinded > 0) c.push('Blinded');
   if (f.stamina <= 0) c.push('Exhausted');
   if (f.high) c.push(`High: ${f.high}`);
+  if ((f.caffeine ?? 0) >= 40) c.push((f.caffeine ?? 0) >= 600 ? 'Heart racing' : (f.caffeine ?? 0) >= 400 ? 'Jittery' : 'Alert');
   if (f.drunk && f.drunk >= 10) c.push(f.drunk >= 80 ? 'Blackout drunk' : f.drunk >= 55 ? 'Wasted' : f.drunk >= 30 ? 'Drunk' : 'Tipsy');
   const sl = stressLevel(f.stress ?? 0);
   if (sl) c.push(STRESS_NAMES[sl]);
@@ -1010,6 +1013,9 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   if (D.high === 'heroin' || D.high === 'fentanyl') hit += 0.1;
   if (A.high === 'meth') hit -= 0.04;
   if (A.high === 'tranq') hit -= 0.08;
+  // Caffeine: sharper, until it's too much and your hands shake.
+  if (A.caffeine) hit += caffeineEdge(A.caffeine);
+  if (D.caffeine) hit -= caffeineEdge(D.caffeine);
   // Drunk: wild swings, slow feet.
   if (A.drunk) hit -= A.drunk / 400;
   if (D.drunk) hit += D.drunk / 500;

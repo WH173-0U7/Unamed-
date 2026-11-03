@@ -31,6 +31,8 @@ export interface Health {
   /** On something from a syringe, until this time (ms, real clock). */
   high?: 'heroin' | 'fentanyl' | 'meth' | 'tranq';
   highUntil?: number;
+  /** Caffeine taken (mg) and when (ms, real clock): see caffeineNow. */
+  caffeine?: { mg: number; at: number }[];
   /** How drunk you are (0..100), as of `drunkAt` (it wears off on the real clock). */
   drunk?: number;
   drunkAt?: number;
@@ -54,6 +56,35 @@ const STRESS_EASE = 6;
 
 export const COLD_NAMES = ['', 'Chilled', 'Cold', 'Freezing'];
 export const DRUNK_NAMES = ['', 'Tipsy', 'Drunk', 'Wasted', 'Blackout'];
+
+// ---------- Caffeine ----------
+/**
+ * Caffeine, the way it really goes: each dose is absorbed over about 45
+ * minutes (peaking then), and the body clears half of what's there every 5
+ * hours, on the real clock. Doses add up. Returns mg in you now.
+ */
+const ABSORB_MS = 45 * 60_000;
+const HALF_LIFE_MS = 5 * 3_600_000;
+export function caffeineNow(h: Health, t = Date.now()): number {
+  if (!h.caffeine?.length) return 0;
+  let mg = 0;
+  for (const d of h.caffeine) {
+    const dt = Math.max(0, t - d.at);
+    mg += d.mg * Math.min(1, dt / ABSORB_MS) * Math.pow(0.5, dt / HALF_LIFE_MS);
+  }
+  // Forget doses that have all but gone (after about a day and a half).
+  h.caffeine = h.caffeine.filter((d) => d.mg * Math.pow(0.5, Math.max(0, t - d.at) / HALF_LIFE_MS) > 2 && d.at <= t + 60_000);
+  if (!h.caffeine.length) delete h.caffeine;
+  return mg;
+}
+export function addCaffeine(h: Health, mg: number, t = Date.now()) {
+  (h.caffeine ??= []).push({ mg, at: t });
+}
+/** What it's doing to you, by how much is in you. */
+export const caffeineLevel = (mg: number) => (mg >= 600 ? 3 : mg >= 400 ? 2 : mg >= 40 ? 1 : 0);
+export const CAFFEINE_NAMES = ['', 'Alert', 'Jittery', 'Heart racing'];
+/** To landing and dodging blows: sharper up to a point, then shaking. */
+export const caffeineEdge = (mg: number) => (mg < 40 ? 0 : mg < 400 ? (Math.min(mg, 250) / 250) * 0.04 : Math.max(-0.1, 0.04 - ((mg - 400) / 200) * 0.06));
 export const drunkLevel = (d: number) => (d >= 80 ? 4 : d >= 55 ? 3 : d >= 30 ? 2 : d >= 10 ? 1 : 0);
 /** Sobering up: 20 points an hour, real time. */
 export function soberUp(h: Health, t = Date.now()) {
@@ -108,6 +139,8 @@ export function healthConditions(h: Health): string[] {
   if (h.high && (h.highUntil ?? 0) > Date.now()) c.push(`High: ${h.high}`);
   soberUp(h);
   if (h.drunk && drunkLevel(h.drunk)) c.push(DRUNK_NAMES[drunkLevel(h.drunk)]);
+  const cf = caffeineLevel(caffeineNow(h));
+  if (cf) c.push(CAFFEINE_NAMES[cf]);
   c.push(...marksText(h.marks));
   const sl = stressLevel(h.stress ?? 0);
   if (sl) c.push(STRESS_NAMES[sl]);
@@ -129,6 +162,7 @@ export function bodyFrom(h: Health, stamina: number): Body {
     smoking: (h.smokingUntil ?? 0) > Date.now(),
     high: h.high && (h.highUntil ?? 0) > Date.now() ? h.high : undefined,
     drunk: (soberUp(h), h.drunk ?? 0),
+    caffeine: caffeineNow(h),
     marks: JSON.parse(JSON.stringify(h.marks ?? {})) as Marks,
     nerve: h.nerve ?? 0,
     bleeding: h.bleeding,
@@ -386,6 +420,16 @@ export function injuryEffects(h: Health): InjuryInfo[] {
             ? ['Your blows land: −8%', 'Their blows land: +6% (groggy)']
             : ['Your blows land: −12%', 'Their blows land: +10% (you\'re slow to move)'],
       heals: `Wears off in about ${mins < 90 ? `${mins} minutes` : `${Math.round(mins / 60)} hours`}.`,
+    });
+  }
+  const mg = caffeineNow(h);
+  if (caffeineLevel(mg)) {
+    const edge = caffeineEdge(mg);
+    const pct = `${edge >= 0 ? '+' : '−'}${Math.abs(Math.round(edge * 100))}%`;
+    out.push({
+      name: `${CAFFEINE_NAMES[caffeineLevel(mg)]}: caffeine (${Math.round(mg)} mg)`,
+      effects: [`Your blows land: ${pct}`, `Their blows land: ${edge >= 0 ? '−' : '+'}${Math.abs(Math.round(edge * 100))}%`, ...(mg >= 400 ? ['Stress builds faster (your heart is pounding)'] : [])],
+      heals: `Half of it is gone every 5 hours (real time). Below 40 mg you won't feel it: about ${Math.max(1, Math.ceil(Math.log2(mg / 40) * 5))} hours from now.`,
     });
   }
   soberUp(h);

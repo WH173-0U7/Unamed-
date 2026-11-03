@@ -1,3 +1,4 @@
+import { addCaffeine, caffeineNow } from './health';
 import type { Loot, LootKind } from './person';
 import type { Health } from './health';
 import { addTo, cents, emptyPurse, fewest, kgOf, money, purseText, type Purse } from './money';
@@ -30,8 +31,8 @@ export interface InvItem {
   pin?: string;
   pinOk?: boolean;
   drained?: boolean;
-  /** Something to drink (beer, liquor), swigs in `doses`. */
-  drink?: 'beer' | 'liquor';
+  /** Something to drink (beer, liquor, an energy drink), swigs in `doses`. */
+  drink?: 'beer' | 'liquor' | 'energy';
   /** A weapon: extra damage, whether it cuts, pepper spray (uses in `doses`). */
   weapon?: number;
   cuts?: boolean;
@@ -132,7 +133,7 @@ export function upgradeInventory(inv: Inventory) {
 
 /** How big and heavy something is. */
 export function measure(x: { kind: string; name: string; med?: MedId }): { size: Size; kg: number } {
-  if (x.med) return { size: x.med === 'splint' ? 'medium' : 'small', kg: { bandages: 0.05, gauze: 0.1, painkillers: 0.03, splint: 0.35, iron: 0.08, testkit: 0.03 }[x.med] };
+  if (x.med) return { size: x.med === 'splint' ? 'medium' : 'small', kg: { bandages: 0.05, gauze: 0.1, painkillers: 0.03, splint: 0.35, iron: 0.08, testkit: 0.03, caffeine: 0.02 }[x.med] };
   const n = x.name.toLowerCase();
   if (x.kind === 'weapon') {
     if (/bottle/.test(n)) return { size: 'medium', kg: 0.45 };
@@ -262,7 +263,7 @@ export const lootLabel = (l: { kind: string; name: string; cash?: number; doses?
 
 // ---------- Medicine (sold at the pharmacy) ----------
 
-export type MedId = 'bandages' | 'gauze' | 'painkillers' | 'splint' | 'iron' | 'testkit';
+export type MedId = 'bandages' | 'gauze' | 'painkillers' | 'splint' | 'iron' | 'testkit' | 'caffeine';
 
 export interface Med {
   id: MedId;
@@ -343,6 +344,18 @@ export const MEDS: Med[] = [
  * Not medicine: a reagent kit (a vial and a dropper) that tells you what a
  * powder is. Used from the thing you want to test, in your pockets.
  */
+MEDS.push({
+  id: 'caffeine',
+  name: 'Caffeine pills',
+  price: 5,
+  desc: '200 mg. Sharper in a fight for hours; too many and your hands shake.',
+  blocked: (h) => (caffeineNow(h) >= 600 ? "Your heart's already pounding" : null),
+  use(h) {
+    addCaffeine(h, 200);
+    return 'You dry-swallow two of the pills. Nothing yet; in half an hour or so you’ll feel it.';
+  },
+});
+
 MEDS.push({
   id: 'testkit',
   name: 'Drug test kit',

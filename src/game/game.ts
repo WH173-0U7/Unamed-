@@ -5,7 +5,7 @@ import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf } from 
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
 import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
-import { HIGH_HOURS, LURK_HOURS, drunkLevel, soberUp, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
+import { HIGH_HOURS, LURK_HOURS, addCaffeine, caffeineNow, caffeineLevel, drunkLevel, soberUp, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
 import { ALL_TECHNIQUES, PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
 import { uiGlitch } from '../fx/uiGlitch';
@@ -901,6 +901,7 @@ export class Game {
       const was = h.cold ?? 0;
       h.cold = Math.max(0, was - 1);
       h.stress = Math.max(0, (h.stress ?? 0) - 6);
+      addCaffeine(h, 95);
       line = `You buy a coffee and drink it at the counter, too hot to taste. ${was ? (h.cold ? "Some of the cold goes out of you." : "You're warm again.") : 'Your hands steady a little.'}`;
     } else if (s.med) {
       const m = medById(s.med);
@@ -929,7 +930,7 @@ export class Game {
         this.note([`Nowhere to put it. ${noRoomWhy(inv, 'small')}`]);
         return;
       }
-      line = s.id === 'beer' ? 'You buy a can of beer.' : s.id === 'vodka' ? 'You buy a pint of vodka in a paper bag.' : s.id === 'cigs' ? `You buy a pack of ${brand}.` : s.id === 'matches' ? 'You buy a book of matches.' : `You buy the ${lc(s.name)}.`;
+      line = s.id === 'energy' ? 'You buy an energy drink.' : s.id === 'beer' ? 'You buy a can of beer.' : s.id === 'vodka' ? 'You buy a pint of vodka in a paper bag.' : s.id === 'cigs' ? `You buy a pack of ${brand}.` : s.id === 'matches' ? 'You buy a book of matches.' : `You buy the ${lc(s.name)}.`;
     }
     const paid = this.payLine(s.price * 100);
     this.refresh();
@@ -1086,6 +1087,9 @@ export class Game {
     if (e && e.stage === 'combat' && (e.you.drunk ?? 0) >= 10) return { drug: 'drunk', k: Math.min(1, (e.you.drunk ?? 0) / 75) };
     soberUp(h);
     if ((h.drunk ?? 0) >= 10) return { drug: 'drunk', k: Math.min(1, (h.drunk ?? 0) / 75) };
+    // Caffeine: a clean clarity, which turns into a tremor when it's too much.
+    const mg = e && e.stage === 'combat' ? (e.you.caffeine ?? 0) : caffeineNow(h);
+    if (caffeineLevel(mg)) return mg >= 400 ? { drug: 'jitters', k: Math.min(1, (mg - 300) / 300) } : { drug: 'caffeine', k: Math.min(1, mg / 200) };
     return { drug: null, k: 0 };
   }
 
@@ -1099,6 +1103,21 @@ export class Game {
     const it = inv.items[i];
     const h = this.health;
     if (!it?.drink || (it.doses ?? 0) <= 0 || !this.canOpenSheet) return;
+    if (it.drink === 'energy') {
+      // Caffeine, not alcohol: nothing now, sharper in half an hour, for hours.
+      inv.items.splice(i, 1);
+      addCaffeine(h, 160);
+      const mg = caffeineNow(h, now() + 45 * 60_000);
+      this.closeSheet();
+      this.refresh();
+      this.note([
+        'You crack the can and drink it down. Sickly sweet, and fizzing.',
+        mg >= 600 ? "That's a lot of caffeine in you. Your heart's going to be pounding." : mg >= 400 ? 'Your hands are going to shake.' : 'In half an hour you’ll be sharp.',
+        'You crush the can and drop it.',
+      ]);
+      buzz(6);
+      return;
+    }
     soberUp(h);
     const was = drunkLevel(h.drunk ?? 0);
     const beer = it.drink === 'beer';
@@ -1715,7 +1734,9 @@ export class Game {
                   : x.secret === 'cocaine' && x.known
                     ? `${x.doses} bump${x.doses === 1 ? '' : 's'} left`
                     : x.drink
-                      ? x.drink === 'beer'
+                      ? x.drink === 'energy'
+                        ? '160 mg of caffeine'
+                        : x.drink === 'beer'
                         ? 'A can of beer'
                         : `${x.kind === 'weapon' ? 'A weapon too · ' : ''}${x.doses ? `${x.doses} swig${x.doses === 1 ? '' : 's'} left` : 'Empty'}`
                     : x.kind === 'weapon' && /syringe/i.test(x.name)

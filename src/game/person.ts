@@ -178,7 +178,7 @@ export interface Loot {
   /** A card already used at the cash machine (it's been stopped). */
   drained?: boolean;
   /** Something to drink (uses in `doses`). */
-  drink?: 'beer' | 'liquor';
+  drink?: 'beer' | 'liquor' | 'energy';
   /** Something to hurt people with (see Item): extra damage, a blade, pepper spray. */
   weapon?: number;
   cuts?: boolean;

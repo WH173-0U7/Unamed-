@@ -1,5 +1,6 @@
-import { AWARENESS, BUILDS, NAMES, personalityOf, type Item, type Loot, type Person, type Personality } from './person';
+import { AWARENESS, BUILDS, NAMES, personalityOf, type Item, type Loot, type Person } from './person';
 import { money } from './money';
+import { isBrute, voice, type Moment } from './voices';
 import { lootLabel, take, type Inventory } from './inventory';
 import {
   STAT_NAMES,
@@ -988,6 +989,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   // Theirs (the one they pulled), or yours (from your pockets).
   const weapon = kind !== 'weapon' ? undefined : a === 'you' ? mine : enc.person.carrying.find((i) => i.name === enc.them.weaponOut);
   const tired = A.stamina < A.maxStamina * 0.25;
+  const downBefore = D.down;
   spend(a, tech ? tech.cost : kind === 'kick' || kind === 'stomp' ? COST.kick : kind === 'weapon' ? COST.weapon : COST.punch);
 
   // Will it land?
@@ -1040,6 +1042,8 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
       say(a, oneOf(['Your punch glances off.', 'They slip the punch.', 'You miss.']));
     }
     if (d === 'you') you.gain('agility', 3);
+    // The hard cases let you know you missed.
+    if (a === 'you' && !enc.them.yielded) maybeSay('youMiss', 0.3);
     return false;
   }
 
@@ -1149,6 +1153,12 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
     you.gain('strength', 1);
     you.gain('agility', 2);
     if (tech) techEffect(tech);
+  }
+  // How they take it: the scared plead, the hard cases taunt.
+  if (a === 'you' && !D.out && !D.dead && !D.yielded) maybeSay('hitByYou', isBrute(enc.person.personality) ? 0.2 : (D.fear ?? 0) >= 40 ? 0.3 : 0.12);
+  if (a === 'them') {
+    if (D.down && !downBefore) maybeSay('youDown', 0.6);
+    else maybeSay('hitYou', 0.28);
   }
   // Stuck with a loaded needle: whatever's in it goes into you.
   if (a === 'them' && weapon && /syringe/i.test(weapon.name)) {
@@ -1531,7 +1541,7 @@ function theirTurn() {
   const breaking = fear + P.yield * 100;
   if (breaking >= 75 && Math.random() < 0.25 + (breaking - 75) / 60) {
     T.yielded = true;
-    say('them', T.down ? oneOf(['They curl up on the ground with their arms over their head. "Stop! Please! Take it, take whatever you want!"', '"Okay! Okay!" they sob from the floor. "I give up. Just take it."']) : giveUpLine(p.personality));
+    say('them', speak(T.down ? 'giveUpDown' : 'giveUp'));
     you.gain('intimidation', 5);
     return;
   }
@@ -1690,34 +1700,6 @@ function spotted() {
     say('them', oneOf(['They spot you and bolt. Gone.', 'They see you. They run, and you lose them.']));
     end('lost-them');
   }
-}
-
-/** Giving up, in their own way. */
-function giveUpLine(p?: Personality): string {
-  const lines: Record<Personality, string[]> = {
-    timid: ['"Okay! Okay! Please don\'t hurt me. Please." Their hands are already up.', 'They start crying before you\'ve finished. "Take it. Take it all."'],
-    jumpy: ['"Alright, alright, alright!" Their hands fly up. Their eyes go everywhere.', 'They flinch at every move you make. "Take it! Just take it!"'],
-    calm: ['They breathe out, and nod. "Alright. You win. Take it."', '"Okay." Quietly. "Okay. No trouble."'],
-    sly: ['They put their hands up, and smile like it\'s nothing. "Sure, friend. Let\'s be reasonable."', '"Hey. Hey. No need for any of that. We can work something out."'],
-    proud: ['They look at the ground. It costs them. "...Fine. Take it."', 'Their jaw works. "Fine," they spit. "Take it."'],
-    hothead: ['"Fine! FINE! Take it, you piece of...!" They throw up their hands.', 'They\'re shaking with rage, not fear. Or not only fear. "Take it, then."'],
-    hard: ['They look at you for a long moment. "You win this one." It doesn\'t sound like a surrender.', 'They spit blood, and nod once. "Take it."'],
-  };
-  return oneOf(lines[p ?? 'calm']);
-}
-
-/** Telling you where to go, in their own way. `mugged`: you've only just stepped up. */
-function refuseLine(p: Personality | undefined, mugged: boolean): string {
-  const lines: Record<Personality, string[]> = {
-    timid: ['"N-no. No. Leave me alone!" Their voice cracks, but they don\'t give it up.', 'They clutch their pockets and shake their head, over and over.'],
-    jumpy: ['"Get away from me! Get away!"', 'They\'re too wound up to think. They lash out.'],
-    calm: ['"No," they say, as if you\'d asked the time.', '"I don\'t think so."'],
-    sly: ['"Funny. I was going to ask you the same thing."', 'They laugh. "You\'ll have to do better than that."'],
-    proud: ['"Do you know who you\'re talking to?"', '"From you? Never."'],
-    hothead: [mugged ? '"WHAT did you say to me?" They come at you swinging.' : '"I\'ll kill you!"', '"You want it? Come and get it!"'],
-    hard: ['They don\'t even blink. "Make me."', 'They spit on the ground. "Come and take it."'],
-  };
-  return oneOf(lines[p ?? 'calm']);
 }
 
 // ---------- Techniques (Unarmed) ----------
@@ -1906,7 +1888,7 @@ function mug() {
   if (Math.random() < yieldChance(e, mugSurprise(e))) {
     T.yielded = true;
     scare(8);
-    say('them', giveUpLine(e.person.personality));
+    say('them', speak('giveUp'));
     you.gain('intimidation', 8);
     endOfRound();
     return;
@@ -1926,7 +1908,7 @@ function mug() {
     endOfRound();
     return;
   }
-  say('them', refuseLine(e.person.personality, true));
+  say('them', speak('refuseMug'));
   say('info', 'The fight is on.');
   theirTurn();
   endOfRound();
@@ -1956,13 +1938,25 @@ function yieldTurn() {
     strike('them', 'punch');
     return;
   }
-  if (Math.random() < 0.35)
-    say(
-      'them',
-      fear >= 70
-        ? oneOf(['"Please," they keep saying. "Please, please."', "They're shaking so hard their teeth chatter.", "They won't look at you."])
-        : oneOf(['They watch you, breathing hard.', 'Their eyes keep going to the end of the street.']),
-    );
+  if (Math.random() < 0.45) {
+    const l = speak('beg');
+    if (l) say('them', l);
+  }
+}
+
+/** Something they'd say right now (their voice: see voices.ts), not said lately. '' if nothing. */
+function speak(m: Moment): string {
+  const xs = voice(enc, m);
+  return xs.length ? vary(xs) : '';
+}
+/** Now and then, they say something (if they've anything to say). */
+function maybeSay(m: Moment, chance: number) {
+  if (Math.random() >= chance) return;
+  const l = speak(m);
+  if (l) {
+    landed = null;
+    say('them', l);
+  }
 }
 
 /** What someone values most, to hold back (cash counts by the dollar). */
@@ -1984,11 +1978,11 @@ function threatAct(id: string, inv?: Inventory): boolean {
     if (Math.random() < yieldChance(e)) {
       T.yielded = true;
       say('you', oneOf(['"Give it up," you tell them. "Or this gets worse."', '"Stop. Look at you. Just give me what you\'ve got."']));
-      say('them', giveUpLine(e.person.personality));
+      say('them', speak('giveUp'));
       you.gain('intimidation', 8);
     } else {
       say('you', '"Give it up," you tell them.');
-      say('them', refuseLine(e.person.personality, false));
+      say('them', speak('refuse'));
       you.gain('intimidation', 3);
     }
     return true;
@@ -2001,7 +1995,8 @@ function threatAct(id: string, inv?: Inventory): boolean {
       T.dazed = 2;
       T.yielded = true;
       scare(30);
-      say('you', 'You slap them until their eyes open. They see you standing over them and start to beg.');
+      say('you', 'You slap them until their eyes open.');
+      say('them', speak('woken') || 'They see you standing over them and start to beg.');
       you.gain('intimidation', 4);
     } else say('you', "You slap them. Their head lolls. They're still out.");
     return true;
@@ -2017,6 +2012,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     }
     const before = fearLevel(fear);
     scare(12 * (1 - fear / 150));
+    maybeSay('menaced', 0.7);
     if (fearLevel(T.fear ?? 0) > before) you.gain('intimidation', 2);
     return true;
   }
@@ -2031,7 +2027,8 @@ function threatAct(id: string, inv?: Inventory): boolean {
       best.hidden = true;
     }
     const shown = all.filter((l) => !l.hidden).map((l) => a(lc(lootLabel(l))));
-    say('them', shown.length ? `They turn out their pockets with shaking hands: ${list(shown)}.` : "They turn out their pockets. There's nothing in them.");
+    say('them', shown.length ? `They turn out their pockets${isBrute(e.person.personality) ? '' : ' with shaking hands'}: ${list(shown)}.` : "They turn out their pockets. There's nothing in them.");
+    if (shown.length) maybeSay('emptied', 0.85);
     const arms_ = e.person.carrying.filter((it) => it.weapon || it.spray);
     if (arms_.length) say('them', `They drop ${list(arms_.map((it) => `the ${lc(it.name)}`))} at your feet.`);
     you.gain('intimidation', 3);
@@ -2057,7 +2054,10 @@ function threatAct(id: string, inv?: Inventory): boolean {
           ? `You pat them down: ${list(all.map((l) => a(lc(lootLabel(l)))))}. Nothing else.`
           : 'You pat them down. Nothing on them at all.',
     );
-    if (hid.length) scare(8);
+    if (hid.length) {
+      scare(8);
+      maybeSay('caught', 1);
+    }
     return true;
   }
   if (id === 'ask-rest') {
@@ -2068,7 +2068,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
       l.hidden = false;
       say('them', `"Okay! Okay, there's this too." They pull ${a(lc(lootLabel(l)))} out of their ${g.name.toLowerCase()}.`);
       you.gain('intimidation', 4);
-    } else say('them', fear >= 50 ? '"That\'s all of it, I swear. I swear!"' : '"That\'s everything." They hold your eye a little too long.');
+    } else say('them', speak(hidden.length ? 'holdingOut' : 'allThere') || (fear >= 50 ? '"That\'s all of it, I swear. I swear!"' : '"That\'s everything." They hold your eye a little too long.'));
     return true;
   }
   if (id.startsWith('pin:') || id.startsWith('pin-mine:')) {
@@ -2083,7 +2083,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     if (!card || card.pin) return false;
     say('you', `"The ${card.name.toLowerCase()}. What's the PIN?"`);
     if (fear < 25) {
-      say('them', oneOf(['"Go to hell."', 'They press their lips together and say nothing.']));
+      say('them', (isBrute(e.person.personality) ? speak('refuse') : speak('pinRefuse')) || 'They press their lips together and say nothing.');
       return true;
     }
     card.pin = fourDigits();
@@ -2091,7 +2091,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     const truth = personalityOf(e.person).truth;
     const terrified = fear >= (truth < 1 ? 85 : 65);
     card.pinOk = terrified || Math.random() < (fear / 80) * truth;
-    say('them', `"${card.pin.split('').join('-')}. It's ${card.pin}." ${terrified ? "They're too scared to lie." : e.person.personality === 'sly' ? 'They say it easily. Too easily?' : 'They say it fast.'}`);
+    say('them', `"${card.pin.split('').join('-')}. It's ${card.pin}." ${terrified ? speak('pinTruth') || "They're too scared to lie." : speak('pinLie') || 'They say it fast.'}`);
     you.gain('intimidation', 4);
     return true;
   }
@@ -2113,7 +2113,8 @@ function threatAct(id: string, inv?: Inventory): boolean {
     return true;
   }
   if (id === 'let-go') {
-    say('you', e.robbed ? "You shove them away. They run, and don't look back." : 'You let them go. They walk away fast, then run.');
+    say('you', e.robbed ? 'You shove them away from you.' : 'You let them go.');
+    say('them', speak('letGo') || 'They walk away fast, then run.');
     end(e.robbed ? 'mugged' : 'left');
     return true;
   }
@@ -2186,7 +2187,7 @@ function torture(how: string, inv?: Inventory) {
     T.down = true;
     T.yielded = false;
     say('them', 'Their eyes roll back. They pass out from the pain.');
-  } else say('them', oneOf(['"Stop! Please! I\'ll do anything!"', "They're sobbing now.", '"Please. Please. I\'ve got kids."', "They can't stop shaking."]));
+  } else say('them', speak('torture') || "They're sobbing now.");
 }
 
 /** Takes a weapon they were carrying (it's yours now: they can't use it on you). */

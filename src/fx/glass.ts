@@ -709,8 +709,11 @@ export function createGlass(opts: GlassOptions = {}) {
 
   /** Stores the glass on the device (PNG in local storage). */
   /** Stores the glass. Off the main thread where it can be (`sync` when the page is going away). */
+  let reading = false;
   function persist(sync = false) {
     if ((!unsaved && !driedUnsaved) || !w) return;
+    // Still reading the last one back: this one waits (unless the page is going).
+    if (reading && !sync) return;
     unsaved = false;
     driedUnsaved = false;
     try {
@@ -720,44 +723,69 @@ export function createGlass(opts: GlassOptions = {}) {
       packRT.setSize(pw, ph);
       copyInto(packRT, rtA.texture, [0.5, 0.5, 1, 1]);
       const px = new Uint8Array(pw * ph * 4);
-      renderer.readRenderTargetPixels(packRT, 0, 0, pw, ph, px);
-      // Opaque image, twice as tall: blood/wet/smear on top, grime below
-      // (the browser would spoil values kept in the alpha channel).
-      const c = document.createElement('canvas');
-      c.width = pw;
-      c.height = ph * 2;
-      const x = c.getContext('2d')!;
-      const img = x.createImageData(pw, ph * 2);
-      const d = img.data;
-      const n = pw * ph;
-      for (let i = 0; i < n; i++) {
-        const o = i * 4;
-        d[o] = px[o];
-        d[o + 1] = px[o + 1];
-        d[o + 2] = px[o + 2];
-        d[o + 3] = 255;
-        const q = (n + i) * 4;
-        d[q] = d[q + 1] = d[q + 2] = px[o + 3];
-        d[q + 3] = 255;
-      }
-      x.putImageData(img, 0, 0);
-      const store = (png: string) => {
-        try {
-          localStorage.setItem(STORE_KEY, JSON.stringify({ w: pw, h: ph, png }));
-        } catch {
-          // Storage full: the saved game matters more than the glass.
-          localStorage.removeItem(STORE_KEY);
+      const encode = () => {
+        // Opaque image, twice as tall: blood/wet/smear on top, grime below
+        // (the browser would spoil values kept in the alpha channel).
+        const c = document.createElement('canvas');
+        c.width = pw;
+        c.height = ph * 2;
+        const x = c.getContext('2d')!;
+        const img = x.createImageData(pw, ph * 2);
+        const d = img.data;
+        const n = pw * ph;
+        for (let i = 0; i < n; i++) {
+          const o = i * 4;
+          d[o] = px[o];
+          d[o + 1] = px[o + 1];
+          d[o + 2] = px[o + 2];
+          d[o + 3] = 255;
+          const q = (n + i) * 4;
+          d[q] = d[q + 1] = d[q + 2] = px[o + 3];
+          d[q + 3] = 255;
         }
+        x.putImageData(img, 0, 0);
+        const store = (png: string) => {
+          try {
+            localStorage.setItem(STORE_KEY, JSON.stringify({ w: pw, h: ph, png }));
+          } catch {
+            // Storage full: the saved game matters more than the glass.
+            localStorage.removeItem(STORE_KEY);
+          }
+        };
+        // Encoding the picture is the slow part: let the browser do it in the background.
+        if (sync || !c.toBlob) store(c.toDataURL('image/png'));
+        else
+          c.toBlob((blob) => {
+            if (!blob) return;
+            const r = new FileReader();
+            r.onload = () => typeof r.result === 'string' && store(r.result);
+            r.readAsDataURL(blob);
+          }, 'image/png');
       };
-      // Encoding the picture is the slow part: let the browser do it in the background.
-      if (sync || !c.toBlob) store(c.toDataURL('image/png'));
-      else
-        c.toBlob((blob) => {
-          if (!blob) return;
-          const r = new FileReader();
-          r.onload = () => typeof r.result === 'string' && store(r.result);
-          r.readAsDataURL(blob);
-        }, 'image/png');
+      // Reading the picture back from the graphics card is the slow part: off
+      // the main thread where the browser can (WebGL2), at once if the page is going.
+      const asyncRead = (renderer as unknown as { readRenderTargetPixelsAsync?: (...a: unknown[]) => Promise<unknown> }).readRenderTargetPixelsAsync;
+      if (!sync && asyncRead && renderer.capabilities.isWebGL2) {
+        reading = true;
+        asyncRead
+          .call(renderer, packRT, 0, 0, pw, ph, px)
+          .then(() => {
+            try {
+              encode();
+            } catch {
+              /* storage blocked */
+            }
+          })
+          .catch(() => {
+            unsaved = true;
+          })
+          .finally(() => {
+            reading = false;
+          });
+      } else {
+        renderer.readRenderTargetPixels(packRT, 0, 0, pw, ph, px);
+        encode();
+      }
     } catch {
       /* storage blocked: it just won't be kept */
     }

@@ -9,6 +9,7 @@ import { HIGH_HOURS, LURK_HOURS, drunkLevel, soberUp, REST_HOURS, afterFight, bo
 import { ALL_TECHNIQUES, PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
 import { uiGlitch } from '../fx/uiGlitch';
+import { guilt } from './voices';
 import { sound } from '../fx/sound';
 import type { DrugLook } from '../fx/drugs';
 import { clockText, dateText, now, partOfDay } from './clock';
@@ -488,6 +489,18 @@ export class Game {
       // Walked away before anything happened: nothing carries over (no nerve, the coke still in you).
       const nothing = !e.fought && (e.result === 'left' || e.result === 'lost-them');
       e.log = nothing ? [] : afterFight(this.health, e.you, e.result!).map((text) => ({ by: 'info' as const, text }));
+      // How it sits with you: what you did to them, and who they were.
+      if (e.result !== 'lost' && e.result !== 'killed') {
+        const start = e.start?.blood ?? e.them.maxBlood;
+        const beat = e.them.out || e.them.blood < start - e.them.maxBlood * 0.25 || e.them.broken.length > (e.start?.broken.length ?? 0);
+        const what = (e.tortured ?? 0) > 0 ? 'torture' : e.mugged || (e.robbed && e.result === 'mugged') ? 'mug' : beat ? 'beat' : null;
+        if (what) {
+          const g = guilt(e, what, this.humanity.lost);
+          for (const text of g.lines) e.log.push({ by: 'info', text });
+          const h = this.health;
+          h.stress = Math.max(0, Math.min(100, (h.stress ?? 0) + g.stress));
+        }
+      }
     }
     for (const text of worse) e.log.push({ by: 'info', text });
     if (this.health.dead) {
@@ -704,6 +717,8 @@ export class Game {
   }
 
   private openSheet(kind: 'places' | 'pockets' | 'stats' | 'police') {
+    // Stopped by the police: nothing else opens over that.
+    if (this.sheet === 'police' && kind !== 'police') return;
     // Your stats can be looked at any time, even mid-fight; the police don't ask.
     if (kind === 'stats' || kind === 'police' ? !this.tvState.on || this.dead : !this.canOpenSheet) return;
     this.sheet = kind;

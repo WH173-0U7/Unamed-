@@ -343,6 +343,19 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   buttons under the tabs, not a tab. The You sheet only closes from its top
   bar (the grab handle) or a long pull when its list is at the top, so
   scrolling it doesn't put it away.
+- **People talk like people.** The scared (timid, jumpy, calm) beg, bargain
+  and break in their own way, and who they are comes through: a civilian's
+  rent, their kid, work in the morning, their photos; someone homeless with
+  nothing else; a junkie, sick; a drunk, slurring. What they say about what
+  they hand over is only about what they actually had. The sly try to talk
+  their way out. The hard cases (hotheads, the proud, the hard) don't beg:
+  they taunt you when they land one, when you miss, when you go down, and
+  when you threaten them, and they only crack at the very end, bitterly.
+- **It stays with you.** After you mug someone, beat them senseless or
+  torture them, your character feels it, by how far gone they are: still
+  human, your hands shake, you remember their name if you saw their ID, the
+  photo of the kid in their wallet, and stress rises hard; cold, you make
+  excuses; heartless, nothing; past that, you enjoy it (and it calms you).
 - **Intimidation** is a fifth stat, trained by all of the above. On small
   screens the stats along the top use short names.
 - **The cash machine** at the bank works any hour: a stolen card with the PIN

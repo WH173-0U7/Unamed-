@@ -337,6 +337,12 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   faint red edge) flashes red with a jolt; things that are good for you
   (medicine, a drink, a smoke, a fire, buying something) glow warm and chime
   softly.
+- **One Violence tab.** In a fight everything violent is one tab, in sections
+  (Ambush, Strikes, Weapons, On the ground, Torture), next to Threaten and
+  Search; moving (Run, Get up, Catch your breath, Walk away) is a row of
+  buttons under the tabs, not a tab. The You sheet only closes from its top
+  bar (the grab handle) or a long pull when its list is at the top, so
+  scrolling it doesn't put it away.
 - **Intimidation** is a fifth stat, trained by all of the above. On small
   screens the stats along the top use short names.
 - **The cash machine** at the bank works any hour: a stolen card with the PIN

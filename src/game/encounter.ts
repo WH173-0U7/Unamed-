@@ -237,6 +237,8 @@ export interface Option {
   disabled?: boolean;
   /** Which tab it's under. Options without one are always shown, below the tabs. */
   cat?: Category;
+  /** A section within the tab (Strikes, Weapons, On the ground, Torture...). */
+  group?: string;
 }
 
 /** The tabs the options are sorted into. */
@@ -439,7 +441,33 @@ function fleeChance(f: Body, other: Body, bonus = 0) {
 const getUpChance = (f: Body) => Math.max(0.1, 0.8 - legs(f) * 0.3 - (f.dazed ? 0.2 : 0) - (f.stamina < COST.getUp ? 0.3 : 0));
 
 /** What you can do right now, sorted into tabs (see `Category`). */
+/**
+ * What you can do right now. All the violence (strikes, weapons, what you do
+ * to someone on the ground, torture, ambushes) is one tab, in sections;
+ * moving (run, get up, catch your breath, walk away) isn't a tab at all, just
+ * a row of buttons under the tabs.
+ */
 export function options(e: Encounter): Option[] {
+  const GROUP_ORDER = ['Ambush', 'Strikes', 'Weapons', 'On the ground', 'Torture'];
+  const out = rawOptions(e).map((o): Option => {
+    if (o.cat === 'move') return { ...o, cat: undefined };
+    if (o.cat === 'attack' || o.cat === 'stomp' || o.cat === 'torture' || o.cat === 'violence') {
+      const group = o.cat === 'torture' ? 'Torture' : o.cat === 'violence' ? 'Ambush' : o.id.startsWith('wpn:') ? 'Weapons' : o.cat === 'stomp' || o.id === 'choke' || o.id === 'locked:choke' ? 'On the ground' : 'Strikes';
+      return { ...o, cat: 'violence', group };
+    }
+    return o;
+  });
+  // Sections in a steady order (everything else keeps its place).
+  const harm = out
+    .map((o, i) => ({ o, i }))
+    .filter(({ o }) => o.cat === 'violence')
+    .sort((a, b) => GROUP_ORDER.indexOf(a.o.group ?? '') - GROUP_ORDER.indexOf(b.o.group ?? '') || a.i - b.i)
+    .map(({ o }) => o);
+  let k = 0;
+  return out.map((o) => (o.cat === 'violence' ? harm[k++] : o));
+}
+
+function rawOptions(e: Encounter): Option[] {
   switch (e.stage) {
     case 'menu':
     case 'surveil':

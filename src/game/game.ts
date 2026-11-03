@@ -636,7 +636,7 @@ export class Game {
    */
   private edgeSwipes() {
     const EDGE = 44;
-    type Drag = { id: number; x: number; y: number; side: 'left' | 'right' | 'bottom'; closing: boolean };
+    type Drag = { id: number; x: number; y: number; side: 'left' | 'right' | 'bottom'; closing: boolean; grip?: boolean; atTop?: boolean };
     let drag: Drag | null = null;
     const down = (id: number, x: number, y: number, target: EventTarget | null) => {
       drag = null;
@@ -645,7 +645,14 @@ export class Game {
       if (this.sheet) {
         // On the open drawer: a push back towards its edge closes it.
         const side = this.sheetEl.classList.contains('from-right') ? 'right' : this.sheetEl.classList.contains('from-bottom') ? 'bottom' : 'left';
-        drag = { id, x, y, side, closing: true };
+        // Only from its top bar (the grab handle), or a big pull once its list is
+        // scrolled all the way up: scrolling the list shouldn't close it.
+        const card = this.sheetEl.firstElementChild as HTMLElement;
+        const top = card.getBoundingClientRect().top;
+        const grip = !!(target as Element | null)?.closest?.('.sheet-head') || y < top + 56;
+        const rect = card.getBoundingClientRect();
+        const atTop = (card.querySelector('.sheet-body')?.scrollTop ?? 0) <= 2 && y < rect.top + rect.height / 3;
+        drag = { id, x, y, side, closing: true, grip, atTop };
         return;
       }
       const tab = (target as Element | null)?.closest?.('.edge-tab');
@@ -666,7 +673,7 @@ export class Game {
         if (!drag.closing && up > 34 && up > dx * 1.2) {
           drag = null;
           this.openSheet('stats');
-        } else if (drag.closing && -up > 60 && -up > dx * 1.2) {
+        } else if (drag.closing && ((drag.grip && -up > 50) || (drag.atTop && -up > 200)) && -up > dx * 1.5) {
           drag = null;
           this.closeSheet();
         }
@@ -678,7 +685,7 @@ export class Game {
         const side = drag.side;
         drag = null;
         this.openSheet(side === 'left' ? 'places' : 'pockets');
-      } else if (drag.closing && -inward > 60 && -inward > dy * 1.2) {
+      } else if (drag.closing && -inward > 90 && -inward > dy * 1.5) {
         drag = null;
         this.closeSheet();
       }

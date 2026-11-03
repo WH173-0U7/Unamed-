@@ -93,7 +93,21 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     const panel = q('.enc-opts');
     // Loot lists get long: smaller buttons.
     panel.classList.toggle('compact', tab === 'search');
-    panel.innerHTML = tab ? opts.filter((o) => o.cat && o.cat === tab).map(button).join('') : cats.length ? `<p class="enc-pick">Choose what to do.</p>` : '';
+    const shown = tab ? opts.filter((o) => o.cat && o.cat === tab) : [];
+    // Sections (Strikes, Weapons, On the ground, Torture) when there's more than one.
+    const sections = new Set(shown.map((o) => o.group).filter(Boolean)).size > 1;
+    let lastGroup: string | undefined;
+    panel.innerHTML = tab
+      ? shown
+          .map((o) => {
+            const head = sections && o.group && o.group !== lastGroup ? `<p class="enc-group">${o.group}</p>` : '';
+            lastGroup = o.group;
+            return head + button(o);
+          })
+          .join('')
+      : cats.length
+        ? `<p class="enc-pick">Choose what to do.</p>`
+        : '';
     panel.hidden = !panel.innerHTML;
     if (switched) {
       panel.classList.remove('swap');

@@ -106,6 +106,8 @@ export interface Body {
   nerve?: number;
   /** What's been done to them that shows, and stays (see Marks). */
   marks?: Marks;
+  /** Yours: a cigarette in your mouth (cooler under pressure), until a blow knocks it out. */
+  smoking?: boolean;
 }
 
 /**
@@ -144,7 +146,8 @@ export function marksText(m: Marks | undefined): string[] {
  * takes the edge off; at full nerve, violence doesn't stress you any more.
  */
 export function addStress(f: Body, n: number) {
-  const k = 1 - Math.min(100, f.nerve ?? 0) / 100;
+  // A cigarette in your mouth keeps you cool: it gets to you less.
+  const k = (1 - Math.min(100, f.nerve ?? 0) / 100) * (f.smoking ? 0.6 : 1);
   f.stress = Math.min(100, Math.max(0, (f.stress ?? 0) + n * k));
 }
 /** Stressed hands shake and eyes narrow: less accurate, slower to dodge. */
@@ -802,6 +805,11 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc)
 function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | 'fall' | 'stomp'): string {
   const D = enc[d];
   landed = d;
+  // Hit in the face: the cigarette goes flying.
+  if (d === 'you' && loc === 'head' && enc.you.smoking) {
+    enc.you.smoking = false;
+    say('info', 'The blow knocks the cigarette out of your mouth in a burst of sparks.');
+  }
   // Being hurt is frightening; hurting someone shakes you too.
   if (d === 'you') addStress(enc.you, 3 + dmg * 0.35);
   else addStress(enc.you, 1 + dmg * 0.08);

@@ -389,8 +389,8 @@ export class Game {
     if (id === 'leave-body') return this.closeEncounter(['You leave the body where it lies, and walk.']);
     // Approaching someone: bring your body as it is now (and lose the cigarette).
     if (e.stage === 'seen') {
-      if (this.smoking && id !== 'leave') delete this.health.smokingUntil;
       e.you = this.yourBody();
+      if (e.you.smoking && id !== 'leave') e.log.push({ by: 'info', text: 'You walk over with the cigarette still burning between your lips.' });
       // Whether they know you depends on how you look as you walk up.
       const inv = this.inventory;
       e.conspicuous = conspicuous(inv);
@@ -400,6 +400,11 @@ export class Game {
     const wasOver = e.stage === 'over';
     const wasOut = !!e.them.out;
     const impacts = act(e, id, this.stats, this.inventory);
+    // Knocked out of your mouth (or you're out cold): the cigarette's gone.
+    if (this.smoking && e.you && (e.you.smoking === false || e.you.out)) {
+      delete this.health.smokingUntil;
+      e.you.smoking = false;
+    }
     const worse: string[] = [];
     // Stamping on someone who can't defend themselves.
     if (wasOut && id.startsWith('stomp')) {
@@ -911,7 +916,11 @@ export class Game {
     const h = this.health;
     if (!h.smokingUntil) return;
     if (this.smoking) {
-      if (h.stress) h.stress = Math.max(0, h.stress - (dt * SMOKE_EASE) / (SMOKE_MS / 1000));
+      // It eases the stress you're carrying: in a fight, the fight's.
+      const e = this.encounter;
+      const fighting = e && e.stage !== 'seen' && e.stage !== 'over' ? e.you : null;
+      const f = fighting ?? h;
+      if (f.stress) f.stress = Math.max(0, f.stress - (dt * SMOKE_EASE) / (SMOKE_MS / 1000));
       return;
     }
     delete h.smokingUntil;

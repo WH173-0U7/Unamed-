@@ -121,6 +121,11 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   **Bump** makes you *Wired* for the next fight: a quarter more stamina,
   and a concussion hurts a little less. It wears off after the fight (or a
   rest), and leaves you hollow. A baggie holds a few bumps.
+- **Autosave** every 15 seconds while you play, as well as whenever the game
+  pauses (the pause button, or leaving the app). Saves live in this browser
+  on this device: an in-app browser (opening the link inside a chat app) or
+  a private tab can throw them away when closed, so play in your normal
+  browser, or add it to your home screen.
 - **A clock** in the corner shows your device's real time and date. The
   game runs on real time: future features will take real time to happen
   (waits, healing, travel), counted from your device's clock even while the
@@ -227,8 +232,11 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   what one really takes), and you can't light another till it's out. While
   it burns your stress eases, everything's a touch brighter, the edges of
   things stand out, and smoke curls up from the bottom of the screen, with a
-  bigger cloud when you exhale. Not indoors. Walk up to someone and you flick
-  it away.
+  bigger cloud when you exhale. Not indoors. You can walk into a fight
+  with it still in your mouth: it keeps you cool (stress builds 40% slower)
+  until a blow to the face knocks it out in a burst of sparks, or you're
+  knocked out, and then it's gone. Best smoked before, unless you want to
+  look cool doing it.
 - **Cigarettes** (made-up brands, a few to a nearly full pack) are on all
   sorts of people now, usually with a lighter or matches. **Smoke** one with
   a lighter or matches: it steadies your hands and does nothing good for

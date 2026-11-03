@@ -101,6 +101,7 @@ export function bodyFrom(h: Health, stamina: number): Body {
     maxStamina: Math.round(stamina * (h.wired ? 1.25 : 1)),
     lung: h.lung,
     stress: h.stress ?? 0,
+    smoking: (h.smokingUntil ?? 0) > Date.now(),
     marks: JSON.parse(JSON.stringify(h.marks ?? {})) as Marks,
     nerve: h.nerve ?? 0,
     bleeding: h.bleeding,

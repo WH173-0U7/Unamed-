@@ -207,6 +207,14 @@ menu.setSaveInfo(loadSave());
 showMenu('main');
 enforceFullscreen();
 
+// Autosave: every 15 seconds while you play, quietly, so nothing is lost if
+// the phone closes the page without warning (pausing still saves too).
+setInterval(() => {
+  if (state === 'playing' && game && !game.dead) game.saveNow();
+}, 15_000);
+// Ask the browser to keep the save, rather than clear it when space is low.
+navigator.storage?.persist?.().catch(() => {});
+
 if (params.has('debug')) {
   // Handle for automated testing.
   Object.assign(window, {

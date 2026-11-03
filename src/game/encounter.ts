@@ -316,11 +316,13 @@ function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolea
   const seen = new Set<string>();
   return (e.weapons ?? [])
     .filter((w) => { const key = `${w.name}|${w.loaded ?? ''}`; return !seen.has(key) && !!seen.add(key); })
-    .map((w) =>
+    .flatMap((w) => [
       w.spray
         ? { id: `wpn:${w.i}`, label: 'Pepper spray them', hint: `${w.doses ?? 0} left · blinds them`, cat }
-        : { id: `wpn:${w.i}`, label: /bottle/i.test(w.name) ? 'Swing the bottle' : /syringe/i.test(w.name) ? (w.loaded ? `Stab with the syringe (${w.known ? w.loaded : 'loaded'})` : 'Stab with the empty syringe') : `${w.cuts ? 'Slash' : 'Hit'} with the ${lc(w.name)}`, hint: tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0} damage${w.cuts && !/bottle/i.test(w.name) ? ', cuts' : ''}${w.loaded ? ', may inject them' : ''}`, disabled: tired(COST.weapon), cat },
-    );
+        : { id: `wpn:${w.i}`, label: /^bottle$/i.test(w.name) ? 'Swing the bottle' : /syringe/i.test(w.name) ? (w.loaded ? `Stab with the syringe (${w.known ? w.loaded : 'loaded'})` : 'Stab with the empty syringe') : `${w.cuts ? 'Slash' : 'Hit'} with the ${lc(w.name)}`, hint: tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0} damage${w.cuts && !/^bottle$/i.test(w.name) ? ', cuts' : ''}${w.loaded ? ', may inject them' : ''}`, disabled: tired(COST.weapon), cat },
+      // A whole bottle can be broken for an edge (it doesn't always break).
+      ...(/^bottle$/i.test(w.name) ? [{ id: `smash:${w.i}`, label: 'Smash the bottle', hint: tired(COST.punch) ? 'Too tired' : 'For a jagged edge: it cuts', disabled: tired(COST.punch), cat }] : []),
+    ]);
 }
 
 /**
@@ -953,6 +955,8 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         if (tech) {
           if (e.them.down && tech.effect === 'sweep') return impacts;
           strike('you', tech.kind, undefined, tech);
+        } else if (id.startsWith('smash:') && inv) {
+          smashBottle(inv, Number(id.slice(6)));
         } else if (id.startsWith('wpn:') && inv) {
           // Something from your pockets: a blade, a bottle, pepper spray.
           const it = inv.items[Number(id.slice(4))];
@@ -1058,7 +1062,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   const tired = A.stamina < A.maxStamina * 0.25;
   const downBefore = D.down;
   // How practiced you are at this one (it reads that way).
-  const wkind = weapon ? (/bottle/i.test(weapon.name) ? 'bottle' : /syringe/i.test(weapon.name) ? 'needle' : weapon.cuts ? 'blade' : 'blunt') : null;
+  const wkind = weapon ? (/^bottle$/i.test(weapon.name) ? 'bottle' : /broken bottle/i.test(weapon.name) ? 'broken' : /syringe/i.test(weapon.name) ? 'needle' : weapon.cuts ? 'blade' : 'blunt') : null;
   const t: Tier = a !== 'you' ? 1 : tech ? practise(tech.id) : wkind ? practise(`wpn:${wkind}`, 'weapons') : practise(kind);
   spend(a, tech ? tech.cost : kind === 'kick' || kind === 'stomp' ? COST.kick : kind === 'weapon' ? COST.weapon : COST.punch);
 
@@ -1200,8 +1204,10 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
     text = tech.text;
   } else if (kind === 'weapon' && weapon) {
     const w = lc(weapon.name);
-    text = /bottle/i.test(weapon.name)
+    text = /^bottle$/i.test(weapon.name)
       ? vary([`${N.S} swing the bottle at ${N.o} and it thumps ${N.o} ${where}.`, `${N.S} club ${N.o} with the bottle, ${where}.`, `${N.S} swing the bottle hard; it catches ${N.o} ${where}.`])
+      : /broken bottle/i.test(weapon.name)
+      ? vary([`${N.S} jab the broken bottle at ${N.o} and the glass catches ${N.o} ${where}.`, `${N.S} slash at ${N.o} with the jagged neck, ${where}.`, `${N.S} twist the broken bottle ${into}.`])
       : weapon.cuts
       ? /syringe/i.test(weapon.name)
           ? vary([`${N.S} jab the syringe at ${N.o} and stick ${N.o} ${where}.`, `${N.S} stab the needle ${into}.`])
@@ -1223,7 +1229,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
         : vary([`${N.S} punch ${N.o} ${where}.`, `${N.S} catch ${N.o} ${where} with a right.`, `${N.S} land a fist ${where}.`, `${N.S} hit ${N.o} ${where}.`, `${N.S} drive a punch ${into}.`, `A left from ${a === 'you' ? 'you' : 'them'} lands ${where}.`]);
   }
   // (A needle punctures; it doesn't slice.)
-  say(a, `${text} ${wound(d, loc, dmg, weapon && /syringe/i.test(weapon.name) ? 'jab' : weapon?.cuts && !/bottle/i.test(weapon.name) ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch')}`);
+  say(a, `${text} ${wound(d, loc, dmg, weapon && /syringe/i.test(weapon.name) ? 'jab' : weapon?.cuts && !/^bottle$/i.test(weapon.name) ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch')}`);
   if (a === 'you') {
     // Landing blows: it's fighting that teaches you to fight (and builds a little muscle).
     if (weapon) you.gain('weapons', 4);
@@ -1247,6 +1253,30 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
     }
   }
   return true;
+}
+
+/**
+ * Breaking your bottle against the wall for an edge. Harder than it looks:
+ * glass often just bounces, and sometimes it opens your hand.
+ */
+function smashBottle(inv: Inventory, i: number) {
+  const it = inv.items[i];
+  if (!it || it.kind !== 'weapon' || !/^bottle$/i.test(it.name)) return;
+  spend('you', COST.punch);
+  if (Math.random() < 0.5 + (you.stats.strength?.level ?? 1) * 0.004) {
+    const booze = (it.doses ?? 0) > 0;
+    it.name = 'Broken bottle';
+    it.weapon = 6;
+    it.cuts = true;
+    delete it.drink;
+    delete it.doses;
+    say('you', `You smash the bottle against the wall. It goes, and you're holding the jagged neck.${booze ? ' What was left in it runs down your wrist.' : ''}`);
+    if (Math.random() < 0.15) {
+      enc.you.bleeding = Math.max(enc.you.bleeding, 1);
+      say('info', "A sliver of glass has opened your palm. You're bleeding (light).");
+    }
+    you.gain('weapons', 2);
+  } else say('you', "You bring the bottle down hard against the wall. It bounces off whole, and your hand rings with it.");
 }
 
 /** Your loaded syringe, pushed into them. */
@@ -1527,7 +1557,7 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
     const where = { head: 'cheek', body: 'ribs', stomach: 'belly', arm: 'forearm', leg: 'thigh' }[loc];
     const cuts: Line[][] = [
       [
-        [`The blade opens a shallow gash across ${P} ${where}. Blood beads along it.`, scar(where)],
+        [`The edge opens a shallow gash across ${P} ${where}. Blood beads along it.`, scar(where)],
         [`A thin red line opens on ${P} ${where}, then starts to run.`, scar(where)],
         [`It nicks ${P} ${where}, and the blood comes slowly.`, scar(where)],
       ],
@@ -1701,6 +1731,18 @@ function theirTurn() {
   const weapon: Item | undefined = e.emptied ? undefined : p.carrying.find((i) => i.weapon);
   if (weapon && !T.weaponOut && arms(T) < 2 && Math.random() < 0.5) {
     T.weaponOut = weapon.name;
+    // A bottle: some break it first, for the edge. It doesn't always go.
+    if (weapon.name === 'Bottle' && Math.random() < 0.4) {
+      if (Math.random() < 0.55) {
+        weapon.name = 'Broken bottle';
+        weapon.weapon = 6;
+        weapon.cuts = true;
+        delete weapon.swigs;
+        T.weaponOut = weapon.name;
+        say('them', 'They smash the bottle against the wall and come up holding the jagged neck.');
+      } else say('them', "They bang the bottle against the wall. It doesn't break. They come at you with it anyway.");
+      return;
+    }
     say('them', `They pull out a ${weapon.name.toLowerCase()}.`);
     return;
   }
@@ -2018,7 +2060,7 @@ function mug() {
   e.stage = 'combat';
   e.facedYou = true;
   spend('you', COST.ambush);
-  const blade = (e.weapons ?? []).find((w) => w.cuts && !/bottle|syringe/i.test(w.name));
+  const blade = (e.weapons ?? []).find((w) => w.cuts && !/^bottle$|syringe/i.test(w.name));
   if (blade) {
     say('you', `You let them see the ${lc(blade.name)}.`);
     scare(10);

@@ -27,6 +27,7 @@ export const MOVE_NAMES: Record<string, string> = {
   'wpn:blade': 'knife work',
   'wpn:blunt': 'swings',
   'wpn:bottle': 'bottle swings',
+  'wpn:broken': 'broken-bottle work',
   'wpn:needle': 'needle jabs',
   'tech:body': 'gut punches',
   'tech:knee': 'knees',
@@ -126,7 +127,13 @@ export function stompText(t: Tier, loc: 'head' | 'stomach' | 'body'): string[] {
 }
 
 /** Your weapon, landing. `w` is its name (lower case). */
-export function weaponText(t: Tier, kind: 'blade' | 'blunt' | 'bottle' | 'needle', w: string, where: string, into: string): string[] {
+export function weaponText(t: Tier, kind: 'blade' | 'blunt' | 'bottle' | 'broken' | 'needle', w: string, where: string, into: string): string[] {
+  if (kind === 'broken')
+    return t === 0
+      ? [`You jab the broken bottle at them, wild, and the glass catches them ${where}.`, `You swipe the jagged neck at them; it catches them ${where}.`]
+      : t === 1
+        ? [`You jab the broken bottle at them and the glass catches them ${where}.`, `You slash at them with the jagged neck, ${where}.`, `You push the broken bottle ${into}.`]
+        : [`You keep the jagged neck low and drive it ${into}, then twist it out.`, `A feint, then the broken glass, ${where}.`];
   if (kind === 'bottle')
     return t === 0
       ? [`You swing the bottle blindly and it bounces off them ${where}.`, `You flail with the bottle; it thumps them ${where}.`]

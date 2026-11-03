@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.53',
+    date: 'Nov 3',
+    items: [
+      'You can smash a bottle for an edge: “Smash the bottle” in a fight. It doesn’t always break (glass is tougher than in films), and now and then it opens your hand. Broken, it cuts: +6 damage, and it makes people bleed.',
+      'Drunks with a bottle sometimes smash theirs too before they come at you.',
+    ],
+  },
+  {
     v: '0.52',
     date: 'Nov 3',
     items: [

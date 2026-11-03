@@ -16,12 +16,14 @@
  *   Trained by landing blows and by dodging.
  * - **Stamina:** how long you can keep fighting before you're exhausted, and
  *   how fast you get your breath back. Trained by exhausting yourself.
+ * - **Weapons:** fighting with something in your hand (a knife, a box
+ *   cutter, a bottle): how hard and how often it lands. Trained by using them.
  * - **Intimidation:** how scared people are of you: scared people give up
  *   without a fight, hand over what they've got, and tell you what you want
  *   to know. Trained by threatening, mugging and torturing.
  */
 
-export type StatName = 'sneak' | 'strength' | 'unarmed' | 'agility' | 'stamina' | 'intimidation';
+export type StatName = 'sneak' | 'strength' | 'unarmed' | 'weapons' | 'agility' | 'stamina' | 'intimidation';
 
 export interface Stat {
   level: number;
@@ -35,12 +37,13 @@ export const STAT_NAMES: Record<StatName, string> = {
   sneak: 'Sneak',
   strength: 'Strength',
   unarmed: 'Unarmed',
+  weapons: 'Weapons',
   agility: 'Agility',
   stamina: 'Stamina',
   intimidation: 'Intimidation',
 };
 /** Shorter names for the stats along the top of a small screen. */
-export const STAT_SHORT: Record<StatName, string> = { sneak: 'Snk', strength: 'Str', unarmed: 'Unr', agility: 'Agi', stamina: 'Stm', intimidation: 'Itm' };
+export const STAT_SHORT: Record<StatName, string> = { sneak: 'Snk', strength: 'Str', unarmed: 'Unr', weapons: 'Wpn', agility: 'Agi', stamina: 'Stm', intimidation: 'Itm' };
 
 /** Levels go to 100, and each one takes longer than the last. */
 export const MAX_LEVEL = 100;
@@ -50,6 +53,7 @@ export function newStats(): Stats {
     sneak: { level: 1, xp: 0 },
     strength: { level: 1, xp: 0 },
     unarmed: { level: 1, xp: 0 },
+    weapons: { level: 1, xp: 0 },
     agility: { level: 1, xp: 0 },
     stamina: { level: 1, xp: 0 },
     intimidation: { level: 1, xp: 0 },
@@ -87,6 +91,9 @@ export const noticeRate = (s: Stats) => 1 / (1 + (s.sneak.level - 1) * 0.02);
 export const damageMult = (s: Stats) => 1 + unarmedDamage(s) + strengthDamage(s);
 export const unarmedDamage = (s: Stats) => (s.unarmed.level - 1) * 0.012;
 export const strengthDamage = (s: Stats) => (s.strength.level - 1) * 0.004;
+/** Weapons: more damage (+1.2% a level) and more blows landing (+0.5% a level) with something in your hand. */
+export const weaponDamage = (s: Stats) => (s.weapons.level - 1) * 0.012;
+export const weaponAccuracy = (s: Stats) => (s.weapons.level - 1) * 0.005;
 /** Strength: how much more scared of you people are (+0.4 fear a level). */
 export const strengthFear = (s: Stats) => Math.round((s.strength.level - 1) * 0.4);
 /** Strength: a better grip when you grab someone (+0.4% a level). */

@@ -4,7 +4,7 @@ import { createTv } from './tv';
 import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf } from './person';
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
-import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, type StatName, type Stats } from './stats';
+import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
 import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
 import { ALL_TECHNIQUES, PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
@@ -452,7 +452,7 @@ export class Game {
       delete e.tip;
     }
     // Stamping on someone who can't defend themselves.
-    if (wasOut && (id.startsWith('stomp') || id.startsWith('ground:'))) {
+    if (wasOut && (id.startsWith('stomp') || id.startsWith('ground:') || (id.startsWith('wpn:') && !this.inventory.items[Number(id.slice(4))]?.spray))) {
       e.stomped = true;
       const l = this.loseHumanity(STOMP_HELPLESS_COST);
       if (l) worse.push(l);
@@ -1100,6 +1100,13 @@ export class Game {
       const looks = Math.random() < (f.heat / 100) * (1 - anonymity(inv) * 0.5);
       const evidence = inv.items.filter((x) => x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card' || x.secret);
       lines.push('They pat you down and go through your pockets.');
+      // Blades get taken off you, and they remember it.
+      const blades = inv.items.filter((x) => x.kind === 'weapon' && x.cuts);
+      if (blades.length) {
+        inv.items = inv.items.filter((x) => !blades.includes(x));
+        f.heat = Math.min(100, f.heat + 6);
+        lines.push(`They find ${list2(blades.map((x) => `the ${lc(x.name)}`))} and take ${blades.length > 1 ? 'them' : 'it'}. "What's this for, then?"`);
+      }
       if (evidence.length) {
         lines.push(`They find ${evidence.length === 1 ? `the ${lc(evidence[0].name)}` : `${evidence.length} things that aren't yours`}. "Whose is this?"`);
         arrested = true;
@@ -1436,7 +1443,11 @@ export class Game {
                         ? `<span class="fuel" title="Fuel left"><i style="width:${flameLeft(x)}%"></i></span>Fuel ${flameLeft(x)}%${flameLeft(x) <= 15 ? ', nearly dry' : ''}`
                         : /^matches$/i.test(x.name)
                           ? `${flameLeft(x)} match${flameLeft(x) === 1 ? '' : 'es'} left`
-                          : /card/.test(x.kind) && (x.pin || x.drained)
+                          : x.kind === 'weapon'
+                            ? x.spray
+                              ? `${x.doses ?? 0} spray${x.doses === 1 ? '' : 's'} left · blinds them`
+                              : `A weapon: +${x.weapon ?? 0} damage${x.cuts ? ', cuts' : ''}`
+                            : /card/.test(x.kind) && (x.pin || x.drained)
                             ? `${x.detail ? `${x.detail} · ` : ''}${x.drained ? 'Stopped' : `PIN ${x.pin} (cash machine at the bank)`}`
                             : x.detail;
                 const act = (attr: string, label: string, no?: string | null) => `<button type="button" data-${attr}="${i}" ${no ? `disabled title="${no}"` : ''}>${label}</button>`;
@@ -1479,6 +1490,7 @@ export class Game {
       ? inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind) && x.detail === e.holder && !x.pin).map(({ x, i }) => ({ i, name: x.name }))
       : [];
     e.canAsk = this.world.thieves.length > 0 && !e.person.thief;
+    e.weapons = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'weapon').map(({ x, i }) => ({ i, name: x.name, weapon: x.weapon, cuts: x.cuts, spray: x.spray, doses: x.doses }));
     e.wet = RAIN_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors;
   }
 
@@ -1547,6 +1559,11 @@ export class Game {
         ['Stamina', `${maxStamina(st)}`],
         ['Breath back each turn', `${staminaRegen(st).toFixed(1)}`],
       ],
+      weapons: [
+        ['Damage with a weapon', `+${pct(weaponDamage(st))}`],
+        ['Weapon blows land', sign(weaponAccuracy(st))],
+        ['On you', this.inventory.items.filter((x) => x.kind === 'weapon').map((x) => x.name).join(', ') || 'Nothing. Take one off someone.'],
+      ],
       intimidation: [
         ['Fear, from this stat', `+${fearBonus(st)}`],
         ...this.menaceRows(),
@@ -1559,6 +1576,7 @@ export class Game {
       unarmed: 'Landing blows, ambushes and techniques. Each new level can teach you a new move.',
       agility: 'Landing blows, and dodging theirs.',
       stamina: 'Fighting yourself to exhaustion.',
+      weapons: 'Using a weapon in a fight (and pepper spray). Take them off the people who carry them.',
       intimidation: 'Mugging, threatening, making people give up, and torture. Scared people hand it over, tell the truth, and give up mid-fight.',
     };
     const rows = (xs: [string, string][]) => xs.map(([a, b]) => `<div><dt>${a}</dt><dd>${b}</dd></div>`).join('');
@@ -1607,7 +1625,7 @@ export class Game {
    */
   private menace(): number {
     const st = this.stats;
-    return fearBonus(st) + strengthFear(st) + evilFear(this.humanity.lost) + (conspicuous(this.inventory) ? 6 : 0);
+    return fearBonus(st) + strengthFear(st) + evilFear(this.humanity.lost) + (conspicuous(this.inventory) ? 6 : 0) + (this.inventory.items.some((x) => x.cuts) ? 8 : 0);
   }
   private menaceRows(): [string, string][] {
     const st = this.stats;
@@ -1615,6 +1633,7 @@ export class Game {
     const evil = Math.round(evilFear(this.humanity.lost));
     if (evil) rows.push(['Fear, from how far gone you are', `+${evil}`]);
     if (conspicuous(this.inventory)) rows.push(['Fear, from the mask', '+6']);
+    if (this.inventory.items.some((x) => x.cuts)) rows.push(['Fear, from the blade on you', '+8']);
     return rows;
   }
 
@@ -1966,4 +1985,8 @@ function withA(s: string): string {
   const n = lc(s);
   const first = n.split(',')[0].trim().split(' ').pop() ?? '';
   return /^gauze/.test(n) || (/s$/.test(first) && !/ss$/.test(first)) ? n : /^[aeiou]/.test(n) ? `an ${n}` : `a ${n}`;
+}
+/** "the knife and the bottle". */
+function list2(xs: string[]): string {
+  return xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
 }

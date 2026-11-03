@@ -132,7 +132,7 @@ export interface Person {
 }
 
 /** Things you can take off someone. */
-export type LootKind = 'cash' | 'phone' | 'car keys' | 'id' | 'credit card' | 'debit card' | 'misc';
+export type LootKind = 'cash' | 'phone' | 'car keys' | 'id' | 'credit card' | 'debit card' | 'weapon' | 'misc';
 
 export interface Loot {
   kind: LootKind | 'med';
@@ -162,6 +162,10 @@ export interface Loot {
   pinOk?: boolean;
   /** A card already used at the cash machine (it's been stopped). */
   drained?: boolean;
+  /** Something to hurt people with (see Item): extra damage, a blade, pepper spray. */
+  weapon?: number;
+  cuts?: boolean;
+  spray?: boolean;
 }
 
 /** Something they're wearing or carrying that can be gone through. */

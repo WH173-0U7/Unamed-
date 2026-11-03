@@ -263,6 +263,19 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   like it (wild swings, clumsy kicks, up to Unarmed 10); a trained fighter's
   (40+) are short and hard. The next move you'll learn shows greyed out with
   its level, and the stats sheet lists them all.
+- **Weapons you take off people.** Whatever someone carries to hurt you with
+  (a knife, a box cutter, a bottle, a syringe, pepper spray) can be taken once
+  they can't stop you: knocked out, dead, or given up (after they've emptied
+  their pockets, they drop it at your feet). Taking it means they can't use
+  it on you. In a fight each one is an attack (Slash with the knife, Swing
+  the bottle, Stab with the syringe...; blades cut, so they bleed), also on
+  someone who's down (costing humanity on the unconscious, like stamping).
+  Pepper spray has three uses: it blinds them for a couple of turns, and can
+  open a fight (Violence: Pepper spray them). A blade on you makes people
+  more scared (+8 fear) and shows when you mug someone. The police take
+  blades off you if they stop you; the fence buys them, the pawn shop won't.
+  A new **Weapons** stat (+1.2% damage and +0.5% to land a level) grows as
+  you use them.
 - **Intimidation** is a fifth stat, trained by all of the above. On small
   screens the stats along the top use short names.
 - **The cash machine** at the bank works any hour: a stolen card with the PIN

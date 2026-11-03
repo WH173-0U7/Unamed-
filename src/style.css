@@ -2873,12 +2873,12 @@ body[data-buttons='lines'] .spot-bar {
   content: '▴' !important;
 }
 #enc {
-  grid-template-rows: auto auto minmax(64px, 1fr) minmax(auto, max-content);
+  grid-template-rows: auto auto minmax(84px, 1fr) minmax(auto, max-content);
   gap: 8px;
 }
 .enc-opts:not(.enc-extra) {
   min-height: 96px;
-  max-height: 44vh;
+  max-height: 40vh;
 }
 /* More options than fit: a fade at the bottom says scroll. */
 .enc-opts.more {

@@ -10,6 +10,9 @@ import {
   dodgeBonus,
   noticeRate,
   staminaRegen,
+  strengthDamage,
+  weaponAccuracy,
+  weaponDamage,
   train,
   type StatName,
   type Stats,
@@ -206,6 +209,8 @@ export interface Encounter {
   flame?: boolean;
   cardsHeld?: { i: number; name: string }[];
   canAsk?: boolean;
+  /** Your weapons (index in your items), set by the game as it draws. */
+  weapons?: { i: number; name: string; weapon?: number; cuts?: boolean; spray?: boolean; doses?: number }[];
   /** Out in the rain (a lighter burns more fuel). */
   wet?: boolean;
   /** Your Unarmed level (which techniques you know), set as you act. */
@@ -236,7 +241,7 @@ export const CATEGORY_NAMES: Record<Category, string> = {
   move: 'Move',
 };
 const SURVEIL_IDS = ['follow', 'build', 'carrying', 'awareness', 'sex', 'read'];
-const VIOLENCE_IDS = ['bumrush', 'sucker', 'shove', 'mug', 'kneecap', 'slam', 'rear-choke'];
+const VIOLENCE_IDS = ['bumrush', 'sucker', 'shove', 'mug', 'kneecap', 'slam', 'rear-choke', 'spray-ambush'];
 
 // ---------- Fear ----------
 
@@ -267,9 +272,26 @@ function searchOptions(e: Encounter): Option[] {
         if (!l.hidden || !e.them.yielded) found.push({ id: `take:${gi}:${li}`, label: lootLabel(l), hint: l.where === 'wallet' ? 'In their wallet' : `${g.name}, ${l.where}`, cat: 'search' });
       });
   });
+  // What they were carrying to hurt you with: in their hand, or on the ground by them.
+  e.person.carrying.forEach((it, ci) => {
+    if ((it.weapon || it.spray) && (!e.them.yielded || e.emptied))
+      found.push({ id: `takec:${ci}`, label: it.name, hint: e.them.weaponOut === it.name ? 'On the ground by them' : 'They were carrying it', cat: 'search' });
+  });
   const all: Option[] = found.length > 1 ? [{ id: 'take-all', label: 'Take everything', hint: `${found.length} things`, cat: 'search' }] : [];
   const out = [...all, ...found, ...todo];
   return out.length ? out : [{ id: 'nothing', label: 'Nothing left on them', disabled: true, cat: 'search' }];
+}
+
+/** Your weapons, as attacks (pepper spray, while it lasts). */
+function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolean): Option[] {
+  const seen = new Set<string>();
+  return (e.weapons ?? [])
+    .filter((w) => !seen.has(w.name) && seen.add(w.name))
+    .map((w) =>
+      w.spray
+        ? { id: `wpn:${w.i}`, label: 'Pepper spray them', hint: `${w.doses ?? 0} left · blinds them`, cat }
+        : { id: `wpn:${w.i}`, label: /bottle/i.test(w.name) ? 'Swing the bottle' : /syringe/i.test(w.name) ? 'Stab with the syringe' : `${w.cuts ? 'Slash' : 'Hit'} with the ${lc(w.name)}`, hint: tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0}${w.cuts ? ', cuts' : ''}`, disabled: tired(COST.weapon), cat },
+    );
 }
 
 /**
@@ -428,6 +450,7 @@ export function options(e: Encounter): Option[] {
           { id: 'slam', label: 'Slam them into the wall', hint: 'Head first', level: SLAM_AMBUSH_LEVEL },
           { id: 'rear-choke', label: 'Choke from behind', hint: e.distance < 2 ? 'Get right behind them first' : 'Out cold, no blood', level: CHOKE_AMBUSH_LEVEL, disabled: e.distance < 2 },
         ], 'violence'),
+        ...((e.weapons ?? []).some((w) => w.spray) ? [{ id: 'spray-ambush', label: 'Pepper spray them', hint: 'Blind them first', cat: 'violence' as Category }] : []),
         { id: 'mug', label: 'Mug them', hint: oddsHint(yieldChance(e, mugSurprise(e))), cat: 'violence' },
         { id: 'leave', label: 'Leave them' },
       ];
@@ -450,6 +473,7 @@ export function options(e: Encounter): Option[] {
         return [
           { id: 'punch', label: 'Punch', hint: armHint ?? 'From the floor', cat: 'attack' },
           { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : 'From the floor', disabled: tired(COST.kick), cat: 'attack' },
+          ...weaponOptions(e, 'attack', tired),
           ...(e.them.down ? [] : learned(e, FLOOR.map((t) => ({ id: t.id, label: t.name, hint: tired(t.cost) ? 'Too tired' : t.hint, level: t.level, disabled: tired(t.cost) })), 'attack')),
           { id: 'getup', label: 'Get up', hint: legHint ?? (y.dazed ? 'Dazed' : undefined), cat: 'move' },
           out ? { id: 'walk', label: 'Crawl away', hint: "They're unconscious", cat: 'move' } : breathe,
@@ -459,11 +483,11 @@ export function options(e: Encounter): Option[] {
         // They're unconscious: it isn't a fight any more. Keep going, go
         // through their pockets, wake them up to talk, or walk away.
         const wake: Option[] = e.them.dead ? [] : [{ id: 'wake', label: 'Slap them awake', hint: canWake(e) ? 'Have a word with them' : "They're too far gone", disabled: !canWake(e), cat: 'threaten' }];
-        return [...stomps(), ...ground(), ...searchOptions(e), ...wake, breathe, { id: 'walk', label: 'Walk away', cat: 'move' }];
+        return [...stomps(), ...ground(), ...weaponOptions(e, 'stomp', tired).filter((o) => !/spray/i.test(o.label)), ...searchOptions(e), ...wake, breathe, { id: 'walk', label: 'Walk away', cat: 'move' }];
       }
       if (e.them.yielded) return yieldedOptions(e);
       const demand: Option = { id: 'demand', label: '"Give it up"', hint: oddsHint(yieldChance(e)), cat: 'threaten' };
-      if (e.them.down) return [...stomps(legHint), ...ground(), ...learned(e, [{ id: 'choke', label: 'Headlock', hint: tired(14) ? 'Too tired' : armHint ?? 'Squeeze till they go out', level: CHOKE_LEVEL, disabled: tired(14) }], 'attack'), demand, run, breathe];
+      if (e.them.down) return [...stomps(legHint), ...ground(), ...weaponOptions(e, 'stomp', tired).filter((o) => !/spray/i.test(o.label)), ...learned(e, [{ id: 'choke', label: 'Headlock', hint: tired(14) ? 'Too tired' : armHint ?? 'Squeeze till they go out', level: CHOKE_LEVEL, disabled: tired(14) }], 'attack'), demand, run, breathe];
       return [
         { id: 'punch', label: 'Punch', hint: armHint, cat: 'attack' },
         { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : legHint, disabled: tired(COST.kick), cat: 'attack' },
@@ -473,6 +497,7 @@ export function options(e: Encounter): Option[] {
           TECHNIQUES.map((t) => ({ id: t.id, label: t.name, hint: tired(t.cost) ? 'Too tired' : t.kind === 'kick' ? (legHint ?? t.hint) : (armHint ?? t.hint), level: t.level, disabled: tired(t.cost) })),
           'attack',
         ),
+        ...weaponOptions(e, 'attack', tired),
         demand,
         run,
         breathe,
@@ -661,6 +686,20 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
     return impacts;
   }
 
+  // ---------- Violence: pepper spray in the face, then the fight ----------
+  if (e.stage === 'violence' && id === 'spray-ambush') {
+    const can = inv?.items.findIndex((x) => x.spray);
+    if (can == null || can < 0) return impacts;
+    if (e.distance === 0) say('you', 'You cross the street toward them.');
+    e.stage = 'combat';
+    e.facedYou = true;
+    spray(can, inv!);
+    say('info', 'The fight is on.');
+    theirTurn();
+    endOfRound();
+    return impacts;
+  }
+
   // ---------- Violence: a mugging ----------
   if (e.stage === 'violence' && id === 'mug') {
     mug();
@@ -781,7 +820,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
       return impacts;
     }
     if (e.stage !== 'combat') return impacts;
-    if (e.them.yielded && (id === 'punch' || id === 'kick' || id.startsWith('stomp'))) {
+    if (e.them.yielded && (id === 'punch' || id === 'kick' || id.startsWith('stomp') || id.startsWith('wpn:') || id.startsWith('tech:'))) {
       // Hitting them anyway: it's a fight again (they didn't see it coming).
       e.them.yielded = false;
       e.them.offBalance = true;
@@ -808,7 +847,13 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
         if (tech) {
           if (e.them.down && tech.effect === 'sweep') return impacts;
           strike('you', tech.kind, undefined, tech);
-        }
+        } else if (id.startsWith('wpn:') && inv) {
+          // Something from your pockets: a blade, a bottle, pepper spray.
+          const it = inv.items[Number(id.slice(4))];
+          if (!it || it.kind !== 'weapon') return impacts;
+          if (it.spray) spray(Number(id.slice(4)), inv);
+          else strike('you', 'weapon', undefined, undefined, it);
+        } else return impacts;
         break;
       case 'stomp-head':
         strike('you', 'stomp', 'head');
@@ -889,18 +934,19 @@ function spend(side: Side, n: number) {
  * One blow: does it land, where, and what it does. `kind` is the attacker's
  * move (a weapon blow uses the weapon they've drawn).
  */
-function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc, tech?: Technique): boolean {
+function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc, tech?: Technique, mine?: { name: string; weapon?: number; cuts?: boolean }): boolean {
   const d: Side = a === 'you' ? 'them' : 'you';
   const A = enc[a];
   const D = enc[d];
   const N = names(a);
   const b = BUILDS[enc.person.build];
-  const weapon = kind === 'weapon' ? enc.person.carrying.find((i) => i.name === enc.them.weaponOut) : undefined;
+  // Theirs (the one they pulled), or yours (from your pockets).
+  const weapon = kind !== 'weapon' ? undefined : a === 'you' ? mine : enc.person.carrying.find((i) => i.name === enc.them.weaponOut);
   const tired = A.stamina < A.maxStamina * 0.25;
   spend(a, tech ? tech.cost : kind === 'kick' || kind === 'stomp' ? COST.kick : kind === 'weapon' ? COST.weapon : COST.punch);
 
   // Will it land?
-  let hit = (kind === 'punch' ? 0.8 : kind === 'kick' ? 0.66 : kind === 'stomp' ? 0.72 : 0.75) + (tech?.hit ?? 0);
+  let hit = (kind === 'punch' ? 0.8 : kind === 'kick' ? 0.66 : kind === 'stomp' ? 0.72 : 0.75) + (tech?.hit ?? 0) + (a === 'you' && weapon ? weaponAccuracy(you.stats) : 0);
   hit += a === 'you' ? accuracyBonus(you.stats) - stressPenalty(A) : 0;
   hit -= d === 'you' ? dodgeBonus(you.stats) - stressPenalty(D) : b.guard;
   if (kind === 'kick' || kind === 'stomp') hit -= legs(A) * 0.2;
@@ -983,7 +1029,9 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   // How hard.
   let dmg =
     a === 'you'
-      ? (stomp ? (loc === 'head' ? roll(11, 17) : loc === 'stomach' ? roll(9, 14) : roll(10, 15)) : kind === 'kick' ? roll(9, 15) : roll(6, 11)) * damageMult(you.stats)
+      ? weapon
+        ? (roll(6, 11) + (weapon.weapon ?? 0) * 1.4) * (1 + weaponDamage(you.stats) + strengthDamage(you.stats))
+        : (stomp ? (loc === 'head' ? roll(11, 17) : loc === 'stomach' ? roll(9, 14) : roll(10, 15)) : kind === 'kick' ? roll(9, 15) : roll(6, 11)) * damageMult(you.stats)
       : b.power + roll(-3, 3) + (kind === 'kick' ? 3 : stomp ? 4 : 0) + (weapon?.weapon ?? 0);
   if (tech) dmg *= tech.dmg;
   if (tired) dmg *= 0.75;
@@ -997,8 +1045,12 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
     text = tech.text;
   } else if (kind === 'weapon' && weapon) {
     text = weapon.cuts
-      ? `${N.S} slash at ${N.o} with the ${weapon.name.toLowerCase()} and catch ${N.o} ${where}.`
-      : `${N.S} hit ${N.o} with the ${weapon.name.toLowerCase()} ${where}.`;
+      ? /bottle/i.test(weapon.name)
+        ? `${N.S} swing the bottle at ${N.o} and the glass catches ${N.o} ${where}.`
+        : /syringe/i.test(weapon.name)
+          ? `${N.S} jab the syringe at ${N.o} and stick ${N.o} ${where}.`
+          : `${N.S} slash at ${N.o} with the ${lc(weapon.name)} and catch ${N.o} ${where}.`
+      : `${N.S} hit ${N.o} with the ${lc(weapon.name)} ${where}.`;
   } else if (stomp) {
     text = { head: `${N.S} stomp on ${N.oP} head.`, stomach: `${N.S} stomp down on ${N.oP} stomach.`, body: `${N.S} stomp down on ${N.oP} ribs.` }[loc as 'head'] ?? `${N.S} stomp on ${N.o}.`;
   } else if (kind === 'kick') {
@@ -1021,7 +1073,8 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   say(a, `${text} ${wound(d, loc, dmg, weapon?.cuts ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch')}`);
   if (a === 'you') {
     // Landing blows: it's fighting that teaches you to fight (and builds a little muscle).
-    you.gain('unarmed', tech ? 4 : 3);
+    if (weapon) you.gain('weapons', 4);
+    else you.gain('unarmed', tech ? 4 : 3);
     you.gain('strength', 1);
     you.gain('agility', 2);
     if (tech) techEffect(tech);
@@ -1367,7 +1420,8 @@ function endOfRound() {
     if (f.dazed > 0) f.dazed--;
     if (side === 'you') f.winded = false;
   }
-  enc.them.blinded = 0;
+  // Pepper spray wears off after a couple of their turns.
+  if (enc.them.blinded > 0) enc.them.blinded--;
   checkEnd();
 }
 
@@ -1611,6 +1665,22 @@ function choke() {
   scare(15);
 }
 
+/** Pepper spray in their face: they can barely see to hit you for a couple of turns. */
+function spray(i: number, inv: Inventory) {
+  const it = inv.items[i];
+  if (!it?.spray) return;
+  it.doses = Math.max(0, (it.doses ?? 3) - 1);
+  spend('you', 4);
+  enc.them.blinded = 3;
+  say('you', 'You pepper spray them full in the face. They stagger back, eyes streaming, swinging blind.');
+  if (it.doses === 0) {
+    inv.items.splice(i, 1);
+    say('info', 'The can sputters out. You drop it.');
+  }
+  scare(8);
+  you.gain('weapons', 2);
+}
+
 /** Getting the drop on them makes a mugging easier: close, and them not looking. */
 function mugSurprise(e: Encounter) {
   const aw = AWARENESS.indexOf(e.person.awareness);
@@ -1627,6 +1697,8 @@ function mug() {
   e.stage = 'combat';
   e.facedYou = true;
   spend('you', COST.ambush);
+  const blade = (e.weapons ?? []).find((w) => w.cuts);
+  if (blade) say('you', `You let them see the ${lc(blade.name)}.`);
   say(
     'you',
     [
@@ -1764,6 +1836,8 @@ function threatAct(id: string, inv?: Inventory): boolean {
     }
     const shown = all.filter((l) => !l.hidden).map((l) => a(lc(lootLabel(l))));
     say('them', shown.length ? `They turn out their pockets with shaking hands: ${list(shown)}.` : "They turn out their pockets. There's nothing in them.");
+    const arms_ = e.person.carrying.filter((it) => it.weapon || it.spray);
+    if (arms_.length) say('them', `They drop ${list(arms_.map((it) => `the ${lc(it.name)}`))} at your feet.`);
     you.gain('intimidation', 3);
     return true;
   }
@@ -1915,6 +1989,19 @@ function torture(how: string, inv?: Inventory) {
   } else say('them', oneOf(['"Stop! Please! I\'ll do anything!"', "They're sobbing now.", '"Please. Please. I\'ve got kids."', "They can't stop shaking."]));
 }
 
+/** Takes a weapon they were carrying (it's yours now: they can't use it on you). */
+function takeCarried(ci: number, inv: Inventory, quiet = false): boolean {
+  const it = enc.person.carrying[ci];
+  if (!it || !(it.weapon || it.spray)) return false;
+  const r = take(inv, { kind: 'weapon', name: it.name, weapon: it.weapon, cuts: it.cuts, spray: it.spray, doses: it.spray ? (it as { doses?: number }).doses ?? 3 : undefined, where: 'in their hand' });
+  if (!quiet) say('you', r.text);
+  if (!r.ok) return false;
+  enc.person.carrying.splice(ci, 1);
+  if (enc.them.weaponOut === it.name) enc.them.weaponOut = null;
+  enc.robbed = true;
+  return true;
+}
+
 /** Searching a garment, or taking what you found. */
 function search(id: string, inv?: Inventory) {
   const clothes = enc.person.clothes;
@@ -1960,9 +2047,19 @@ function search(id: string, inv?: Inventory) {
         enc.robbed = true;
       }
     }
+    for (let ci = enc.person.carrying.length - 1; ci >= 0; ci--) {
+      const it = enc.person.carrying[ci];
+      if (!(it.weapon || it.spray) || (enc.them.yielded && !enc.emptied)) continue;
+      if (takeCarried(ci, inv, true)) lines.push(a(lc(it.name)));
+      else left.push(a(lc(it.name)));
+    }
     if (cash) lines.unshift(`${money(Math.round(cash * 100))} in cash`);
     if (lines.length) say('you', `You take ${left.length ? 'what you can carry' : 'everything'}: ${list(lines)}.`);
     if (left.length) say('you', `There's no room for ${list(left)}. You leave ${left.length > 1 ? 'them' : 'it'}.`);
+    return;
+  }
+  if (id.startsWith('takec:')) {
+    takeCarried(Number(id.slice(6)), inv);
     return;
   }
   const [, gi, li] = id.split(':').map(Number);
@@ -1978,7 +2075,7 @@ const plural = (s: string) => {
 };
 /** Lower-case the first letter only ("state ID", not "state id"). */
 const lc = (s: string) => s.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase());
-const a = (s: string) => (/^(cash|loose|folded|groceries|house keys|car keys|cigarettes|headphones|matches|some |your |bills|bandages|gauze|iron tablets|painkillers)/.test(s) || plural(s) ? s : /^[aeiou]/.test(s) ? `an ${s}` : `a ${s}`);
+const a = (s: string) => (/^(pepper spray|cash|loose|folded|groceries|house keys|car keys|cigarettes|headphones|matches|some |your |bills|bandages|gauze|iron tablets|painkillers)/.test(s) || plural(s) ? s : /^[aeiou]/.test(s) ? `an ${s}` : `a ${s}`);
 const list = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 
 function end(result: Result) {

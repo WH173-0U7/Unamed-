@@ -30,6 +30,10 @@ export interface InvItem {
   pin?: string;
   pinOk?: boolean;
   drained?: boolean;
+  /** A weapon: extra damage, whether it cuts, pepper spray (uses in `doses`). */
+  weapon?: number;
+  cuts?: boolean;
+  spray?: boolean;
 }
 
 /** Somewhere to keep things: a pocket, a bag. */
@@ -128,6 +132,12 @@ export function upgradeInventory(inv: Inventory) {
 export function measure(x: { kind: string; name: string; med?: MedId }): { size: Size; kg: number } {
   if (x.med) return { size: x.med === 'splint' ? 'medium' : 'small', kg: { bandages: 0.05, gauze: 0.1, painkillers: 0.03, splint: 0.35, iron: 0.08, testkit: 0.03 }[x.med] };
   const n = x.name.toLowerCase();
+  if (x.kind === 'weapon') {
+    if (/bottle/.test(n)) return { size: 'medium', kg: 0.45 };
+    if (/knife/.test(n)) return { size: 'small', kg: 0.15 };
+    if (/spray/.test(n)) return { size: 'small', kg: 0.06 };
+    return { size: 'small', kg: 0.05 }; // box cutter, syringe
+  }
   if (x.kind === 'phone') return { size: 'small', kg: 0.2 };
   if (x.kind === 'car keys') return { size: 'small', kg: 0.08 };
   if (x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card') return { size: 'small', kg: 0.005 };
@@ -215,7 +225,7 @@ export function take(inv: Inventory, l: Loot): { ok: boolean; text: string } {
     addTo(inv.purse, p);
     return { ok: true, text: `You pocket ${/^your /i.test(l.name) ? 'your cash' : `the ${l.name.toLowerCase()}`}: ${money(cents(p))} (${purseText(p)}).${once}` };
   }
-  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained });
+  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained, weapon: l.weapon, cuts: l.cuts, spray: l.spray });
   if (!it) return { ok: false, text: `No room for the ${l.name.toLowerCase()}. ${noRoomWhy(inv, measure(l).size)}` };
   const spot = inv.spots.find((s) => s.id === it.spot)!;
   return { ok: true, text: `You put the ${l.name.toLowerCase()} in your ${spot.on.toLowerCase()} (${spot.name.toLowerCase()}).${once}` };

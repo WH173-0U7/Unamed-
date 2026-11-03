@@ -102,6 +102,7 @@ export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'kno
   if (/notebook|water bottle|lunch/.test(n)) return 3;
   if (/cigarettes/.test(n)) return 0.5 * (x.doses ?? 10);
   if (/lighter/.test(n)) return 2;
+  if (x.kind === 'weapon') return /knife/.test(n) ? 18 : /box cutter/.test(n) ? 6 : /pepper spray/.test(n) ? 12 : 0;
   return 0;
 }
 
@@ -112,6 +113,7 @@ export function offer(place: 'pawn' | 'fence', x: InvItem): { cents: number } | 
   if (place === 'pawn') {
     if (kind === 'id' || kind === 'credit card' || kind === 'debit card') return { why: '"I don\'t touch that."' };
     if (kind === 'car keys' || x.secret) return { why: '"Get that out of my shop."' };
+    if (kind === 'weapon') return { why: '"I don\'t buy weapons off the street."' };
     if (x.med || /cigarettes|lighter|matches|groceries|lunch|receipt|note|keys|baggie/i.test(x.name)) return { why: "Not worth his time" };
     if (v <= 0) return { why: "He won't take it" };
     // Pawn shops pay a fraction, rounded down to the quarter.

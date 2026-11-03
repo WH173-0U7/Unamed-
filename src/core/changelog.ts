@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.47',
+    date: 'Nov 3',
+    items: ['Menus no longer scroll sideways: at the bank (and anywhere else), buttons that don’t fit beside their text drop onto a line of their own.'],
+  },
+  {
     v: '0.46',
     date: 'Nov 3',
     items: [

@@ -1698,7 +1698,7 @@ export class Game {
     // A button that can't be pressed says why, on the button (phones never show a tooltip).
     const btn = (attr: string, v: string | number, label: string, no?: string | false | null) =>
       `<button type="button" data-${attr}="${v}" ${no ? `disabled title="${no}"` : ''}>${label}${no ? `<small>${no}</small>` : ''}</button>`;
-    const li = (name: string, small: string, button: string) => `<li><div><b>${name}</b><small>${small}</small></div>${button}</li>`;
+    const li = (name: string, small: string, button: string) => `<li><div><b>${name}</b><small>${small}</small></div><span class="li-btns">${button}</span></li>`;
     let body = '';
     if (place === 'pharmacy') {
       const have = (id: MedId) => inv.items.filter((x) => x.med === id).length;

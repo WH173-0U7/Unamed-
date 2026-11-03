@@ -4176,3 +4176,38 @@ body[data-buttons] #enc .enc-extra button {
     display: none;
   }
 }
+
+/* No sideways scrolling, ever: menus and sheets only scroll up and down.
+   A row whose buttons don't fit next to its text puts them on a line of
+   their own underneath (and they wrap there too). */
+#shop,
+.sheet-card,
+.sheet-body {
+  overflow-x: hidden;
+}
+.shop-list li,
+.pocket-list li {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.shop-list li > div {
+  flex: 1 1 150px;
+}
+.li-btns {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: 0 1 auto;
+  max-width: 100%;
+  margin-left: auto;
+}
+.shop-list button,
+.pocket-list button {
+  max-width: 100%;
+  white-space: normal;
+}
+.shop-list small,
+.pocket-list small {
+  overflow-wrap: anywhere;
+}

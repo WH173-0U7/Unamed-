@@ -127,7 +127,13 @@ export function stompText(t: Tier, loc: 'head' | 'stomach' | 'body'): string[] {
 }
 
 /** Your weapon, landing. `w` is its name (lower case). */
-export function weaponText(t: Tier, kind: 'blade' | 'blunt' | 'bottle' | 'broken' | 'needle', w: string, where: string, into: string): string[] {
+export function weaponText(t: Tier, kind: 'blade' | 'blunt' | 'bottle' | 'broken' | 'needle', w: string, where: string, into: string, style: 'stab' | 'slash' | 'both' = 'both'): string[] {
+  if (kind === 'blade' && style === 'stab')
+    return t === 0
+      ? [`You jab the ${w} at them, wild, and it goes in ${where}.`, `You stab at them with the ${w}, eyes half shut; it goes in ${where}.`]
+      : t === 1
+        ? [`You stab the ${w} ${into}.`, `You drive the ${w} in ${where}.`, `You lunge with the ${w} and it goes in ${where}.`]
+        : [`Short and quick: the ${w} goes in ${where} and comes out again.`, `You step in and put the ${w} ${into}, twice.`];
   if (kind === 'broken')
     return t === 0
       ? [`You jab the broken bottle at them, wild, and the glass catches them ${where}.`, `You swipe the jagged neck at them; it catches them ${where}.`]

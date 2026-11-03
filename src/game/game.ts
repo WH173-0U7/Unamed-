@@ -17,6 +17,7 @@ import { RAIN_AMOUNT, WEATHER_NAME, newWeather, updateWeather, weatherLine, type
 import { COLD_NAMES } from './health';
 import { maybeThief, newWorld, robBody, robKnockedOut, settle, type World } from './legacy';
 import { isBrute } from './voices';
+import { knifeOf } from './knives';
 import { HEAT_NAMES, applyTo, comeBack, heal, fade, heatLevel, historyText, injuriesText, meet, newInfamy, recognises, remember, repName, type Infamy, type Known } from './people';
 import { anonymity, conspicuous, describe, hasHood, lookClothes, wearing } from './look';
 import { marksText } from './encounter';
@@ -1011,6 +1012,13 @@ export class Game {
         return;
       }
       line = `You buy ${withA(m.name)} from behind the counter.`;
+    } else if (s.knife && knifeOf(s.knife)) {
+      const k = knifeOf(s.knife)!;
+      if (!stow(inv, { kind: 'weapon', name: k.name, weapon: k.dmg, cuts: true })) {
+        this.note([`Nowhere to put it. ${noRoomWhy(inv, 'small')}`]);
+        return;
+      }
+      line = `He unlocks the case and slides the ${lc(k.name)} across. ${k.desc}`;
     } else if (s.slot === 'head' || s.slot === 'face' || s.slot === 'eyes') {
       // Something for your face: worn (a mask starts pulled down; pull it up in Pockets).
       const w = wearing(inv);
@@ -2114,6 +2122,8 @@ export class Game {
                         : x.drink === 'beer'
                         ? 'A can of beer'
                         : `${x.kind === 'weapon' ? 'A weapon too · ' : ''}${x.doses ? `${x.doses} swig${x.doses === 1 ? '' : 's'} left` : 'Empty'}`
+                    : x.kind === 'weapon' && knifeOf(x.name)
+                      ? `${knifeOf(x.name)!.desc} +${knifeOf(x.name)!.dmg} damage.`
                     : x.kind === 'weapon' && /syringe/i.test(x.name)
                       ? `${x.detail ?? 'A syringe'} · +${x.weapon ?? 0} damage, cuts`
                     : /^cigarettes$/i.test(x.name)
@@ -2719,5 +2729,5 @@ const DRUG_TEST: Record<'heroin' | 'fentanyl' | 'meth' | 'tranq', { name: string
 
 /** A knife or a box cutter (a bottle or a needle doesn't frighten like a blade). */
 function isBlade(x: { kind: string; name: string }): boolean {
-  return x.kind === 'weapon' && /knife|box cutter/i.test(x.name);
+  return x.kind === 'weapon' && (/knife|box cutter/i.test(x.name) || !!knifeOf(x.name));
 }

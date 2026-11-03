@@ -1,3 +1,4 @@
+import { pickKnife } from './knives';
 import type { MedId } from './inventory';
 import { cashLike, cents, type Purse } from './money';
 
@@ -279,6 +280,8 @@ const AWARENESS_CHANCES: Record<Kind, [Awareness, number][]> = {
 const ITEMS: Record<Kind, [Item, number][]> = {
   civilian: [
     [{ name: 'Phone' }, 0.8],
+    // Plenty of people carry a little folding knife, and never think of it as a weapon.
+    [{ name: 'Knife', weapon: 5, cuts: true }, 0.06],
     [{ name: 'Wallet' }, 0.7],
     [{ name: 'Keys' }, 0.7],
     [{ name: 'Cash' }, 0.35],
@@ -330,6 +333,13 @@ export function makePerson(): Person {
   // A junkie's syringe has something in it (or it's spent); a drunk's bottle, the last of the whiskey.
   for (const it of carrying) if (it.name === 'Syringe') it.drug = pick(DRUG_CHANCES);
   for (const it of carrying) if (it.name === 'Bottle') it.swigs = Math.floor(Math.random() * 5);
+  // "A knife": which one.
+  for (const it of carrying)
+    if (it.name === 'Knife') {
+      const k = pickKnife(kind, personality);
+      it.name = k.name;
+      it.weapon = k.dmg;
+    }
   return {
     kind,
     personality,

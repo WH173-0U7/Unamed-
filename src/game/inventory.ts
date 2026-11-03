@@ -139,7 +139,9 @@ export function measure(x: { kind: string; name: string; med?: MedId }): { size:
   const n = x.name.toLowerCase();
   if (x.kind === 'weapon') {
     if (/bottle/.test(n)) return { size: 'medium', kg: 0.45 };
-    if (/knife/.test(n)) return { size: 'small', kg: 0.15 };
+    // An eight-inch kitchen or combat knife won't go in a small pocket.
+    if (/kitchen|combat|hunting/.test(n)) return { size: 'medium', kg: 0.22 };
+    if (/knife|folder|karambit|razor|dagger|switchblade|shiv/.test(n)) return { size: 'small', kg: 0.12 };
     if (/spray/.test(n)) return { size: 'small', kg: 0.06 };
     return { size: 'small', kg: 0.05 }; // box cutter, syringe
   }

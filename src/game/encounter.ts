@@ -4,6 +4,7 @@ import { money } from './money';
 import { isBrute, voice, type Moment } from './voices';
 import { caffeineEdge } from './health';
 import { partOfDay } from './clock';
+import { knifeOf, type Knife } from './knives';
 import { lootLabel, take, type Inventory } from './inventory';
 import {
   STAT_NAMES,
@@ -238,6 +239,8 @@ export interface Encounter {
   weapons?: { i: number; name: string; weapon?: number; cuts?: boolean; spray?: boolean; doses?: number; loaded?: string; known?: boolean }[];
   /** Out in the rain (a lighter burns more fuel). */
   wet?: boolean;
+  /** Your folding knives opened in this fight. */
+  opened?: string[];
   /** Lines said lately in this fight (so they aren't said again straight away). */
   recent?: string[];
   /** Your Unarmed level (which techniques you know), set as you act. */
@@ -1061,13 +1064,18 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   const weapon = kind !== 'weapon' ? undefined : a === 'you' ? mine : enc.person.carrying.find((i) => i.name === enc.them.weaponOut);
   const tired = A.stamina < A.maxStamina * 0.25;
   const downBefore = D.down;
+  // A knife: which one (how it opens, how it cuts).
+  const kn = weapon ? knifeOf(weapon.name) : undefined;
+  if (a === 'you' && kn && weapon && !openKnife(kn)) return false;
+  cutBleed = kn ? kn.bleed : 0.35;
+  cutStyle = kn ? kn.style : 'both';
   // How practiced you are at this one (it reads that way).
   const wkind = weapon ? (/^bottle$/i.test(weapon.name) ? 'bottle' : /broken bottle/i.test(weapon.name) ? 'broken' : /syringe/i.test(weapon.name) ? 'needle' : weapon.cuts ? 'blade' : 'blunt') : null;
   const t: Tier = a !== 'you' ? 1 : tech ? practise(tech.id) : wkind ? practise(`wpn:${wkind}`, 'weapons') : practise(kind);
   spend(a, tech ? tech.cost : kind === 'kick' || kind === 'stomp' ? COST.kick : kind === 'weapon' ? COST.weapon : COST.punch);
 
   // Will it land?
-  let hit = (kind === 'punch' ? 0.8 : kind === 'kick' ? 0.66 : kind === 'stomp' ? 0.72 : 0.75) + (tech?.hit ?? 0) + (a === 'you' && weapon ? weaponAccuracy(you.stats) : 0);
+  let hit = (kind === 'punch' ? 0.8 : kind === 'kick' ? 0.66 : kind === 'stomp' ? 0.72 : 0.75) + (tech?.hit ?? 0) + (kn?.hit ?? 0) + (a === 'you' && weapon ? weaponAccuracy(you.stats) : 0);
   hit += a === 'you' ? accuracyBonus(you.stats) - stressPenalty(A) : 0;
   hit -= d === 'you' ? dodgeBonus(you.stats) - stressPenalty(D) : b.guard;
   if (kind === 'kick' || kind === 'stomp') hit -= legs(A) * 0.2;
@@ -1193,7 +1201,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   if (a === 'you' && tech) {
     text = t === 1 || !TECH_TEXT[tech.id] ? tech.text : vary(TECH_TEXT[tech.id][t === 0 ? 0 : 1]);
   } else if (a === 'you' && wkind) {
-    text = vary(weaponText(t, wkind, lc(weapon!.name), where, into));
+    text = vary(weaponText(t, wkind, lc(weapon!.name), where, into, cutStyle));
   } else if (a === 'you' && stomp) {
     text = vary(stompText(t, loc === 'head' ? 'head' : loc === 'stomach' ? 'stomach' : 'body'));
   } else if (a === 'you' && kind === 'kick') {
@@ -1211,7 +1219,9 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
       : weapon.cuts
       ? /syringe/i.test(weapon.name)
           ? vary([`${N.S} jab the syringe at ${N.o} and stick ${N.o} ${where}.`, `${N.S} stab the needle ${into}.`])
-          : vary([`${N.S} slash at ${N.o} with the ${w} and catch ${N.o} ${where}.`, `The ${w} flashes, and catches ${N.o} ${where}.`, `${N.S} cut at ${N.o} with the ${w}, ${where}.`, `${N.S} lunge with the ${w} and open ${N.o} up ${where}.`])
+          : cutStyle === 'stab'
+            ? vary([`${N.S} stab at ${N.o} with the ${w} and it goes in ${where}.`, `${N.S} drive the ${w} ${into}.`, `${N.S} lunge with the ${w}, ${where}.`])
+            : vary([`${N.S} slash at ${N.o} with the ${w} and catch ${N.o} ${where}.`, `The ${w} flashes, and catches ${N.o} ${where}.`, `${N.S} cut at ${N.o} with the ${w}, ${where}.`, `${N.S} lunge with the ${w} and open ${N.o} up ${where}.`])
       : vary([`${N.S} hit ${N.o} with the ${w} ${where}.`, `${N.S} swing the ${w} ${into}.`]);
   } else if (stomp) {
     text =
@@ -1230,6 +1240,11 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   }
   // (A needle punctures; it doesn't slice.)
   say(a, `${text} ${wound(d, loc, dmg, weapon && /syringe/i.test(weapon.name) ? 'jab' : weapon?.cuts && !/^bottle$/i.test(weapon.name) ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch')}`);
+  // No guard on it: a hard stab and your hand slides down onto the blade.
+  if (a === 'you' && kn?.noGuard && (loc === 'body' || loc === 'stomach') && Math.random() < 0.07) {
+    enc.you.bleeding = Math.max(enc.you.bleeding, 1);
+    say('info', `Your hand slides down the handle onto the blade. You've cut your own fingers. You're bleeding (light).`);
+  }
   if (a === 'you') {
     // Landing blows: it's fighting that teaches you to fight (and builds a little muscle).
     if (weapon) you.gain('weapons', 4);
@@ -1253,6 +1268,54 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
     }
   }
   return true;
+}
+
+/** The blade in the blow being struck: how it bleeds them, and stab or slash. */
+let cutBleed = 0.35;
+let cutStyle: 'stab' | 'slash' | 'both' = 'both';
+
+/**
+ * A folding knife has to be open before it's any use. A switchblade or a
+ * spring-assisted one opens as you bring it up; a thumb-stud folder too, if
+ * you've practised (or it's a fumble, and your turn); a pocket knife or a
+ * razor takes two hands and a thumbnail (your turn); a butterfly knife is
+ * quick in practised hands and bites clumsy fingers. Once open, it stays
+ * open for the fight. True if you can strike with it now.
+ */
+function openKnife(k: Knife): boolean {
+  if (k.open === 'fixed' || (enc.opened ?? []).includes(k.name)) return true;
+  const lvl = you.stats.weapons?.level ?? 1;
+  const opened = () => (enc.opened ??= []).push(k.name);
+  if (k.open === 'auto' || k.open === 'flip') {
+    opened();
+    say('you', k.open === 'auto' ? 'You press the button and the blade snaps out.' : 'You push the flipper and the blade snaps open.');
+    return true;
+  }
+  if (k.open === 'thumb') {
+    opened();
+    if (Math.random() < 0.45 + lvl * 0.012) {
+      say('you', 'You thumb the blade open on the way up.');
+      return true;
+    }
+    say('you', 'Your thumb slips off the stud. It takes you a moment to get the blade open.');
+    return false;
+  }
+  if (k.open === 'nail') {
+    opened();
+    say('you', `You dig a thumbnail into the ${k.name === 'Straight razor' ? 'razor' : 'blade'} and pull it open. It takes both hands.`);
+    return false;
+  }
+  // A butterfly knife.
+  opened();
+  if (lvl >= 25) {
+    say('you', 'You flip the butterfly knife open, handles clacking, and it’s in your fist.');
+    return true;
+  }
+  if (Math.random() < 0.3) {
+    enc.you.bleeding = Math.max(enc.you.bleeding, 1);
+    say('you', "You try to flip the butterfly knife open and the edge bites your fingers. You get it open. You're bleeding (light).");
+  } else say('you', 'You fumble the butterfly knife open, handles clacking.');
+  return false;
 }
 
 /**
@@ -1494,7 +1557,8 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
     else fall(dmg >= 10 ? 0.25 : 0.08);
   }
   if (openBreak) bleed(1);
-  if (how === 'cut') bleed(Math.random() < 0.4 ? 2 : 1);
+  // (How badly depends on the blade: teeth and razors tear; a point punctures.)
+  if (how === 'cut') bleed(Math.random() < 0.15 + cutBleed * 0.6 ? 2 : 1);
   // Blood only where it makes sense: blunt blows to the body throw none.
   if (how === 'cut') spills('spray');
   if (loc === 'head' && how !== 'fall') {
@@ -1751,7 +1815,21 @@ function theirTurn() {
       } else say('them', "They bang the bottle against the wall. It doesn't break. They come at you with it anyway.");
       return;
     }
-    say('them', `They pull out a ${weapon.name.toLowerCase()}.`);
+    const k = knifeOf(weapon.name);
+    say(
+      'them',
+      !k
+        ? `They pull out a ${weapon.name.toLowerCase()}.`
+        : k.open === 'auto'
+          ? 'Their hand comes out of a pocket and there’s a click: a switchblade, open.'
+          : k.open === 'flip'
+            ? `They pull out a folding knife and flick it open in one movement.`
+            : k.open === 'balisong'
+              ? 'They pull out a butterfly knife and swing it open, handles clacking.'
+              : k.open === 'thumb' || k.open === 'nail'
+                ? `They pull out a ${lc(k.name)} and get it open.`
+                : `They pull out a ${lc(k.name)}.`,
+    );
     return;
   }
   // Out of breath.

@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.55',
+    date: 'Nov 3',
+    items: [
+      'Knives come in kinds now, each with its own description in your pockets: kitchen knife, steak knife, pocket knife, lockback folder, assisted-opening knife, switchblade, butterfly knife, karambit, hunting knife, serrated combat knife, straight razor, push dagger and shiv.',
+      'They handle differently. Folding knives have to be opened first: a switchblade or a spring-assisted knife snaps open as you bring it up, a thumb-stud folder only if you’re practised, a pocket knife or razor takes both hands and your turn, and a butterfly knife bites clumsy fingers.',
+      'Serrated blades and razors make people bleed worse; shivs and push daggers stab rather than slash; a kitchen knife has no guard, so a hard stab can slide your hand onto the blade.',
+      'Who carries what fits who they are (a homeless man’s kitchen knife, a commuter’s little folder, a hard case’s karambit). The pawn shop sells a few legal ones: pocket knife, lockback, assisted-opening and hunting knife.',
+    ],
+  },
+  {
     v: '0.54',
     date: 'Nov 3',
     items: [

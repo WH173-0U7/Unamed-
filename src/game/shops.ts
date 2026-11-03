@@ -174,6 +174,8 @@ export interface Stock {
   drink?: boolean;
   /** Something to drink later: beer or liquor. */
   drinkType?: 'beer' | 'liquor' | 'energy';
+  /** A knife (by name, see knives.ts). */
+  knife?: string;
 }
 
 /** The liquor store (they check ID): every drink's swigs in `doses`. */
@@ -212,6 +214,11 @@ export const PAWN_STOCK: Stock[] = [
   { id: 'hoodie', name: 'Hoodie', price: 14, desc: 'One big front pocket.', slot: 'top' },
   { id: 'cargo', name: 'Cargo pants', price: 18, desc: 'Two cargo pockets for medium things.', slot: 'bottom' },
   { id: 'lighter', name: 'Lighter', price: 2, desc: 'A cheap plastic one.' },
+  // Legal knives, in the case by the till (he still wants your ID).
+  { id: 'k-pocket', name: 'Pocket knife', price: 10, desc: 'A little slip joint. Two hands to open.', knife: 'Pocket knife' },
+  { id: 'k-lockback', name: 'Lockback folder', price: 22, desc: 'Locks open; one thumb, with practice.', knife: 'Lockback folder' },
+  { id: 'k-assisted', name: 'Assisted-opening knife', price: 30, desc: 'Flips open on a spring.', knife: 'Assisted-opening knife' },
+  { id: 'k-hunting', name: 'Hunting knife', price: 35, desc: 'A fixed blade in a leather sheath.', knife: 'Hunting knife' },
   { id: 'cap', name: 'Baseball cap', price: 6, desc: 'Shades your eyes from cameras.', slot: 'head' },
   { id: 'beanie', name: 'Beanie', price: 5, desc: 'Covers your hair.', slot: 'head' },
   { id: 'shades', name: 'Sunglasses', price: 5, desc: 'Hides your eyes. At night, a bit odd.', slot: 'eyes' },

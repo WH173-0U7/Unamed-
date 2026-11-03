@@ -140,6 +140,7 @@ export class Game {
     this.goBtn = view.querySelector('#go-btn') as HTMLButtonElement;
     this.bagBtn = view.querySelector('#bag-btn') as HTMLButtonElement;
     this.shopEl = view.querySelector('#shop') as HTMLElement;
+    this.shopEl.addEventListener('scroll', () => this.shopEl.classList.toggle('more', this.shopEl.scrollTop + this.shopEl.clientHeight < this.shopEl.scrollHeight - 6), { signal: this.listeners.signal, passive: true });
     this.sheetEl = view.querySelector('#sheet') as HTMLElement;
     this.goBtn.onclick = () => this.openSheet('places');
     this.bagBtn.onclick = () => this.openSheet('pockets');
@@ -1481,7 +1482,7 @@ export class Game {
   private purseHtml(): string {
     const p = this.inventory.purse;
     const ds = [...BILLS, ...COINS].filter((d) => p[d]);
-    if (!ds.length) return '<span class="none">Not a cent.</span>';
+    if (!ds.length) return '';
     return ds.map((d) => `<span class="${isBill(d) ? 'bill' : 'coin'}">${isBill(d) ? `$${d / 100}` : `${d}¢`}<em>×${p[d]}</em></span>`).join('');
   }
 
@@ -1557,6 +1558,8 @@ export class Game {
       this.shopEl.innerHTML = html;
       this.shopEl.scrollTop = scroll;
     }
+    // More than fits: a fade at the bottom says scroll.
+    requestAnimationFrame(() => this.shopEl.classList.toggle('more', this.shopEl.scrollTop + this.shopEl.clientHeight < this.shopEl.scrollHeight - 6));
   }
   private shopHtml = '';
 
@@ -1669,7 +1672,7 @@ export class Game {
                 if (x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card') acts += act('burn', 'Burn', this.burnBlocked());
                 if (x.secret && x.secret !== 'cocaine' && x.secret !== 'empty') {
                   if (!x.known && inv.items.some((y) => y.med === 'testkit')) acts += act('test', 'Test');
-                  acts += act('inject', 'Inject', this.injectBlocked());
+                  acts += act('inject', x.known ? 'Inject' : 'Inject?', this.injectBlocked());
                 } else if (x.secret && !x.known) {
                   acts += act('taste', 'Taste');
                   if (inv.items.some((y) => y.med === 'testkit')) acts += act('test', 'Test');
@@ -1751,7 +1754,7 @@ export class Game {
     const now: Record<StatName, [string, string][]> = {
       sneak: [
         ['Ambushes land', sign(ambushBonus(st))],
-        ['How fast you get noticed following', `${pct(noticeRate(st))}`],
+        ['How quickly they notice you following', `${pct(noticeRate(st))} (lower is better)`],
       ],
       strength: [
         ['Damage from your blows', `+${pct(strengthDamage(st))}`],
@@ -1798,7 +1801,7 @@ export class Game {
     // What's wrong with you comes first: each injury and what it's doing to you.
     const hurts = injuryEffects(this.health);
     let html = hurts.length
-      ? `<section class="stat-card injuries"><h3><span>Injuries</span><b>${hurts.length}</b></h3>` +
+      ? `<section class="stat-card injuries"><h3><span>Condition</span><b>${hurts.length}</b></h3>` +
         hurts
           .map((i) => `<div class="injury"><h4>${i.name}</h4><ul>${i.effects.map((x) => `<li>${x}</li>`).join('')}</ul><p class="stat-how">${i.heals}</p></div>`)
           .join('') +

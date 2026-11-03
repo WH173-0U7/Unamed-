@@ -3484,3 +3484,96 @@ body.in-menu #game {
 body {
   transition: --line 20s ease;
 }
+
+/* ================= Polish pass 3 ================= */
+/* Fight options always get their room: they take what they need first, the
+   log what's left (at least a few lines), and the options scroll if even
+   that's too much. */
+#enc {
+  grid-template-rows: auto auto minmax(56px, 1fr) minmax(0, max-content);
+}
+.enc-actions {
+  min-height: 0;
+}
+.enc-opts:not(.enc-extra) {
+  min-height: 0;
+  flex: 0 1 auto;
+}
+.enc-opts button {
+  overflow: hidden;
+}
+/* The folded card is one line: who they are, their race cut short, the caret. */
+#enc:not(.facts-open)[data-stage='combat'] .enc-who,
+#enc:not(.facts-open)[data-stage='over'] .enc-who {
+  flex-wrap: nowrap;
+  align-items: baseline;
+}
+#enc:not(.facts-open)[data-stage='combat'] .enc-race,
+#enc:not(.facts-open)[data-stage='over'] .enc-race {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+#enc:not(.facts-open)[data-stage='combat'] .enc-kind,
+#enc:not(.facts-open)[data-stage='over'] .enc-kind {
+  padding-right: 0;
+  font-size: 22px;
+}
+/* Seven stats along the top: short names unless there's plenty of room, and
+   two rows on a phone held upright (everything under them moves down). */
+@media (max-width: 900px) {
+  .stat .long {
+    display: none;
+  }
+  .stat .short {
+    display: inline;
+  }
+}
+@media (max-width: 440px) {
+  #stats {
+    flex-wrap: wrap;
+    row-gap: 3px;
+    column-gap: 9px;
+    max-width: calc(100vw - var(--pad-x-l) - var(--pad-x-r) - 56px);
+  }
+  #you-status {
+    top: calc(var(--pad-top) + 54px);
+  }
+  #enc {
+    top: calc(var(--pad-top) + 62px);
+  }
+  #clock {
+    top: calc(var(--pad-top) + 64px);
+  }
+  #shop {
+    top: calc(var(--pad-top) + 126px);
+  }
+}
+/* Shops: the description gets the room, the price stays one line, and a
+   fade says when there's more below. */
+.shop-list li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.shop-list button small {
+  color: var(--ink-dim);
+}
+#shop.more {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+}
+/* Disabled options stay readable. */
+.enc-opts button:disabled,
+body[data-buttons] .enc-opts button:disabled {
+  opacity: 0.5;
+}
+/* Landscape: buttons and tabs big enough to hit. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .enc-tabs button,
+  .enc-opts button,
+  #enc .enc-extra button {
+    min-height: 42px;
+  }
+}

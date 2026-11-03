@@ -294,7 +294,7 @@ function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolea
     .map((w) =>
       w.spray
         ? { id: `wpn:${w.i}`, label: 'Pepper spray them', hint: `${w.doses ?? 0} left · blinds them`, cat }
-        : { id: `wpn:${w.i}`, label: /bottle/i.test(w.name) ? 'Swing the bottle' : /syringe/i.test(w.name) ? (w.loaded ? `Stab with the syringe (${w.known ? w.loaded : 'loaded'})` : 'Stab with the empty syringe') : `${w.cuts ? 'Slash' : 'Hit'} with the ${lc(w.name)}`, hint: tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0}${w.cuts ? ', cuts' : ''}`, disabled: tired(COST.weapon), cat },
+        : { id: `wpn:${w.i}`, label: /bottle/i.test(w.name) ? 'Swing the bottle' : /syringe/i.test(w.name) ? (w.loaded ? `Stab with the syringe (${w.known ? w.loaded : 'loaded'})` : 'Stab with the empty syringe') : `${w.cuts ? 'Slash' : 'Hit'} with the ${lc(w.name)}`, hint: tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0} damage${w.cuts ? ', cuts' : ''}${w.loaded ? ', may inject them' : ''}`, disabled: tired(COST.weapon), cat },
     );
 }
 
@@ -329,7 +329,7 @@ function yieldedOptions(e: Encounter): Option[] {
   if (e.canAsk && !asked.includes('thief')) out.push({ id: 'ask-thief', label: '"Seen anyone with my things?"', hint: 'What you had, before', cat: 'threaten' });
   // Hurting them, for the truth or for the fun of it.
   out.push({ id: 't-finger', label: 'Bend a finger back', hint: 'Until it snaps', cat: 'torture' });
-  out.push({ id: 't-stamp', label: 'Stamp on their hand', hint: T.down ? undefined : 'Kicks them to the ground first', cat: 'torture' });
+  out.push({ id: 't-stamp', label: 'Stamp on their hand', hint: T.down ? undefined : 'Knocks them down first', cat: 'torture' });
   out.push({ id: 't-burn', label: 'Burn them', hint: e.flame ? 'With your lighter or matches' : 'Nothing to burn them with', disabled: !e.flame, cat: 'torture' });
   if (arms(T)) out.push({ id: 't-twist', label: 'Twist the broken arm', cat: 'torture' });
   out.push({ id: 'punch', label: 'Hit them anyway', hint: 'It turns back into a fight', cat: 'attack' });
@@ -405,8 +405,6 @@ export function conditions(f: Body): string[] {
   if (f.stamina <= 0) c.push('Exhausted');
   if (f.high) c.push(`High: ${f.high}`);
   if (f.drunk && f.drunk >= 10) c.push(f.drunk >= 80 ? 'Blackout drunk' : f.drunk >= 55 ? 'Wasted' : f.drunk >= 30 ? 'Drunk' : 'Tipsy');
-  if (f.yielded) c.push('Given up');
-  else if (f.fear != null && !f.out && !f.dead && fearLevel(f.fear)) c.push(FEAR_NAMES[fearLevel(f.fear)]);
   const sl = stressLevel(f.stress ?? 0);
   if (sl) c.push(STRESS_NAMES[sl]);
   return c;

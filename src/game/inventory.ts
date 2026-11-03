@@ -216,7 +216,7 @@ export function wear(inv: Inventory, slot: 'top' | 'bottom' | 'bag', name: strin
 }
 
 export const spotLabel = (s: Spot) => `${s.on}, ${s.name.toLowerCase()}`;
-export const kgLabel = (kg: number) => (kg <= 0 ? '0 kg' : kg < 0.01 ? '<0.01 kg' : `${kg < 1 ? kg.toFixed(2) : kg.toFixed(1)} kg`);
+export const kgLabel = (kg: number) => (kg <= 0 ? '0\u00a0kg' : kg < 0.01 ? '<0.01\u00a0kg' : `${kg < 1 ? kg.toFixed(2) : kg.toFixed(1)}\u00a0kg`);
 
 /**
  * Puts something you took into your pockets. `ok` is false (and it stays

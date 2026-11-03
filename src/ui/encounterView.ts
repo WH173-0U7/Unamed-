@@ -116,7 +116,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     bar('Blood', f.blood, f.maxBlood, 'blood', `${ml(f.blood)} / ${ml(f.maxBlood)}`) +
     bar('Stamina', f.stamina, f.maxStamina, 'stamina') +
     (cls === 'them' && f.fear != null && !f.dead ? bar('Fear', f.fear, 100, 'fear', FEAR_NAMES[fearLevel(f.fear)]) : '') +
-    `<div class="enc-conds">${conditions(f)
+    `<div class="enc-conds">${((cs) => (cs.length > 4 ? [...cs.slice(0, 3), `+${cs.length - 3} more`] : cs))(conditions(f))
       .map((c) => `<span class="${c === 'Standing' ? 'ok' : c === 'On the floor' ? 'floor' : ''}">${c}</span>`)
       .join('')}</div></div>`;
 

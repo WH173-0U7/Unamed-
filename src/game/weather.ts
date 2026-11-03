@@ -45,6 +45,8 @@ export function updateWeather(s: WeatherState, t = now()): boolean {
   let changed = false;
   // A long time away: only the last few changes matter.
   if (t - s.until > 24 * 60 * MIN) s.until = t - 1;
+  // A clock set ahead and then put right: the weather doesn't wait for it.
+  if (s.until - t > 12 * 60 * MIN) s.until = t - 1;
   for (let i = 0; i < 64 && t >= s.until; i++) {
     const n = next(s.now);
     s.now = n.now;

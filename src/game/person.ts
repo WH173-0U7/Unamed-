@@ -78,6 +78,10 @@ export interface PersonalityInfo {
   desc: string;
   /** Added to how scared of you they start. */
   fear: number;
+  /** How much of how frightening you are gets to them (1 all of it). */
+  cowed: number;
+  /** The most likely they ever are to give up when told to. */
+  maxYield: number;
   /** Added to the chance they give up when told to (and to how soon they give up on their own). */
   yield: number;
   /** How much more (or less) they run for it. */
@@ -93,13 +97,13 @@ export interface PersonalityInfo {
 }
 
 export const PERSONALITIES: Record<Personality, PersonalityInfo> = {
-  timid: { name: 'Timid', desc: 'Shoulders hunched, eyes down. Scares easily.', fear: 20, yield: 0.12, flee: 1.4, fight: -0.15, truth: 1.2, holdBack: 0.5, carry: { 'Pepper spray': 0.15 } },
-  jumpy: { name: 'Jumpy', desc: 'Twitchy, always looking round. More likely to run than fight.', fear: 10, yield: 0.05, flee: 1.8, fight: -0.05, truth: 0.9, holdBack: 0.9, carry: { 'Pepper spray': 0.1 } },
-  calm: { name: 'Calm', desc: 'Unhurried. Hard to read.', fear: 0, yield: 0, flee: 1, fight: 0, truth: 1, holdBack: 1 },
-  sly: { name: 'Sly', desc: 'Watchful, a little smile. Will say whatever gets them out of it.', fear: 0, yield: 0.05, flee: 1.2, fight: -0.05, truth: 0.4, holdBack: 1.8 },
-  proud: { name: 'Proud', desc: 'Chin up, takes up the pavement. Hates to lose face.', fear: -10, yield: -0.1, flee: 0.6, fight: 0.1, truth: 1, holdBack: 1.3 },
-  hothead: { name: 'Hothead', desc: 'Already angry about something. Quick to swing.', fear: -15, yield: -0.08, flee: 0.5, fight: 0.3, truth: 0.8, holdBack: 1, carry: { Knife: 0.12, 'Box cutter': 0.1, Bottle: 0.1 } },
-  hard: { name: 'Hard', desc: "Seen worse than you. Won't scare, won't run.", fear: -22, yield: -0.15, flee: 0.3, fight: 0.2, truth: 1, holdBack: 1.4, carry: { Knife: 0.1 } },
+  timid: { name: 'Timid', desc: 'Shoulders hunched, eyes down. Scares easily.', fear: 20, cowed: 1.2, maxYield: 0.95, yield: 0.12, flee: 1.4, fight: -0.15, truth: 1.2, holdBack: 0.5, carry: { 'Pepper spray': 0.15 } },
+  jumpy: { name: 'Jumpy', desc: 'Twitchy, always looking round. More likely to run than fight.', fear: 10, cowed: 1.1, maxYield: 0.9, yield: 0.05, flee: 1.8, fight: -0.05, truth: 0.9, holdBack: 0.9, carry: { 'Pepper spray': 0.1 } },
+  calm: { name: 'Calm', desc: 'Unhurried. Hard to read.', fear: 0, cowed: 1, maxYield: 0.9, yield: 0, flee: 1, fight: 0, truth: 1, holdBack: 1 },
+  sly: { name: 'Sly', desc: 'Watchful, a little smile. Will say whatever gets them out of it.', fear: 0, cowed: 0.9, maxYield: 0.9, yield: 0.05, flee: 1.2, fight: -0.05, truth: 0.4, holdBack: 1.8 },
+  proud: { name: 'Proud', desc: 'Chin up, takes up the pavement. Hates to lose face.', fear: -10, cowed: 0.75, maxYield: 0.8, yield: -0.1, flee: 0.6, fight: 0.1, truth: 1, holdBack: 1.3 },
+  hothead: { name: 'Hothead', desc: 'Already angry about something. Quick to swing.', fear: -15, cowed: 0.7, maxYield: 0.75, yield: -0.08, flee: 0.5, fight: 0.3, truth: 0.8, holdBack: 1, carry: { Knife: 0.12, 'Box cutter': 0.1, Bottle: 0.1 } },
+  hard: { name: 'Hard', desc: "Seen worse than you. Won't scare, won't run.", fear: -22, cowed: 0.5, maxYield: 0.6, yield: -0.15, flee: 0.3, fight: 0.2, truth: 1, holdBack: 1.4, carry: { Knife: 0.1 } },
 };
 const PERSONALITY_CHANCES: Record<Kind, [Personality, number][]> = {
   civilian: [['timid', 3], ['jumpy', 2], ['calm', 3], ['sly', 1], ['proud', 2], ['hothead', 1], ['hard', 0.5]],

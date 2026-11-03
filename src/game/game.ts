@@ -13,7 +13,7 @@ import { clockText, dateText, now } from './clock';
 import { RAIN_AMOUNT, WEATHER_NAME, newWeather, updateWeather, weatherLine, type WeatherState } from './weather';
 import { COLD_NAMES } from './health';
 import { maybeThief, newWorld, robBody, settle, type World } from './legacy';
-import { HEAT_NAMES, applyTo, comeBack, fade, heatLevel, historyText, injuriesText, meet, newInfamy, recognises, remember, repName, type Infamy, type Known } from './people';
+import { HEAT_NAMES, applyTo, comeBack, heal, fade, heatLevel, historyText, injuriesText, meet, newInfamy, recognises, remember, repName, type Infamy, type Known } from './people';
 import { anonymity, conspicuous, describe, hasHood, lookClothes, wearing } from './look';
 import { marksText } from './encounter';
 import { MEDS, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
@@ -424,7 +424,7 @@ export class Game {
     const mugged = !!e.mugged;
     const impacts = act(e, id, this.stats, this.inventory);
     // Knocked out of your mouth (or you're out cold): the cigarette's gone.
-    if (this.smoking && e.you && (e.you.smoking === false || e.you.out || e.result === 'lost')) {
+    if (!wasOver && this.smoking && e.you && (e.you.smoking === false || e.you.out || e.result === 'lost')) {
       delete this.health.smokingUntil;
       e.you.smoking = false;
     }
@@ -467,7 +467,9 @@ export class Game {
       }
       // It's done: the log is cleared (the title says how it ended), keeping
       // only what happens to you afterwards.
-      e.log = afterFight(this.health, e.you, e.result!).map((text) => ({ by: 'info' as const, text }));
+      // Walked away before anything happened: nothing carries over (no nerve, the coke still in you).
+      const nothing = !e.fought && (e.result === 'left' || e.result === 'lost-them');
+      e.log = nothing ? [] : afterFight(this.health, e.you, e.result!).map((text) => ({ by: 'info' as const, text }));
     }
     for (const text of worse) e.log.push({ by: 'info', text });
     if (this.health.dead) {
@@ -706,6 +708,7 @@ export class Game {
     this.closeSheet();
     if (p === this.place) return;
     // Thrown out of the pawn shop: he won't let you back in for a while.
+    if (((this.save.state.pawnBan as number) ?? 0) > now() + 30 * 60_000) this.save.state.pawnBan = now() + 30 * 60_000;
     if (p === 'pawn' && ((this.save.state.pawnBan as number) ?? 0) > now()) {
       this.note(['He sees you through the glass and shakes his head. The door stays locked.']);
       return;
@@ -985,7 +988,10 @@ export class Game {
 
   /** Smoking now (a cigarette that hasn't burned down yet). */
   get smoking(): boolean {
-    return (this.health.smokingUntil ?? 0) > now();
+    const h = this.health;
+    // A clock that was set ahead, then put right: a cigarette lasts six minutes at most.
+    if ((h.smokingUntil ?? 0) > now() + SMOKE_MS) h.smokingUntil = now() + SMOKE_MS;
+    return (h.smokingUntil ?? 0) > now();
   }
 
   /** Why you can't light a cigarette now, or null. */
@@ -1597,7 +1603,7 @@ export class Game {
     const f = this.infamy;
     const h = this.health;
     const tough = ['Easy', 'Fair', 'Hard', 'Brutal'].indexOf(BUILDS[p.build].difficulty);
-    let fear = 20 + this.menace() + { civilian: 10, junkie: 3, homeless: 0, drunk: -12 }[p.kind] - tough * 9 + personalityOf(p).fear;
+    let fear = 20 + this.menace() * personalityOf(p).cowed + { civilian: 10, junkie: 3, homeless: 0, drunk: -12 }[p.kind] - tough * 9 + personalityOf(p).fear;
     if (e.recognised) {
       const k = p.known ? this.people.find((x) => x.id === p.known) : undefined;
       if (k) fear += Math.min(25, f.rep * 0.25) + (k.memory.fear ?? 0) * 0.7 - (k.memory.beatYou ? 15 : 0);
@@ -1685,6 +1691,7 @@ export class Game {
           if (!thief) applyTo(known, e.them);
           else {
             known.healedAt ??= known.at;
+            heal(known);
             applyTo(known, e.them);
           }
           e.recognised = recognises(known, anon, lookClothes(inv));

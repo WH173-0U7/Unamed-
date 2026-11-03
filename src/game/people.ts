@@ -243,7 +243,8 @@ export function meet(k: Known): Person {
 
 /** Their body as they are now, for a new encounter. */
 export function applyTo(k: Known, b: Body) {
-  b.blood = Math.min(b.maxBlood, Math.round(k.blood));
+  // Back on their feet: whatever they lost, they're well enough to be out walking.
+  b.blood = Math.min(b.maxBlood, Math.round(Math.max(k.blood, k.maxBlood * 0.7)));
   b.broken = [...k.broken];
   b.marks = JSON.parse(JSON.stringify(k.marks));
   // Broken ribs leave them short of breath.
@@ -284,6 +285,8 @@ export const newInfamy = (): Infamy => ({ rep: 0, heat: 0, at: now() });
 
 /** Talk dies down; the police move on to other things. */
 export function fade(f: Infamy, t = now()) {
+  // A clock set ahead and then put right: start counting again from now.
+  if (f.at > t + DAY) f.at = t;
   const days = (t - f.at) / DAY;
   if (days <= 0) return;
   f.rep = Math.max(0, f.rep - days * 2);

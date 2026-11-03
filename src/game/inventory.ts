@@ -213,7 +213,7 @@ export function take(inv: Inventory, l: Loot): { ok: boolean; text: string } {
   if (l.kind === 'cash') {
     const p = l.purse ?? fewest(Math.round((l.cash ?? 0) * 100));
     addTo(inv.purse, p);
-    return { ok: true, text: `You pocket the ${l.name.toLowerCase()}: ${money(cents(p))} (${purseText(p)}).${once}` };
+    return { ok: true, text: `You pocket ${/^your /i.test(l.name) ? 'your cash' : `the ${l.name.toLowerCase()}`}: ${money(cents(p))} (${purseText(p)}).${once}` };
   }
   const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained });
   if (!it) return { ok: false, text: `No room for the ${l.name.toLowerCase()}. ${noRoomWhy(inv, measure(l).size)}` };

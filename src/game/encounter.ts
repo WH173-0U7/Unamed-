@@ -240,7 +240,7 @@ const VIOLENCE_IDS = ['bumrush', 'sucker', 'shove', 'mug'];
 export const FEAR_NAMES = ['Calm', 'Wary', 'Scared', 'Terrified'];
 export const fearLevel = (f: number) => (f >= 70 ? 3 : f >= 45 ? 2 : f >= 20 ? 1 : 0);
 /** Chance they give up when you tell them to (fear, and a bonus for surprise). */
-export const yieldChance = (e: Encounter, bonus = 0) => clamp(((e.them.fear ?? 0) - 20) / 60 + bonus + personalityOf(e.person).yield, 0.04, 0.95);
+export const yieldChance = (e: Encounter, bonus = 0) => clamp(((e.them.fear ?? 0) - 20) / 60 + bonus + personalityOf(e.person).yield, 0.04, personalityOf(e.person).maxYield);
 /** How it looks, on the button. */
 const oddsHint = (p: number) => (p >= 0.7 ? 'They look ready to break' : p >= 0.4 ? 'They might give it up' : p >= 0.15 ? 'They look unsure of you' : "They aren't scared of you");
 /** They get more (or less) scared of you. */
@@ -290,7 +290,7 @@ function yieldedOptions(e: Encounter): Option[] {
   // Hurting them, for the truth or for the fun of it.
   out.push({ id: 't-finger', label: 'Bend a finger back', hint: 'Until it snaps', cat: 'torture' });
   out.push({ id: 't-stamp', label: 'Stamp on their hand', hint: T.down ? undefined : 'Kicks them to the ground first', cat: 'torture' });
-  out.push({ id: 't-burn', label: 'Burn them with the lighter', hint: e.flame ? undefined : 'Nothing to burn them with', disabled: !e.flame, cat: 'torture' });
+  out.push({ id: 't-burn', label: 'Burn them', hint: e.flame ? 'With your lighter or matches' : 'Nothing to burn them with', disabled: !e.flame, cat: 'torture' });
   if (arms(T)) out.push({ id: 't-twist', label: 'Twist the broken arm', cat: 'torture' });
   out.push({ id: 'punch', label: 'Hit them anyway', hint: 'It turns back into a fight', cat: 'attack' });
   out.push({ id: 'let-go', label: e.robbed ? 'Let them go' : 'Let them go', hint: e.robbed ? 'With what you took' : undefined });
@@ -503,7 +503,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
   if (e.stage === 'over') return impacts;
   const p = e.person;
   const aw = AWARENESS.indexOf(p.awareness);
-  const who = NAMES[p.kind].toLowerCase();
+  const who = p.kind === 'homeless' ? 'homeless one' : NAMES[p.kind].toLowerCase();
 
   // Someone you hurt, and they've been looking for you: they find you first.
   if (id === 'ambushed' && e.stage === 'seen') {
@@ -543,7 +543,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
           say('them', oneOf([`The ${who} sees you, and knows you. They hurry away, looking back over their shoulder.`, `The ${who} catches sight of you and freezes, then runs.`]));
           end('lost-them');
         }
-      } else say('info', `A ${who}, ${DISTANCE[0].toLowerCase()}. They haven't seen you.`);
+      } else say('info', `${p.kind === 'homeless' ? 'Someone homeless' : `A ${who}`}, ${DISTANCE[0].toLowerCase()}. They haven't seen you.`);
     }
     return impacts;
   }
@@ -721,7 +721,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
       return impacts;
     }
     if (e.stage !== 'combat') return impacts;
-    if (e.them.yielded && id === 'punch') {
+    if (e.them.yielded && (id === 'punch' || id === 'kick' || id.startsWith('stomp'))) {
       // Hitting them anyway: it's a fight again (they didn't see it coming).
       e.them.yielded = false;
       e.them.offBalance = true;
@@ -1310,7 +1310,7 @@ function checkEnd(): boolean {
     end('killed');
     return true;
   }
-  if (T.out && !T.dyingNoted && T.blood <= T.maxBlood * (DEATH + 0.07)) {
+  if (T.out && !T.dyingNoted && T.bleeding > 0 && T.blood <= T.maxBlood * (DEATH + 0.07)) {
     T.dyingNoted = true;
     say('info', "Their breathing is shallow and fast, their skin grey. They're bleeding out.");
   }
@@ -1643,7 +1643,9 @@ function torture(how: string, inv?: Inventory) {
         inv!.items.splice(inv!.items.indexOf(fire), 1);
         dry = matches ? 'That was the last match. You drop the empty book.' : "The lighter sputters and dies. It's out of fuel. You toss it.";
       }
-      text = oneOf(['You flick the lighter and hold the flame to their wrist. The skin blisters, then blackens. The smell stays with you.', 'You hold the lighter under their chin. They try to twist away; you hold them there.']);
+      text = matches
+        ? oneOf(['You strike a match and hold it to their wrist until it burns down to your fingers. The skin blisters.', 'You strike a match and push it against their neck. They scream; you light another.'])
+        : oneOf(['You flick the lighter and hold the flame to their wrist. The skin blisters, then blackens. The smell stays with you.', 'You hold the lighter under their chin. They try to twist away; you hold them there.']);
       break;
     }
     case 'twist':
@@ -1731,9 +1733,14 @@ function search(id: string, inv?: Inventory) {
   if (g && l) grab(g, l);
 }
 
+/** Plural things take no article ("plastic bags", "bills, folded small"). */
+const plural = (s: string) => {
+  const last = s.split(',')[0].trim().split(' ').pop() ?? '';
+  return /^[a-z]+s$/.test(last) && !/(ss|us|is|gas|lens)$/.test(last);
+};
 /** Lower-case the first letter only ("state ID", not "state id"). */
 const lc = (s: string) => s.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase());
-const a = (s: string) => (/^(cash|loose|folded|groceries|house keys|car keys|cigarettes|headphones|matches|some )/.test(s) ? s : /^[aeiou]/.test(s) ? `an ${s}` : `a ${s}`);
+const a = (s: string) => (/^(cash|loose|folded|groceries|house keys|car keys|cigarettes|headphones|matches|some |your |bills|bandages|gauze|iron tablets|painkillers)/.test(s) || plural(s) ? s : /^[aeiou]/.test(s) ? `an ${s}` : `a ${s}`);
 const list = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 
 function end(result: Result) {

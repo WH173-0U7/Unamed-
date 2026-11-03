@@ -163,7 +163,8 @@ function lieThere(h: Health): string[] {
       h.dead = true;
       return ['You never wake up. You bleed out where you fell.'];
     }
-    if (i > 0 && Math.random() < CLOT[h.bleeding]) h.bleeding--;
+    // Lying still, a wound clots faster than it does on your feet.
+    if (i > 0 && Math.random() < Math.min(0.9, CLOT[h.bleeding] * 2)) h.bleeding--;
   }
   h.blood = Math.round(Math.max(h.blood, h.maxBlood * (PASS_OUT + 0.03)));
   return [h.bleeding ? "You're still bleeding." : 'The blood has dried on you.'];

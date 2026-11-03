@@ -10,7 +10,7 @@ const STAGE_TITLE: Record<string, string> = {
   helpless: 'Unconscious',
 };
 
-const RESULT: Record<string, string> = {
+export const RESULT: Record<string, string> = {
   won: 'They are down.',
   lost: 'You were beaten.',
   'they-fled': 'They got away.',
@@ -49,6 +49,9 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
   let tabsKey = '';
   let opts: Option[] = [];
 
+  // In a fight the card folds to one line; tap it to see what you know.
+  q('.enc-card').addEventListener('click', () => root.classList.toggle('facts-open'));
+
   q('.enc-actions').addEventListener('click', (ev) => {
     const b = (ev.target as HTMLElement).closest('button');
     if (!b || b.disabled) return;
@@ -79,6 +82,8 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       })
       .join('');
     const panel = q('.enc-opts');
+    // Loot lists get long: smaller buttons.
+    panel.classList.toggle('compact', tab === 'search');
     panel.innerHTML = tab ? opts.filter((o) => o.cat && o.cat === tab).map(button).join('') : cats.length ? `<p class="enc-pick">Choose what to do.</p>` : '';
     panel.hidden = !panel.innerHTML;
     if (switched) {
@@ -118,6 +123,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         if (e !== current) {
           tab = null;
           tabsKey = '';
+          root.classList.remove('facts-open');
         }
         current = e;
       }

@@ -457,7 +457,7 @@ canvas {
   display: grid;
   /* The options take the room they need, the log what's left; if it's
      tight, the options scroll. */
-  grid-template-rows: auto auto minmax(56px, 1fr) minmax(0, max-content);
+  grid-template-rows: auto auto minmax(110px, 1fr) minmax(0, max-content);
   gap: 10px;
   animation: power-in 0.5s ease both;
 }
@@ -754,7 +754,7 @@ canvas {
 .enc-opts:not(.enc-extra) {
   flex: 0 1 auto;
   min-height: 46px;
-  max-height: 42vh;
+  max-height: 32vh;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -2101,4 +2101,95 @@ body.in-game #menu {
 }
 .sheet-card .place i.shut {
   color: #d4a6a6;
+}
+
+/* How an encounter ended, at the top of the note. */
+#note p.note-title {
+  margin-bottom: 10px;
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: var(--ink);
+}
+
+/* Once it's a fight, the card is one line (who they are); tap for the rest. */
+#enc[data-stage='combat'] .enc-card,
+#enc[data-stage='over'] .enc-card {
+  cursor: pointer;
+}
+#enc[data-stage='combat']:not(.facts-open) .enc-facts,
+#enc[data-stage='over']:not(.facts-open) .enc-facts {
+  display: none;
+}
+#enc[data-stage='combat'] .enc-who::after,
+#enc[data-stage='over'] .enc-who::after {
+  content: '▾';
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+#enc.facts-open .enc-who::after {
+  content: '▴';
+}
+/* Loot: compact buttons, so the log keeps its room. */
+.enc-opts.compact {
+  gap: 5px;
+}
+.enc-opts.compact button {
+  min-height: 34px;
+  padding: 5px 8px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+.enc-opts.compact button small {
+  font-size: 10px;
+}
+.enc-opts.compact button[data-id='take-all'] {
+  grid-column: 1 / -1;
+}
+
+/* The buttons always there (walk away, lurk again, rest): one slim row, so
+   the options above them keep their room. */
+#enc[data-stage='over'] .enc-extra,
+#enc[data-stage='combat'] .enc-extra {
+  display: flex;
+  gap: 6px;
+}
+#enc[data-stage='over'] .enc-extra[hidden],
+#enc[data-stage='combat'] .enc-extra[hidden] {
+  display: none;
+}
+#enc[data-stage='over'] .enc-extra button,
+#enc[data-stage='combat'] .enc-extra button {
+  flex: 1;
+  min-height: 38px;
+  padding: 4px 6px;
+  font-size: 13px;
+}
+#enc[data-stage='over'] .enc-extra button small,
+#enc[data-stage='combat'] .enc-extra button small {
+  display: none;
+}
+#enc[data-stage='over'] .enc-title {
+  margin-bottom: 6px;
+  font-size: 22px;
+}
+/* Landscape: the card only as tall as it is; the options start right under it. */
+@media (orientation: landscape) and (max-height: 560px) {
+  #enc {
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+  .enc-card {
+    grid-row: 1;
+    align-self: start;
+  }
+  .enc-actions {
+    grid-row: 2 / 4;
+  }
+  .enc-status {
+    grid-row: 1 / 3;
+    align-self: start;
+  }
+  .enc-log {
+    grid-row: 3;
+  }
 }

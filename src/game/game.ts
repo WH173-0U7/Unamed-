@@ -3,7 +3,7 @@ import { writeSave, type SaveData } from '../core/save';
 import { createTv } from './tv';
 import { CHANCES, RACE_CHANCES, NAMES, makePerson } from './person';
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
-import { createEncounterView } from '../ui/encounterView';
+import { RESULT, createEncounterView } from '../ui/encounterView';
 import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, type StatName, type Stats } from './stats';
 import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, isHurt, newHealth, passHours, type Health } from './health';
 import { PASS_OUT, type Impact } from './encounter';
@@ -334,6 +334,7 @@ export class Game {
     if (id === 'rest') return this.rest();
     if (id === 'pockets') return this.openSheet('pockets');
     if (id === 'go') return this.openSheet('places');
+    if (id === 'leave-body') return this.closeEncounter(['You leave the body where it lies, and walk.']);
     // Approaching someone: bring your body as it is now.
     if (e.stage === 'seen') e.you = this.yourBody();
     const wasOver = e.stage === 'over';
@@ -362,7 +363,21 @@ export class Game {
     }
     if (impacts.length) this.feel(impacts);
     else buzz(6);
+    // It's over and they're gone (or you are): the screen closes, and how it
+    // ended is a note. A body stays, to be searched, until you walk away.
+    if (!wasOver && e.stage === 'over' && e.result !== 'killed') {
+      return this.closeEncounter([RESULT[e.result ?? 'left'], ...e.log.map((l) => l.text)]);
+    }
     this.refresh();
+  }
+
+  /** Done with whoever it was: back to the street, with what happened as a note. */
+  private closeEncounter(lines: string[]) {
+    this.encounter = null;
+    this.refresh();
+    uiGlitch(this.view, 0.35);
+    this.note(lines);
+    this.noteEl.firstElementChild?.classList.add('note-title');
   }
 
   /**

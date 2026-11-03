@@ -36,6 +36,14 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   they're **unconscious, nothing is open until you choose**: Violence,
   Search or Move. *Leave them* / *Lurk again* / *Rest* sit below the tabs.
   Their card also shows what they're **wearing**.
+- **When it's over, it's over:** walk away, let them go, lose them, get
+  beaten, and the encounter screen closes; you're back on the street, and
+  how it ended (and anything that happened to you after) shows as a note. A
+  body stays until you've searched it and **Walk away**.
+- In a fight their card folds to one line (who they are; tap it for what you
+  know), the log always keeps room for a few lines, loot buttons are smaller
+  and scroll, and the buttons that are always there sit in one slim row.
+- Someone unconscious can't dodge, block or roll away: every blow lands.
 - **Blows that land are highlighted** in the log: yours in **gold**, theirs
   on you in **red**, with the blood it cost picked out.
   - **Surveil:** *Follow* to get closer (across the street → behind them →

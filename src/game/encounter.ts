@@ -295,6 +295,7 @@ export function options(e: Encounter): Option[] {
     case 'over':
       return [
         ...(e.them.dead ? searchOptions(e) : []),
+        ...(e.them.dead ? [{ id: 'leave-body', label: 'Walk away', hint: 'Leave the body where it lies' }] : []),
         { id: 'lurk', label: 'Lurk again' },
         { id: 'rest', label: 'Rest', hint: 'Let time pass and heal' },
       ];
@@ -609,7 +610,9 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc)
   if (A.offBalance) hit -= 0.15;
   A.offBalance = false;
 
-  if (Math.random() >= clamp(hit, 0.05, 0.95)) {
+  // Someone out cold (or dead) can't roll away, duck or block: it lands.
+  const helpless = D.out || D.dead;
+  if (!helpless && Math.random() >= clamp(hit, 0.05, 0.95)) {
     if (kind === 'stomp') {
       say(a, `${N.S} stomp down, but ${N.oSub} roll away from it.`);
     } else if (kind === 'kick') {

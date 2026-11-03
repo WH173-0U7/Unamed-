@@ -103,6 +103,10 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   there's some about), in an old oil drum. An hour by it and you're warm
   right through. Rain makes it hard to get going; a downpour puts it out.
   Cheap lighters run dry now and then.
+- **A lighter (or matches) also burns evidence:** **Burn** on a stolen ID,
+  credit card or debit card in your pockets holds it in the flame until the
+  face or the numbers are gone, and drops what's left down a drain. Not
+  indoors; in the rain it can take a few tries.
 - **A small baggie of white powder** says only that. To find out what it
   is, **Taste** it (rub some on your gums) or **Test** it with a *Drug test
   kit* ($10 at the pharmacy, one use). It's cocaine. Once you know, a

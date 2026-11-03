@@ -548,6 +548,7 @@ export class Game {
     else if (b.dataset.drop) this.drop(Number(b.dataset.drop));
     else if (b.dataset.fire) this.fire(Number(b.dataset.fire));
     else if (b.dataset.smoke) this.smoke(Number(b.dataset.smoke));
+    else if (b.dataset.burn) this.burn(Number(b.dataset.burn));
     else if (b.dataset.taste) this.identify(Number(b.dataset.taste), false);
     else if (b.dataset.test) this.identify(Number(b.dataset.test), true);
     else if (b.dataset.bump) this.bump(Number(b.dataset.bump));
@@ -740,6 +741,45 @@ export class Game {
     this.refresh();
     this.note(lines);
     buzz(6);
+  }
+
+  /** Why you can't burn something right now, or null. */
+  private burnBlocked(): string | null {
+    if (!this.flame()) return 'Nothing to light it';
+    if (placeInfo(this.place).indoors) return 'Not in here';
+    return null;
+  }
+
+  /**
+   * Burn the evidence: a stolen ID or card, held in the lighter's flame until
+   * the name's gone. Plastic curls and stinks. Rain makes it fiddly; in a
+   * downpour it can take a few goes.
+   */
+  private burn(i: number) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    const fire = this.flame();
+    if (!it || !fire || this.burnBlocked()) return;
+    const lines: string[] = [];
+    const tries = { clear: 0, drizzle: 0.15, rain: 0.35, downpour: 0.6 }[this.weather.now];
+    if (Math.random() < tries) {
+      lines.push(`You crouch in a doorway and try to burn the ${it.name.toLowerCase()}, but the rain keeps killing the flame.`);
+    } else {
+      inv.items.splice(i, 1);
+      const whose = it.detail ? it.detail.split(',')[0] : null;
+      lines.push(
+        it.kind === 'id'
+          ? `You hold the ${it.name.toLowerCase()} over the flame. The plastic bubbles and blackens, and ${whose ? `${whose}'s face` : 'the face'} curls away to nothing. You drop what's left down a drain.`
+          : `You hold the ${it.name.toLowerCase()} in the flame until the chip pops and the numbers melt into a black, stinking lump. You flick it into the gutter.`,
+      );
+    }
+    if (/matches/i.test(fire.name) && Math.random() < 0.25) {
+      inv.items.splice(inv.items.indexOf(fire), 1);
+      lines.push('That was the last match.');
+    }
+    this.refresh();
+    this.note(lines);
+    buzz(8);
   }
 
   /** Why you can't make a fire right now, or null. */
@@ -949,6 +989,7 @@ export class Game {
                 let acts = m && m.id !== 'testkit' ? act('use', 'Use', why) : '';
                 if (/^(lighter|matches)$/i.test(x.name)) acts += act('fire', 'Fire', this.fireBlocked());
                 if (/^cigarettes$/i.test(x.name)) acts += act('smoke', 'Smoke', this.flame() ? null : 'Nothing to light it');
+                if (x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card') acts += act('burn', 'Burn', this.burnBlocked());
                 if (x.secret && !x.known) {
                   acts += act('taste', 'Taste');
                   if (inv.items.some((y) => y.med === 'testkit')) acts += act('test', 'Test');

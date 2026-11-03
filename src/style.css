@@ -2232,8 +2232,10 @@ body.in-game #menu {
 body.smoking {
   --line: rgba(236, 235, 230, 0.36);
 }
-body.smoking #game {
-  filter: brightness(1.1) contrast(1.05);
+/* (A light layer over the picture, cheaper than filtering the whole game.) */
+body.smoking #smoke {
+  background: rgba(255, 240, 225, 0.06);
+  mix-blend-mode: screen;
 }
 body.smoking #game .enc-card,
 body.smoking #game .enc-status,
@@ -2704,4 +2706,15 @@ body[data-buttons='lines'] .spot-bar {
 }
 .enc-history .looks {
   color: var(--ink-dim);
+}
+
+/* The red edge: hit, or low on blood (driven from glass.ts). */
+#hurt-edge {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse 66% 74% at 50% 50%, transparent 50%, rgba(115, 0, 5, 0.55) 80%, rgba(115, 0, 5, 0.9) 100%);
+  will-change: opacity;
 }

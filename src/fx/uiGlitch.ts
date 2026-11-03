@@ -9,7 +9,13 @@ export function uiGlitch(el?: Element | null, power = 0.35) {
     el.classList.remove('ui-glitch');
     void el.offsetWidth; // restart the animation
     el.classList.add('ui-glitch');
-    el.addEventListener('animationend', () => el.classList.remove('ui-glitch'), { once: true });
+    // One listener per element, however often it glitches.
+    if (!el.dataset.glitchHooked) {
+      el.dataset.glitchHooked = '1';
+      el.addEventListener('animationend', (ev) => {
+        if (ev.animationName === 'ui-glitch') el.classList.remove('ui-glitch');
+      });
+    }
   }
   dispatchEvent(new CustomEvent('ui-glitch', { detail: power }));
 }

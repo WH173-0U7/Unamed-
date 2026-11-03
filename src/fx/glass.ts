@@ -50,6 +50,12 @@ export function createGlass(opts: GlassOptions = {}) {
   const canvas = document.createElement('canvas');
   canvas.id = 'glass';
   document.body.appendChild(canvas);
+  // The red edge (hit, or low on blood) is its own cheap layer, so the blood
+  // doesn't have to be redrawn every frame while it pulses.
+  const edge = document.createElement('div');
+  edge.id = 'hurt-edge';
+  document.body.appendChild(edge);
+  let edgeShown = '';
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, premultipliedAlpha: true, antialias: false, stencil: false, depth: false });
   renderer.setClearColor(0x000000, 0);
   renderer.autoClear = false;
@@ -397,25 +403,34 @@ export function createGlass(opts: GlassOptions = {}) {
    * where the field passes the threshold, about half the radius. `grime`
    * paints dirt instead of blood.
    */
+  // Each stamp is a soft round blob; drawn once per kind and copied (a
+  // gradient made for every one of hundreds of drops was slow).
+  const blobOf = (rgb: string) => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const x = c.getContext('2d')!;
+    const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, `rgba(${rgb},1)`);
+    g.addColorStop(0.25, `rgba(${rgb},0.84)`);
+    g.addColorStop(0.5, `rgba(${rgb},0.5)`);
+    g.addColorStop(0.75, `rgba(${rgb},0.19)`);
+    g.addColorStop(1, `rgba(${rgb},0)`);
+    x.fillStyle = g;
+    x.fillRect(0, 0, 64, 64);
+    return c;
+  };
+  const BLOOD_BLOB = blobOf('255,255,0');
+  const GRIME_BLOB = blobOf('0,0,255');
   function stamp(x: number, y: number, r: number, a: number, stretch = 1, ang = 0, grime = false) {
     const R = Math.max(0.8, r * k);
-    const c = grime ? '0,0,255' : '255,255,0';
     pctx.save();
     pctx.translate(x * k, y * k);
     if (stretch !== 1) {
       pctx.rotate(ang);
       pctx.scale(stretch, 1);
     }
-    const g = pctx.createRadialGradient(0, 0, 0, 0, 0, R);
-    g.addColorStop(0, `rgba(${c},${a})`);
-    g.addColorStop(0.25, `rgba(${c},${a * 0.84})`);
-    g.addColorStop(0.5, `rgba(${c},${a * 0.5})`);
-    g.addColorStop(0.75, `rgba(${c},${a * 0.19})`);
-    g.addColorStop(1, `rgba(${c},0)`);
-    pctx.fillStyle = g;
-    pctx.beginPath();
-    pctx.arc(0, 0, R, 0, Math.PI * 2);
-    pctx.fill();
+    pctx.globalAlpha = Math.min(1, a);
+    pctx.drawImage(grime ? GRIME_BLOB : BLOOD_BLOB, -R, -R, R * 2, R * 2);
     pctx.restore();
   }
 
@@ -688,7 +703,8 @@ export function createGlass(opts: GlassOptions = {}) {
   }
 
   // ---------- Keeping it on the device ----------
-  const PACK_MAX = 1000;
+  // (The blood is soft: half resolution keeps the save quick and small.)
+  const PACK_MAX = 512;
   const packRT = new THREE.WebGLRenderTarget(1, 1, { ...rtOpts, type: THREE.UnsignedByteType });
 
   /** Stores the glass on the device (PNG in local storage). */
@@ -1054,14 +1070,22 @@ export function createGlass(opts: GlassOptions = {}) {
       // Kept on the device once things have settled.
       if (unsaved && quiet > 6 && !drips.length && !fingers.size) persist();
 
-      const animating = hurt > 0 || glitch > 0 || low > 0;
+      // The red edge: a flash when hit, a heartbeat when blood is low.
+      const beat = Math.pow(0.5 + 0.5 * Math.sin(time * (5 + low * 4)), 6);
+      const red = Math.min(1, hurt * 0.75 + low * (0.35 + 0.35 * beat));
+      const op = red < 0.005 ? '0' : red.toFixed(2);
+      if (op !== edgeShown) {
+        edgeShown = op;
+        edge.style.opacity = op;
+      }
+      const animating = glitch > 0;
       if (!redraw && !animating) return;
       redraw = false;
       const su = showPass.material.uniforms;
       su.tState.value = rtA.texture;
       su.uTime.value = time;
-      su.uHurt.value = hurt;
-      su.uLow.value = low;
+      su.uHurt.value = 0;
+      su.uLow.value = 0;
       su.uGlitch.value = glitch;
       renderer.setRenderTarget(null);
       renderer.clear();

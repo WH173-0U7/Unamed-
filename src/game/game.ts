@@ -98,6 +98,7 @@ export class Game {
   private noteTimer = 0;
   private readonly clockEl: HTMLElement;
   private clockShown = '';
+  private clockSec = 0;
   private weatherTimer = 0;
   private phase: Phase = 'idle';
   private timer = 0;
@@ -389,7 +390,8 @@ export class Game {
     if (id === 'go') return this.openSheet('places');
     if (id === 'leave-body') return this.closeEncounter(['You leave the body where it lies, and walk.']);
     // Approaching someone: bring your body as it is now (and lose the cigarette).
-    if (e.stage === 'seen') {
+    if (e.stage === 'seen' && id === 'ambushed') e.you = this.yourBody();
+    else if (e.stage === 'seen') {
       e.you = this.yourBody();
       if (e.you.smoking && id !== 'leave') e.log.push({ by: 'info', text: 'You walk over with the cigarette still burning between your lips.' });
       // Whether they know you depends on how you look as you walk up.
@@ -1564,12 +1566,13 @@ export class Game {
     if (this.tvState.on || !this.running) return;
     this.powerBtn.classList.add('pressed');
     this.tvState.on = true;
-    window.setTimeout(() => {
+    // (Kept in timers, so quitting straight after can't touch the next game.)
+    this.timers.push(window.setTimeout(() => {
       this.powerBtn.hidden = true;
       this.tv.powerOn();
       this.refresh();
       // The picture snaps open ~0.45 s in: shake the set and buzz the phone.
-      window.setTimeout(() => {
+      this.timers.push(window.setTimeout(() => {
         this.view.classList.remove('jolt');
         void this.view.offsetWidth;
         this.view.classList.add('jolt');
@@ -1578,8 +1581,8 @@ export class Game {
         } catch {
           /* not allowed here */
         }
-      }, 430);
-    }, 350);
+      }, 430));
+    }, 350));
   }
 
   pause() {
@@ -1599,8 +1602,9 @@ export class Game {
   close() {
     for (const t of this.timers) clearTimeout(t);
     this.timers.length = 0;
-    // This game is done with: its window listeners go too.
+    // This game is done with: its window listeners go too, and the TV's GPU buffers.
     this.listeners.abort();
+    this.tv.dispose();
     this.fx.setLow(0);
     this.hitUi.clear();
     this.view.style.transform = '';
@@ -1666,6 +1670,10 @@ export class Game {
   /** The device's time, top right (redrawn when the minute changes). */
   private tickClock() {
     const t = now();
+    // (Once a second is plenty.)
+    const sec = Math.floor(t / 1000);
+    if (sec === this.clockSec) return;
+    this.clockSec = sec;
     const s = clockText(t);
     const wx = this.weather.now;
     const key = s + wx;

@@ -26,6 +26,7 @@ export function createSenses() {
   let dipLen = 0;
   let nextDip = 6;
   let smoking = false;
+  let tunnelKey = '';
   let w = 1;
   let h = 1;
 
@@ -138,14 +139,21 @@ export function createSenses() {
       }
       if (s < 0.02 && !out) {
         if (tunnel.style.opacity !== '0') tunnel.style.opacity = '0';
+        tunnelKey = '';
       } else {
         // The tunnel: clear in the middle, dark at the edges, closing in.
         const beat = Math.pow(0.5 + 0.5 * Math.sin(time * (6 + s * 5)), 8) * s * 4;
         const clear = 74 - s * 52 - beat - out * 18;
-        tunnel.style.opacity = '1';
-        tunnel.style.setProperty('--clear', `${clear.toFixed(1)}%`);
-        tunnel.style.setProperty('--dark', Math.min(0.97, 0.4 + s * 0.6).toFixed(3));
-        tunnel.style.setProperty('--out', out.toFixed(3));
+        // (Only when it changes: each change repaints the whole screen.)
+        const key = `${clear.toFixed(0)}|${Math.min(0.97, 0.4 + s * 0.6).toFixed(2)}|${out.toFixed(2)}`;
+        if (key !== tunnelKey) {
+          tunnelKey = key;
+          const [c, d, o] = key.split('|');
+          tunnel.style.opacity = '1';
+          tunnel.style.setProperty('--clear', `${c}%`);
+          tunnel.style.setProperty('--dark', d);
+          tunnel.style.setProperty('--out', o);
+        }
       }
       if (smoking || ps.length) stepSmoke(dt);
     },

@@ -15,6 +15,17 @@ export function createHitUi(game: HTMLElement) {
    * pixel by pixel (dark where thick, red at the edges, a dark meniscus line
    * and a glossy highlight).
    */
+  // A few splashes, made once and reused (each one takes a while to draw);
+  // they're turned at random, so it doesn't show.
+  const sprites = new Map<number, string[]>();
+  function spriteFor(size: number): string {
+    const bucket = Math.max(60, Math.round(size / 40) * 40);
+    const list = sprites.get(bucket) ?? [];
+    sprites.set(bucket, list);
+    if (list.length < 3) list.push(bloodSprite(bucket));
+    return list[Math.floor(Math.random() * list.length)];
+  }
+
   function bloodSprite(size: number): string {
     const S = Math.round(size);
     const c = document.createElement('canvas');
@@ -82,6 +93,7 @@ export function createHitUi(game: HTMLElement) {
     return c.toDataURL();
   }
 
+  let lastCa = '';
   return {
     /** A blow landed: shake and fringe the screen. `power` 0..1. */
     kick(power: number, hurtYou: boolean) {
@@ -103,7 +115,7 @@ export function createHitUi(game: HTMLElement) {
         el.style.width = el.style.height = `${size}px`;
         el.style.left = `${Math.random() * 100}%`;
         el.style.top = `${Math.random() * 100}%`;
-        el.style.backgroundImage = `url(${bloodSprite(size * 1.5)})`;
+        el.style.backgroundImage = `url(${spriteFor(size * 1.5)})`;
         el.style.transform = `translate(-50%, -50%) rotate(${Math.random() * 360}deg)`;
         p.appendChild(el);
       }
@@ -122,7 +134,11 @@ export function createHitUi(game: HTMLElement) {
         const a = Math.random() * Math.PI * 2;
         game.style.transform = `translate(${Math.cos(a) * shake}px, ${Math.sin(a) * shake}px) rotate(${(Math.random() - 0.5) * shake * 0.08}deg)`;
       } else if (game.style.transform) game.style.transform = '';
-      game.style.setProperty('--hitca', `${fringe.toFixed(2)}px`);
+      const ca = `${fringe.toFixed(1)}px`;
+      if (ca !== lastCa) {
+        lastCa = ca;
+        game.style.setProperty('--hitca', ca);
+      }
       game.classList.toggle('hit', fringe > 0.1);
       // Panels jump sideways in glitchy bursts.
       for (const p of panels()) {

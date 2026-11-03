@@ -110,7 +110,15 @@ export function createFilm(container: HTMLElement) {
     },
   );
 
-  const root = document.documentElement;
+  // The menu's own variables (only its text uses them): setting them on the
+  // whole document restyled everything every frame.
+  const root = container;
+  const last: Record<string, string> = {};
+  const setVar = (k: string, v: string) => {
+    if (last[k] === v) return;
+    last[k] = v;
+    root.style.setProperty(k, v);
+  };
   const title = container.querySelector<HTMLElement>('.title');
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -160,16 +168,16 @@ export function createFilm(container: HTMLElement) {
 
       // Chromatic aberration on the menu text: always a little, a lot in bursts.
       const ca = 0.9 + 0.35 * Math.sin(time * 2.3) + glitch * rand(3, 7);
-      root.style.setProperty('--ca', `${ca.toFixed(2)}px`);
-      root.style.setProperty('--jx', bursting ? `${rand(-5, 5).toFixed(1)}px` : '0px');
+      setVar('--ca', `${ca.toFixed(1)}px`);
+      setVar('--jx', bursting ? `${rand(-5, 5).toFixed(1)}px` : '0px');
       // Gate weave: the projected frame drifts a fraction of a point, once per film frame.
       const f = Math.floor(time * 24);
       if (f !== filmFrame && !reduceMotion) {
         filmFrame = f;
         weave = weave * 0.6 + rand(-0.5, 0.5);
-        root.style.setProperty('--gy', `${(bursting && Math.random() < 0.3 ? rand(-6, 6) : weave).toFixed(2)}px`);
+        setVar('--gy', `${(bursting && Math.random() < 0.3 ? rand(-6, 6) : weave).toFixed(2)}px`);
       }
-      root.style.setProperty('--skew', bursting ? `${rand(-2, 2).toFixed(2)}deg` : '0deg');
+      setVar('--skew', bursting ? `${rand(-2, 2).toFixed(2)}deg` : '0deg');
       setSlice(1, bursting && Math.random() < 0.8);
       setSlice(2, bursting && Math.random() < 0.6);
 

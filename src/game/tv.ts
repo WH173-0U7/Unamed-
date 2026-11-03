@@ -164,6 +164,10 @@ export function createTv(renderer: THREE.WebGLRenderer) {
     powerOnSettled() {
       onAt = time - 30;
     },
+    /** Frees the TV's GPU buffers (when its game is done with). */
+    dispose() {
+      pass.dispose();
+    },
     powerOff() {
       onAt = null;
     },

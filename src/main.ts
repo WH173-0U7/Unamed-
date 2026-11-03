@@ -74,7 +74,7 @@ const menu = createMenu({
     if (hasSave()) {
       menu.confirm({
         title: 'Start a new game?',
-        body: 'Your saved game will be replaced the first time you pause. This cannot be undone.',
+        body: 'Your saved game will be replaced within a few seconds of starting. This cannot be undone.',
         ok: 'Start new game',
         onOk: () => startGame(true),
       });
@@ -160,7 +160,8 @@ function pause() {
   document.body.classList.add('paused');
   // The save point.
   if (save()) menu.toast('Progress saved');
-  glass.persist();
+  // The glass is stored once the menu is up (it takes a moment).
+  window.setTimeout(() => glass.persist(), 450);
   updatePauseInfo();
   showMenu('pause');
 }

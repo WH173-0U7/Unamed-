@@ -27,6 +27,11 @@ export function createFullscreenShader(fragmentShader: string, uniforms: Record<
     render(renderer: THREE.WebGLRenderer) {
       renderer.render(scene, camera);
     },
+    /** Frees its GPU buffers and program. */
+    dispose() {
+      mesh.geometry.dispose();
+      material.dispose();
+    },
   };
 }
 

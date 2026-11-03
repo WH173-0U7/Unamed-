@@ -1964,13 +1964,13 @@ export class Game {
       btn.type = 'button';
       btn.className = 'seen-btn';
       btn.dataset.kind = e.person.kind;
-      btn.dataset.race = e.person.race;
       const k = document.createElement('span');
       k.className = 'seen-kind';
       k.textContent = NAMES[e.person.kind];
       const r = document.createElement('span');
       r.className = 'seen-race';
-      r.textContent = e.person.race;
+      // From here you can't make out who they are, only what.
+      r.textContent = 'Across the street';
       const tap = document.createElement('span');
       tap.className = 'seen-tap';
       tap.textContent = 'Tap to approach';

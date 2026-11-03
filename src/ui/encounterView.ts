@@ -190,11 +190,13 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       root.dataset.stage = e.stage;
       const p = e.person;
       q('.enc-kind').textContent = NAMES[p.kind];
-      q('.enc-race').textContent = p.race;
+      // Who they are only shows once you've had a look.
+      q('.enc-race').textContent = e.known.race ? `${e.known.sex ? `${p.sex === 'Male' ? 'Man' : 'Woman'} · ` : ''}${p.race}` : e.known.sex ? (p.sex === 'Male' ? 'Man' : 'Woman') : '';
 
       const b = BUILDS[p.build];
       const facts: [string, string | null][] = [
         ['Sex', e.known.sex ? p.sex : null],
+        ['Race', e.known.race ? p.race : null],
         ['Build', e.known.build ? `${p.build} · ${b.difficulty}` : null],
         ['Carrying', e.known.carrying ? p.carrying.map((i) => i.name).join(', ') || 'Nothing' : null],
         ['Awareness', e.known.awareness ? p.awareness : null],

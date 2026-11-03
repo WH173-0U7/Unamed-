@@ -3,6 +3,7 @@ import { AWARENESS, BUILDS, NAMES, personalityOf, type Item, type Loot, type Per
 import { money } from './money';
 import { isBrute, voice, type Moment } from './voices';
 import { caffeineEdge } from './health';
+import { partOfDay } from './clock';
 import { lootLabel, take, type Inventory } from './inventory';
 import {
   STAT_NAMES,
@@ -192,7 +193,8 @@ export interface Encounter {
   distance: number;
   /** How close they are to noticing you (0..100). */
   suspicion: number;
-  known: { build: boolean; carrying: boolean; awareness: boolean; sex: boolean; personality?: boolean };
+  /** What you've made out about them (race and sex take a proper look; face to face, you see). */
+  known: { build: boolean; carrying: boolean; awareness: boolean; sex: boolean; race?: boolean; personality?: boolean };
   you: Body;
   them: Body & { weaponOut: string | null; sprayed: boolean };
   log: LogLine[];
@@ -402,7 +404,7 @@ export function newEncounter(person: Person, yours: Body): Encounter {
     stage: 'seen',
     distance: 0,
     suspicion: 0,
-    known: { build: false, carrying: false, awareness: false, sex: false, personality: false },
+    known: { build: false, carrying: false, awareness: false, sex: false, race: false, personality: false },
     you: yours,
     them: { ...body(b.blood, b.hp, Math.round(b.stamina * tired)), weaponOut: null, sprayed: false },
     log: [],
@@ -495,7 +497,7 @@ function rawOptions(e: Encounter): Option[] {
         { id: 'build', label: 'Size up their build', disabled: e.known.build, cat: 'surveil' },
         { id: 'carrying', label: 'What are they carrying?', disabled: e.known.carrying, hint: e.distance < 1 ? 'Need to be closer' : undefined, cat: 'surveil' },
         { id: 'awareness', label: 'How aware are they?', disabled: e.known.awareness, cat: 'surveil' },
-        { id: 'sex', label: 'Male or female?', disabled: e.known.sex, cat: 'surveil' },
+        { id: 'sex', label: 'Get a look at them', hint: e.known.sex && e.known.race ? undefined : e.distance < 1 ? 'Hard to tell from here' : 'Their face, their build', disabled: e.known.sex && !!e.known.race, cat: 'surveil' },
         { id: 'read', label: 'Read them', hint: e.known.personality ? undefined : e.distance < 1 ? 'Need to be closer' : 'What kind of person?', disabled: !!e.known.personality, cat: 'surveil' },
         { id: 'bumrush', label: 'Bum rush', hint: 'Knock them down', cat: 'violence' },
         { id: 'sucker', label: 'Sucker punch', hint: 'Hit them in the head', cat: 'violence' },
@@ -606,6 +608,8 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory, mov
   e.them.awake ??= e.them.out ? -25 : 100;
   pendingTier = null;
   const out = actInner(e, id, stats, inv);
+  // Face to face (a fight, a mugging, a word), you can see who they are.
+  if (e.stage !== 'seen' && e.stage !== 'menu' && e.stage !== 'surveil') e.known.sex = e.known.race = true;
   if (pendingTier) e.log.push({ by: 'info', text: pendingTier });
   pendingTier = null;
   return out;
@@ -752,12 +756,27 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         you.gain('sneak', 2);
         break;
       }
-      case 'sex':
-        e.known.sex = true;
-        say('info', `${p.sex}.`);
+      case 'sex': {
+        // Easier up close, in daylight, in the dry. A man or a woman shows
+        // from further off (the walk, the build) than a face does.
+        const dark = partOfDay() === 'night' ? 0.25 : partOfDay() === 'day' ? 0 : 0.1;
+        const seeing = 1 - dark - (e.wet ? 0.1 : 0);
+        const gotSex = e.known.sex || Math.random() < [0.7, 0.92, 1][e.distance] * seeing + 0.05;
+        const gotRace = e.known.race || Math.random() < [0.3, 0.7, 0.95][e.distance] * seeing;
+        const newSex = gotSex && !e.known.sex;
+        const newRace = gotRace && !e.known.race;
+        e.known.sex = gotSex;
+        e.known.race = gotRace;
+        const man = p.sex === 'Male' ? 'A man' : 'A woman';
+        const why = dark >= 0.25 ? 'in the dark' : e.wet ? 'through the rain' : e.distance === 0 ? 'from across the street' : 'from behind';
+        if (newSex && newRace) say('info', `${man}. ${p.race}.`);
+        else if (newSex) say('info', `${man}, by the walk and the build. You can't make out their face ${why}.`);
+        else if (newRace) say('info', `You catch their face as they turn: ${p.race}.`);
+        else say('info', `You try to get a look, but ${why} you can't make out ${e.known.sex ? 'their face' : 'much'}.${e.distance < 2 ? ' Closer would help.' : ''}`);
         watch(3);
         you.gain('sneak', 2);
         break;
+      }
     }
     // Getting noticed.
     if (e.suspicion >= 100) {

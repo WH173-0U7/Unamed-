@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.50',
+    date: 'Nov 3',
+    items: [
+      'You can’t tell someone’s race or sex from across the street at a glance any more. The person button only says what they are (a civilian, a drunk…).',
+      'Tap them, then “Get a look at them”. From across the street you might make out a man or a woman by the walk; you usually need to get closer to see their face. It’s harder at night and in the rain.',
+      'Face to face (a fight, a mugging), you see exactly who they are.',
+    ],
+  },
+  {
     v: '0.49',
     date: 'Nov 3',
     items: [

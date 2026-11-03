@@ -361,9 +361,12 @@ function dress(kind: Kind, carrying: Item[]): Garment[] {
     const n = kind === 'homeless' ? 1 + Math.floor(r() * 4) : 3 + Math.floor(r() * 17);
     put({ kind: 'misc', name: 'Cigarettes', detail: `${any(SMOKES)}`, doses: n });
     // Smokers usually have something to light them with.
-    if (!has('Lighter') && r() < 0.65) put({ kind: 'misc', name: r() < 0.25 ? 'Matches' : 'Lighter' });
+    if (!has('Lighter') && r() < 0.65) {
+      if (r() < 0.25) put({ kind: 'misc', name: 'Matches', doses: 3 + Math.floor(r() * 18) });
+      else put({ kind: 'misc', name: 'Lighter', doses: lighterFuel(r) });
+    }
   }
-  if (has('Lighter')) put({ kind: 'misc', name: 'Lighter' });
+  if (has('Lighter')) put({ kind: 'misc', name: 'Lighter', doses: lighterFuel(r) });
   // What's in it, nobody says. You'd have to test it, or taste it.
   if (has('Small baggie')) put({ kind: 'misc', name: 'Small baggie', detail: 'Some kind of white powder', secret: 'cocaine', doses: 2 + Math.floor(r() * 4) });
   if (has('Backpack')) {
@@ -386,4 +389,9 @@ export function pick<T>(table: [T, number][]): T {
   let r = Math.random() * table.reduce((n, [, c]) => n + c, 0);
   for (const [v, c] of table) if ((r -= c) < 0) return v;
   return table[table.length - 1][0];
+}
+
+/** Fuel left in someone's lighter, in percent: most are part used, some nearly dry. */
+function lighterFuel(r: () => number) {
+  return Math.max(4, Math.round(100 * (r() < 0.2 ? r() * 0.2 : 0.2 + r() * 0.8)));
 }

@@ -16,7 +16,7 @@ import { maybeThief, newWorld, robBody, settle, type World } from './legacy';
 import { HEAT_NAMES, applyTo, comeBack, fade, heatLevel, historyText, injuriesText, meet, newInfamy, recognises, remember, repName, type Infamy, type Known } from './people';
 import { anonymity, conspicuous, describe, hasHood, lookClothes, wearing } from './look';
 import { marksText } from './encounter';
-import { MEDS, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type MedId } from './inventory';
+import { MEDS, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
 
 /**
  * What's left of your humanity. Killing someone takes a lot of it; stamping
@@ -795,7 +795,7 @@ export class Game {
       }
       line = `You buy the ${s.name.toLowerCase()} and put it on${r.old ? `, and leave your old ${r.old.toLowerCase()} in the bin out front` : ''}.`;
     } else {
-      if (!stow(inv, { kind: 'misc', name: s.name })) {
+      if (!stow(inv, { kind: 'misc', name: s.name, ...(s.id === 'lighter' ? { doses: 100 } : {}) })) {
         this.note([`Nowhere to put it. ${noRoomWhy(inv, 'small')}`]);
         return;
       }
@@ -851,6 +851,28 @@ export class Game {
   }
 
   /**
+   * Uses the flame: a lighter burns fuel (a quick light a little, keeping it
+   * lit for a fire a lot), a matchbook loses matches (more in the rain).
+   * Returns a line if it's run out (and it's thrown away).
+   */
+  private useFlame(fire: InvItem, use: 'light' | 'burn' | 'fire'): string | null {
+    const inv = this.inventory;
+    const wet = RAIN_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors;
+    const matches = /matches/i.test(fire.name);
+    const left = flameLeft(fire);
+    if (matches) {
+      const n = { light: 1, burn: 2, fire: 3 }[use] + (wet ? 1 : 0);
+      fire.doses = Math.max(0, left - n);
+    } else {
+      const pct = { light: 2, burn: 5, fire: 10 }[use] * (wet ? 1.5 : 1) * (0.7 + Math.random() * 0.6);
+      fire.doses = Math.max(0, Math.round(left - pct));
+    }
+    if (fire.doses > 0) return null;
+    inv.items.splice(inv.items.indexOf(fire), 1);
+    return matches ? 'That was the last match. You drop the empty book.' : "The lighter sputters and dies. It's out of fuel. You toss it.";
+  }
+
+  /**
    * A cigarette. It steadies your hands for a minute and does nothing good
    * for you. With a punctured lung, it comes back up red.
    */
@@ -876,10 +898,8 @@ export class Game {
       inv.items.splice(inv.items.indexOf(it), 1);
       lines.push('That was your last one. You crush the empty pack.');
     }
-    if (/matches/i.test(fire.name) && Math.random() < 0.15) {
-      inv.items.splice(inv.items.indexOf(fire), 1);
-      lines.push("That was the last match.");
-    }
+    const out = this.useFlame(fire, 'light');
+    if (out) lines.push(out);
     this.refresh();
     this.note(lines);
     buzz(6);
@@ -1066,10 +1086,8 @@ export class Game {
           : `You hold the ${it.name.toLowerCase()} in the flame until the chip pops and the numbers melt into a black, stinking lump. You flick it into the gutter.`,
       );
     }
-    if (/matches/i.test(fire.name) && Math.random() < 0.25) {
-      inv.items.splice(inv.items.indexOf(fire), 1);
-      lines.push('That was the last match.');
-    }
+    const out = this.useFlame(fire, 'burn');
+    if (out) lines.push(out);
     this.refresh();
     this.note(lines);
     buzz(8);
@@ -1115,12 +1133,9 @@ export class Game {
       if (h.cold) lines.push("You're warm again, right through.");
       h.cold = 0;
     }
-    // Cheap lighters don't last; a book of matches lasts less.
-    const matches = /matches/i.test(lighter.name);
-    if (Math.random() < (matches ? 0.3 : 0.1)) {
-      inv.items.splice(inv.items.indexOf(lighter), 1);
-      lines.push(matches ? 'That was the last match.' : "The lighter sputters and dies. It's empty. You toss it.");
-    }
+    // Keeping a flame going long enough to catch takes a lot of fuel.
+    const out = this.useFlame(lighter, 'fire');
+    if (out) lines.push(out);
     this.refresh();
     this.note(lines);
     buzz(10);
@@ -1308,7 +1323,11 @@ export class Game {
                     ? `${x.doses} bump${x.doses === 1 ? '' : 's'} left`
                     : /^cigarettes$/i.test(x.name)
                       ? `${x.detail ? `${x.detail}, ` : ''}${x.doses ?? 0} left`
-                      : x.detail;
+                      : /^lighter$/i.test(x.name)
+                        ? `<span class="fuel" title="Fuel left"><i style="width:${flameLeft(x)}%"></i></span>Fuel ${flameLeft(x)}%${flameLeft(x) <= 15 ? ', nearly dry' : ''}`
+                        : /^matches$/i.test(x.name)
+                          ? `${flameLeft(x)} match${flameLeft(x) === 1 ? '' : 'es'} left`
+                          : x.detail;
                 const act = (attr: string, label: string, no?: string | null) => `<button type="button" data-${attr}="${i}" ${no ? `disabled title="${no}"` : ''}>${label}</button>`;
                 let acts = m && m.id !== 'testkit' ? act('use', 'Use', why) : '';
                 if (/^(lighter|matches)$/i.test(x.name)) acts += act('fire', 'Fire', this.fireBlocked());
@@ -1740,4 +1759,13 @@ function buzz(ms: number | number[]) {
   } catch {
     /* not allowed */
   }
+}
+
+/**
+ * What's left in a lighter (fuel, percent) or a matchbook (matches). Ones
+ * from before fuel was counted get a fair guess, fixed once used.
+ */
+function flameLeft(x: InvItem): number {
+  if (x.doses == null) x.doses = /matches/i.test(x.name) ? 10 : 60;
+  return x.doses;
 }

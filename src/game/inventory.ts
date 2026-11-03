@@ -225,7 +225,14 @@ export const cashOf = (inv: Inventory) => cents(inv.purse) / 100;
 export const purseKg = (inv: Inventory) => kgOf(inv.purse);
 
 /** How a piece of loot reads on a button or in a list. */
-export const lootLabel = (l: { kind: string; name: string; cash?: number }) => (l.kind === 'cash' ? `${l.name}, ${dollars(l.cash ?? 0)}` : l.name);
+export const lootLabel = (l: { kind: string; name: string; cash?: number; doses?: number }) =>
+  l.kind === 'cash'
+    ? `${l.name}, ${dollars(l.cash ?? 0)}`
+    : l.doses != null && /^lighter$/i.test(l.name)
+      ? `${l.name} (${l.doses}% fuel)`
+      : l.doses != null && /^matches$/i.test(l.name)
+        ? `${l.name} (${l.doses} left)`
+        : l.name;
 
 // ---------- Medicine (sold at the pharmacy) ----------
 

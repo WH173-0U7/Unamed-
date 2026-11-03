@@ -2752,3 +2752,20 @@ body[data-buttons='lines'] .spot-bar {
   pointer-events: auto;
   cursor: pointer;
 }
+
+/* Fuel left in a lighter: a small gauge before the number. */
+.pocket-list .fuel {
+  display: inline-block;
+  width: 34px;
+  height: 6px;
+  margin-right: 6px;
+  vertical-align: middle;
+  border: 1px solid var(--ink-faint);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.pocket-list .fuel i {
+  display: block;
+  height: 100%;
+  background: #d9a66a;
+}

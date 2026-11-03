@@ -65,6 +65,8 @@ export interface Item {
   spray?: boolean;
   /** A syringe: what's in it. */
   drug?: Drug;
+  /** A bottle: swigs of whatever's left in it. */
+  swigs?: number;
 }
 
 /**
@@ -175,6 +177,8 @@ export interface Loot {
   pinOk?: boolean;
   /** A card already used at the cash machine (it's been stopped). */
   drained?: boolean;
+  /** Something to drink (uses in `doses`). */
+  drink?: 'beer' | 'liquor';
   /** Something to hurt people with (see Item): extra damage, a blade, pepper spray. */
   weapon?: number;
   cuts?: boolean;
@@ -321,8 +325,9 @@ export function makePerson(): Person {
     const item = Object.values(ITEMS).flat().find(([i]) => i.name === name)?.[0];
     if (item) carrying.push({ ...item });
   }
-  // A junkie's syringe has something in it (or it's spent).
+  // A junkie's syringe has something in it (or it's spent); a drunk's bottle, the last of the whiskey.
   for (const it of carrying) if (it.name === 'Syringe') it.drug = pick(DRUG_CHANCES);
+  for (const it of carrying) if (it.name === 'Bottle') it.swigs = Math.floor(Math.random() * 5);
   return {
     kind,
     personality,
@@ -444,8 +449,11 @@ function dress(kind: Kind, carrying: Item[]): Garment[] {
     else put({ kind: 'misc', name: 'House keys', detail: 'A ring of keys' });
   }
   if (has('Cigarettes')) {
-    const n = kind === 'homeless' ? 1 + Math.floor(r() * 4) : 3 + Math.floor(r() * 17);
-    put({ kind: 'misc', name: 'Cigarettes', detail: `${any(SMOKES)}`, doses: n });
+    // A pack (with however many left in it), or a few loose ones in a pocket.
+    if (r() < (kind === 'homeless' ? 0.35 : kind === 'junkie' ? 0.55 : 0.8)) {
+      const n = kind === 'homeless' ? 1 + Math.floor(r() * 4) : 3 + Math.floor(r() * 17);
+      put({ kind: 'misc', name: 'Cigarettes', detail: `${any(SMOKES)}`, doses: n });
+    } else put({ kind: 'misc', name: 'Loose cigarettes', doses: 1 + Math.floor(r() * 3) });
     // Smokers usually have something to light them with.
     if (!has('Lighter') && r() < 0.65) {
       if (r() < 0.25) put({ kind: 'misc', name: 'Matches', doses: 3 + Math.floor(r() * 18) });

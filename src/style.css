@@ -2232,10 +2232,25 @@ body.in-game #menu {
 body.smoking {
   --line: rgba(236, 235, 230, 0.36);
 }
-/* (A light layer over the picture, cheaper than filtering the whole game.) */
-body.smoking #smoke {
-  background: rgba(255, 240, 225, 0.06);
+/* (A light layer over the picture, cheaper than filtering the whole game.)
+   The nicotine comes on slowly: the light and the sharper edges ease in. */
+#smoke {
+  background-color: transparent;
+  transition:
+    background-color 20s ease,
+    opacity 0.6s ease;
   mix-blend-mode: screen;
+}
+body.smoking #smoke {
+  background-color: rgba(255, 240, 225, 0.06);
+}
+#game .enc-card,
+#game .enc-status,
+#game .enc-log,
+#game .edge-tab,
+#shop,
+.sheet-card {
+  transition: box-shadow 20s ease;
 }
 body.smoking #game .enc-card,
 body.smoking #game .enc-status,
@@ -3046,7 +3061,6 @@ body[data-buttons='lines'] .spot-bar {
 
 /* ================= What you're on (see fx/drugs.ts) ================= */
 #drug {
-  --k: 0;
   position: fixed;
   inset: 0;
   z-index: 24;
@@ -3055,7 +3069,7 @@ body[data-buttons='lines'] .spot-bar {
   transition: opacity 6s ease;
 }
 body[data-drug] #drug {
-  opacity: var(--k);
+  opacity: var(--k, 0);
 }
 #drug i {
   position: absolute;
@@ -3347,6 +3361,66 @@ body[data-drug='tranq'] #game {
   }
 }
 
+/* Drunk: warm, hazy, reeling. */
+body[data-drug='drunk'] #drug .d-tint {
+  opacity: 1;
+  background: rgba(255, 190, 90, 0.12);
+  mix-blend-mode: overlay;
+}
+body[data-drug='drunk'] #drug .d-glow {
+  opacity: 1;
+  background: radial-gradient(ellipse 58% 46% at 50% 50%, rgba(255, 210, 140, 0.18), transparent 70%), radial-gradient(ellipse 80% 75% at 50% 50%, transparent 60%, rgba(20, 10, 0, 0.55) 100%);
+  mix-blend-mode: screen;
+  animation: d-reel-glow 5s ease-in-out infinite;
+}
+body[data-drug='drunk'] #drug .d-blot {
+  opacity: 1;
+  inset: -10%;
+  background: radial-gradient(circle at 40% 45%, rgba(255, 200, 120, 0.1), transparent 30%), radial-gradient(circle at 62% 55%, rgba(255, 200, 120, 0.08), transparent 30%);
+  animation: d-double 4.2s ease-in-out infinite;
+}
+body[data-drug='drunk'] #game {
+  animation: d-reel 6s ease-in-out infinite;
+}
+@keyframes d-reel-glow {
+  50% {
+    opacity: 0.6;
+  }
+}
+@keyframes d-double {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(3%);
+  }
+}
+/* The room sways, and now and then lurches. */
+@keyframes d-reel {
+  0%,
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+  }
+  25% {
+    translate: calc(var(--k, 1) * -9px) calc(var(--k, 1) * 3px);
+    rotate: calc(var(--k, 1) * -1.1deg);
+  }
+  48% {
+    translate: calc(var(--k, 1) * 4px) 0;
+    rotate: calc(var(--k, 1) * 0.5deg);
+  }
+  52% {
+    translate: calc(var(--k, 1) * 11px) calc(var(--k, 1) * -2px);
+    rotate: calc(var(--k, 1) * 1.4deg);
+  }
+  78% {
+    translate: calc(var(--k, 1) * 3px) calc(var(--k, 1) * 2px);
+    rotate: calc(var(--k, 1) * 0.3deg);
+  }
+}
+
 /* No shaking or swaying for people who'd rather not. */
 @media (prefers-reduced-motion: reduce) {
   body[data-drug] #game {
@@ -3359,4 +3433,54 @@ body[data-drug='tranq'] #game {
 /* The menu (paused) is clear of it. */
 body.paused #drug {
   opacity: 0 !important;
+}
+
+/* ================= Shops and sheets stay clear ================= */
+/* What you're on (drugs, smoke, the stress tunnel) fades back while you're
+   in a shop or have Pockets / stats / Go open: the conditions at the top
+   still say what's going on. Nothing shakes or sways under a menu. */
+#drug,
+#tunnel,
+#smoke {
+  transition: opacity 0.6s ease;
+}
+body.in-menu #drug,
+body.in-menu #tunnel,
+body.in-menu #smoke {
+  opacity: 0 !important;
+}
+body.in-menu #game {
+  animation: none !important;
+  translate: none;
+  rotate: none;
+}
+/* The shop card keeps its size: room for what just happened is always kept
+   at the bottom, so it doesn't jump each time a message comes and goes. */
+#game.in-shop #shop {
+  bottom: calc(var(--pad-bot) + 140px);
+  transition: none;
+}
+#game.in-shop #note {
+  min-height: 0;
+}
+/* Buttons in shop lists: steady, no jump on press. */
+.shop-list li {
+  min-height: 52px;
+}
+.shop-list button {
+  flex: none;
+  white-space: nowrap;
+}
+.shop-list button:active {
+  opacity: 0.6;
+}
+
+/* The edges of things sharpen slowly too (smoking, coke, meth change --line). */
+@property --line {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(236, 235, 230, 0.16);
+}
+body {
+  transition: --line 20s ease;
 }

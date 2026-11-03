@@ -299,6 +299,23 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   green murk, a slow sway, dark blotches drifting through, and you're groggy
   for an hour after you wake). It fades as a high wears off, and stops
   shaking and swaying if your phone is set to reduce motion.
+- **Alcohol.** Beer and pints of vodka at the gas station, and whatever's left
+  in a drunk's bottle when you take it off them. Each drink eases stress and
+  takes the edge off the cold; you get Tipsy, Drunk, Wasted, then Blackout
+  (one more and you pass out for hours). In fights you swing heavier but miss
+  more and get hit more. It wears off on the real clock (20 a real hour), and
+  it has its own look: a warm golden haze, the room swaying and lurching more
+  the more you've had.
+- **Cigarettes come in packs, or loose.** People carry a pack or a few loose
+  ones. Loose ones can be put in a pack with room (up to 20); an empty pack is
+  kept so you can fill it.
+- **Everything comes on slowly.** Nicotine's light and sharper edges ease in
+  over about twenty seconds; each drug's look comes on at its own pace
+  (fentanyl fastest, tranq slowest), a new one only once the last has faded,
+  and drink builds with each one.
+- **Shops and sheets stay clear.** While you're in a shop, or Pockets, the
+  stats or Go is open, what you're on (and the stress tunnel and smoke) fades
+  back and nothing shakes; buying something keeps your place in the list.
 - **Intimidation** is a fifth stat, trained by all of the above. On small
   screens the stats along the top use short names.
 - **The cash machine** at the bank works any hour: a stolen card with the PIN

@@ -114,6 +114,8 @@ export interface Body {
   smoking?: boolean;
   /** Yours: on something from a syringe (see `dose`), for this fight. */
   high?: 'heroin' | 'fentanyl' | 'meth' | 'tranq';
+  /** Yours: how drunk (0..100). */
+  drunk?: number;
   /** Theirs: how scared of you they are, 0..100 (see `scare`). */
   fear?: number;
   /** Theirs: they've given up. They won't fight; they'll hand it over. */
@@ -402,6 +404,7 @@ export function conditions(f: Body): string[] {
   if (f.blinded > 0) c.push('Blinded');
   if (f.stamina <= 0) c.push('Exhausted');
   if (f.high) c.push(`High: ${f.high}`);
+  if (f.drunk && f.drunk >= 10) c.push(f.drunk >= 80 ? 'Blackout drunk' : f.drunk >= 55 ? 'Wasted' : f.drunk >= 30 ? 'Drunk' : 'Tipsy');
   if (f.yielded) c.push('Given up');
   else if (f.fear != null && !f.out && !f.dead && fearLevel(f.fear)) c.push(FEAR_NAMES[fearLevel(f.fear)]);
   const sl = stressLevel(f.stress ?? 0);
@@ -970,6 +973,9 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   if (D.high === 'heroin' || D.high === 'fentanyl') hit += 0.1;
   if (A.high === 'meth') hit -= 0.04;
   if (A.high === 'tranq') hit -= 0.08;
+  // Drunk: wild swings, slow feet.
+  if (A.drunk) hit -= A.drunk / 400;
+  if (D.drunk) hit += D.drunk / 500;
   if (D.high === 'tranq') hit += 0.06;
   if (tired) hit -= 0.15;
   if (A.down) hit -= kind === 'kick' ? 0.1 : 0.2;
@@ -1050,6 +1056,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
       : b.power + roll(-3, 3) + (kind === 'kick' ? 3 : stomp ? 4 : 0) + (weapon?.weapon ?? 0);
   if (tech) dmg *= tech.dmg;
   if (A.high === 'meth') dmg *= 1.12;
+  if (A.drunk) dmg *= 1 + A.drunk / 1000;
   if (tired) dmg *= 0.75;
   if (A.stamina <= 0) dmg *= 0.7;
   if (A.down) dmg *= 0.6;
@@ -2079,7 +2086,7 @@ function takeCarried(ci: number, inv: Inventory, quiet = false): boolean {
   const it = enc.person.carrying[ci];
   if (!it || !(it.weapon || it.spray)) return false;
   const empty = !it.drug || it.drug === 'empty';
-  const r = take(inv, { kind: 'weapon', name: it.name, weapon: it.weapon, cuts: it.cuts, spray: it.spray, doses: it.spray ? (it as { doses?: number }).doses ?? 3 : undefined, where: 'in their hand', ...(it.name === 'Syringe' ? { secret: it.drug ?? 'empty', known: empty, detail: empty ? 'Empty. Used.' : 'Something in it' } : {}) });
+  const r = take(inv, { kind: 'weapon', name: it.name, weapon: it.weapon, cuts: it.cuts, spray: it.spray, doses: it.spray ? (it as { doses?: number }).doses ?? 3 : undefined, where: 'in their hand', ...(it.name === 'Syringe' ? { secret: it.drug ?? 'empty', known: empty, detail: empty ? 'Empty. Used.' : 'Something in it' } : {}), ...(it.name === 'Bottle' ? { drink: 'liquor' as const, doses: it.swigs ?? 0 } : {}) });
   if (!quiet) say('you', r.text);
   if (!r.ok) return false;
   enc.person.carrying.splice(ci, 1);

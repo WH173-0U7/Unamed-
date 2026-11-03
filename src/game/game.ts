@@ -5,7 +5,7 @@ import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf } from 
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
 import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
-import { HIGH_HOURS, LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
+import { HIGH_HOURS, LURK_HOURS, drunkLevel, soberUp, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
 import { ALL_TECHNIQUES, PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
 import { uiGlitch } from '../fx/uiGlitch';
@@ -712,6 +712,8 @@ export class Game {
     else if (b.dataset.test) this.identify(Number(b.dataset.test), true);
     else if (b.dataset.bump) this.bump(Number(b.dataset.bump));
     else if (b.dataset.inject) this.inject(Number(b.dataset.inject));
+    else if (b.dataset.pack) this.packLoose(Number(b.dataset.pack));
+    else if (b.dataset.drink) this.drink(Number(b.dataset.drink));
   }
 
   /** Walk somewhere else. */
@@ -856,11 +858,11 @@ export class Game {
       line = `You buy the ${lc(s.name)} and put it on${r.old ? `, and leave your old ${r.old.toLowerCase()} in the bin out front` : ''}.`;
     } else {
       const brand = s.id === 'cigs' ? ['Red Crest', 'Mayfair Lights', 'Dakota Menthols', 'Ridgeway Reds', 'Union Blues', 'Harbor 100s'][Math.floor(Math.random() * 6)] : undefined;
-      if (!stow(inv, { kind: 'misc', name: s.name, ...(brand ? { detail: brand } : {}), ...(s.doses ? { doses: s.doses } : s.id === 'lighter' ? { doses: 100 } : {}) })) {
+      if (!stow(inv, { kind: 'misc', name: s.name, ...(brand ? { detail: brand } : {}), ...(s.drinkType ? { drink: s.drinkType } : {}), ...(s.doses ? { doses: s.doses } : s.id === 'lighter' ? { doses: 100 } : {}) })) {
         this.note([`Nowhere to put it. ${noRoomWhy(inv, 'small')}`]);
         return;
       }
-      line = s.id === 'cigs' ? `You buy a pack of ${brand}.` : s.id === 'matches' ? 'You buy a book of matches.' : `You buy the ${lc(s.name)}.`;
+      line = s.id === 'beer' ? 'You buy a can of beer.' : s.id === 'vodka' ? 'You buy a pint of vodka in a paper bag.' : s.id === 'cigs' ? `You buy a pack of ${brand}.` : s.id === 'matches' ? 'You buy a book of matches.' : `You buy the ${lc(s.name)}.`;
     }
     const paid = this.payLine(s.price * 100);
     this.refresh();
@@ -973,7 +975,7 @@ export class Game {
     const inv = this.inventory;
     const it = inv.items[i];
     const fire = this.flame();
-    if (!it || !fire || this.smokeBlocked()) return;
+    if (!it || !fire || this.smokeBlocked() || (it.doses ?? 1) <= 0) return;
     it.doses = (it.doses ?? 1) - 1;
     const h = this.health;
     // A cigarette takes about six minutes to smoke, for real.
@@ -988,8 +990,14 @@ export class Game {
       this.fx.impact(true, 0, false, 'cough');
     } else if (h.broken.includes('ribs')) lines.push('Every drag pulls at your broken ribs.');
     if (it.doses <= 0) {
-      inv.items.splice(inv.items.indexOf(it), 1);
-      lines.push('That was your last one. You crush the empty pack.');
+      if (/^loose/i.test(it.name)) {
+        inv.items.splice(inv.items.indexOf(it), 1);
+        lines.push('That was your last loose one.');
+      } else {
+        // Keep the empty pack: loose ones can go in it.
+        it.doses = 0;
+        lines.push("That was the last one in the pack. You keep the empty pack.");
+      }
     }
     const out = this.useFlame(fire, 'light');
     if (out) lines.push(out);
@@ -1007,7 +1015,70 @@ export class Game {
     // Wearing off over its last ten minutes.
     if (h.high && left > 0) return { drug: h.high, k: Math.min(1, 0.25 + left / 800_000) };
     if (h.wired) return { drug: 'cocaine', k: 1 };
+    // Drunk: the more you've had, the more it shows.
+    if (e && e.stage === 'combat' && (e.you.drunk ?? 0) >= 10) return { drug: 'drunk', k: Math.min(1, (e.you.drunk ?? 0) / 75) };
+    soberUp(h);
+    if ((h.drunk ?? 0) >= 10) return { drug: 'drunk', k: Math.min(1, (h.drunk ?? 0) / 75) };
     return { drug: null, k: 0 };
+  }
+
+  /**
+   * A drink. Beer is a can's worth; liquor a swig. It eases stress and takes
+   * the edge off the cold, and makes you worse in a fight. Too much and you
+   * black out where you are.
+   */
+  private drink(i: number) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    const h = this.health;
+    if (!it?.drink || (it.doses ?? 0) <= 0 || !this.canOpenSheet) return;
+    soberUp(h);
+    const was = drunkLevel(h.drunk ?? 0);
+    const beer = it.drink === 'beer';
+    it.doses = (it.doses ?? 1) - 1;
+    h.drunk = Math.min(100, (h.drunk ?? 0) + (beer ? 12 : 10));
+    h.drunkAt = now();
+    h.stress = Math.max(0, (h.stress ?? 0) - 8);
+    const lines = [beer ? 'You crack the can and drink it down. Cold, and a little sour.' : 'You take a long pull from the bottle. It burns all the way down.'];
+    if (h.cold) {
+      h.cold--;
+      lines.push(h.cold ? "It feels warmer, for a while. (You're not, really.)" : 'The warmth spreads out from your stomach. You stop shivering.');
+    }
+    if ((it.doses ?? 0) <= 0) {
+      if (beer || /vodka/i.test(it.name)) {
+        inv.items.splice(inv.items.indexOf(it), 1);
+        lines.push(beer ? 'You crush the can and drop it.' : 'That was the last of it. You leave the bottle in a doorway.');
+      } else lines.push("That's the last of it. The bottle's empty.");
+    }
+    const now_ = drunkLevel(h.drunk);
+    if (h.drunk >= 90) {
+      lines.push('The street tips over. You sit down hard, and then you are somewhere else entirely.');
+      lines.push(...passHours(h, 3));
+      if (h.dead) return this.die(lines, 'You never woke up.');
+      h.drunk = 60;
+      h.drunkAt = now();
+      lines.push('You come round in a doorway, hours later, with your mouth tasting of sick.');
+    } else if (now_ > was) lines.push(['', "You're tipsy. Everything's a bit funnier.", "You're drunk. The street sways when you turn your head.", "You're wasted. Your feet aren't where you left them.", "You're blackout drunk. One more and you're gone."][now_]);
+    this.closeSheet();
+    this.refresh();
+    this.note(lines);
+    buzz(6);
+  }
+
+  /** Put loose cigarettes into a pack (the fullest one with room: up to 20). */
+  private packLoose(i: number) {
+    const inv = this.inventory;
+    const loose = inv.items[i];
+    if (!loose || !/^loose cigarettes$/i.test(loose.name)) return;
+    const pack = inv.items.filter((y) => /^cigarettes$/i.test(y.name) && (y.doses ?? 0) < 20).sort((a, b) => (b.doses ?? 0) - (a.doses ?? 0))[0];
+    if (!pack) return;
+    const n = Math.min(loose.doses ?? 1, 20 - (pack.doses ?? 0));
+    pack.doses = (pack.doses ?? 0) + n;
+    loose.doses = (loose.doses ?? 1) - n;
+    if (loose.doses <= 0) inv.items.splice(inv.items.indexOf(loose), 1);
+    this.refresh();
+    this.note([`You slide ${n === 1 ? 'the cigarette' : `${n} cigarettes`} into the pack. ${pack.doses} in it now.`]);
+    buzz(5);
   }
 
   /** Smoking now (a cigarette that hasn't burned down yet). */
@@ -1474,10 +1545,24 @@ export class Game {
         : li('Cash machine', cards.some(({ x }) => x.drained) && !cards.some(({ x }) => !x.drained && !x.pin) ? "The cards you had PINs for have been stopped." : cards.length ? "You've got cards, but no PIN for them. Someone would have to tell you." : 'Any hour. You need a card, and its PIN.', btn('atm', -1, 'Use', 'No card with a PIN'));
       body += `</ul>`;
     }
-    this.shopEl.innerHTML =
+    const html =
       `<div class="shop-head"><h2>${info.name}</h2><p>${info.blurb}${info.hours ? ` <em>${hoursText(info.hours)}.</em>` : ''}</p></div>` +
       `<p class="pocket-purse">${this.purseHtml()}</p>` +
       `<div class="shop-body">${body}</div>`;
+    // Only when something changed, and keep your place in the list (buying
+    // something used to jump you back to the top).
+    if (html !== this.shopHtml) {
+      this.shopHtml = html;
+      const scroll = this.shopEl.scrollTop;
+      this.shopEl.innerHTML = html;
+      this.shopEl.scrollTop = scroll;
+    }
+  }
+  private shopHtml = '';
+
+  /** In a shop, or a sheet (Pockets, stats, Go) is open: the screen stays clear of what you're on. */
+  get inMenu(): boolean {
+    return (this.place !== 'street' && this.tvState.on) || !!this.sheet;
   }
 
   private renderSheet() {
@@ -1550,10 +1635,18 @@ export class Game {
                   ? (why ?? m.desc)
                   : x.secret === 'cocaine' && x.known
                     ? `${x.doses} bump${x.doses === 1 ? '' : 's'} left`
+                    : x.drink
+                      ? x.drink === 'beer'
+                        ? 'A can of beer'
+                        : `${x.kind === 'weapon' ? 'A weapon too · ' : ''}${x.doses ? `${x.doses} swig${x.doses === 1 ? '' : 's'} left` : 'Empty'}`
                     : x.kind === 'weapon' && /syringe/i.test(x.name)
                       ? `${x.detail ?? 'A syringe'} · +${x.weapon ?? 0} damage, cuts`
                     : /^cigarettes$/i.test(x.name)
-                      ? `${x.detail ? `${x.detail}, ` : ''}${x.doses ?? 0} left`
+                      ? x.doses
+                        ? `A pack${x.detail ? ` of ${x.detail}` : ''}, ${x.doses} left`
+                        : `An empty pack${x.detail ? ` of ${x.detail}` : ''}`
+                      : /^loose cigarettes$/i.test(x.name)
+                        ? `${x.doses ?? 1} loose`
                       : /^lighter$/i.test(x.name)
                         ? `<span class="fuel" title="Fuel left"><i style="width:${flameLeft(x)}%"></i></span>Fuel ${flameLeft(x)}%${flameLeft(x) <= 15 ? ', nearly dry' : ''}`
                         : /^matches$/i.test(x.name)
@@ -1568,7 +1661,11 @@ export class Game {
                 const act = (attr: string, label: string, no?: string | null) => `<button type="button" data-${attr}="${i}" ${no ? `disabled title="${no}"` : ''}>${label}</button>`;
                 let acts = m && m.id !== 'testkit' ? act('use', 'Use', why) : '';
                 if (/^(lighter|matches)$/i.test(x.name)) acts += act('fire', 'Fire', this.fireBlocked());
-                if (/^cigarettes$/i.test(x.name)) acts += act('smoke', this.smoking ? 'Smoking' : 'Smoke', this.smokeBlocked());
+                if (/^(loose )?cigarettes$/i.test(x.name)) acts += act('smoke', this.smoking ? 'Smoking' : 'Smoke', (x.doses ?? 0) <= 0 ? 'Empty' : this.smokeBlocked());
+                if (x.drink) acts += act('drink', 'Drink', (x.doses ?? 0) <= 0 ? 'Empty' : this.canOpenSheet ? null : 'Not now');
+                // Loose ones into a pack with room in it.
+                if (/^loose cigarettes$/i.test(x.name) && inv.items.some((y) => /^cigarettes$/i.test(y.name) && (y.doses ?? 0) < 20))
+                  acts += act('pack', 'Put in pack');
                 if (x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card') acts += act('burn', 'Burn', this.burnBlocked());
                 if (x.secret && x.secret !== 'cocaine' && x.secret !== 'empty') {
                   if (!x.known && inv.items.some((y) => y.med === 'testkit')) acts += act('test', 'Test');

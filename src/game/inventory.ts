@@ -30,6 +30,8 @@ export interface InvItem {
   pin?: string;
   pinOk?: boolean;
   drained?: boolean;
+  /** Something to drink (beer, liquor), swigs in `doses`. */
+  drink?: 'beer' | 'liquor';
   /** A weapon: extra damage, whether it cuts, pepper spray (uses in `doses`). */
   weapon?: number;
   cuts?: boolean;
@@ -138,6 +140,8 @@ export function measure(x: { kind: string; name: string; med?: MedId }): { size:
     if (/spray/.test(n)) return { size: 'small', kg: 0.06 };
     return { size: 'small', kg: 0.05 }; // box cutter, syringe
   }
+  if (/^beer$/i.test(n)) return { size: 'medium', kg: 0.37 };
+  if (/vodka/i.test(n)) return { size: 'medium', kg: 0.55 };
   if (x.kind === 'phone') return { size: 'small', kg: 0.2 };
   if (x.kind === 'car keys') return { size: 'small', kg: 0.08 };
   if (x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card') return { size: 'small', kg: 0.005 };
@@ -225,7 +229,15 @@ export function take(inv: Inventory, l: Loot): { ok: boolean; text: string } {
     addTo(inv.purse, p);
     return { ok: true, text: `You pocket ${/^your /i.test(l.name) ? 'your cash' : `the ${l.name.toLowerCase()}`}: ${money(cents(p))} (${purseText(p)}).${once}` };
   }
-  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained, weapon: l.weapon, cuts: l.cuts, spray: l.spray });
+  // Loose cigarettes go in with the loose ones you already have.
+  if (/^loose cigarettes$/i.test(l.name)) {
+    const have = inv.items.find((x) => /^loose cigarettes$/i.test(x.name));
+    if (have) {
+      have.doses = (have.doses ?? 0) + (l.doses ?? 1);
+      return { ok: true, text: `You pocket ${l.doses === 1 ? 'the loose cigarette' : `the ${l.doses} loose cigarettes`} with the others.${once}` };
+    }
+  }
+  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained, weapon: l.weapon, cuts: l.cuts, spray: l.spray, drink: l.drink });
   if (!it) return { ok: false, text: `No room for the ${l.name.toLowerCase()}. ${noRoomWhy(inv, measure(l).size)}` };
   const spot = inv.spots.find((s) => s.id === it.spot)!;
   return { ok: true, text: `You put the ${l.name.toLowerCase()} in your ${spot.on.toLowerCase()} (${spot.name.toLowerCase()}).${once}` };

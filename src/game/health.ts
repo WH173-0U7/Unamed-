@@ -31,6 +31,9 @@ export interface Health {
   /** On something from a syringe, until this time (ms, real clock). */
   high?: 'heroin' | 'fentanyl' | 'meth' | 'tranq';
   highUntil?: number;
+  /** How drunk you are (0..100), as of `drunkAt` (it wears off on the real clock). */
+  drunk?: number;
+  drunkAt?: number;
   /** Stress, 0..100 (see encounter.ts addStress): eases with time and cigarettes. */
   stress?: number;
   /** How used to violence you are, 0..100: at 100 it doesn't stress you. */
@@ -50,6 +53,19 @@ export const MARK_HOURS: Record<HealingMark, number> = { lip: 24, cheek: 36, eye
 const STRESS_EASE = 6;
 
 export const COLD_NAMES = ['', 'Chilled', 'Cold', 'Freezing'];
+export const DRUNK_NAMES = ['', 'Tipsy', 'Drunk', 'Wasted', 'Blackout'];
+export const drunkLevel = (d: number) => (d >= 80 ? 4 : d >= 55 ? 3 : d >= 30 ? 2 : d >= 10 ? 1 : 0);
+/** Sobering up: 20 points an hour, real time. */
+export function soberUp(h: Health, t = Date.now()) {
+  if (!h.drunk) return;
+  const at = Math.min(h.drunkAt ?? t, t);
+  h.drunk = Math.max(0, h.drunk - ((t - at) / 3_600_000) * 20);
+  h.drunkAt = t;
+  if (h.drunk < 0.5) {
+    delete h.drunk;
+    delete h.drunkAt;
+  }
+}
 /** How long a high lasts (real hours). */
 export const HIGH_HOURS = { heroin: 2, fentanyl: 2, meth: 4, tranq: 1 } as const;
 
@@ -90,6 +106,8 @@ export function healthConditions(h: Health): string[] {
   if (h.cold) c.push(COLD_NAMES[h.cold]);
   if (h.wired) c.push('Wired');
   if (h.high && (h.highUntil ?? 0) > Date.now()) c.push(`High: ${h.high}`);
+  soberUp(h);
+  if (h.drunk && drunkLevel(h.drunk)) c.push(DRUNK_NAMES[drunkLevel(h.drunk)]);
   c.push(...marksText(h.marks));
   const sl = stressLevel(h.stress ?? 0);
   if (sl) c.push(STRESS_NAMES[sl]);
@@ -110,6 +128,7 @@ export function bodyFrom(h: Health, stamina: number): Body {
     stress: h.stress ?? 0,
     smoking: (h.smokingUntil ?? 0) > Date.now(),
     high: h.high && (h.highUntil ?? 0) > Date.now() ? h.high : undefined,
+    drunk: (soberUp(h), h.drunk ?? 0),
     marks: JSON.parse(JSON.stringify(h.marks ?? {})) as Marks,
     nerve: h.nerve ?? 0,
     bleeding: h.bleeding,
@@ -367,6 +386,15 @@ export function injuryEffects(h: Health): InjuryInfo[] {
             ? ['Your blows land: −8%', 'Their blows land: +6% (groggy)']
             : ['Your blows land: −12%', 'Their blows land: +10% (you\'re slow to move)'],
       heals: `Wears off in about ${mins < 90 ? `${mins} minutes` : `${Math.round(mins / 60)} hours`}.`,
+    });
+  }
+  soberUp(h);
+  if (h.drunk && drunkLevel(h.drunk)) {
+    const d = h.drunk;
+    out.push({
+      name: `${DRUNK_NAMES[drunkLevel(d)]} (${Math.round(d)})`,
+      effects: [`Your blows land: −${Math.round(d / 4)}%`, `Their blows land: +${Math.round(d / 5)}%`, `Your blows do ${Math.round(d / 10)}% more damage (you swing heavy)`, ...(d >= 80 ? ['Any more and you black out'] : [])],
+      heals: `Sobers you up 20 a real hour: about ${Math.max(1, Math.ceil(d / 20))} hour${Math.ceil(d / 20) === 1 ? '' : 's'} to clear.`,
     });
   }
   if (h.wired) {

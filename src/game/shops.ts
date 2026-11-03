@@ -105,6 +105,8 @@ export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'kno
   if (/notebook|water bottle|lunch/.test(n)) return 3;
   if (/cigarettes/.test(n)) return 0.5 * (x.doses ?? 10);
   if (/lighter/.test(n)) return 2;
+  if (/^beer$/.test(n)) return 3;
+  if (/vodka/.test(n)) return 2 * (x.doses ?? 0);
   if (x.kind === 'weapon') return /knife/.test(n) ? 18 : /box cutter/.test(n) ? 6 : /pepper spray/.test(n) ? 12 : 0;
   return 0;
 }
@@ -143,11 +145,15 @@ export interface Stock {
   doses?: number;
   /** Had there and then (a hot coffee), not carried. */
   drink?: boolean;
+  /** Something to drink later: beer or liquor. */
+  drinkType?: 'beer' | 'liquor';
 }
 
 /** The gas station: what's behind the counter and on the spinner. */
 export const GAS_STOCK: Stock[] = [
   { id: 'coffee', name: 'Hot coffee', price: 2, desc: 'Burnt, and scalding. Warms you through; steadies your nerves a little.', drink: true },
+  { id: 'beer', name: 'Beer', price: 3, desc: 'One cold can. Eases the nerves and the cold.', doses: 1, drinkType: 'beer' },
+  { id: 'vodka', name: 'Pint of vodka', price: 12, desc: 'Six swigs, in a paper bag.', doses: 6, drinkType: 'liquor' },
   { id: 'cigs', name: 'Cigarettes', price: 9, desc: 'A pack of 20. Takes the edge off stress.', doses: 20 },
   { id: 'lighter', name: 'Lighter', price: 3, desc: 'Full of fuel.', doses: 100 },
   { id: 'matches', name: 'Matches', price: 1, desc: 'A book of 20.', doses: 20 },

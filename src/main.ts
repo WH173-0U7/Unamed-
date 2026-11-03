@@ -261,8 +261,10 @@ renderer.setAnimationLoop(() => {
   senses.setStress(game && !game.dead ? game.stressNow : 0);
   senses.setSmoking(!!game && !game.dead && game.smoking);
   senses.update(dt);
+  const menuUp = !!game && !game.dead && game.inMenu;
+  if (document.body.classList.contains('in-menu') !== menuUp) document.body.classList.toggle('in-menu', menuUp);
   const high = game && !game.dead ? game.drugNow : null;
-  drugs.set(high?.drug ?? null, high?.k ?? 0);
+  drugs.update(high?.drug ?? null, high?.k ?? 0, dt);
   glass.update(dt);
 
   frames++;

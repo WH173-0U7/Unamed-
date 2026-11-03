@@ -356,6 +356,9 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   human, your hands shake, you remember their name if you saw their ID, the
   photo of the kid in their wallet, and stress rises hard; cold, you make
   excuses; heartless, nothing; past that, you enjoy it (and it calms you).
+- **Fights take less room.** The status box shows only the two blood bars
+  until you tap it (then stamina, fear and conditions); the log shows the last
+  three lines with a count of earlier ones, and tapping it shows everything.
 - **Intimidation** is a fifth stat, trained by all of the above. On small
   screens the stats along the top use short names.
 - **The cash machine** at the bank works any hour: a stolen card with the PIN

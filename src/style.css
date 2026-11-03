@@ -3846,3 +3846,69 @@ body[data-buttons] .enc-opts button:disabled {
   border-radius: 2px;
   background: rgba(236, 235, 230, 0.28);
 }
+
+/* ================= Folded status and a short log ================= */
+/* In a fight: only the blood bars until you tap the status (a caret says so). */
+#enc:not(.status-open)[data-stage='combat'] .enc-fighter .enc-bar.stamina,
+#enc:not(.status-open)[data-stage='combat'] .enc-fighter .enc-bar.fear,
+#enc:not(.status-open)[data-stage='combat'] .enc-fighter .enc-conds,
+#enc:not(.status-open)[data-stage='over'] .enc-fighter .enc-bar.stamina,
+#enc:not(.status-open)[data-stage='over'] .enc-fighter .enc-bar.fear,
+#enc:not(.status-open)[data-stage='over'] .enc-fighter .enc-conds {
+  display: none;
+}
+#enc[data-stage='combat'] .enc-status,
+#enc[data-stage='over'] .enc-status {
+  position: relative;
+  cursor: pointer;
+}
+#enc[data-stage='combat'] .enc-status::after,
+#enc[data-stage='over'] .enc-status::after {
+  content: '▾';
+  position: absolute;
+  right: 10px;
+  bottom: 4px;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+#enc.status-open .enc-status::after {
+  content: '▴';
+}
+/* The log: the last three lines; tap for the rest. */
+#enc:not(.log-open) .enc-log p.old {
+  display: none;
+}
+.enc-log {
+  cursor: pointer;
+}
+.enc-log .log-more {
+  margin: 0 0 4px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.enc-log .log-more[hidden] {
+  display: none;
+}
+/* Folded, the log only takes the room its lines need; open, it can grow. */
+#enc:not(.log-open) .enc-log {
+  align-self: start;
+  max-height: 100%;
+}
+@media (orientation: portrait) {
+  /* Folded, the log sits under the status and the options keep to the bottom. */
+  #enc:not(.log-open) {
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+  }
+  #enc:not(.log-open) .enc-actions {
+    align-self: end;
+  }
+  #enc:not(.log-open) .enc-log {
+    max-height: 26vh;
+    overflow-y: auto;
+  }
+  #enc.log-open .enc-log {
+    max-height: 55vh;
+  }
+}

@@ -54,6 +54,32 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
 
   // In a fight the card folds to one line; tap it to see what you know.
   q('.enc-card').addEventListener('click', () => root.classList.toggle('facts-open'));
+  // In a fight the status shows only the blood bars; tap it for the rest
+  // (stamina, fear, conditions). The log shows the last few lines; tap it for
+  // everything that's happened.
+  q('.enc-status').addEventListener('click', () => {
+    if (root.dataset.stage === 'combat' || root.dataset.stage === 'over') root.classList.toggle('status-open');
+  });
+  log.addEventListener('click', () => {
+    root.classList.toggle('log-open');
+    markOld();
+    log.scrollTop = log.scrollHeight;
+  });
+  /** Only the latest lines show until the log is opened; the rest are 'earlier'. */
+  const KEEP = 3;
+  const markOld = () => {
+    const ps = log.querySelectorAll<HTMLElement>('p:not(.log-more)');
+    ps.forEach((p, i) => p.classList.toggle('old', i < ps.length - KEEP));
+    let more = log.querySelector<HTMLElement>('.log-more');
+    const hidden = Math.max(0, ps.length - KEEP);
+    if (!more) {
+      more = document.createElement('p');
+      more.className = 'log-more';
+      log.prepend(more);
+    }
+    more.hidden = hidden === 0;
+    more.textContent = root.classList.contains('log-open') ? 'Tap to show less' : `▴ ${hidden} earlier line${hidden === 1 ? '' : 's'}`;
+  };
   q('.enc-opts:not(.enc-extra)').addEventListener('scroll', (ev) => {
     const el = ev.currentTarget as HTMLElement;
     el.classList.toggle('more', el.scrollTop + el.clientHeight < el.scrollHeight - 4);
@@ -146,6 +172,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       if (e !== current || e.log.length < shown) {
         log.replaceChildren();
         shown = 0;
+        root.classList.remove('log-open', 'status-open');
         if (e !== current) {
           tab = null;
           tabsKey = '';
@@ -203,6 +230,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         } else el.textContent = line.text;
         log.append(el);
       }
+      markOld();
       log.scrollTop = log.scrollHeight;
 
       q('.enc-title').textContent =

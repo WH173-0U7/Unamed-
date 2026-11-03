@@ -8,6 +8,7 @@ import { createFilm } from './fx/film';
 import { createRain } from './fx/rain';
 import { createSenses } from './fx/senses';
 import { createDrugs } from './fx/drugs';
+import { setMuted, sound } from './fx/sound';
 import { createGlass } from './fx/glass';
 import { createMenu } from './ui/menu';
 import { Game } from './game/game';
@@ -40,6 +41,25 @@ const rain = createRain($('rainfall') as HTMLCanvasElement, glass);
 const senses = createSenses();
 // What you're on: each drug has its own look.
 const drugs = createDrugs();
+// Every button clicks (a tab ticks); a tab or option you can't press knocks.
+addEventListener(
+  'click',
+  (ev) => {
+    const b = (ev.target as Element | null)?.closest?.('button');
+    if (!b) return;
+    if (b.dataset.tab || b.getAttribute('role') === 'tab' || b.getAttribute('role') === 'radio') sound.tab();
+    else sound.click();
+  },
+  true,
+);
+addEventListener(
+  'pointerdown',
+  (ev) => {
+    const b = (ev.target as Element | null)?.closest?.('button');
+    if (b?.disabled) sound.deny();
+  },
+  true,
+);
 // The screen changing (a tab, a drawer, a menu): the glass flickers.
 addEventListener('ui-glitch', (e) => glass.pulse((e as CustomEvent<number>).detail));
 
@@ -58,6 +78,7 @@ function applySize() {
 addEventListener('resize', applySize);
 
 onSettingsChange((s) => {
+  setMuted(!s.sound);
   pixelRatio = fixedPR ?? pixelRatioFor(s.quality);
   applySize();
   $('fps').style.display = s.showFps || params.has('debug') ? 'block' : 'none';
@@ -223,6 +244,7 @@ if (params.has('debug')) {
   // Handle for automated testing.
   Object.assign(window, {
     __app: {
+      sound,
       menu,
       glass,
       rain,

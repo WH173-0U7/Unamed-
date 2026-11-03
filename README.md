@@ -316,6 +316,14 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
 - **Shops and sheets stay clear.** While you're in a shop, or Pockets, the
   stats or Go is open, what you're on (and the stress tunnel and smoke) fades
   back and nothing shakes; buying something keeps your place in the list.
+- **You, at the bottom.** The stats no longer sit along the top: a You tab at
+  the bottom of the screen (tap it, or pull up from the bottom edge, any time)
+  opens your sheet: blood, cash, which character you are, your condition and
+  every stat. Lurk sits just below the middle of the screen.
+- **Sound.** Buttons click, tabs tick, a button you can't press knocks,
+  drawers breathe, the signal crackles when you lurk, blows thud, a stat going
+  up rings twice, money clinks. All made on the spot; Settings → Sound turns
+  it off.
 - **Intimidation** is a fifth stat, trained by all of the above. On small
   screens the stats along the top use short names.
 - **The cash machine** at the bank works any hour: a stolen card with the PIN

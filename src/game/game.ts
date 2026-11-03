@@ -9,6 +9,7 @@ import { HIGH_HOURS, LURK_HOURS, drunkLevel, soberUp, REST_HOURS, afterFight, bo
 import { ALL_TECHNIQUES, PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
 import { uiGlitch } from '../fx/uiGlitch';
+import { sound } from '../fx/sound';
 import type { DrugLook } from '../fx/drugs';
 import { clockText, dateText, now, partOfDay } from './clock';
 import { RAIN_AMOUNT, WEATHER_NAME, newWeather, updateWeather, weatherLine, type WeatherState } from './weather';
@@ -377,6 +378,7 @@ export class Game {
   lurk() {
     if (!this.canLurk) return;
     this.phase = 'cut';
+    sound.static();
     this.timer = 0.45;
     this.encounter = null;
     this.noteEl.hidden = true;
@@ -436,7 +438,9 @@ export class Game {
     const wasOut = !!e.them.out;
     const tortured = e.tortured ?? 0;
     const mugged = !!e.mugged;
+    const levelsBefore = Object.values(this.stats).reduce((n, x) => n + x.level, 0);
     const impacts = act(e, id, this.stats, this.inventory);
+    if (Object.values(this.stats).reduce((n, x) => n + x.level, 0) > levelsBefore) sound.levelUp();
     // Knocked out of your mouth (or you're out cold): the cigarette's gone.
     if (!wasOver && this.smoking && e.you && (e.you.smoking === false || e.you.out || e.result === 'lost')) {
       delete this.health.smokingUntil;
@@ -521,7 +525,10 @@ export class Game {
         const power = Math.min(1, im.ml / 600) * (im.severe ? 1.3 : 1);
         // Blood only when the blow would throw it (see Spill).
         this.fx.impact(you, im.ml, im.severe, im.spill);
-        if (im.ml > 0) this.hitUi.kick(power, you);
+        if (im.ml > 0) {
+          this.hitUi.kick(power, you);
+          sound.thud(im.severe || power > 0.6);
+        }
         const wet = im.spill === 'splash' || im.spill === 'spray' || (im.spill === 'spatter' && you);
         if (wet && you && (power > 0.35 || Math.random() < 0.4)) this.hitUi.splash(im.severe ? 2 : 1, im.severe);
         if (wet && !you && im.severe && Math.random() < 0.6) this.hitUi.splash(1, false);
@@ -700,6 +707,7 @@ export class Game {
     this.sheetEl.classList.toggle('from-right', kind === 'pockets');
     this.sheetEl.classList.toggle('from-bottom', kind === 'stats');
     this.sheetEl.hidden = false;
+    sound.whoosh();
     uiGlitch(this.sheetEl.firstElementChild, 0.4);
     buzz(6);
   }
@@ -801,6 +809,7 @@ export class Game {
 
   /** Hands over the money for something (cents), and says how it went. */
   private payLine(price: number): string {
+    sound.coin();
     const inv = this.inventory;
     const r = pay(inv.purse, price)!;
     const back = count(r.change) ? ` and get ${money(Object.entries(r.change).reduce((s, [d, n]) => s + Number(d) * n, 0))} back (${purseText(r.change)})` : '';
@@ -837,6 +846,7 @@ export class Game {
     // The pawn shop pays from the till; the fence peels small bills off a roll.
     const got = place === 'pawn' ? fewest(o.cents) : cashLike(o.cents, 'small');
     addTo(inv.purse, got);
+    sound.coin();
     lines.push(`You sell the ${lc(it.name)} for ${money(o.cents)} (${purseText(got)}).`);
     this.refresh();
     this.note(lines);

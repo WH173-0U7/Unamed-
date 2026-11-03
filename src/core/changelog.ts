@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.57',
+    date: 'Nov 3',
+    items: [
+      'Carrying weapons shows. Every pocket and bag now has a hide rating (in Pockets, next to each one): a backpack or a coat’s inside pocket hides well, a jacket some, a hoodie pouch or cargo pocket shows a bulge, trackie pockets show everything. Big blades and bottles are harder to hide than a folder or a shiv.',
+      'Each weapon says how much of it shows (hidden, a slight bulge, the shape of it, plain to see), and Pockets tells you if anyone looking can see what you’re carrying.',
+      'If they can: people notice you sooner while you watch them, they scare easier when you walk up, and a patrol might stop you even with no heat on you.',
+      'A pat-down is your clothes: police only go through your bag if they’ve reason to. But a weapon in your bag takes a turn to dig out in a fight.',
+      'New “Move” button in Pockets: put something in another pocket or bag. New weapons go where they’re best hidden. The pawn shop’s clothes and bags say how well they hide a weapon.',
+    ],
+  },
+  {
     v: '0.56',
     date: 'Nov 3',
     items: [

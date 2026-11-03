@@ -212,6 +212,12 @@ export interface Encounter {
   looks?: string[];
   /** A mask over your face: people get wary of you faster. */
   conspicuous?: boolean;
+  /** How much of what you're carrying shows, 0..1 (see inventory.exposure). */
+  exposed?: number;
+  /** Your weapons that are in a bag (inventory indexes): a turn to get out. */
+  bagged?: number[];
+  /** ...and the ones you've got out this fight. */
+  drawn?: number[];
   /** How they were when this began (blood, broken bones), to tell what's new. */
   start?: { blood: number; broken: Part[] };
   /** It came to blows (a round of a fight was fought). */
@@ -712,7 +718,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
     // How much each move raises their suspicion: more if they're aware, less
     // the sneakier you are.
     const watch = (base: number) => {
-      e.suspicion += base * [0.4, 0.8, 1.4, 2.0][aw] * (1 + e.distance * 0.4) * (0.7 + Math.random() * 0.6) * noticeRate(stats) * (e.conspicuous ? 1.6 : 1);
+      e.suspicion += base * [0.4, 0.8, 1.4, 2.0][aw] * (1 + e.distance * 0.4) * (0.7 + Math.random() * 0.6) * noticeRate(stats) * (e.conspicuous ? 1.6 : 1) * (1 + (e.exposed ?? 0) * 1.3);
     };
     switch (id) {
       case 'follow':
@@ -964,6 +970,13 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           // Something from your pockets: a blade, a bottle, pepper spray.
           const it = inv.items[Number(id.slice(4))];
           if (!it || it.kind !== 'weapon') return impacts;
+          // In your bag: getting it out takes the turn.
+          const wi = Number(id.slice(4));
+          if ((e.bagged ?? []).includes(wi) && !(e.drawn ?? []).includes(wi)) {
+            (e.drawn ??= []).push(wi);
+            say('you', `You dig the ${lc(it.name)} out of your bag.`);
+            break;
+          }
           if (it.spray) spray(Number(id.slice(4)), inv);
           else if (strike('you', 'weapon', undefined, undefined, it) && it.secret && it.secret !== 'cocaine' && it.secret !== 'empty' && Math.random() < 0.5) {
             doseThem(it.secret);

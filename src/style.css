@@ -4291,3 +4291,14 @@ body[data-buttons] #enc .enc-extra button {
 .bank-amt .amt:focus-within {
   border-color: var(--ink);
 }
+
+/* Weapons that show: in Pockets, the ones anyone can see. */
+.pocket-list .shows.seen,
+.pocket-shows.seen {
+  color: #c98a6a;
+}
+.pocket-shows {
+  margin: 6px 0 2px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}

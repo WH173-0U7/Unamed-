@@ -187,7 +187,8 @@ export function stow(inv: Inventory, it: Omit<InvItem, 'spot' | 'size' | 'kg'> &
   const m = measure(it);
   const size = it.size ?? m.size;
   const kg = it.kg ?? m.kg;
-  const spot = findRoom(inv, size, kg);
+  // A weapon goes where it's best hidden; anything else, the snuggest fit.
+  const spot = it.kind === 'weapon' ? hidingSpot(inv, size, kg) : findRoom(inv, size, kg);
   if (!spot) return null;
   const item: InvItem = { ...it, size, kg, spot: spot.id };
   inv.items.push(item);
@@ -369,3 +370,84 @@ MEDS.push({
 });
 
 export const medById = (id: MedId) => MEDS.find((m) => m.id === id)!;
+
+// ---------- Hiding weapons ----------
+/**
+ * How well a pocket or bag hides what's in it, 0 (anyone can see it) to 1
+ * (nobody would know). A bag hides anything; a heavy coat hides a lot; a
+ * hoodie's pouch sags and swings; thin trackie pockets show every outline;
+ * a clip on a jeans pocket shows.
+ */
+export function concealOf(sp: Pick<Spot, 'on' | 'name'>): number {
+  const g = sp.on.toLowerCase();
+  const p = sp.name.toLowerCase();
+  if (/backpack/.test(g)) return p.startsWith('main') ? 1 : 0.92;
+  if (/shoulder bag|tote/.test(g)) return 0.95;
+  if (/fanny/.test(g)) return 0.85;
+  if (/coat|puffer|parka/.test(g)) return p.startsWith('inside') ? 0.97 : 0.85;
+  if (/leather jacket|jacket/.test(g) && !/puffer/.test(g)) return p.startsWith('inside') ? 0.92 : 0.72;
+  if (/windbreaker/.test(g)) return p.startsWith('inside') ? 0.8 : 0.55;
+  if (/hoodie/.test(g)) return 0.45;
+  if (/flannel|shirt/.test(g)) return 0.25;
+  if (/cargo/.test(g)) return /cargo/.test(p) ? 0.6 : 0.5;
+  if (/track|sweat/.test(g)) return 0.25;
+  if (/work pants/.test(g)) return 0.6;
+  if (/jeans|chinos|pants/.test(g)) return p.startsWith('back') ? 0.35 : 0.5;
+  return 0.4;
+}
+
+/** How hard a weapon is to keep out of sight, 0..1 (a long kitchen knife; a shiv). */
+export function bulkOf(x: { kind: string; name: string }): number {
+  if (x.kind !== 'weapon') return 0;
+  const n = x.name.toLowerCase();
+  if (/broken bottle/.test(n)) return 0.95;
+  if (/kitchen|combat/.test(n)) return 0.85;
+  if (/^bottle$/.test(n)) return 0.7;
+  if (/hunting/.test(n)) return 0.6;
+  if (/steak/.test(n)) return 0.45;
+  if (/shiv|box cutter|syringe|razor/.test(n)) return 0.12;
+  if (/spray/.test(n)) return 0.15;
+  return 0.25; // folders, switchblades, butterfly, karambit, push dagger
+}
+
+/** How much of this weapon shows, where it is (0 hidden .. 1 out in the open). */
+export function showing(inv: Inventory, x: InvItem): number {
+  const sp = inv.spots.find((s) => s.id === x.spot);
+  return bulkOf(x) * (1 - (sp ? concealOf(sp) : 0));
+}
+
+/** How obviously you're carrying (0 nothing shows .. 1 bristling): more weapons, more to see. */
+export function exposure(inv: Inventory): number {
+  return 1 - inv.items.reduce((k, x) => k * (1 - showing(inv, x)), 1);
+}
+
+/** A word for how much shows. */
+export const showWord = (v: number) => (v < 0.06 ? 'Hidden' : v < 0.16 ? 'A slight bulge' : v < 0.35 ? 'You can see the shape of it' : 'Plain to see');
+
+/** How well a garment or bag hides a weapon, in a word (its best pocket). */
+export function hidesWord(garment: string): string {
+  const ps = pocketsOf(garment);
+  if (!ps.length) return 'Nowhere to hide one';
+  const best = Math.max(...ps.map(([name]) => concealOf({ on: garment, name })));
+  return best >= 0.9 ? 'Hides a weapon well' : best >= 0.7 ? 'Hides a small one' : best >= 0.45 ? 'Hides a weapon poorly' : 'Shows the outline of anything';
+}
+
+/**
+ * Where a weapon is best hidden, out of the places it fits (a bag's main
+ * compartment, a coat's inside pocket...).
+ */
+export function hidingSpot(inv: Inventory, size: Size, kg: number): Spot | null {
+  const ok = inv.spots.filter((s) => SIZE_RANK[s.fits] >= SIZE_RANK[size] && usedKg(inv, s.id) + kg <= s.maxKg + 1e-9);
+  return ok.sort((a, b) => concealOf(b) - concealOf(a))[0] ?? null;
+}
+
+/** The next place it fits (for moving it about), after where it is now; null if nowhere else. */
+export function nextSpot(inv: Inventory, x: InvItem): Spot | null {
+  const ok = inv.spots.filter((s) => s.id === x.spot || (SIZE_RANK[s.fits] >= SIZE_RANK[x.size] && usedKg(inv, s.id) + x.kg <= s.maxKg + 1e-9));
+  if (ok.length < 2) return null;
+  const i = ok.findIndex((s) => s.id === x.spot);
+  return ok[(i + 1) % ok.length];
+}
+
+/** Is this spot in a bag (it takes a moment to get something out)? */
+export const inBag = (inv: Inventory, spotId: string) => /backpack|shoulder bag|tote|fanny/i.test(inv.spots.find((s) => s.id === spotId)?.on ?? '');

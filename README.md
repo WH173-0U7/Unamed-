@@ -163,6 +163,22 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   you can, otherwise the smallest overpay, and you get change back the way a
   cashier gives it. Coins have weight (a quarter is 5.67 g) and count toward
   what you carry.
+- **Stress** builds up: every round of a fight, every blow that lands on
+  you, every blow you land, and most of all a kill. It's shown with your
+  conditions (*On edge*, *Stressed*, *Panicking*) and it costs you: your
+  blows land less often and you dodge less (up to a quarter at full stress).
+  You see it too: **tunnel vision** closes in from the edges, pulsing with
+  your heartbeat, and when it's bad **your sight goes** now and then, dimming
+  and swimming and coming back. It eases with time (faster resting) and with
+  a cigarette. **Nerve**: every fight you get through, you get a little more
+  used to it, and it stresses you less; fully hardened, violence doesn't
+  stress you at all.
+- **Smoking takes real time:** a cigarette burns for **six minutes** (about
+  what one really takes), and you can't light another till it's out. While
+  it burns your stress eases, everything's a touch brighter, the edges of
+  things stand out, and smoke curls up from the bottom of the screen, with a
+  bigger cloud when you exhale. Not indoors. Walk up to someone and you flick
+  it away.
 - **Cigarettes** (made-up brands, a few to a nearly full pack) are on all
   sorts of people now, usually with a lighter or matches. **Smoke** one with
   a lighter or matches: it steadies your hands and does nothing good for

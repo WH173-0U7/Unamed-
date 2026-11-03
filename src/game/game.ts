@@ -6,7 +6,7 @@ import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounte
 import { RESULT, createEncounterView } from '../ui/encounterView';
 import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, type StatName, type Stats } from './stats';
 import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, isHurt, newHealth, passHours, type Health } from './health';
-import { PASS_OUT, type Impact } from './encounter';
+import { PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
 import { uiGlitch } from '../fx/uiGlitch';
 import { clockText, dateText, now } from './clock';
@@ -33,6 +33,9 @@ const HUMANITY: { at: number; name: string; line: string }[] = [
 ];
 const humanityLevel = (lost: number) => HUMANITY.filter((l) => lost >= l.at).pop() ?? null;
 const KILL_COST = 10;
+/** A cigarette, start to finish (real time), and how much stress it takes away. */
+const SMOKE_MS = 6 * 60_000;
+const SMOKE_EASE = 35;
 const STOMP_HELPLESS_COST = 1;
 
 import { COIN_MACHINE_FEE, PAWN_STOCK, PLACES, offer, placeInfo, type Place } from './shops';
@@ -335,8 +338,11 @@ export class Game {
     if (id === 'pockets') return this.openSheet('pockets');
     if (id === 'go') return this.openSheet('places');
     if (id === 'leave-body') return this.closeEncounter(['You leave the body where it lies, and walk.']);
-    // Approaching someone: bring your body as it is now.
-    if (e.stage === 'seen') e.you = this.yourBody();
+    // Approaching someone: bring your body as it is now (and lose the cigarette).
+    if (e.stage === 'seen') {
+      if (this.smoking && id !== 'leave') delete this.health.smokingUntil;
+      e.you = this.yourBody();
+    }
     const wasOver = e.stage === 'over';
     const wasOut = !!e.them.out;
     const impacts = act(e, id, this.stats, this.inventory);
@@ -348,6 +354,8 @@ export class Game {
     }
     if (!wasOver && e.stage === 'over') {
       if (e.result === 'killed') {
+        // Killing someone: the worst of it, unless you're long past caring.
+        addStress(e.you, 30);
         this.humanity.kills++;
         const l = this.loseHumanity(KILL_COST);
         if (l) worse.push(l);
@@ -733,13 +741,15 @@ export class Game {
     const inv = this.inventory;
     const it = inv.items[i];
     const fire = this.flame();
-    if (!it || !fire) return;
+    if (!it || !fire || this.smokeBlocked()) return;
     it.doses = (it.doses ?? 1) - 1;
     const h = this.health;
+    // A cigarette takes about six minutes to smoke, for real.
+    h.smokingUntil = now() + SMOKE_MS;
     const lines = [
       RAIN_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors
         ? 'You hunch over a cigarette, cupping it from the rain, and get it lit on the third try.'
-        : ['You light a cigarette and pull the smoke deep. Your hands stop shaking.', 'You smoke one down to the filter, watching the street.', 'The first drag burns. The second one helps.'][Math.floor(Math.random() * 3)],
+        : ['You light a cigarette and pull the smoke deep. Your hands stop shaking.', 'You light up and lean back, watching the street.', 'The first drag burns. The second one helps.'][Math.floor(Math.random() * 3)],
     ];
     if (h.lung) {
       lines.push('Your chest seizes. You cough, and it comes up pink and frothy.');
@@ -756,6 +766,40 @@ export class Game {
     this.refresh();
     this.note(lines);
     buzz(6);
+  }
+
+  /** Smoking now (a cigarette that hasn't burned down yet). */
+  get smoking(): boolean {
+    return (this.health.smokingUntil ?? 0) > now();
+  }
+
+  /** Why you can't light a cigarette now, or null. */
+  private smokeBlocked(): string | null {
+    if (!this.flame()) return 'Nothing to light it';
+    if (placeInfo(this.place).indoors) return 'No smoking in here';
+    if (this.smoking) return `Still smoking (${Math.ceil(((this.health.smokingUntil ?? 0) - now()) / 60000)} min left)`;
+    if (!this.canOpenSheet) return 'Not now';
+    return null;
+  }
+
+  /** How stressed you are right now (in a fight, the fight's). */
+  get stressNow(): number {
+    const e = this.encounter;
+    if (!this.tvState.on) return 0;
+    return (e && e.stage !== 'seen' && e.stage !== 'over' ? e.you.stress : this.health.stress) ?? 0;
+  }
+
+  /** While a cigarette burns, stress eases; when it's done, you flick it away. */
+  private tickSmoke(dt: number) {
+    const h = this.health;
+    if (!h.smokingUntil) return;
+    if (this.smoking) {
+      if (h.stress) h.stress = Math.max(0, h.stress - (dt * SMOKE_EASE) / (SMOKE_MS / 1000));
+      return;
+    }
+    delete h.smokingUntil;
+    if (this.running && this.tvState.on) this.note(['The cigarette burns down to the filter. You flick it away.']);
+    this.refresh();
   }
 
   /** Why you can't burn something right now, or null. */
@@ -1003,7 +1047,7 @@ export class Game {
                 const act = (attr: string, label: string, no?: string | null) => `<button type="button" data-${attr}="${i}" ${no ? `disabled title="${no}"` : ''}>${label}</button>`;
                 let acts = m && m.id !== 'testkit' ? act('use', 'Use', why) : '';
                 if (/^(lighter|matches)$/i.test(x.name)) acts += act('fire', 'Fire', this.fireBlocked());
-                if (/^cigarettes$/i.test(x.name)) acts += act('smoke', 'Smoke', this.flame() ? null : 'Nothing to light it');
+                if (/^cigarettes$/i.test(x.name)) acts += act('smoke', this.smoking ? 'Smoking' : 'Smoke', this.smokeBlocked());
                 if (x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card') acts += act('burn', 'Burn', this.burnBlocked());
                 if (x.secret && !x.known) {
                   acts += act('taste', 'Taste');
@@ -1217,6 +1261,7 @@ export class Game {
   }
 
   update(dt: number) {
+    if (this.running) this.tickSmoke(dt);
     if ((this.weatherTimer -= dt) <= 0) {
       this.weatherTimer = 2;
       const was = this.weather.now;

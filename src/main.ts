@@ -6,6 +6,7 @@ import { onSettingsChange } from './core/settings';
 import { deleteSave, formatAgo, formatPlayTime, hasSave, loadSave, newSave } from './core/save';
 import { createFilm } from './fx/film';
 import { createRain } from './fx/rain';
+import { createSenses } from './fx/senses';
 import { createGlass } from './fx/glass';
 import { createMenu } from './ui/menu';
 import { Game } from './game/game';
@@ -34,6 +35,8 @@ const film = createFilm($('menu'));
 const glass = createGlass({ onHint: () => menu.toast('Rub the screen with your finger to wipe the blood off') });
 // Rain: falling over the picture, and running down the glass.
 const rain = createRain($('rainfall') as HTMLCanvasElement, glass);
+// How you see: stress (tunnel vision) and a cigarette (smoke, brighter).
+const senses = createSenses();
 // The screen changing (a tab, a drawer, a menu): the glass flickers.
 addEventListener('ui-glitch', (e) => glass.pulse((e as CustomEvent<number>).detail));
 
@@ -46,6 +49,7 @@ function applySize() {
   film.setSize(pixelRatio);
   glass.setSize(innerWidth, innerHeight, pixelRatio);
   rain.resize(innerWidth, innerHeight, pixelRatio);
+  senses.resize(innerWidth, innerHeight);
   game?.setSize(innerWidth, innerHeight, pixelRatio);
 }
 addEventListener('resize', applySize);
@@ -210,6 +214,7 @@ if (params.has('debug')) {
       menu,
       glass,
       rain,
+      senses,
       get state() {
         return state;
       },
@@ -240,6 +245,9 @@ renderer.setAnimationLoop(() => {
   // It only rains in a game (the weather is the save's).
   rain.setAmount(game?.rainAmount ?? 0);
   rain.update(dt);
+  senses.setStress(game && !game.dead ? game.stressNow : 0);
+  senses.setSmoking(!!game && !game.dead && game.smoking);
+  senses.update(dt);
   glass.update(dt);
 
   frames++;

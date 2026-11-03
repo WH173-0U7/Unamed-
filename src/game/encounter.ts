@@ -100,7 +100,24 @@ export interface Body {
   dead?: boolean;
   /** A broken rib has gone into a lung: every breath is a fight. */
   lung?: boolean;
+  /** Yours only: how stressed you are (0..100), and how used to violence (0..100). */
+  stress?: number;
+  nerve?: number;
 }
+
+/**
+ * Stress (yours): it builds while you fight, when you're hit, when you land
+ * a blow, and most of all when you kill. Nerve, built up fight by fight,
+ * takes the edge off; at full nerve, violence doesn't stress you any more.
+ */
+export function addStress(f: Body, n: number) {
+  const k = 1 - Math.min(100, f.nerve ?? 0) / 100;
+  f.stress = Math.min(100, Math.max(0, (f.stress ?? 0) + n * k));
+}
+/** Stressed hands shake and eyes narrow: less accurate, slower to dodge. */
+export const stressPenalty = (f: Body) => ((f.stress ?? 0) / 100) * 0.25;
+export const STRESS_NAMES = ['', 'On edge', 'Stressed', 'Panicking'];
+export const stressLevel = (s: number) => (s >= 75 ? 3 : s >= 45 ? 2 : s >= 20 ? 1 : 0);
 
 export interface Encounter {
   version: number;
@@ -214,6 +231,8 @@ export function conditions(f: Body): string[] {
   for (const p of f.broken) c.push(`Broken ${p}`);
   if (f.blinded > 0) c.push('Blinded');
   if (f.stamina <= 0) c.push('Exhausted');
+  const sl = stressLevel(f.stress ?? 0);
+  if (sl) c.push(STRESS_NAMES[sl]);
   return c;
 }
 
@@ -593,8 +612,8 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc)
 
   // Will it land?
   let hit = kind === 'punch' ? 0.8 : kind === 'kick' ? 0.66 : kind === 'stomp' ? 0.72 : 0.75;
-  hit += a === 'you' ? accuracyBonus(you.stats) : 0;
-  hit -= d === 'you' ? dodgeBonus(you.stats) : b.guard;
+  hit += a === 'you' ? accuracyBonus(you.stats) - stressPenalty(A) : 0;
+  hit -= d === 'you' ? dodgeBonus(you.stats) - stressPenalty(D) : b.guard;
   if (kind === 'kick' || kind === 'stomp') hit -= legs(A) * 0.2;
   else hit -= arms(A) * 0.2; // punches and weapons need your arms
   if (A.dazed) hit -= 0.2;
@@ -706,6 +725,9 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc)
 function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | 'fall' | 'stomp'): string {
   const D = enc[d];
   landed = d;
+  // Being hurt is frightening; hurting someone shakes you too.
+  if (d === 'you') addStress(enc.you, 3 + dmg * 0.35);
+  else addStress(enc.you, 1 + dmg * 0.08);
   const N = names(d === 'you' ? 'them' : 'you'); // the attacker's view: N.o is the one hurt
   const ml = Math.round((dmg * (D.maxBlood * (1 - PASS_OUT))) / D.toughness);
   D.blood = Math.max(0, D.blood - ml);
@@ -946,6 +968,9 @@ function theirTurn() {
 /** End of a round: bleeding, getting your breath back, the daze wearing off. */
 function endOfRound() {
   if (enc.stage !== 'combat') return;
+  // Every round of a fight: adrenaline, fear. And you get a little more used to it.
+  addStress(enc.you, 1);
+  enc.you.nerve = Math.min(100, (enc.you.nerve ?? 0) + 0.35);
   const regen = { you: staminaRegen(you.stats), them: 7 };
   for (const side of ['you', 'them'] as Side[]) {
     const f = enc[side];

@@ -1,4 +1,4 @@
-import { BLEEDING, DEATH, PASS_OUT, type Body, type Part, type Result } from './encounter';
+import { BLEEDING, DEATH, PASS_OUT, STRESS_NAMES, stressLevel, type Body, type Part, type Result } from './encounter';
 
 /**
  * Your body between fights. Blood, bleeding, broken bones and concussion
@@ -27,7 +27,16 @@ export interface Health {
   cold?: number;
   /** On cocaine: the next fight, you've energy to burn and feel less. */
   wired?: boolean;
+  /** Stress, 0..100 (see encounter.ts addStress): eases with time and cigarettes. */
+  stress?: number;
+  /** How used to violence you are, 0..100: at 100 it doesn't stress you. */
+  nerve?: number;
+  /** Smoking a cigarette until this time (ms, real clock). */
+  smokingUntil?: number;
 }
+
+/** Stress lost per hour of game time (more when resting). */
+const STRESS_EASE = 6;
 
 export const COLD_NAMES = ['', 'Chilled', 'Cold', 'Freezing'];
 
@@ -67,6 +76,8 @@ export function healthConditions(h: Health): string[] {
   if (h.lung) c.push('Punctured lung');
   if (h.cold) c.push(COLD_NAMES[h.cold]);
   if (h.wired) c.push('Wired');
+  const sl = stressLevel(h.stress ?? 0);
+  if (sl) c.push(STRESS_NAMES[sl]);
   return c;
 }
 
@@ -81,6 +92,8 @@ export function bodyFrom(h: Health, stamina: number): Body {
     stamina: Math.round(stamina * (h.lung ? 0.3 : h.broken.includes('ribs') ? 0.5 : 1) * (1 - (h.cold ?? 0) * 0.1) * (h.wired ? 1.25 : 1)),
     maxStamina: Math.round(stamina * (h.wired ? 1.25 : 1)),
     lung: h.lung,
+    stress: h.stress ?? 0,
+    nerve: h.nerve ?? 0,
     bleeding: h.bleeding,
     dazed: 0,
     concussed: h.concussion > 0,
@@ -103,6 +116,9 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
   }
   if (b.concussed && h.concussion <= 0) h.concussion = CONCUSSION_HOURS;
   if (b.lung) h.lung = true;
+  h.stress = b.stress ?? h.stress;
+  // Every fight you live through, you get a little more used to it.
+  h.nerve = Math.min(100, (b.nerve ?? h.nerve ?? 0) + 2);
   const lines: string[] = [];
   if (h.wired) {
     h.wired = false;
@@ -150,6 +166,8 @@ export function passHours(h: Health, hours: number, resting = false): string[] {
     h.bleeding--;
     lines.push(h.bleeding ? 'You press on the wound. The bleeding slows.' : 'You manage to stop the bleeding.');
   }
+  // Time takes the edge off.
+  if (h.stress) h.stress = Math.max(0, h.stress - hours * STRESS_EASE * (resting ? 1.5 : 1));
   for (let i = 0; i < hours; i++) {
     if (h.bleeding) {
       h.blood -= BLEED_PER_HOUR[h.bleeding];

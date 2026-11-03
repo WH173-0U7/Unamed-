@@ -2193,3 +2193,53 @@ body.in-game #menu {
     grid-row: 3;
   }
 }
+
+/* ================= How you see: stress, and a cigarette ================= */
+/* Tunnel vision: clear in the middle, dark closing in from the edges. */
+#tunnel {
+  --clear: 78%;
+  --dark: 0;
+  --out: 0;
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse 72% 64% at 50% 50%, transparent var(--clear), rgba(0, 0, 0, var(--dark)) 100%);
+}
+/* Your sight going for a moment. */
+#tunnel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 50%, rgba(10, 4, 4, 0.75), rgba(0, 0, 0, 0.98));
+  opacity: var(--out);
+}
+#smoke {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 24;
+  pointer-events: none;
+}
+/* Smoking: a little brighter, and the edges of things stand out. */
+body.smoking {
+  --line: rgba(236, 235, 230, 0.36);
+}
+body.smoking #game {
+  filter: brightness(1.1) contrast(1.05);
+}
+body.smoking #game .enc-card,
+body.smoking #game .enc-status,
+body.smoking #game .enc-log,
+body.smoking #game .edge-tab,
+body.smoking #shop,
+body.smoking .sheet-card {
+  box-shadow: 0 0 0 1px rgba(236, 235, 230, 0.08), 0 0 14px rgba(236, 235, 230, 0.07);
+}
+@media (prefers-reduced-motion: reduce) {
+  #tunnel::after {
+    display: none;
+  }
+}

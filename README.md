@@ -118,8 +118,44 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   *Bandages* $8 (bleeding down a level), *Gauze and tape* $15 (down two),
   *Painkillers* $6 (a concussion clears 3 hours sooner), *Splint* $22 (a
   broken arm or leg heals twice as fast) and *Iron tablets* $12 (+0.4 L of
-  blood). You can't lurk inside; Go takes you back out. Where you are is
-  saved.
+  blood) and a *Drug test kit* $10. You can't lurk anywhere but the street;
+  Go takes you back out. Where you are is saved. Every place shows its
+  **opening hours, by your device's clock** ("Open until 7 PM", "Closed.
+  Opens tomorrow at 10 AM"), in the Go list and inside.
+  - **Lucky Star Pawn** (10 AM to 7 PM, Saturday to 5, shut Sunday) buys
+    phones, headphones and chargers for about a fifth of what they're worth,
+    paid from the till. By law he wants to see **photo ID** first: you have
+    none of your own, so it has to be a stolen license, and one time in five
+    he looks closely and throws you out. He won't touch IDs, cards, car keys
+    or drugs. He sells second-hand **bags and clothes** (a backpack $25, a
+    shoulder bag $14, a fanny pack $6, a coat, a puffer jacket, a hoodie,
+    cargo pants) and lighters: you put them on there and then, everything
+    you carry is repacked, and your old ones go in the bin (if it won't all
+    fit, he tells you).
+  - **The alley** behind the laundromat (8 PM to 4 AM, every night): the
+    **fence** takes anything worth anything, stolen IDs and credit cards and
+    car keys and coke included, no questions, for even less (a phone gets
+    you about $14). He pays with crumpled small bills off a roll. It's
+    outside: the rain gets you here too.
+  - **First Civic Bank** (weekdays 9 to 5, Saturday 9 to 1): the teller
+    **changes up** your small bills and coins into the fewest big bills, or
+    **breaks** a big bill down ($100 into five 20s, $50 into two 20s and a
+    10, $20 into a 10 and two 5s, $10 into a 5 and five 1s, $5 into five 1s,
+    $1 into four quarters). Out of hours the **coin machine** in the lobby
+    still turns coins into bills, and keeps 10%.
+- **Money is real bills and coins:** $100, $50, $20, $10, $5 and $1 bills,
+  and quarters, dimes, nickels and pennies. People carry it the way people
+  do: wallets of mostly 20s with some smaller bills, loose change in coins, a
+  homeless person's few singles folded small in a shoe. Pockets shows yours
+  as notes and coins ("$20 ×2, 25¢ ×7"). **Paying** hands over exact money if
+  you can, otherwise the smallest overpay, and you get change back the way a
+  cashier gives it. Coins have weight (a quarter is 5.67 g) and count toward
+  what you carry.
+- **Cigarettes** (made-up brands, a few to a nearly full pack) are on all
+  sorts of people now, usually with a lighter or matches. **Smoke** one with
+  a lighter or matches: it steadies your hands and does nothing good for
+  you; with broken ribs every drag hurts, and with a punctured lung you
+  cough it back up pink. Matches can make a fire too, but run out sooner.
 - **Fights:**
   - **Blood is health.** Blows cost blood, and so does bleeding every turn.
     At 55% of your blood or less, you pass out (the mark on the blood bar).
@@ -287,6 +323,8 @@ URL options: `?debug` shows FPS, `?pr=1` fixes the render resolution.
 | `src/core/quality.ts` | Graphics presets and adaptive resolution |
 | `src/ui/menu.ts` | Main menu, pause menu, settings, confirm dialogs |
 | `src/fx/uiGlitch.ts` | The quick glitch when the screen changes |
+| `src/game/money.ts` | Bills and coins: paying and change, changing up, breaking bills |
+| `src/game/shops.ts` | Places, their opening hours, what the pawn shop and the fence pay, what's for sale |
 | `src/game/weather.ts` | The weather on the real clock: dry spells and rain |
 | `src/fx/rain.ts` | Rain falling over the picture, and drops on the glass that run and wash it |
 | `src/game/clock.ts` | The device's real time (the clock, and time for future features) |

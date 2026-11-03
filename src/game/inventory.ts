@@ -1,5 +1,6 @@
 import type { Loot, LootKind } from './person';
 import type { Health } from './health';
+import { addTo, cents, emptyPurse, fewest, kgOf, money, purseText, type Purse } from './money';
 
 /**
  * What you carry, and where. You wear clothes like everyone else, and things
@@ -40,7 +41,10 @@ export interface Spot {
 }
 
 export interface Inventory {
-  cash: number;
+  /** Your money: bills and coins (see money.ts). */
+  purse: Purse;
+  /** Old saves: a plain dollar amount (turned into a purse on load). */
+  cash?: number;
   items: InvItem[];
   /** What you're wearing, and any bag. */
   clothes: string[];
@@ -74,7 +78,7 @@ function pocketsOf(g: string): [string, Size, number][] {
   return [];
 }
 
-const spotsFor = (clothes: string[]): Spot[] =>
+export const spotsFor = (clothes: string[]): Spot[] =>
   clothes.flatMap((g, gi) => pocketsOf(g).map(([name, fits, maxKg], pi) => ({ id: `${gi}.${pi}`, name, on: g, fits, maxKg })));
 
 const pickW = <T>(xs: [T, number][]) => {
@@ -89,11 +93,16 @@ export function newInventory(): Inventory {
   const clothes = [any(TOPS), any(BOTTOMS), any(SHOES)];
   const bag = pickW(BAGS);
   if (bag) clothes.push(bag);
-  return { cash: 0, items: [], clothes, spots: spotsFor(clothes) };
+  return { purse: emptyPurse(), items: [], clothes, spots: spotsFor(clothes) };
 }
 
 /** Saves from before clothes: dress them, and put what they had somewhere. */
 export function upgradeInventory(inv: Inventory) {
+  // Old saves: a dollar amount becomes bills and coins.
+  if (!inv.purse) {
+    inv.purse = fewest(Math.round((inv.cash ?? 0) * 100));
+    delete inv.cash;
+  }
   if (inv.spots) return;
   const fresh = newInventory();
   inv.clothes = fresh.clothes;
@@ -125,6 +134,7 @@ export function measure(x: { kind: string; name: string; med?: MedId }): { size:
   if (/keys/.test(n)) return { size: 'small', kg: 0.1 };
   if (/cigarettes/.test(n)) return { size: 'small', kg: 0.03 };
   if (/lighter/.test(n)) return { size: 'small', kg: 0.02 };
+  if (/matches/.test(n)) return { size: 'small', kg: 0.01 };
   // Paper: receipts, notes, slips, photos; a baggie.
   return { size: 'small', kg: 0.005 };
 }
@@ -159,6 +169,32 @@ export function stow(inv: Inventory, it: Omit<InvItem, 'spot' | 'size' | 'kg'> &
   return item;
 }
 
+/**
+ * Put on something new in place of what you're wearing in that slot (top,
+ * trousers, or a bag). Everything you carry is put away again; if it won't
+ * all fit, nothing changes and you get back the reason. Returns what you
+ * took off (or null if you had no bag) on success.
+ */
+export function wear(inv: Inventory, slot: 'top' | 'bottom' | 'bag', name: string): { ok: true; old: string | null } | { ok: false; why: string } {
+  const clothes = [...inv.clothes];
+  const at = slot === 'top' ? 0 : slot === 'bottom' ? 1 : 3;
+  const old = clothes[at] ?? null;
+  clothes[at] = name;
+  const spots = spotsFor(clothes);
+  // Pack it all again, biggest things first.
+  const trial: Inventory = { purse: inv.purse, items: [], clothes, spots };
+  const order = [...inv.items].sort((a, b) => SIZE_RANK[b.size] - SIZE_RANK[a.size] || b.kg - a.kg);
+  for (const it of order) {
+    const spot = findRoom(trial, it.size, it.kg);
+    if (!spot) return { ok: false, why: `You'd have nowhere to put the ${it.name.toLowerCase()}.` };
+    trial.items.push({ ...it, spot: spot.id });
+  }
+  inv.clothes = clothes;
+  inv.spots = spots;
+  inv.items = trial.items;
+  return { ok: true, old };
+}
+
 export const spotLabel = (s: Spot) => `${s.on}, ${s.name.toLowerCase()}`;
 export const kgLabel = (kg: number) => (kg <= 0 ? '0 kg' : kg < 0.01 ? '<0.01 kg' : `${kg < 1 ? kg.toFixed(2) : kg.toFixed(1)} kg`);
 
@@ -169,8 +205,9 @@ export const kgLabel = (kg: number) => (kg <= 0 ? '0 kg' : kg < 0.01 ? '<0.01 kg
 export function take(inv: Inventory, l: Loot): { ok: boolean; text: string } {
   const once = l.yours ? ' It was yours once.' : '';
   if (l.kind === 'cash') {
-    inv.cash = Math.round((inv.cash + (l.cash ?? 0)) * 100) / 100;
-    return { ok: true, text: `You pocket the ${l.name.toLowerCase()}: ${dollars(l.cash ?? 0)}.${once}` };
+    const p = l.purse ?? fewest(Math.round((l.cash ?? 0) * 100));
+    addTo(inv.purse, p);
+    return { ok: true, text: `You pocket the ${l.name.toLowerCase()}: ${money(cents(p))} (${purseText(p)}).${once}` };
   }
   const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses });
   if (!it) return { ok: false, text: `No room for the ${l.name.toLowerCase()}. ${noRoomWhy(inv, measure(l).size)}` };
@@ -179,6 +216,11 @@ export function take(inv: Inventory, l: Loot): { ok: boolean; text: string } {
 }
 
 export const dollars = (n: number) => `$${n % 1 ? n.toFixed(2) : n}`;
+
+/** All your cash, in dollars. */
+export const cashOf = (inv: Inventory) => cents(inv.purse) / 100;
+/** What your money weighs (coins add up). */
+export const purseKg = (inv: Inventory) => kgOf(inv.purse);
 
 /** How a piece of loot reads on a button or in a list. */
 export const lootLabel = (l: { kind: string; name: string; cash?: number }) => (l.kind === 'cash' ? `${l.name}, ${dollars(l.cash ?? 0)}` : l.name);

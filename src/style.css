@@ -2023,3 +2023,82 @@ body.in-game #menu {
     gap: 10px;
   }
 }
+
+/* ================= Money: bills and coins ================= */
+.pocket-purse,
+.shop-purse {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.pocket-purse span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 3px 8px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.pocket-purse em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--ink-faint);
+}
+/* A bill: a green-grey note. */
+.pocket-purse .bill {
+  border: 1px solid rgba(160, 190, 140, 0.45);
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgba(110, 140, 95, 0.28), rgba(70, 95, 60, 0.22));
+  color: #cfe0c0;
+}
+/* A coin: round, metal. */
+.pocket-purse .coin {
+  border: 1px solid rgba(200, 195, 180, 0.4);
+  border-radius: 99px;
+  background: radial-gradient(circle at 35% 30%, rgba(230, 225, 210, 0.22), rgba(120, 115, 100, 0.15));
+  color: #dcd6c6;
+}
+.pocket-purse .none {
+  font-style: italic;
+  color: var(--ink-faint);
+}
+.shop-purse {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.shop-body h3 {
+  margin: 10px 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.shop-head em {
+  font-style: normal;
+  color: var(--ink);
+}
+.shop-closed {
+  margin: 14px 0;
+  text-align: center;
+  font-size: 14px;
+  font-style: italic;
+  color: var(--ink-dim);
+}
+.sheet-card .place i {
+  display: block;
+  margin-top: 3px;
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.sheet-card .place i.open {
+  color: #b9d4a6;
+}
+.sheet-card .place i.shut {
+  color: #d4a6a6;
+}

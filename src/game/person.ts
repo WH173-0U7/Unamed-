@@ -1,4 +1,5 @@
 import type { MedId } from './inventory';
+import { cashLike, cents, type Purse } from './money';
 
 /**
  * The people you can see when you lurk, and everything about them that you
@@ -85,8 +86,10 @@ export interface Loot {
   name: string;
   /** More about it: whose card, what the note says. */
   detail?: string;
-  /** Dollars, for cash. */
+  /** Dollars, for cash (the total of `purse`). */
   cash?: number;
+  /** For cash: the actual bills and coins. */
+  purse?: Purse;
   /** Where on them it was ("back pocket", "wallet"). */
   where: string;
   /** Medicine: which one (it was yours once). */
@@ -197,6 +200,7 @@ const ITEMS: Record<Kind, [Item, number][]> = {
     [{ name: 'Wallet' }, 0.7],
     [{ name: 'Keys' }, 0.7],
     [{ name: 'Cash' }, 0.35],
+    [{ name: 'Cigarettes' }, 0.25],
     [{ name: 'Backpack' }, 0.2],
     [{ name: 'Grocery bag' }, 0.15],
     [{ name: 'Pepper spray', spray: true }, 0.12],
@@ -220,6 +224,7 @@ const ITEMS: Record<Kind, [Item, number][]> = {
   junkie: [
     [{ name: 'Syringe', weapon: 3, cuts: true }, 0.6],
     [{ name: 'Lighter' }, 0.6],
+    [{ name: 'Cigarettes' }, 0.55],
     [{ name: 'Small baggie' }, 0.5],
     [{ name: 'Loose change' }, 0.3],
     [{ name: 'Phone' }, 0.2],
@@ -301,6 +306,15 @@ const r = Math.random;
 const money = (a: number, b: number) => Math.round((a + r() * (b - a)) * 100) / 100;
 const any = <T>(xs: T[]) => xs[Math.floor(r() * xs.length)];
 
+/** Cash, as bills and coins (whole dollars unless it's change). */
+function cash(dollars: number, style: 'wallet' | 'small' | 'change', name = 'Cash'): Omit<Loot, 'where'> {
+  const purse = cashLike(style === 'change' ? dollars * 100 : Math.max(1, Math.round(dollars)) * 100, style);
+  return { kind: 'cash', name, cash: cents(purse) / 100, purse };
+}
+
+/** Made-up brands. */
+const SMOKES = ['Red Crest', 'Mayfair Lights', 'Dakota Menthols', 'Ridgeway Reds', 'Union Blues', 'Harbor 100s'];
+
 function receipt(): Omit<Loot, 'where'> {
   return { kind: 'misc', name: 'Receipt', detail: `${any(STORES)}, $${money(2, 60).toFixed(2)}` };
 }
@@ -328,23 +342,25 @@ function dress(kind: Kind, carrying: Item[]): Garment[] {
     if (r() < 0.92) w({ kind: 'id', name: "Driver's license", detail: `${name}, ${age}` });
     if (r() < 0.85) w({ kind: 'debit card', name: 'Debit card', detail: name });
     if (r() < (kind === 'civilian' ? 0.6 : 0.3)) w({ kind: 'credit card', name: 'Credit card', detail: name });
-    if (r() < 0.8) {
-      const c = kind === 'civilian' ? money(5, 140) : money(2, 45);
-      w({ kind: 'cash', name: 'Cash', cash: Math.round(c) });
-    }
+    if (r() < 0.8) w(cash(kind === 'civilian' ? money(5, 140) : money(2, 45), 'wallet'));
     for (let i = 0; i < Math.floor(r() * 3); i++) w(receipt());
   } else if (kind === 'homeless' && r() < 0.5) {
     put({ kind: 'id', name: 'State ID, expired', detail: `${name}, ${age}` });
   }
-  if (has('Cash')) put({ kind: 'cash', name: 'Cash', cash: Math.round(money(5, 80)) });
-  if (has('Loose change')) put({ kind: 'cash', name: 'Loose change', cash: money(0.25, 4.5) });
-  if (kind === 'homeless' && r() < 0.3) put({ kind: 'cash', name: 'Cash, folded small', cash: Math.round(money(3, 30)) }, clothes[2], 'left shoe');
+  if (has('Cash')) put(cash(money(5, 80), 'wallet', 'Folded bills'));
+  if (has('Loose change')) put(cash(money(0.25, 4.5), 'change', 'Loose change'));
+  if (kind === 'homeless' && r() < 0.3) put(cash(money(3, 30), 'small', 'Bills, folded small'), clothes[2], 'left shoe');
   if (has('Phone')) put({ kind: 'phone', name: 'Cell phone', detail: any(PHONES) });
   if (has('Keys')) {
     if (kind === 'civilian' ? r() < 0.75 : r() < 0.35) put({ kind: 'car keys', name: 'Car keys', detail: `${any(CARS)} key fob` });
     else put({ kind: 'misc', name: 'House keys', detail: 'A ring of keys' });
   }
-  if (has('Cigarettes')) put({ kind: 'misc', name: 'Cigarettes', detail: `Half a pack` });
+  if (has('Cigarettes')) {
+    const n = kind === 'homeless' ? 1 + Math.floor(r() * 4) : 3 + Math.floor(r() * 17);
+    put({ kind: 'misc', name: 'Cigarettes', detail: `${any(SMOKES)}`, doses: n });
+    // Smokers usually have something to light them with.
+    if (!has('Lighter') && r() < 0.65) put({ kind: 'misc', name: r() < 0.25 ? 'Matches' : 'Lighter' });
+  }
   if (has('Lighter')) put({ kind: 'misc', name: 'Lighter' });
   // What's in it, nobody says. You'd have to test it, or taste it.
   if (has('Small baggie')) put({ kind: 'misc', name: 'Small baggie', detail: 'Some kind of white powder', secret: 'cocaine', doses: 2 + Math.floor(r() * 4) });

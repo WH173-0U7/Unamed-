@@ -13,7 +13,7 @@ import { clockText, dateText, now } from './clock';
 import { RAIN_AMOUNT, WEATHER_NAME, newWeather, updateWeather, weatherLine, type WeatherState } from './weather';
 import { COLD_NAMES } from './health';
 import { maybeThief, newWorld, robBody, settle, type World } from './legacy';
-import { MEDS, dollars, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type MedId } from './inventory';
+import { MEDS, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type MedId } from './inventory';
 
 /**
  * What's left of your humanity. Killing someone takes a lot of it; stamping
@@ -35,12 +35,9 @@ const humanityLevel = (lost: number) => HUMANITY.filter((l) => lost >= l.at).pop
 const KILL_COST = 10;
 const STOMP_HELPLESS_COST = 1;
 
-/** Where you can go from the Go menu. */
-type Place = 'street' | 'pharmacy';
-const PLACES: { id: Place; name: string; desc: string }[] = [
-  { id: 'street', name: 'The street', desc: 'Lurk in the dark and watch who comes by.' },
-  { id: 'pharmacy', name: 'Pharmacy', desc: 'Open all night. Bandages, painkillers, splints.' },
-];
+import { COIN_MACHINE_FEE, PAWN_STOCK, PLACES, offer, placeInfo, type Place } from './shops';
+import { BILLS, COINS, addTo, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
+import { hoursText, isOpen } from './clock';
 import { createHitUi } from '../fx/hitUi';
 
 /** Progress stored in the save file under `state.tv`. */
@@ -123,7 +120,11 @@ export class Game {
     this.sheetEl.onclick = (ev) => this.sheetClick(ev);
     this.shopEl.onclick = (ev) => {
       const b = (ev.target as HTMLElement).closest('button');
-      if (b?.dataset.buy) this.buy(b.dataset.buy as MedId);
+      if (!b || b.disabled) return;
+      if (b.dataset.buy) this.buy(b.dataset.buy as MedId);
+      else if (b.dataset.sell) this.sell(Number(b.dataset.sell));
+      else if (b.dataset.stock) this.buyStock(b.dataset.stock);
+      else if (b.dataset.bank) this.bank(b.dataset.bank);
     };
     this.restBtn.hidden = true;
     this.hitUi = createHitUi(view);
@@ -172,7 +173,7 @@ export class Game {
 
   /** How hard it's raining where you are (0 indoors), for the rain. */
   get rainAmount(): number {
-    if (!this.tvState.on || this.place !== 'street') return 0;
+    if (!this.tvState.on || placeInfo(this.place).indoors) return 0;
     return RAIN_AMOUNT[this.weather.now];
   }
 
@@ -425,7 +426,7 @@ export class Game {
     const h = this.humanity;
     const lvl = humanityLevel(h.lost);
     const w = this.world;
-    const cash = this.inventory.cash;
+    const cash = cashOf(this.inventory);
     const lurked = this.lurkState.times - w.lifeStart;
     // The encounter you died in (its person may be the one who robs you).
     const e = this.encounter;
@@ -446,7 +447,7 @@ export class Game {
       `<div><dt>Lurked</dt><dd>${lurked}</dd></div>` +
       `<div><dt>Killed</dt><dd>${h.kills}</dd></div>` +
       `<div><dt>Humanity</dt><dd>${lvl?.name ?? (h.lost ? 'Shaken' : 'Intact')}</dd></div>` +
-      `<div><dt>Cash</dt><dd>${dollars(cash)}</dd></div>` +
+      `<div><dt>Cash</dt><dd>${money(Math.round(cash * 100))}</dd></div>` +
       `</dl>` +
       `<p class="death-after">${
         robbed
@@ -546,6 +547,7 @@ export class Game {
     else if (b.dataset.use) this.useMed(Number(b.dataset.use));
     else if (b.dataset.drop) this.drop(Number(b.dataset.drop));
     else if (b.dataset.fire) this.fire(Number(b.dataset.fire));
+    else if (b.dataset.smoke) this.smoke(Number(b.dataset.smoke));
     else if (b.dataset.taste) this.identify(Number(b.dataset.taste), false);
     else if (b.dataset.test) this.identify(Number(b.dataset.test), true);
     else if (b.dataset.bump) this.bump(Number(b.dataset.bump));
@@ -561,15 +563,25 @@ export class Game {
     this.wipeBlood();
     this.jam = 0.8;
     this.refresh();
-    uiGlitch(p === 'pharmacy' ? this.shopEl : this.view, 0.55);
-    const lines = [p === 'pharmacy' ? 'You walk to the all-night pharmacy.' : 'You head back out into the street.'];
+    uiGlitch(p === 'street' ? this.view : this.shopEl, 0.55);
+    const info = placeInfo(p);
+    const lines = [
+      {
+        street: 'You head back out into the street.',
+        pharmacy: 'You walk to the all-night pharmacy.',
+        pawn: 'You walk over to the pawn shop.',
+        fence: 'You slip down the alley behind the laundromat.',
+        bank: 'You walk to the bank.',
+      }[p],
+    ];
     const h = this.health;
-    if (p === 'pharmacy' && h.cold) {
+    // Inside and out of the weather, you warm up a little.
+    if (info.indoors && h.cold) {
       h.cold--;
       lines.push(h.cold ? "It's warm inside. You thaw out a little." : "It's warm inside. You stop shivering.");
       this.refresh();
     }
-    if (p === 'street' && RAIN_AMOUNT[this.weather.now] > 0) lines.push(`It's still raining (${WEATHER_NAME[this.weather.now].toLowerCase()}).`);
+    if (!info.indoors && RAIN_AMOUNT[this.weather.now] > 0) lines.push(`It's still raining (${WEATHER_NAME[this.weather.now].toLowerCase()}).`);
     this.note(lines);
     buzz(10);
   }
@@ -578,15 +590,103 @@ export class Game {
   private buy(id: MedId) {
     const m = medById(id);
     const inv = this.inventory;
-    if (this.place !== 'pharmacy' || inv.cash < m.price) return;
+    if (this.place !== 'pharmacy' || cashOf(inv) < m.price) return;
     const it = stow(inv, { kind: 'med', name: m.name, med: id });
     if (!it) {
       this.note([`You've got nowhere to put ${m.name.toLowerCase()}. ${noRoomWhy(inv, measure({ kind: 'med', name: m.name, med: id }).size)}`]);
       return;
     }
-    inv.cash = Math.round((inv.cash - m.price) * 100) / 100;
     this.refresh();
-    this.note([`You buy ${m.name.toLowerCase()}. ${dollars(inv.cash)} left.`]);
+    this.note([`You buy ${m.name.toLowerCase()}. ${this.payLine(m.price * 100)}`]);
+    buzz(8);
+  }
+
+  /** Hands over the money for something (cents), and says how it went. */
+  private payLine(price: number): string {
+    const inv = this.inventory;
+    const r = pay(inv.purse, price)!;
+    const back = count(r.change) ? ` and get ${money(Object.entries(r.change).reduce((s, [d, n]) => s + Number(d) * n, 0))} back (${purseText(r.change)})` : '';
+    return `You hand over ${purseText(r.gave)}${back}. ${money(Math.round(cashOf(inv) * 100))} left.`;
+  }
+
+  /** Sell something to the pawn shop or the fence. */
+  private sell(i: number) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    const place = this.place;
+    if (!it || (place !== 'pawn' && place !== 'fence') || !isOpen(placeInfo(place).hours!)) return;
+    const o = offer(place, it);
+    if (!('cents' in o)) return;
+    const lines: string[] = [];
+    if (place === 'pawn') {
+      // He wants to see photo ID, and he looks at it.
+      const id = inv.items.find((x) => x.kind === 'id' && !/expired/i.test(x.name));
+      if (!id) {
+        this.note(['"I need to see some ID." He taps the sign: all sellers must show photo ID.']);
+        return;
+      }
+      if (Math.random() < 0.2) {
+        this.note([`He looks at the ${id.name.toLowerCase()}, then at you, then at it again. "That's not you." He slides it back. "Get out of my shop."`]);
+        return;
+      }
+      lines.push(`He glances at the ${id.name.toLowerCase()} and copies the name into a book.`);
+    }
+    inv.items.splice(i, 1);
+    // The pawn shop pays from the till; the fence peels small bills off a roll.
+    const got = place === 'pawn' ? fewest(o.cents) : cashLike(o.cents, 'small');
+    addTo(inv.purse, got);
+    lines.push(`You sell the ${it.name.toLowerCase()} for ${money(o.cents)} (${purseText(got)}).`);
+    this.refresh();
+    this.note(lines);
+    buzz(8);
+  }
+
+  /** Buy something second-hand at the pawn shop (and put it on, if it's clothes). */
+  private buyStock(id: string) {
+    const s = PAWN_STOCK.find((x) => x.id === id);
+    const inv = this.inventory;
+    if (!s || this.place !== 'pawn' || !isOpen(placeInfo('pawn').hours!) || cashOf(inv) < s.price) return;
+    let line: string;
+    if (s.slot) {
+      const r = wear(inv, s.slot, s.name);
+      if (!r.ok) {
+        this.note([`If you swap to the ${s.name.toLowerCase()}: ${r.why}`]);
+        return;
+      }
+      line = `You buy the ${s.name.toLowerCase()} and put it on${r.old ? `, and leave your old ${r.old.toLowerCase()} in the bin out front` : ''}.`;
+    } else {
+      if (!stow(inv, { kind: 'misc', name: s.name })) {
+        this.note([`Nowhere to put it. ${noRoomWhy(inv, 'small')}`]);
+        return;
+      }
+      line = `You buy the ${s.name.toLowerCase()}.`;
+    }
+    this.refresh();
+    this.note([line, this.payLine(s.price * 100)]);
+    buzz(8);
+  }
+
+  /** At the bank: change money up or down. */
+  private bank(what: string) {
+    const inv = this.inventory;
+    const p = inv.purse;
+    const teller = isOpen(placeInfo('bank').hours!);
+    let line = '';
+    if (what === 'machine') {
+      if (!count(p, COINS)) return;
+      const fee = coinsToBills(p, COIN_MACHINE_FEE);
+      line = `You pour your coins into the machine. It counts them with a roar and prints a slip, minus ${money(fee)}. You have ${purseText(p)}.`;
+    } else if (!teller) return;
+    else if (what === 'up') {
+      changeUp(p);
+      line = `The teller counts it all twice and slides back ${purseText(p)}.`;
+    } else if (what.startsWith('break:')) {
+      const d = Number(what.slice(6));
+      if (!breakBill(p, d)) return;
+      line = `You hand over a ${denomName(d)} and get back ${purseText(breaksInto(d))}.`;
+    }
+    this.refresh();
+    this.note([line]);
     buzz(8);
   }
 
@@ -602,6 +702,44 @@ export class Game {
     this.refresh();
     this.note([line]);
     buzz(8);
+  }
+
+  /** Your lighter or matches, if you have any. */
+  private flame() {
+    return this.inventory.items.find((x) => /^(lighter|matches)$/i.test(x.name)) ?? null;
+  }
+
+  /**
+   * A cigarette. It steadies your hands for a minute and does nothing good
+   * for you. With a punctured lung, it comes back up red.
+   */
+  private smoke(i: number) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    const fire = this.flame();
+    if (!it || !fire) return;
+    it.doses = (it.doses ?? 1) - 1;
+    const h = this.health;
+    const lines = [
+      RAIN_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors
+        ? 'You hunch over a cigarette, cupping it from the rain, and get it lit on the third try.'
+        : ['You light a cigarette and pull the smoke deep. Your hands stop shaking.', 'You smoke one down to the filter, watching the street.', 'The first drag burns. The second one helps.'][Math.floor(Math.random() * 3)],
+    ];
+    if (h.lung) {
+      lines.push('Your chest seizes. You cough, and it comes up pink and frothy.');
+      this.fx.impact(true, 0, false, 'cough');
+    } else if (h.broken.includes('ribs')) lines.push('Every drag pulls at your broken ribs.');
+    if (it.doses <= 0) {
+      inv.items.splice(inv.items.indexOf(it), 1);
+      lines.push('That was your last one. You crush the empty pack.');
+    }
+    if (/matches/i.test(fire.name) && Math.random() < 0.15) {
+      inv.items.splice(inv.items.indexOf(fire), 1);
+      lines.push("That was the last match.");
+    }
+    this.refresh();
+    this.note(lines);
+    buzz(6);
   }
 
   /** Why you can't make a fire right now, or null. */
@@ -644,10 +782,11 @@ export class Game {
       if (h.cold) lines.push("You're warm again, right through.");
       h.cold = 0;
     }
-    // Cheap lighters don't last.
-    if (Math.random() < 0.1) {
+    // Cheap lighters don't last; a book of matches lasts less.
+    const matches = /matches/i.test(lighter.name);
+    if (Math.random() < (matches ? 0.3 : 0.1)) {
       inv.items.splice(inv.items.indexOf(lighter), 1);
-      lines.push('The lighter sputters and dies. It\'s empty. You toss it.');
+      lines.push(matches ? 'That was the last match.' : "The lighter sputters and dies. It's empty. You toss it.");
     }
     this.refresh();
     this.note(lines);
@@ -706,21 +845,62 @@ export class Game {
     buzz(6);
   }
 
+  /** Your bills and coins, as little chips: "$20 ×2". */
+  private purseHtml(): string {
+    const p = this.inventory.purse;
+    const ds = [...BILLS, ...COINS].filter((d) => p[d]);
+    if (!ds.length) return '<span class="none">Not a cent.</span>';
+    return ds.map((d) => `<span class="${isBill(d) ? 'bill' : 'coin'}">${isBill(d) ? `$${d / 100}` : `${d}¢`}<em>×${p[d]}</em></span>`).join('');
+  }
+
+  /** The screen for wherever you are, if it isn't the street. */
   private renderShop() {
-    const here = this.place === 'pharmacy' && this.tvState.on;
+    const place = this.place;
+    const here = place !== 'street' && this.tvState.on;
     this.shopEl.hidden = !here;
     if (!here) return;
+    const info = placeInfo(place);
     const inv = this.inventory;
-    const have = (id: MedId) => inv.items.filter((x) => x.med === id).length;
+    const c = Math.round(cashOf(inv) * 100);
+    const open = !info.hours || isOpen(info.hours);
+    const btn = (attr: string, v: string | number, label: string, no?: string | false | null) => `<button type="button" data-${attr}="${v}" ${no ? `disabled title="${no}"` : ''}>${label}</button>`;
+    const li = (name: string, small: string, button: string) => `<li><div><b>${name}</b><small>${small}</small></div>${button}</li>`;
+    let body = '';
+    if (place === 'pharmacy') {
+      const have = (id: MedId) => inv.items.filter((x) => x.med === id).length;
+      body =
+        `<ul class="shop-list">${MEDS.map((m) => li(m.name, `${m.desc}${have(m.id) ? ` · You have ${have(m.id)}` : ''}`, btn('buy', m.id, money(m.price * 100), c < m.price * 100 && 'Not enough cash'))).join('')}</ul>` +
+        (c < Math.min(...MEDS.map((m) => m.price)) * 100 ? `<p class="shop-broke">You can't afford anything. Cash only.</p>` : '');
+    } else if (place === 'pawn' || place === 'fence') {
+      if (!open) body = `<p class="shop-closed">${place === 'pawn' ? 'The shutter is down.' : "There's nobody back here right now."} ${hoursText(info.hours!)}.</p>`;
+      else {
+        const sell = inv.items
+          .map((x, i) => ({ x, i, o: offer(place, x) }))
+          .map(({ x, i, o }) => li(x.name, 'cents' in o ? `${x.detail ? `${x.detail} · ` : ''}He'll give you ${money(o.cents)}` : o.why, 'cents' in o ? btn('sell', i, `Sell ${money(o.cents)}`) : btn('sell', i, 'Sell', 'No')));
+        body = `<h3>Sell</h3>` + (sell.length ? `<ul class="shop-list">${sell.join('')}</ul>` : `<p class="shop-broke">You've got nothing to sell.</p>`);
+        if (place === 'pawn') {
+          body += `<h3>For sale</h3><ul class="shop-list">${PAWN_STOCK.map((s) => li(s.name, s.desc, btn('stock', s.id, money(s.price * 100), c < s.price * 100 && 'Not enough cash'))).join('')}</ul>`;
+        }
+      }
+    } else if (place === 'bank') {
+      const p = inv.purse;
+      const coins = count(p, COINS);
+      if (open) {
+        body =
+          `<h3>Teller</h3><ul class="shop-list">` +
+          li('Change up', 'Small bills and coins for the biggest bills they come to', btn('bank', 'up', 'Change', !c && 'Nothing to change')) +
+          BILLS.filter((d) => p[d])
+            .map((d) => li(`Break a ${denomName(d)}`, `Into ${purseText(breaksInto(d))}`, btn('bank', `break:${d}`, 'Break')))
+            .join('') +
+          `</ul>`;
+      } else body = `<p class="shop-closed">The teller windows are dark. ${hoursText(info.hours!)}.</p>`;
+      body += `<h3>Lobby</h3><ul class="shop-list">${li('Coin machine', `Turns coins into bills, any hour. Keeps ${COIN_MACHINE_FEE * 100}%.`, btn('bank', 'machine', 'Use', !coins && 'No coins'))}</ul>`;
+    }
     this.shopEl.innerHTML =
-      `<div class="shop-head"><h2>Pharmacy</h2><p>Open all night. A fluorescent hum, and a bored clerk behind the plexiglass.</p></div>` +
-      `<div class="shop-cash"><span>Your cash</span><b>${dollars(inv.cash)}</b></div>` +
-      `<ul class="shop-list">${MEDS.map(
-        (m) =>
-          `<li><div><b>${m.name}</b><small>${m.desc}${have(m.id) ? ` · You have ${have(m.id)}` : ''}</small></div>` +
-          `<button type="button" data-buy="${m.id}" ${inv.cash < m.price ? 'disabled' : ''}>${dollars(m.price)}</button></li>`,
-      ).join('')}</ul>` +
-      (inv.cash < Math.min(...MEDS.map((m) => m.price)) ? `<p class="shop-broke">You can't afford anything. Cash only.</p>` : '');
+      `<div class="shop-head"><h2>${info.name}</h2><p>${info.blurb}${info.hours ? ` <em>${hoursText(info.hours)}.</em>` : ''}</p></div>` +
+      `<div class="shop-cash"><span>Your cash</span><b>${money(c)}</b></div>` +
+      `<p class="shop-purse">${purseText(inv.purse)}</p>` +
+      `<div class="shop-body">${body}</div>`;
   }
 
   private renderSheet() {
@@ -731,7 +911,7 @@ export class Game {
         `<div class="sheet-head"><h2>Where to?</h2>${close}</div>` +
         PLACES.map(
           (p) =>
-            `<button type="button" class="place ${p.id === this.place ? 'here' : ''}" data-place="${p.id}"><b>${p.name}</b><small>${p.id === this.place ? "You're here" : p.desc}</small></button>`,
+            `<button type="button" class="place ${p.id === this.place ? 'here' : ''}" data-place="${p.id}"><b>${p.name}</b><small>${p.id === this.place ? "You're here" : p.desc}${p.hours && p.id !== this.place ? `<i class="${isOpen(p.hours) ? 'open' : 'shut'}">${hoursText(p.hours)}</i>` : ''}</small></button>`,
         ).join('');
       return;
     }
@@ -739,8 +919,9 @@ export class Game {
     const h = this.health;
     const total = inv.items.reduce((t, i) => t + i.kg, 0);
     let body =
-      `<div class="pocket-cash"><span>Cash</span><b>${dollars(inv.cash)}</b></div>` +
-      `<p class="pocket-wear">Wearing ${inv.clothes.map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total)}.</p>`;
+      `<div class="pocket-cash"><span>Cash</span><b>${money(Math.round(cashOf(inv) * 100))}</b></div>` +
+      `<p class="pocket-purse">${this.purseHtml()}</p>` +
+      `<p class="pocket-wear">Wearing ${inv.clothes.map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total + purseKg(inv))}.</p>`;
     // Every pocket and bag with something in it: how full, and what's there.
     // The empty ones are listed small at the end.
     const empty = inv.spots.filter((sp) => !inv.items.some((x) => x.spot === sp.id));
@@ -757,10 +938,17 @@ export class Game {
               .map(({ x, i }) => {
                 const m = x.med ? medById(x.med) : null;
                 const why = m?.blocked(h);
-                const small = m ? (why ?? m.desc) : x.secret && x.known ? `${x.doses} bump${x.doses === 1 ? '' : 's'} left` : x.detail;
+                const small = m
+                  ? (why ?? m.desc)
+                  : x.secret && x.known
+                    ? `${x.doses} bump${x.doses === 1 ? '' : 's'} left`
+                    : /^cigarettes$/i.test(x.name)
+                      ? `${x.detail ? `${x.detail}, ` : ''}${x.doses ?? 0} left`
+                      : x.detail;
                 const act = (attr: string, label: string, no?: string | null) => `<button type="button" data-${attr}="${i}" ${no ? `disabled title="${no}"` : ''}>${label}</button>`;
                 let acts = m && m.id !== 'testkit' ? act('use', 'Use', why) : '';
-                if (/^lighter$/i.test(x.name)) acts += act('fire', 'Fire', this.fireBlocked());
+                if (/^(lighter|matches)$/i.test(x.name)) acts += act('fire', 'Fire', this.fireBlocked());
+                if (/^cigarettes$/i.test(x.name)) acts += act('smoke', 'Smoke', this.flame() ? null : 'Nothing to light it');
                 if (x.secret && !x.known) {
                   acts += act('taste', 'Taste');
                   if (inv.items.some((y) => y.med === 'testkit')) acts += act('test', 'Test');
@@ -836,7 +1024,7 @@ export class Game {
     this.youEl.innerHTML =
       `<div class="you-blood"><span>Blood</span><i><b style="width:${pct}%"></b><s style="left:${PASS_OUT * 100}%"></s></i><em>${(h.blood / 1000).toFixed(1)} L</em></div>` +
       `<div class="enc-conds">${healthConditions(h).map((c) => `<span>${c}</span>`).join('')}</div>` +
-      `<div class="you-cash">${dollars(this.inventory.cash)}</div>` +
+      `<div class="you-cash">${money(Math.round(cashOf(this.inventory) * 100))}</div>` +
       this.humanityLine();
   }
 
@@ -1009,6 +1197,9 @@ export class Game {
     this.clockShown = key;
     this.clockEl.querySelector('b')!.textContent = s;
     this.clockEl.querySelector('span')!.textContent = `${dateText(t)} · ${WEATHER_NAME[wx]}`;
+    // Opening hours change with the time.
+    if (this.place !== 'street') this.renderShop();
+    if (this.sheet === 'places') this.renderSheet();
   }
 
   /** Shows the buttons that fit the moment: Lurk, Rest, the edge tabs. */
@@ -1042,7 +1233,7 @@ export class Game {
 
   /** For automated tests. */
   get debug() {
-    return { world: this.world, tv: this.tv, phase: this.phase, lurk: this.lurkState, encounter: this.encounter, stats: this.stats, health: this.health, inventory: this.inventory, place: this.place, humanity: this.humanity };
+    return { cash: cashOf(this.inventory), world: this.world, tv: this.tv, phase: this.phase, lurk: this.lurkState, encounter: this.encounter, stats: this.stats, health: this.health, inventory: this.inventory, place: this.place, humanity: this.humanity };
   }
 }
 

@@ -45,11 +45,45 @@ export function createRain(fall: HTMLCanvasElement, glass: Glass) {
   let nextFlash = 8;
   let acc = 0;
   let idle = true;
+  let frame = 0;
+  const MAX = 280;
+
+  // One drop, drawn once at a good size; every drop on the glass is a copy
+  // of it, scaled (far cheaper than drawing each one).
+  const SPRITE = 64;
+  const sprite = document.createElement('canvas');
+  sprite.width = sprite.height = SPRITE;
+  {
+    const c = sprite.getContext('2d')!;
+    const r = SPRITE / 2 - 2;
+    c.translate(SPRITE / 2, SPRITE / 2);
+    c.fillStyle = 'rgba(170, 190, 210, 0.08)';
+    c.beginPath();
+    c.arc(0, 0, r, 0, Math.PI * 2);
+    c.fill();
+    c.lineWidth = r * 0.16;
+    c.strokeStyle = 'rgba(0, 0, 0, 0.32)';
+    c.beginPath();
+    c.arc(0, r * 0.05, r * 0.92, 0, Math.PI * 2);
+    c.stroke();
+    const g = c.createRadialGradient(0, r * 0.45, 0, 0, r * 0.45, r * 0.75);
+    g.addColorStop(0, 'rgba(225, 235, 255, 0.3)');
+    g.addColorStop(1, 'rgba(225, 235, 255, 0)');
+    c.fillStyle = g;
+    c.beginPath();
+    c.arc(0, 0, r * 0.9, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    c.beginPath();
+    c.arc(-r * 0.32, -r * 0.42, r * 0.16, 0, Math.PI * 2);
+    c.fill();
+  }
 
   function resize(width: number, height: number, pixelRatio: number) {
     w = width;
     h = height;
-    pr = Math.min(pixelRatio, 2);
+    // Water's soft: it doesn't need the full resolution.
+    pr = Math.min(pixelRatio, 1.25);
     for (const c of [fall, on]) {
       c.width = Math.round(w * pr);
       c.height = Math.round(h * pr);
@@ -63,7 +97,7 @@ export function createRain(fall: HTMLCanvasElement, glass: Glass) {
 
   function land() {
     // Mostly small beads; now and then a fat one.
-    const big = rnd() < 0.06;
+    const big = rnd() < 0.1;
     const r = big ? 6 + rnd() * 5 : 1.4 + Math.pow(rnd(), 2) * 4;
     const x = rnd() * w;
     const y = rnd() * h;
@@ -74,7 +108,7 @@ export function createRain(fall: HTMLCanvasElement, glass: Glass) {
         return;
       }
     }
-    if (drops.length < 420) drops.push({ x, y, r, v: 0, t: 1 + rnd() * 4, trail: 0, wx: x, wy: y });
+    if (drops.length < MAX) drops.push({ x, y, r, v: 0, t: 1 + rnd() * 4, trail: 0, wx: x, wy: y });
   }
 
   function step(dt: number) {
@@ -87,11 +121,12 @@ export function createRain(fall: HTMLCanvasElement, glass: Glass) {
     }
     // Washing is a pass over the whole glass, so paths are washed in
     // pieces, and only a few a frame.
-    let washes = 5;
+    // (A few times a second, a few strokes at a time.)
+    let washes = frame % 8 ? 0 : 3;
     const wash = (d: Drop, force: boolean) => {
-      if (!washes || (!force && d.y - d.wy < 28)) return;
+      if (!washes || (!force && d.y - d.wy < 40)) return;
       washes--;
-      glass.wash(d.wx, d.wy, d.x, d.y, d.r * 1.25, 0.32);
+      glass.wash(d.wx, d.wy, d.x, d.y, d.r * 1.5, 0.5);
       d.wx = d.x;
       d.wy = d.y;
     };
@@ -100,7 +135,7 @@ export function createRain(fall: HTMLCanvasElement, glass: Glass) {
       const d = drops[i];
       d.t -= dt;
       if (d.v === 0) {
-        if (d.r > 5.5 && d.t <= 0) {
+        if (d.r > 4.2 && d.t <= 0) {
           d.v = 40 + d.r * 18 * rnd();
           d.t = 0.2 + rnd() * 1.2;
         } else if (d.t <= 0) d.t = 0.5 + rnd() * 3;
@@ -118,7 +153,7 @@ export function createRain(fall: HTMLCanvasElement, glass: Glass) {
         d.trail += d.v * dt;
         if (d.trail > 9) {
           d.trail = 0;
-          if (rnd() < 0.7 && drops.length < 420) drops.push({ x: d.x + (rnd() - 0.5) * 2, y: d.y - d.r, r: 0.8 + rnd() * 1.2, v: 0, t: 99, trail: 0, wx: d.x, wy: d.y });
+          if (rnd() < 0.7 && drops.length < MAX) drops.push({ x: d.x + (rnd() - 0.5) * 2, y: d.y - d.r, r: 0.8 + rnd() * 1.2, v: 0, t: 99, trail: 0, wx: d.x, wy: d.y });
           d.r = Math.max(2, d.r - 0.05);
         }
         // It picks up the drops in its way.
@@ -176,11 +211,16 @@ export function createRain(fall: HTMLCanvasElement, glass: Glass) {
     if (streaks.length || flash > 0) {
       fx.lineCap = 'round';
       fx.lineWidth = 1;
-      for (const s of streaks) {
-        fx.strokeStyle = `rgba(190, 205, 225, ${s.a * Math.min(1, amount * 1.5)})`;
+      // Three shades of streak, one path each.
+      const fade = Math.min(1, amount * 1.5);
+      for (const [lo, hi, a] of [[0, 0.09, 0.07], [0.09, 0.14, 0.11], [0.14, 1, 0.16]]) {
+        fx.strokeStyle = `rgba(190, 205, 225, ${a * fade})`;
         fx.beginPath();
-        fx.moveTo(s.x, s.y);
-        fx.lineTo(s.x - s.len * WIND, s.y - s.len);
+        for (const s of streaks) {
+          if (s.a < lo || s.a >= hi) continue;
+          fx.moveTo(s.x, s.y);
+          fx.lineTo(s.x - s.len * WIND, s.y - s.len);
+        }
         fx.stroke();
       }
       if (flash > 0) {
@@ -192,39 +232,9 @@ export function createRain(fall: HTMLCanvasElement, glass: Glass) {
     }
     ox.clearRect(0, 0, w, h);
     for (const d of drops) {
-      const r = d.r;
       // Running drops stretch a little.
-      const ry = d.v ? r * 1.25 : r;
-      ox.save();
-      ox.translate(d.x, d.y);
-      ox.scale(1, ry / r);
-      // The body of the drop: a faint, cool lens.
-      ox.fillStyle = 'rgba(170, 190, 210, 0.07)';
-      ox.beginPath();
-      ox.arc(0, 0, r, 0, Math.PI * 2);
-      ox.fill();
-      // A dark rim, heavier along the bottom where the water is thickest.
-      ox.lineWidth = Math.max(0.6, r * 0.16);
-      ox.strokeStyle = 'rgba(0, 0, 0, 0.32)';
-      ox.beginPath();
-      ox.arc(0, r * 0.05, r * 0.92, 0, Math.PI * 2);
-      ox.stroke();
-      if (r > 1.6) {
-        // Light focused into a crescent low inside the drop.
-        const g = ox.createRadialGradient(0, r * 0.45, 0, 0, r * 0.45, r * 0.75);
-        g.addColorStop(0, 'rgba(225, 235, 255, 0.28)');
-        g.addColorStop(1, 'rgba(225, 235, 255, 0)');
-        ox.fillStyle = g;
-        ox.beginPath();
-        ox.arc(0, 0, r * 0.9, 0, Math.PI * 2);
-        ox.fill();
-      }
-      // A hot highlight near the top.
-      ox.fillStyle = 'rgba(255, 255, 255, 0.75)';
-      ox.beginPath();
-      ox.arc(-r * 0.32, -r * 0.42, Math.max(0.5, r * 0.16), 0, Math.PI * 2);
-      ox.fill();
-      ox.restore();
+      const ry = d.v ? d.r * 1.25 : d.r;
+      ox.drawImage(sprite, d.x - d.r, d.y - ry, d.r * 2, ry * 2);
     }
   }
 
@@ -246,6 +256,7 @@ export function createRain(fall: HTMLCanvasElement, glass: Glass) {
         return;
       }
       idle = false;
+      frame++;
       step(Math.min(dt, 0.05));
       draw();
     },

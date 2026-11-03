@@ -1,7 +1,7 @@
 import type * as THREE from 'three';
 import { writeSave, type SaveData } from '../core/save';
 import { createTv } from './tv';
-import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson } from './person';
+import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf } from './person';
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
 import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, type StatName, type Stats } from './stats';
@@ -52,7 +52,7 @@ const STOMP_HELPLESS_COST = 1;
 const TORTURE_COST = 3;
 const MUG_COST = 0.5;
 
-import { COIN_MACHINE_FEE, PAWN_STOCK, PLACES, offer, placeInfo, type Place } from './shops';
+import { COIN_MACHINE_FEE, GAS_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type Place } from './shops';
 import { BILLS, COINS, addTo, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
 import { hoursText, isOpen } from './clock';
 import { createHitUi } from '../fx/hitUi';
@@ -722,6 +722,7 @@ export class Game {
       {
         street: 'You head back out into the street.',
         pharmacy: 'You walk to the all-night pharmacy.',
+        gas: 'You walk over to the gas station. The door chimes as you go in.',
         pawn: 'You walk over to the pawn shop.',
         fence: 'You slip down the alley behind the laundromat.',
         bank: 'You walk to the bank.',
@@ -804,19 +805,34 @@ export class Game {
     buzz(8);
   }
 
-  /** Buy something second-hand at the pawn shop (and put it on, if it's clothes). */
+  /** Buy something at the pawn shop or the gas station (and put it on, if it's clothes). */
   private buyStock(id: string) {
-    const s = PAWN_STOCK.find((x) => x.id === id);
+    const place = this.place;
+    const s = (place === 'gas' ? GAS_STOCK : PAWN_STOCK).find((x) => x.id === id);
     const inv = this.inventory;
-    if (!s || this.place !== 'pawn' || !isOpen(placeInfo('pawn').hours!) || cashOf(inv) < s.price) return;
+    if (!s || (place !== 'pawn' && place !== 'gas') || (place === 'pawn' && !isOpen(placeInfo('pawn').hours!)) || cashOf(inv) < s.price) return;
     let line: string;
-    if (s.slot === 'head' || s.slot === 'face' || s.slot === 'eyes') {
+    if (s.drink) {
+      // Hot coffee, drunk standing at the counter.
+      const h = this.health;
+      const was = h.cold ?? 0;
+      h.cold = Math.max(0, was - 1);
+      h.stress = Math.max(0, (h.stress ?? 0) - 6);
+      line = `You buy a coffee and drink it at the counter, too hot to taste. ${was ? (h.cold ? "Some of the cold goes out of you." : "You're warm again.") : 'Your hands steady a little.'}`;
+    } else if (s.med) {
+      const m = medById(s.med);
+      if (!stow(inv, { kind: 'med', name: m.name, med: s.med })) {
+        this.note([`You've got nowhere to put ${m.name.toLowerCase()}. ${noRoomWhy(inv, measure({ kind: 'med', name: m.name, med: s.med }).size)}`]);
+        return;
+      }
+      line = `You buy ${m.name.toLowerCase()} from behind the counter.`;
+    } else if (s.slot === 'head' || s.slot === 'face' || s.slot === 'eyes') {
       // Something for your face: worn (a mask starts pulled down; pull it up in Pockets).
       const w = wearing(inv);
       const old = w[s.slot];
       w[s.slot] = s.name;
       if (s.slot === 'face') w.masked = false;
-      line = `You buy the ${s.name.toLowerCase()}${old ? ` and bin your old ${old.toLowerCase()}` : ''}.${s.slot === 'face' ? ' You keep it pulled down for now (Pockets: pull it up).' : ' You put it on.'}`;
+      line = `You buy the ${s.name.toLowerCase()}${old ? ` and bin your old ${old.toLowerCase()}` : ''}.${s.slot === 'face' ? ' You keep it pulled down for now (Pockets: pull it up).' : /s$/i.test(s.name) ? ' You put them on.' : ' You put it on.'}`;
     } else if (s.slot) {
       const r = wear(inv, s.slot, s.name);
       if (!r.ok) {
@@ -825,11 +841,12 @@ export class Game {
       }
       line = `You buy the ${s.name.toLowerCase()} and put it on${r.old ? `, and leave your old ${r.old.toLowerCase()} in the bin out front` : ''}.`;
     } else {
-      if (!stow(inv, { kind: 'misc', name: s.name, ...(s.id === 'lighter' ? { doses: 100 } : {}) })) {
+      const brand = s.id === 'cigs' ? ['Red Crest', 'Mayfair Lights', 'Dakota Menthols', 'Ridgeway Reds', 'Union Blues', 'Harbor 100s'][Math.floor(Math.random() * 6)] : undefined;
+      if (!stow(inv, { kind: 'misc', name: s.name, ...(brand ? { detail: brand } : {}), ...(s.doses ? { doses: s.doses } : s.id === 'lighter' ? { doses: 100 } : {}) })) {
         this.note([`Nowhere to put it. ${noRoomWhy(inv, 'small')}`]);
         return;
       }
-      line = `You buy the ${s.name.toLowerCase()}.`;
+      line = s.id === 'cigs' ? `You buy a pack of ${brand}.` : s.id === 'matches' ? 'You buy a book of matches.' : `You buy the ${s.name.toLowerCase()}.`;
     }
     const paid = this.payLine(s.price * 100);
     this.refresh();
@@ -1267,6 +1284,7 @@ export class Game {
     const place = this.place;
     const here = place !== 'street' && this.tvState.on;
     this.shopEl.hidden = !here;
+    this.view.classList.toggle('in-shop', here);
     if (!here) return;
     const info = placeInfo(place);
     const inv = this.inventory;
@@ -1280,6 +1298,13 @@ export class Game {
       body =
         `<ul class="shop-list">${MEDS.map((m) => li(m.name, `${m.desc}${have(m.id) ? ` · You have ${have(m.id)}` : ''}`, btn('buy', m.id, money(m.price * 100), c < m.price * 100 && 'Not enough cash'))).join('')}</ul>` +
         (c < Math.min(...MEDS.map((m) => m.price)) * 100 ? `<p class="shop-broke">You can't afford anything. Cash only.</p>` : '');
+    } else if (place === 'gas') {
+      const have = (name: string) => inv.items.filter((x) => x.name === name).length;
+      body =
+        `<ul class="shop-list">${GAS_STOCK.map((s) => {
+          const n = s.med ? inv.items.filter((x) => x.med === s.med).length : s.slot || s.drink ? 0 : have(s.name);
+          return li(s.name, `${s.desc}${n ? ` · You have ${n}` : ''}`, btn('stock', s.id, money(s.price * 100), c < s.price * 100 && 'Not enough cash'));
+        }).join('')}</ul>` + (c < 100 ? `<p class="shop-broke">You can't afford anything. The clerk watches you anyway.</p>` : '');
     } else if (place === 'pawn' || place === 'fence') {
       if (!open) body = `<p class="shop-closed">${place === 'pawn' ? 'The shutter is down.' : "There's nobody back here right now."}</p>`;
       else {
@@ -1438,6 +1463,7 @@ export class Game {
       ? inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind) && x.detail === e.holder && !x.pin).map(({ x, i }) => ({ i, name: x.name }))
       : [];
     e.canAsk = this.world.thieves.length > 0 && !e.person.thief;
+    e.wet = RAIN_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors;
   }
 
   /** Redraws the person button and the encounter screen from the saved state. */
@@ -1571,7 +1597,7 @@ export class Game {
     const f = this.infamy;
     const h = this.health;
     const tough = ['Easy', 'Fair', 'Hard', 'Brutal'].indexOf(BUILDS[p.build].difficulty);
-    let fear = 20 + this.menace() + { civilian: 10, junkie: 3, homeless: 0, drunk: -12 }[p.kind] - tough * 9;
+    let fear = 20 + this.menace() + { civilian: 10, junkie: 3, homeless: 0, drunk: -12 }[p.kind] - tough * 9 + personalityOf(p).fear;
     if (e.recognised) {
       const k = p.known ? this.people.find((x) => x.id === p.known) : undefined;
       if (k) fear += Math.min(25, f.rep * 0.25) + (k.memory.fear ?? 0) * 0.7 - (k.memory.beatYou ? 15 : 0);

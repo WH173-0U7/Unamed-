@@ -65,8 +65,55 @@ export interface Item {
   spray?: boolean;
 }
 
+/**
+ * How someone is, inside: it decides how easily they scare and give up,
+ * whether they run or fight, whether they lie to you, how they talk, and a
+ * little of what they carry. You can read it by watching them (Surveil).
+ */
+export type Personality = 'timid' | 'jumpy' | 'calm' | 'sly' | 'proud' | 'hothead' | 'hard';
+
+export interface PersonalityInfo {
+  name: string;
+  /** What watching them tells you. */
+  desc: string;
+  /** Added to how scared of you they start. */
+  fear: number;
+  /** Added to the chance they give up when told to (and to how soon they give up on their own). */
+  yield: number;
+  /** How much more (or less) they run for it. */
+  flee: number;
+  /** Added to the chance they come at you instead of running. */
+  fight: number;
+  /** How likely they are to tell the truth, scared (1 normal). */
+  truth: number;
+  /** How likely they are to keep something back when they empty their pockets (1 normal). */
+  holdBack: number;
+  /** More likely to carry these (name: extra chance). */
+  carry?: Record<string, number>;
+}
+
+export const PERSONALITIES: Record<Personality, PersonalityInfo> = {
+  timid: { name: 'Timid', desc: 'Shoulders hunched, eyes down. Scares easily.', fear: 20, yield: 0.12, flee: 1.4, fight: -0.15, truth: 1.2, holdBack: 0.5, carry: { 'Pepper spray': 0.15 } },
+  jumpy: { name: 'Jumpy', desc: 'Twitchy, always looking round. More likely to run than fight.', fear: 10, yield: 0.05, flee: 1.8, fight: -0.05, truth: 0.9, holdBack: 0.9, carry: { 'Pepper spray': 0.1 } },
+  calm: { name: 'Calm', desc: 'Unhurried. Hard to read.', fear: 0, yield: 0, flee: 1, fight: 0, truth: 1, holdBack: 1 },
+  sly: { name: 'Sly', desc: 'Watchful, a little smile. Will say whatever gets them out of it.', fear: 0, yield: 0.05, flee: 1.2, fight: -0.05, truth: 0.4, holdBack: 1.8 },
+  proud: { name: 'Proud', desc: 'Chin up, takes up the pavement. Hates to lose face.', fear: -10, yield: -0.1, flee: 0.6, fight: 0.1, truth: 1, holdBack: 1.3 },
+  hothead: { name: 'Hothead', desc: 'Already angry about something. Quick to swing.', fear: -15, yield: -0.08, flee: 0.5, fight: 0.3, truth: 0.8, holdBack: 1, carry: { Knife: 0.12, 'Box cutter': 0.1, Bottle: 0.1 } },
+  hard: { name: 'Hard', desc: "Seen worse than you. Won't scare, won't run.", fear: -22, yield: -0.15, flee: 0.3, fight: 0.2, truth: 1, holdBack: 1.4, carry: { Knife: 0.1 } },
+};
+const PERSONALITY_CHANCES: Record<Kind, [Personality, number][]> = {
+  civilian: [['timid', 3], ['jumpy', 2], ['calm', 3], ['sly', 1], ['proud', 2], ['hothead', 1], ['hard', 0.5]],
+  drunk: [['timid', 0.5], ['jumpy', 1], ['calm', 1], ['sly', 1], ['proud', 2], ['hothead', 4], ['hard', 1.5]],
+  homeless: [['timid', 2], ['jumpy', 2], ['calm', 2], ['sly', 2], ['proud', 1], ['hothead', 1], ['hard', 2]],
+  junkie: [['timid', 1], ['jumpy', 4], ['calm', 0.5], ['sly', 3], ['proud', 0.5], ['hothead', 1.5], ['hard', 1]],
+};
+/** Their personality (people from before personalities were counted are calm). */
+export const personalityOf = (p: Person): PersonalityInfo => PERSONALITIES[p.personality ?? 'calm'];
+
 export interface Person {
   kind: Kind;
+  /** How they are, inside (see PERSONALITIES). */
+  personality?: Personality;
   race: Race;
   sex: Sex;
   build: Build;
@@ -109,6 +156,8 @@ export interface Loot {
   /** A card's PIN, as they told it you, and whether it was the truth (never shown). */
   pin?: string;
   pinOk?: boolean;
+  /** A card already used at the cash machine (it's been stopped). */
+  drained?: boolean;
 }
 
 /** Something they're wearing or carrying that can be gone through. */
@@ -242,9 +291,18 @@ const ITEMS: Record<Kind, [Item, number][]> = {
 /** A new random person (who you saw this lurk). */
 export function makePerson(): Person {
   const kind = pick(CHANCES);
-  const carrying = ITEMS[kind].filter(([, c]) => Math.random() < c).map(([item]) => ({ ...item }));
+  const personality = pick(PERSONALITY_CHANCES[kind]);
+  const extra = PERSONALITIES[personality].carry ?? {};
+  const carrying = ITEMS[kind].filter(([item, c]) => Math.random() < c + (extra[item.name] ?? 0)).map(([item]) => ({ ...item }));
+  // Some carry things their kind usually doesn't (a timid civilian, pepper spray; a hothead, a blade).
+  for (const [name, c] of Object.entries(extra)) {
+    if (carrying.some((i) => i.name === name) || ITEMS[kind].some(([i]) => i.name === name) || Math.random() >= c) continue;
+    const item = Object.values(ITEMS).flat().find(([i]) => i.name === name)?.[0];
+    if (item) carrying.push({ ...item });
+  }
   return {
     kind,
+    personality,
     race: pick(RACE_CHANCES),
     sex: Math.random() < 0.5 ? 'Male' : 'Female',
     build: pick(BUILD_CHANCES[kind]),

@@ -290,7 +290,10 @@ export function injuryEffects(h: Health): InjuryInfo[] {
   }
   for (const p of h.broken) {
     const effects: string[] = [];
-    if (p.endsWith('arm')) effects.push('Punches and weapon blows land: −20%');
+    if (p.endsWith('arm')) {
+      effects.push('Punches and weapon blows land: −20%');
+      effects.push('Grappling works: −20%');
+    }
     if (p.endsWith('leg')) {
       effects.push('Kicks and stomps land: −20%');
       effects.push(`Running away: ${legs >= 2 ? '8%' : '35%'} of the usual chance${legs >= 2 ? ' (both legs)' : ''}`);

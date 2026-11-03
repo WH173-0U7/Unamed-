@@ -1,4 +1,4 @@
-import { AWARENESS, BUILDS, NAMES, type Item, type Loot, type Person } from './person';
+import { AWARENESS, BUILDS, NAMES, personalityOf, type Item, type Loot, type Person, type Personality } from './person';
 import { money } from './money';
 import { lootLabel, take, type Inventory } from './inventory';
 import {
@@ -167,7 +167,7 @@ export interface Encounter {
   distance: number;
   /** How close they are to noticing you (0..100). */
   suspicion: number;
-  known: { build: boolean; carrying: boolean; awareness: boolean; sex: boolean };
+  known: { build: boolean; carrying: boolean; awareness: boolean; sex: boolean; personality?: boolean };
   you: Body;
   them: Body & { weaponOut: string | null; sprayed: boolean };
   log: LogLine[];
@@ -205,6 +205,8 @@ export interface Encounter {
   flame?: boolean;
   cardsHeld?: { i: number; name: string }[];
   canAsk?: boolean;
+  /** Out in the rain (a lighter burns more fuel). */
+  wet?: boolean;
   /** What they told you: someone has your old things ('thief'), or nothing. */
   tip?: 'thief' | 'none';
 }
@@ -230,7 +232,7 @@ export const CATEGORY_NAMES: Record<Category, string> = {
   torture: 'Torture',
   move: 'Move',
 };
-const SURVEIL_IDS = ['follow', 'build', 'carrying', 'awareness', 'sex'];
+const SURVEIL_IDS = ['follow', 'build', 'carrying', 'awareness', 'sex', 'read'];
 const VIOLENCE_IDS = ['bumrush', 'sucker', 'shove', 'mug'];
 
 // ---------- Fear ----------
@@ -238,7 +240,7 @@ const VIOLENCE_IDS = ['bumrush', 'sucker', 'shove', 'mug'];
 export const FEAR_NAMES = ['Calm', 'Wary', 'Scared', 'Terrified'];
 export const fearLevel = (f: number) => (f >= 70 ? 3 : f >= 45 ? 2 : f >= 20 ? 1 : 0);
 /** Chance they give up when you tell them to (fear, and a bonus for surprise). */
-export const yieldChance = (e: Encounter, bonus = 0) => clamp(((e.them.fear ?? 0) - 20) / 60 + bonus, 0.04, 0.95);
+export const yieldChance = (e: Encounter, bonus = 0) => clamp(((e.them.fear ?? 0) - 20) / 60 + bonus + personalityOf(e.person).yield, 0.04, 0.95);
 /** How it looks, on the button. */
 const oddsHint = (p: number) => (p >= 0.7 ? 'They look ready to break' : p >= 0.4 ? 'They might give it up' : p >= 0.15 ? 'They look unsure of you' : "They aren't scared of you");
 /** They get more (or less) scared of you. */
@@ -277,7 +279,7 @@ function yieldedOptions(e: Encounter): Option[] {
   out.push({ id: 'patdown', label: 'Pat them down', hint: 'Slower, but nothing gets past you', cat: 'search' });
   // Questions.
   out.push({ id: 'menace', label: '"Don\'t even think about it"', hint: 'Scare them more', cat: 'threaten' });
-  if (e.emptied) out.push({ id: 'rest', label: '"Is that everything?"', hint: 'Are they holding out on you?', cat: 'threaten' });
+  if (e.emptied) out.push({ id: 'ask-rest', label: '"Is that everything?"', hint: 'Are they holding out on you?', cat: 'threaten' });
   e.person.clothes.forEach((g, gi) =>
     g.loot.forEach((l, li) => {
       if (g.searched && !l.hidden && /card/.test(l.kind) && !l.pin) out.push({ id: `pin:${gi}:${li}`, label: '"What\'s the PIN?"', hint: `Their ${l.name.toLowerCase()}`, cat: 'threaten' });
@@ -287,7 +289,7 @@ function yieldedOptions(e: Encounter): Option[] {
   if (e.canAsk && !asked.includes('thief')) out.push({ id: 'ask-thief', label: '"Seen anyone with my things?"', hint: 'What you had, before', cat: 'threaten' });
   // Hurting them, for the truth or for the fun of it.
   out.push({ id: 't-finger', label: 'Bend a finger back', hint: 'Until it snaps', cat: 'torture' });
-  out.push({ id: 't-stamp', label: 'Stamp on their hand', hint: T.down ? undefined : 'Put them on the ground first', cat: 'torture' });
+  out.push({ id: 't-stamp', label: 'Stamp on their hand', hint: T.down ? undefined : 'Kicks them to the ground first', cat: 'torture' });
   out.push({ id: 't-burn', label: 'Burn them with the lighter', hint: e.flame ? undefined : 'Nothing to burn them with', disabled: !e.flame, cat: 'torture' });
   if (arms(T)) out.push({ id: 't-twist', label: 'Twist the broken arm', cat: 'torture' });
   out.push({ id: 'punch', label: 'Hit them anyway', hint: 'It turns back into a fight', cat: 'attack' });
@@ -323,6 +325,11 @@ function body(blood: number, toughness: number, stamina: number): Body {
 
 /** A new encounter. `yours` is your body as it is now (injuries carry over). */
 export function newEncounter(person: Person, yours: Body): Encounter {
+  // Whatever they kept back from you last time, they've had time to put back.
+  for (const g of person.clothes) {
+    g.searched = false;
+    for (const l of g.loot) delete l.hidden;
+  }
   const b = BUILDS[person.build];
   const tired = person.kind === 'junkie' || person.kind === 'drunk' ? 0.8 : 1;
   return {
@@ -331,7 +338,7 @@ export function newEncounter(person: Person, yours: Body): Encounter {
     stage: 'seen',
     distance: 0,
     suspicion: 0,
-    known: { build: false, carrying: false, awareness: false, sex: false },
+    known: { build: false, carrying: false, awareness: false, sex: false, personality: false },
     you: yours,
     them: { ...body(b.blood, b.hp, Math.round(b.stamina * tired)), weaponOut: null, sprayed: false },
     log: [],
@@ -398,6 +405,7 @@ export function options(e: Encounter): Option[] {
         { id: 'carrying', label: 'What are they carrying?', disabled: e.known.carrying, hint: e.distance < 1 ? 'Need to be closer' : undefined, cat: 'surveil' },
         { id: 'awareness', label: 'How aware are they?', disabled: e.known.awareness, cat: 'surveil' },
         { id: 'sex', label: 'Male or female?', disabled: e.known.sex, cat: 'surveil' },
+        { id: 'read', label: 'Read them', hint: e.distance < 1 ? 'Need to be closer' : 'What kind of person?', disabled: !!e.known.personality, cat: 'surveil' },
         { id: 'bumrush', label: 'Bum rush', hint: 'Knock them down', cat: 'violence' },
         { id: 'sucker', label: 'Sucker punch', hint: 'Hit them in the head', cat: 'violence' },
         { id: 'shove', label: 'Shove', hint: 'Easiest to land', cat: 'violence' },
@@ -484,8 +492,10 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
   // Going through their clothes (unconscious, or dead).
   if (id.startsWith('search:') || id.startsWith('take')) {
     if (!searchable(e)) return impacts;
+    const robbedBefore = !!e.robbed;
+    const taken = e.person.clothes.reduce((n, g) => n + g.loot.length, 0);
     search(id, inv);
-    if (e.them.yielded && e.robbed) e.mugged = true;
+    if (e.them.yielded && e.robbed && (!robbedBefore || e.person.clothes.reduce((n, g) => n + g.loot.length, 0) < taken)) e.mugged = true;
     // Searching takes a moment, and they go on bleeding.
     if (e.stage === 'combat' && id.startsWith('search:')) endOfRound();
     return impacts;
@@ -595,6 +605,18 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
         watch(3);
         you.gain('sneak', 2);
         break;
+      case 'read': {
+        if (e.distance < 1) {
+          say('info', "Too far away to read them. You'd need to follow them.");
+          return impacts;
+        }
+        e.known.personality = true;
+        const P = personalityOf(p);
+        say('info', `${P.name}. ${P.desc}`);
+        watch(6);
+        you.gain('sneak', 2);
+        break;
+      }
       case 'sex':
         e.known.sex = true;
         say('info', `${p.sex}.`);
@@ -1161,14 +1183,11 @@ function theirTurn() {
   if (T.yielded) return yieldTurn();
   // Scared enough, they give up: hands up, or curled up on the floor.
   const fear = T.fear ?? 0;
-  if (fear >= 75 && Math.random() < 0.25 + (fear - 75) / 60) {
+  const P = personalityOf(p);
+  const breaking = fear + P.yield * 100;
+  if (breaking >= 75 && Math.random() < 0.25 + (breaking - 75) / 60) {
     T.yielded = true;
-    say(
-      'them',
-      T.down
-        ? oneOf(['They curl up on the ground with their arms over their head. "Stop! Please! Take it, take whatever you want!"', '"Okay! Okay!" they sob from the floor. "I give up. Just take it."'])
-        : oneOf(['They throw their hands up. "Okay! Okay! Take it, take whatever you want!"', 'They back off with their hands up, shaking. "I don\'t want any trouble. Please."']),
-    );
+    say('them', T.down ? oneOf(['They curl up on the ground with their arms over their head. "Stop! Please! Take it, take whatever you want!"', '"Okay! Okay!" they sob from the floor. "I give up. Just take it."']) : giveUpLine(p.personality));
     you.gain('intimidation', 5);
     return;
   }
@@ -1191,7 +1210,7 @@ function theirTurn() {
   }
   // Losing badly: some try to run for it (much harder on a broken leg).
   const tough = ['Easy', 'Fair', 'Hard', 'Brutal'].indexOf(b.difficulty);
-  const wants = (p.kind === 'civilian' || p.kind === 'junkie' ? 0.2 : 0.12) * (1 - tough * 0.25) * (1 + fear / 60);
+  const wants = (p.kind === 'civilian' || p.kind === 'junkie' ? 0.2 : 0.12) * (1 - tough * 0.25) * (1 + fear / 60) * P.flee;
   if (T.blood < T.maxBlood * 0.72 && Math.random() < wants) {
     spend('them', COST.run);
     if (Math.random() < fleeChance(T, e.you)) {
@@ -1277,6 +1296,8 @@ function checkEnd(): boolean {
     T.down = true;
     say('you', T.bleeding >= 3 ? "They've lost too much blood. They slump to the floor, unconscious." : "They go down and don't get up. They're unconscious.");
   }
+  // Out cold, they haven't given up any more: they're just a body to go through.
+  if (T.out || T.dead) T.yielded = false;
   if (T.out && !T.outNoted) {
     T.outNoted = true;
     say('info', "They're unconscious. They can't fight back.");
@@ -1301,7 +1322,7 @@ function spotted() {
   const p = enc.person;
   const b = BUILDS[p.build];
   const tough = ['Easy', 'Fair', 'Hard', 'Brutal'].indexOf(b.difficulty);
-  const fight = tough * 0.2 + (p.kind === 'drunk' ? 0.3 : 0) + (p.awareness === 'Paranoid' ? 0.15 : 0);
+  const fight = tough * 0.2 + (p.kind === 'drunk' ? 0.3 : 0) + (p.awareness === 'Paranoid' ? 0.15 : 0) + personalityOf(p).fight;
   if (Math.random() < fight) {
     say('them', oneOf(['They spin around. "The hell do you want?" They come at you.', "They spot you, and they don't run. They come straight for you."]));
     enc.stage = 'combat';
@@ -1322,6 +1343,34 @@ function spotted() {
     say('them', oneOf(['They spot you and bolt. Gone.', 'They see you. They run, and you lose them.']));
     end('lost-them');
   }
+}
+
+/** Giving up, in their own way. */
+function giveUpLine(p?: Personality): string {
+  const lines: Record<Personality, string[]> = {
+    timid: ['"Okay! Okay! Please don\'t hurt me. Please." Their hands are already up.', 'They start crying before you\'ve finished. "Take it. Take it all."'],
+    jumpy: ['"Alright, alright, alright!" Their hands fly up. Their eyes go everywhere.', 'They flinch at every move you make. "Take it! Just take it!"'],
+    calm: ['They breathe out, and nod. "Alright. You win. Take it."', '"Okay." Quietly. "Okay. No trouble."'],
+    sly: ['They put their hands up, and smile like it\'s nothing. "Sure, friend. Let\'s be reasonable."', '"Hey. Hey. No need for any of that. We can work something out."'],
+    proud: ['They look at the ground. It costs them. "...Fine. Take it."', 'Their jaw works. "Fine," they spit. "Take it."'],
+    hothead: ['"Fine! FINE! Take it, you piece of...!" They throw up their hands.', 'They\'re shaking with rage, not fear. Or not only fear. "Take it, then."'],
+    hard: ['They look at you for a long moment. "You win this one." It doesn\'t sound like a surrender.', 'They spit blood, and nod once. "Take it."'],
+  };
+  return oneOf(lines[p ?? 'calm']);
+}
+
+/** Telling you where to go, in their own way. `mugged`: you've only just stepped up. */
+function refuseLine(p: Personality | undefined, mugged: boolean): string {
+  const lines: Record<Personality, string[]> = {
+    timid: ['"N-no. No. Leave me alone!" Their voice cracks, but they don\'t give it up.', 'They clutch their pockets and shake their head, over and over.'],
+    jumpy: ['"Get away from me! Get away!"', 'They\'re too wound up to think. They lash out.'],
+    calm: ['"No," they say, as if you\'d asked the time.', '"I don\'t think so."'],
+    sly: ['"Funny. I was going to ask you the same thing."', 'They laugh. "You\'ll have to do better than that."'],
+    proud: ['"Do you know who you\'re talking to?"', '"From you? Never."'],
+    hothead: [mugged ? '"WHAT did you say to me?" They come at you swinging.' : '"I\'ll kill you!"', '"You want it? Come and get it!"'],
+    hard: ['They don\'t even blink. "Make me."', 'They spit on the ground. "Come and take it."'],
+  };
+  return oneOf(lines[p ?? 'calm']);
 }
 
 /** Getting the drop on them makes a mugging easier: close, and them not looking. */
@@ -1351,14 +1400,15 @@ function mug() {
   if (Math.random() < yieldChance(e, mugSurprise(e))) {
     T.yielded = true;
     scare(8);
-    say('them', oneOf(['They freeze. "Okay. Okay. Don\'t hurt me."', 'Their hands go up. "Take it. Just take it."', 'They look at you, then at the empty street, and give up. "Alright. Alright."']));
+    say('them', giveUpLine(e.person.personality));
     you.gain('intimidation', 8);
     endOfRound();
     return;
   }
   you.gain('intimidation', 3);
   const fear = T.fear ?? 0;
-  if (fear >= 30 && legs(T) === 0 && Math.random() < 0.55) {
+  const P = personalityOf(e.person);
+  if (fear >= 30 && legs(T) === 0 && Math.random() < clamp(0.55 * P.flee - P.fight, 0.05, 0.95)) {
     if (Math.random() < fleeChance(T, e.you, 0.1)) {
       say('them', oneOf(['They shove past you and run. Gone.', 'They bolt into the traffic. You lose them.']));
       end('lost-them');
@@ -1370,7 +1420,7 @@ function mug() {
     endOfRound();
     return;
   }
-  say('them', oneOf(['They laugh in your face. "Yeah? Make me." They swing at you.', '"Get lost." They shove you, hard, and come at you.']));
+  say('them', refuseLine(e.person.personality, true));
   say('info', 'The fight is on.');
   theirTurn();
   endOfRound();
@@ -1382,8 +1432,10 @@ function yieldTurn() {
   const T = e.them;
   T.fear = Math.max(0, (T.fear ?? 0) - 2);
   const fear = T.fear;
-  if (fear < 40 && Math.random() < (40 - fear) / 70) {
-    if (!T.down && legs(T) === 0 && Math.random() < 0.55) {
+  const P = personalityOf(e.person);
+  const nerve = 40 - P.yield * 100;
+  if (fear < nerve && Math.random() < (nerve - fear) / 70) {
+    if (!T.down && legs(T) === 0 && Math.random() < clamp(0.55 * P.flee - P.fight, 0.05, 0.95)) {
       if (Math.random() < fleeChance(T, e.you, 0.1)) {
         say('them', "They see their chance and bolt. They're gone.");
         end('they-fled');
@@ -1426,11 +1478,11 @@ function threatAct(id: string, inv?: Inventory): boolean {
     if (Math.random() < yieldChance(e)) {
       T.yielded = true;
       say('you', oneOf(['"Give it up," you tell them. "Or this gets worse."', '"Stop. Look at you. Just give me what you\'ve got."']));
-      say('them', oneOf(['"Okay! Okay!" Their hands go up. "Take it."', 'They back off, hands up. "Alright. Alright, you win."']));
+      say('them', giveUpLine(e.person.personality));
       you.gain('intimidation', 8);
     } else {
       say('you', '"Give it up," you tell them.');
-      say('them', oneOf(['They spit on the ground. "Come and take it."', '"Go to hell."', 'They just laugh.']));
+      say('them', refuseLine(e.person.personality, false));
       you.gain('intimidation', 3);
     }
     return true;
@@ -1452,8 +1504,14 @@ function threatAct(id: string, inv?: Inventory): boolean {
   const fear = T.fear ?? 0;
   if (id === 'menace') {
     say('you', oneOf(['You lean in close. "Try anything, and I\'ll know where to find you."', 'You grab their face and make them look at you. "Don\'t even think about it."', '"Run, and I\'ll catch you. And then it gets worse."']));
+    // It only goes so far: past terrified, more threats do nothing.
+    if (fear >= 80) {
+      say('them', "They're as scared as they're going to get.");
+      return true;
+    }
+    const before = fearLevel(fear);
     scare(12 * (1 - fear / 150));
-    you.gain('intimidation', 2);
+    if (fearLevel(T.fear ?? 0) > before) you.gain('intimidation', 2);
     return true;
   }
   if (id === 'empty' && !e.emptied) {
@@ -1462,7 +1520,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     // Not scared enough, and they keep something back.
     const all = e.person.clothes.flatMap((g) => g.loot);
     for (const l of all) delete l.hidden;
-    if (all.length >= 2 && fear < 85 && Math.random() < (85 - fear) / 70) {
+    if (all.length >= 2 && fear < 85 && Math.random() < ((85 - fear) / 70) * personalityOf(e.person).holdBack) {
       const best = [...all].sort((x, y) => valueOf(y) - valueOf(x))[0];
       best.hidden = true;
     }
@@ -1494,7 +1552,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     if (hid.length) scare(8);
     return true;
   }
-  if (id === 'rest') {
+  if (id === 'ask-rest') {
     const hidden = e.person.clothes.flatMap((g) => g.loot.map((l) => ({ g, l }))).filter(({ l }) => l.hidden);
     say('you', '"Is that everything?"');
     if (hidden.length && Math.random() < fear / 100 + 0.1) {
@@ -1510,7 +1568,10 @@ function threatAct(id: string, inv?: Inventory): boolean {
     if (id.startsWith('pin:')) {
       const [, gi, li] = id.split(':').map(Number);
       card = e.person.clothes[gi]?.loot[li];
-    } else card = inv?.items[Number(id.slice(9))];
+    } else {
+      const it = inv?.items[Number(id.slice(9))];
+      card = it && /card/.test(it.kind) && it.detail === e.holder ? it : undefined;
+    }
     if (!card || card.pin) return false;
     say('you', `"The ${card.name.toLowerCase()}. What's the PIN?"`);
     if (fear < 25) {
@@ -1519,8 +1580,10 @@ function threatAct(id: string, inv?: Inventory): boolean {
     }
     card.pin = fourDigits();
     // Scared enough, it's the truth. Otherwise, maybe.
-    card.pinOk = fear >= 65 || Math.random() < fear / 80;
-    say('them', `"${card.pin.split('').join('-')}. It's ${card.pin}." ${fear >= 65 ? "They're too scared to lie." : 'They say it fast.'}`);
+    const truth = personalityOf(e.person).truth;
+    const terrified = fear >= (truth < 1 ? 85 : 65);
+    card.pinOk = terrified || Math.random() < (fear / 80) * truth;
+    say('them', `"${card.pin.split('').join('-')}. It's ${card.pin}." ${terrified ? "They're too scared to lie." : e.person.personality === 'sly' ? 'They say it easily. Too easily?' : 'They say it fast.'}`);
     you.gain('intimidation', 4);
     return true;
   }
@@ -1555,6 +1618,7 @@ function torture(how: string, inv?: Inventory) {
   const T = e.them;
   let text: string;
   let ml = 0;
+  let dry = '';
   switch (how) {
     case 'finger':
       text = oneOf(['You take one of their fingers and bend it back until it snaps. They scream into your hand.', "You grab their hand and bend a finger back, slowly. There's a wet crack. They howl."]);
@@ -1571,8 +1635,14 @@ function torture(how: string, inv?: Inventory) {
     case 'burn': {
       const fire = inv?.items.find((x) => /^(lighter|matches)$/i.test(x.name));
       if (!fire) return;
-      fire.doses = Math.max(0, (fire.doses ?? 60) - (/matches/i.test(fire.name) ? 1 : 4));
-      if (fire.doses === 0) inv!.items.splice(inv!.items.indexOf(fire), 1);
+      // Same fuel as burning a card (see game.ts useFlame); more in the rain.
+      const matches = /matches/i.test(fire.name);
+      const left = fire.doses ?? (matches ? 10 : 60);
+      fire.doses = matches ? Math.max(0, left - 2 - (e.wet ? 1 : 0)) : Math.max(0, Math.round(left - 5 * (e.wet ? 1.5 : 1) * (0.7 + Math.random() * 0.6)));
+      if (fire.doses === 0) {
+        inv!.items.splice(inv!.items.indexOf(fire), 1);
+        dry = matches ? 'That was the last match. You drop the empty book.' : "The lighter sputters and dies. It's out of fuel. You toss it.";
+      }
       text = oneOf(['You flick the lighter and hold the flame to their wrist. The skin blisters, then blackens. The smell stays with you.', 'You hold the lighter under their chin. They try to twist away; you hold them there.']);
       break;
     }
@@ -1585,9 +1655,11 @@ function torture(how: string, inv?: Inventory) {
       return;
   }
   e.tortured = (e.tortured ?? 0) + 1;
-  if (ml) T.blood = Math.max(0, T.blood - Math.round((ml * T.maxBlood) / 5000));
+  ml = Math.round((ml * T.maxBlood) / 5000);
+  if (ml) T.blood = Math.max(0, T.blood - ml);
   landed = 'them';
   say('you', ml ? `${text} (−${ml} ml)` : text);
+  if (dry) say('info', dry);
   impacts.push({ target: 'them', ml, severe: false, loc: how === 'burn' ? 'head' : 'arm', spill: ml >= 60 ? 'drip' : 'none' });
   // Fear like nothing else; and some of it gets into you.
   scare(28 * (1 - (T.fear ?? 0) / 200));
@@ -1637,6 +1709,7 @@ function search(id: string, inv?: Inventory) {
     for (const g of clothes) {
       if (!g.searched) continue;
       for (const l of [...g.loot]) {
+        if (l.hidden && enc.them.yielded) continue;
         if (!take(inv, l).ok) {
           left.push(a(lc(l.name)));
           continue;

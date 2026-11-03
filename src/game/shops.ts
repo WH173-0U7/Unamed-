@@ -13,11 +13,14 @@ import type { InvItem } from './inventory';
  * - **The fence**, in the alley behind the laundromat: night only. Takes
  *   anything worth anything, IDs and cards and car keys included, no
  *   questions, for even less. Pays in crumpled small bills.
+ * - **Gas station:** open 24/7. Cigarettes, lighters, matches, a little first
+ *   aid at a markup, caps, beanies and sunglasses off the spinner, and hot
+ *   coffee (warms you, and steadies you a little).
  * - **Bank:** office hours. Changes small bills and coins up into big ones,
  *   and breaks big ones down. After hours, the coin machine in the lobby
  *   still turns coins into bills, for a cut.
  */
-export type Place = 'street' | 'pharmacy' | 'pawn' | 'fence' | 'bank';
+export type Place = 'street' | 'pharmacy' | 'gas' | 'pawn' | 'fence' | 'bank';
 
 export interface PlaceInfo {
   id: Place;
@@ -42,6 +45,14 @@ export const PLACES: PlaceInfo[] = [
     desc: 'Open all night. Bandages, painkillers, splints.',
     hours: null,
     blurb: 'Open all night. A fluorescent hum, and a bored clerk behind the plexiglass.',
+    indoors: true,
+  },
+  {
+    id: 'gas',
+    name: 'Nite Owl Gas',
+    desc: 'Open 24/7. Smokes, lighters, first aid, hot coffee.',
+    hours: null,
+    blurb: 'Two pumps, one working. Hot dogs turning under a lamp, and a clerk behind scratched glass who has seen it all.',
     indoors: true,
   },
   {
@@ -121,7 +132,26 @@ export interface Stock {
   desc: string;
   /** Something to wear: which slot it goes in. */
   slot?: 'top' | 'bottom' | 'bag' | 'head' | 'face' | 'eyes';
+  /** Medicine (goes in your pockets as that). */
+  med?: import('./inventory').MedId;
+  /** Uses (a pack of 20, a book of matches, a full lighter). */
+  doses?: number;
+  /** Had there and then (a hot coffee), not carried. */
+  drink?: boolean;
 }
+
+/** The gas station: what's behind the counter and on the spinner. */
+export const GAS_STOCK: Stock[] = [
+  { id: 'coffee', name: 'Hot coffee', price: 2, desc: 'Burnt, and scalding. Warms you through; steadies your nerves a little.', drink: true },
+  { id: 'cigs', name: 'Cigarettes', price: 9, desc: 'A pack of 20. Takes the edge off stress.', doses: 20 },
+  { id: 'lighter', name: 'Lighter', price: 3, desc: 'Full of fuel.', doses: 100 },
+  { id: 'matches', name: 'Matches', price: 1, desc: 'A book of 20.', doses: 20 },
+  { id: 'bandages', name: 'Bandages', price: 11, desc: 'Slows bleeding a level. Dearer than the pharmacy.', med: 'bandages' },
+  { id: 'painkillers', name: 'Painkillers', price: 8, desc: 'Clears 3 hours of a concussion. Dearer than the pharmacy.', med: 'painkillers' },
+  { id: 'cap', name: 'Baseball cap', price: 12, desc: 'Off the spinner. Shades your eyes from cameras.', slot: 'head' },
+  { id: 'beanie', name: 'Beanie', price: 10, desc: 'Covers your hair.', slot: 'head' },
+  { id: 'shades', name: 'Sunglasses', price: 10, desc: 'Gas station shades. Hides your eyes.', slot: 'eyes' },
+];
 
 export const PAWN_STOCK: Stock[] = [
   { id: 'backpack', name: 'Backpack', price: 25, desc: 'Large things, 12 kg. Faded, one strap fixed with tape.', slot: 'bag' },

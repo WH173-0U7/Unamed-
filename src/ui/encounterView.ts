@@ -1,5 +1,5 @@
 import { uiGlitch } from '../fx/uiGlitch';
-import { BUILDS, NAMES } from '../game/person';
+import { BUILDS, NAMES, personalityOf } from '../game/person';
 import { CATEGORY_NAMES, FEAR_NAMES, PASS_OUT, conditions, fearLevel, distanceLabel, options, type Body, type Category, type Encounter, type Option } from '../game/encounter';
 
 const STAGE_TITLE: Record<string, string> = {
@@ -146,6 +146,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         ['Build', e.known.build ? `${p.build} · ${b.difficulty}` : null],
         ['Carrying', e.known.carrying ? p.carrying.map((i) => i.name).join(', ') || 'Nothing' : null],
         ['Awareness', e.known.awareness ? p.awareness : null],
+        ['Manner', e.known.personality ? personalityOf(p).name : null],
         ['Wearing', (p.clothes ?? []).map((g) => g.name).join(', ') || null],
       ];
       // Someone you've met: what you did, and how they look now (casts,

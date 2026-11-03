@@ -230,6 +230,17 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   terrifies them and costs you humanity. Let them go, or hit them anyway.
   People remember being mugged and tortured, and the ones you terrified will
   hand it over next time without being asked.
+- **Personalities.** Everyone is Timid, Jumpy, Calm, Sly, Proud, a Hothead
+  or Hard. It changes how scared of you they start, how easily they give up,
+  whether they run or swing, whether they lie to you (the Sly lie about
+  PINs; the Proud and Hard hold things back), what they say when they give
+  up or tell you where to go, and a little of what they carry (timid people
+  carry pepper spray, hotheads blades). Follow them close and **Read them**
+  (Surveil) to find out; it shows on their card as their Manner.
+- **Nite Owl Gas**, open 24/7: hot coffee (warms you a level, eases stress),
+  cigarettes, lighters, matches, bandages and painkillers (dearer than the
+  pharmacy), caps, beanies and sunglasses. In any shop, what just happened
+  shows in a strip at the bottom instead of behind the shop.
 - **Intimidation** is a fifth stat, trained by all of the above. On small
   screens the stats along the top use short names.
 - **The cash machine** at the bank works any hour: a stolen card with the PIN

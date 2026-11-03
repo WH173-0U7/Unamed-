@@ -440,8 +440,14 @@ export function createGlass(opts: GlassOptions = {}) {
     r: number;
     life: number;
     wob: number;
+    /** A run that keeps going at its own pace (blood running down from the top), instead of slowing to a stop. */
+    steady?: number;
+    /** Sticking for a moment (a run creeps, catches, and goes again). */
+    stuck?: number;
   }
   let drips: Drip[] = [];
+  /** Where your head wound's blood comes in over the top edge (it keeps to the same side). */
+  let topX = -1;
 
   function clearPending() {
     pctx.globalCompositeOperation = 'source-over';
@@ -685,6 +691,26 @@ export function createGlass(opts: GlassOptions = {}) {
   }
 
   /** A few heavy drops that land and run (an open break, a split lip). */
+  /**
+   * Wet blood heavy enough to run: from the lower edge of a splash, a few
+   * runs set off down the glass, each with a bead at its head, creeping and
+   * catching as they go.
+   */
+  function runs(x: number, y: number, size: number, n: number) {
+    const rnd = Math.random;
+    pctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < n; i++) {
+      const px = x + (rnd() - 0.5) * size * 2.2;
+      const py = y + size * (0.4 + rnd() * 0.6);
+      const r = Math.max(2.2, size * (0.22 + rnd() * 0.18));
+      // A heavier lip where it gathers before it goes.
+      stamp(px, py, r * 1.6, 0.45);
+      drips.push({ x: px, y: py, v: 0, r, life: 2 + rnd() * 3.5, wob: rnd() * 6, steady: 18 + rnd() * 30, stuck: rnd() * 0.5 });
+    }
+    pctx.globalCompositeOperation = 'source-over';
+    painted(true);
+  }
+
   function dropsOf(x: number, y: number, n: number) {
     const rnd = Math.random;
     pctx.globalCompositeOperation = 'lighter';
@@ -1062,6 +1088,8 @@ export function createGlass(opts: GlassOptions = {}) {
         case 'spatter': {
           const p = fromEdge(0.55 + rnd() * 0.15);
           spatter(p.x, p.y, m * (0.35 + power * 0.4) * near, p.dir, (0.3 + power * 0.7) * near);
+          // The heavier drops in a spatter can carry on running.
+          if (rnd() < 0.3 + power * 0.3) runs(p.x + Math.cos(p.dir) * m * 0.15, p.y + Math.sin(p.dir) * m * 0.15, m * 0.03, 1 + Math.floor(rnd() * 2));
           return;
         }
         case 'cough':
@@ -1071,13 +1099,18 @@ export function createGlass(opts: GlassOptions = {}) {
           const p = fromEdge(0.45);
           castOff(p.x, p.y, m * (0.5 + power * 0.6), p.dir, (0.3 + power * 0.7) * near);
           if (power > 0.5) spatter(p.x, p.y, m * 0.3, p.dir, 0.5 * near);
+          // A cut throws fresh, thin blood: it runs.
+          if (rnd() < 0.55) runs(p.x + Math.cos(p.dir) * m * 0.25, p.y + Math.sin(p.dir) * m * 0.25, m * 0.025, 1 + Math.floor(rnd() * 3));
           return;
         }
         case 'splash': {
           const count = hurtYou ? 1 + (power > 0.55 ? 1 : 0) : 1;
           for (let i = 0; i < count; i++) {
             const p = fromEdge(0.25 + rnd() * 0.25);
-            splat(p.x, p.y, m * (hurtYou ? 0.036 + power * 0.04 : 0.022 + power * 0.024), p.dir, hurtYou && power > 0.4);
+            const size = m * (hurtYou ? 0.036 + power * 0.04 : 0.022 + power * 0.024);
+            splat(p.x, p.y, size, p.dir, hurtYou && power > 0.4);
+            // Sometimes it lands wet and heavy enough to run.
+            if (rnd() < 0.4 + power * 0.3) runs(p.x, p.y, size, 1 + Math.floor(rnd() * (2 + power * 2)));
           }
           return;
         }
@@ -1091,6 +1124,31 @@ export function createGlass(opts: GlassOptions = {}) {
     setAwake(v: number) {
       // Slow to start (a hairline or two), then it goes.
       crackTarget = Math.pow(Math.min(1, Math.max(0, (92 - v) / 92)), 1.35);
+    },
+
+    /**
+     * Bleeding from the head: blood seeps in over the top edge of the glass
+     * and runs down, on the side the wound's on, like blood running into
+     * your eyes. `level` is how badly (1..4).
+     */
+    bleedTop(level: number) {
+      if (!w) return;
+      const rnd = Math.random;
+      if (topX < 0) topX = w * (rnd() < 0.5 ? 0.12 + rnd() * 0.25 : 0.63 + rnd() * 0.25);
+      // It finds the same way down, mostly.
+      topX = Math.min(w - 8, Math.max(8, topX + (rnd() - 0.5) * 18));
+      const x = topX + (rnd() - 0.5) * (14 + level * 10);
+      pctx.globalCompositeOperation = 'lighter';
+      // Where it gathers at the edge before it runs.
+      for (let i = 0; i < 3 + level; i++) stamp(x + (rnd() - 0.5) * 26, rnd() * 5 - 2, 5 + rnd() * 6 + level * 1.5, 0.3);
+      pctx.globalCompositeOperation = 'source-over';
+      const r = 2.6 + level * 0.9 + rnd() * 1.5;
+      drips.push({ x, y: 2, v: 0, r, life: 4 + level + rnd() * 3, wob: rnd() * 6, steady: 26 + level * 9 + rnd() * 14 });
+      painted(true);
+    },
+    /** Forget where the last head wound bled from (a new fight, a new cut). */
+    resetBleedTop() {
+      topX = -1;
     },
 
     /** How low your blood is (0 fine .. 1 about to pass out): a pulsing red border. */
@@ -1120,12 +1178,24 @@ export function createGlass(opts: GlassOptions = {}) {
             d.y += st / n;
             stamp(d.x + Math.sin(d.y * 0.04 + d.wob) * 1.5, d.y, d.r, 0.16);
           }
-          d.v *= Math.pow(0.62, dt);
-          d.r *= Math.pow(0.93, dt);
+          if (d.steady) {
+            // Blood running down glass doesn't flow evenly: it creeps, catches
+            // on something, and lets go again.
+            if (d.stuck && (d.stuck -= dt) > 0) d.v = 0;
+            else {
+              d.stuck = 0;
+              d.v += (d.steady - d.v) * Math.min(1, dt * 3);
+              if (Math.random() < dt * 0.5) d.stuck = 0.2 + Math.random() * 0.6;
+            }
+            d.r *= Math.pow(0.97, dt);
+          } else {
+            d.v *= Math.pow(0.62, dt);
+            d.r *= Math.pow(0.93, dt);
+          }
           d.life -= dt;
-          if (d.life <= 0 || d.v <= 6) stamp(d.x + Math.sin(d.y * 0.04 + d.wob) * 1.5, d.y + d.r * 0.3, d.r * 1.35, 0.55);
+          if (d.life <= 0 || (d.v <= 6 && !d.steady)) stamp(d.x + Math.sin(d.y * 0.04 + d.wob) * 1.5, d.y + d.r * 0.3, d.r * 1.35, 0.55);
         }
-        drips = drips.filter((d) => d.life > 0 && d.r > 1.5 && d.v > 6 && d.y < h);
+        drips = drips.filter((d) => d.life > 0 && d.r > 1.5 && (d.v > 6 || !!d.steady) && d.y < h);
         // Never more than this many running at once (the oldest stop first).
         if (drips.length > 60) drips = drips.slice(-60);
         pctx.globalCompositeOperation = 'source-over';

@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.51',
+    date: 'Nov 3',
+    items: [
+      'Knocked out, the screen switches off like an old TV (the picture squeezes to a line, then a dot) and the cracks stay on the glass. Shake your phone to bring the power button back and come round. (On a computer, or if your phone won’t share its motion, you can tap instead.)',
+      'Bleeding from the head in a fight, blood seeps in over the top of the screen and runs down, on the side the wound is on, like it’s running into your eyes. The worse the bleeding, the more of it.',
+      'Blood on the glass is wetter: heavy splashes and fresh cuts can run, creeping down the screen and catching as they go.',
+      'At the bank you can type in an exact amount to deposit or withdraw.',
+    ],
+  },
+  {
     v: '0.50',
     date: 'Nov 3',
     items: [

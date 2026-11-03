@@ -19,6 +19,7 @@ export function createTv(renderer: THREE.WebGLRenderer) {
       uniform sampler2D tPicture; // what the TV shows once warmed up
       uniform float uPicture;     // 0..1: how much of it is showing
       uniform float uJam;         // 0..1: interference (signal cutting out)
+      uniform float uOff;         // seconds since switched off (-1: not switching off)
       varying vec2 vUv;
       ${glslHash}
 
@@ -83,6 +84,27 @@ export function createTv(renderer: THREE.WebGLRenderer) {
       }
 
       void main() {
+        // Switched off: the picture squeezes into a bright line, the line
+        // shrinks to a dot, and the dot fades out slowly on the dark glass.
+        if (uOff >= 0.0) {
+          vec2 c = vUv - 0.5;
+          float aspect = uRes.x / uRes.y;
+          float px = 1.0 / uRes.y;
+          float sq = smoothstep(0.0, 0.13, uOff);
+          float hh = mix(0.5, px * 1.2, sq);
+          float hw = mix(0.5, 0.003, smoothstep(0.13, 0.32, uOff));
+          float inside = (1.0 - smoothstep(hw - 0.004, hw + 0.002, abs(c.x))) * (1.0 - smoothstep(hh - px, hh + px, abs(c.y)));
+          vec2 puv = 0.5 + c * (0.5 / vec2(hw, hh));
+          float pic = texture2D(tPicture, clamp(puv, 0.0, 1.0)).g * uPicture;
+          // It gets brighter as it squeezes (the same light, less room).
+          float lineK = mix(pic + 0.05, 2.2, sq) * (1.0 - smoothstep(0.3, 0.42, uOff));
+          float dot = exp(-length(c * vec2(aspect, 1.0)) * 90.0) * smoothstep(0.2, 0.32, uOff) * (1.0 - smoothstep(0.35, 1.6, uOff)) * 3.0;
+          float halo = exp(-abs(c.y) * 60.0) * sq * (1.0 - smoothstep(0.25, 0.4, uOff)) * 0.25;
+          vec3 col = vec3(0.9, 1.0, 1.1) * (lineK * inside + dot + halo);
+          col = 1.0 - exp(-col * 1.6);
+          gl_FragColor = vec4(col, 1.0);
+          return;
+        }
         if (uT < 0.0) {
           gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
           return;
@@ -138,6 +160,7 @@ export function createTv(renderer: THREE.WebGLRenderer) {
       tPicture: { value: null },
       uPicture: { value: 0 },
       uJam: { value: 0 },
+      uOff: { value: -1 },
       uTime: { value: 0 },
       uRes: { value: new THREE.Vector2(1, 1) },
       uLines: { value: 240 },
@@ -146,6 +169,8 @@ export function createTv(renderer: THREE.WebGLRenderer) {
 
   let time = 0;
   let onAt: number | null = null;
+  /** When it was switched off with the collapse (null: not that way). */
+  let offAt: number | null = null;
   /** Debug: freeze the sequence at a given moment. */
   let frozen: number | null = null;
 
@@ -159,6 +184,7 @@ export function createTv(renderer: THREE.WebGLRenderer) {
     },
     powerOn() {
       onAt = time;
+      offAt = null;
     },
     /** Already on and warmed up (e.g. restoring a save). */
     powerOnSettled() {
@@ -170,6 +196,12 @@ export function createTv(renderer: THREE.WebGLRenderer) {
     },
     powerOff() {
       onAt = null;
+      offAt = null;
+    },
+    /** Switched off the way an old set goes off: picture to a line to a dot. */
+    switchOff() {
+      onAt = null;
+      offAt = time;
     },
     freeze(t: number | null) {
       frozen = t;
@@ -195,7 +227,9 @@ export function createTv(renderer: THREE.WebGLRenderer) {
       pass.material.uniforms.uTime.value = time;
       pass.material.uniforms.uT.value = this.elapsed;
       const e = this.elapsed;
-      pass.material.uniforms.uPicture.value = e < 0 ? 0 : Math.min(1, Math.max(0, (e - PICTURE_AT) / 0.8));
+      pass.material.uniforms.uOff.value = offAt === null ? -1 : time - offAt;
+      // (Switching off, the last picture is still on the tube.)
+      if (offAt === null) pass.material.uniforms.uPicture.value = e < 0 ? 0 : Math.min(1, Math.max(0, (e - PICTURE_AT) / 0.8));
       pass.render(renderer);
     },
   };

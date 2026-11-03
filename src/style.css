@@ -4236,3 +4236,58 @@ body[data-buttons] #enc .enc-extra button {
 #enc:not(.status-open)[data-stage='over'] .enc-name {
   margin-bottom: 2px;
 }
+
+/* Knocked out: a faint line on the dark screen, under where the power button comes back. */
+#ko-hint {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 70px);
+  transform: translateX(-50%);
+  margin: 0;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 14px;
+  cursor: pointer;
+  animation:
+    power-in 2.4s ease both,
+    breathe 3.2s ease-in-out 2.4s infinite;
+}
+#ko-hint[hidden] {
+  display: none;
+}
+
+/* Out cold: the whole set is off (the clock too). */
+#game.ko-out #clock {
+  visibility: hidden;
+}
+
+/* The bank's amount box. */
+.bank-amt .amt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--ink-dim);
+  border-radius: 9px;
+  font-size: 14px;
+  color: var(--ink-dim);
+}
+.bank-amt input {
+  width: 6.5em;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px; /* (smaller, and phones zoom in when you tap it) */
+  outline: none;
+}
+.bank-amt .amt:focus-within {
+  border-color: var(--ink);
+}

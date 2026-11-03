@@ -102,6 +102,8 @@ export interface Body {
   down: boolean;
   /** Next blow against them is easier to land. */
   offBalance: boolean;
+  /** Bleeding from the head (a split brow, the nose, the scalp): it runs down into the eyes. */
+  headBleed?: boolean;
   /** Turns left half blind (pepper spray: it lasts the rest of the fight). */
   blinded: number;
   /** Something injected that hasn't hit yet (a needle takes a minute to work). */
@@ -1388,6 +1390,7 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   const bleed = (n: number) => {
     const before = D.bleeding;
     D.bleeding = Math.min(4, D.bleeding + n);
+    if (loc === 'head' && D.bleeding > before) D.headBleed = true;
     if (D.bleeding > before) out.push(`${re} bleeding${before ? ' worse' : ''} (${BLEEDING[D.bleeding].toLowerCase()}).`);
   };
   const fall = (chance: number) => {

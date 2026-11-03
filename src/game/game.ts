@@ -96,6 +96,8 @@ export class Game {
   onDeath?: () => void;
   private readonly tv;
   private readonly powerBtn: HTMLButtonElement;
+  /** "Shake your phone to come round", on the dark screen after a knockout. */
+  private readonly koHint: HTMLParagraphElement;
   private readonly lurkBtn: HTMLButtonElement;
   private readonly seenEl: HTMLElement;
   private readonly encView;
@@ -131,6 +133,10 @@ export class Game {
   ) {
     this.tv = createTv(renderer);
     this.powerBtn = view.querySelector('#power-btn') as HTMLButtonElement;
+    this.koHint = document.createElement('p');
+    this.koHint.id = 'ko-hint';
+    this.koHint.hidden = true;
+    this.powerBtn.after(this.koHint);
     this.lurkBtn = view.querySelector('#lurk-btn') as HTMLButtonElement;
     this.seenEl = view.querySelector('#seen') as HTMLElement;
     this.statsEl = view.querySelector('#stats') as HTMLElement;
@@ -528,10 +534,87 @@ export class Game {
     else buzz(6);
     // It's over and they're gone (or you are): the screen closes, and how it
     // ended is a note. A body stays, to be searched, until you walk away.
+    // Knocked out: the screen goes off, and you have to come round.
+    if (!wasOver && e.stage === 'over' && e.result === 'lost') return this.knockedOut([RESULT.lost, ...after]);
     if (!wasOver && e.stage === 'over' && e.result !== 'killed') {
       return this.closeEncounter([RESULT[e.result ?? 'left'], ...after]);
     }
     this.refresh();
+  }
+
+  /** Knocked out, the screen off: what to say when you come round. */
+  private koLines: string[] | null = null;
+  /** Out cold: listening for a shake to bring the power button back. */
+  private koListen: AbortController | null = null;
+
+  /**
+   * Knocked out: the screen switches off like an old set (picture, line,
+   * dot), the cracks stay on the glass, and nothing comes back until you
+   * shake the phone; then the power button, and you come round.
+   */
+  private knockedOut(lines: string[]) {
+    this.encounter = null;
+    this.koLines = lines;
+    this.tvState.on = false;
+    this.tv.switchOff();
+    this.view.classList.add('ko-out');
+    this.powerBtn.hidden = true;
+    this.powerBtn.classList.remove('pressed');
+    this.koHint.hidden = true;
+    this.refresh();
+    buzz([200, 80, 400]);
+    this.koListen?.abort();
+    const ko = (this.koListen = new AbortController());
+    const comeRound = () => {
+      if (ko.signal.aborted) return;
+      ko.abort();
+      this.koListen = null;
+      this.koHint.hidden = true;
+      this.powerBtn.hidden = false;
+      buzz(20);
+    };
+    // A shake: two hard jolts within a moment.
+    let last: { x: number; y: number; z: number } | null = null;
+    let jolts: number[] = [];
+    let heard = false;
+    addEventListener(
+      'devicemotion',
+      (ev) => {
+        const a = ev.accelerationIncludingGravity;
+        if (!a || a.x == null || a.y == null || a.z == null) return;
+        heard = true;
+        const p = { x: a.x, y: a.y, z: a.z };
+        if (last) {
+          const d = Math.hypot(p.x - last.x, p.y - last.y, p.z - last.z);
+          const t = performance.now();
+          if (d > 14) {
+            jolts = jolts.filter((j) => t - j < 900);
+            jolts.push(t);
+            if (jolts.length >= 2 && !this.koHint.hidden) comeRound();
+          }
+        }
+        last = p;
+      },
+      { signal: ko.signal },
+    );
+    // After the dot has faded: the hint. With no motion sensor (a computer),
+    // a tap does it instead.
+    this.timers.push(
+      window.setTimeout(() => {
+        if (ko.signal.aborted) return;
+        this.koHint.textContent = heard || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ? 'Shake your phone to come round' : 'Tap to come round';
+        this.koHint.hidden = false;
+        if (!heard && !/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) this.koHint.onclick = comeRound;
+      }, 2600),
+    );
+    // A phone that won't share its motion (permission refused): a tap, after a while.
+    this.timers.push(
+      window.setTimeout(() => {
+        if (ko.signal.aborted || heard) return;
+        this.koHint.textContent = 'Tap to come round';
+        this.koHint.onclick = comeRound;
+      }, 9000),
+    );
   }
 
   /** Done with whoever it was: back to the street, with what happened as a note. */
@@ -1004,7 +1087,17 @@ export class Game {
     const teller = isOpen(placeInfo('bank').hours!);
     let line = '';
     // Your account: opening it, and using it, take your own ID.
-    if (what === 'open' || what === 'deposit' || what.startsWith('w:')) {
+    // A typed amount (in dollars, to the cent).
+    if (what.endsWith(':amt')) {
+      const v = Number((document.getElementById('bank-amt') as HTMLInputElement | null)?.value ?? '');
+      const cents = Math.round(v * 100);
+      if (!Number.isFinite(cents) || cents <= 0) {
+        this.note(['Type in how much first.']);
+        return;
+      }
+      what = `${what[0]}:${cents}`;
+    }
+    if (what === 'open' || what === 'deposit' || what.startsWith('w:') || what.startsWith('d:')) {
       if (!teller) return;
       const mine = this.ownId();
       if (!mine) {
@@ -1024,6 +1117,17 @@ export class Game {
         inv.purse = {};
         sound.coin();
         line = `You hand over everything: ${money(c)}. Your balance is ${money(acct.cents)}.`;
+      } else if (what.startsWith('d:')) {
+        const want = Number(what.slice(2));
+        const have = Math.round(cashOf(inv) * 100);
+        if (want > have) {
+          this.note([`You've only got ${money(have)} on you.`]);
+          return;
+        }
+        // The teller takes it in whatever you've got, and gives you change.
+        const paid = this.payLine(want);
+        acct.cents += want;
+        line = `${paid.replace(/\s\S+ left\.$/, '')} The teller puts ${money(want)} in your account. Balance: ${money(acct.cents)}.`;
       } else {
         const want = what === 'w:all' ? acct.cents : Number(what.slice(2));
         const c = Math.min(acct.cents, want);
@@ -1174,6 +1278,8 @@ export class Game {
    * you're concussed.
    */
   get awakeNow(): number {
+    // Out cold, the screen off: the cracks stay.
+    if (this.koLines) return 4;
     const e = this.encounter;
     if (e && (e.stage === 'combat' || e.stage === 'over') && this.tvState.on) return e.you.out ? 0 : (e.you.awake ?? 100);
     return this.health.concussion > 0 ? 82 : 100;
@@ -1764,6 +1870,7 @@ export class Game {
           (!acct
             ? li('Open an account', mine ? 'Free. Keep your money where nobody can take it off you.' : 'You need your own ID: the City Records Office makes them.', btn('bank', 'open', 'Open', !mine && 'Need your own ID'))
             : li(`Balance: ${money(acct.cents)}`, 'Deposit what you carry; take some out when you need it.', btn('bank', 'deposit', 'Deposit all', (!c && 'No cash on you') || (!mine && 'Need your own ID'))) +
+              `<li class="bank-amt"><div><b>An amount</b><small>Type it in, then deposit it or take it out.</small></div><span class="li-btns"><label class="amt"><span>$</span><input id="bank-amt" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" aria-label="Amount in dollars"></label>${btn('bank', 'd:amt', 'Deposit', (!c && 'No cash on you') || (!mine && 'Need your ID'))}${btn('bank', 'w:amt', 'Withdraw', (!acct.cents && 'Empty') || (!mine && 'Need your ID'))}</span></li>` +
               li('Withdraw', '$20, $100, or everything.', [2000, 10000].map((v) => btn('bank', `w:${v}`, money(v), (acct.cents < v && 'Not that much') || (!mine && 'Need your ID'))).join('') + btn('bank', 'w:all', 'All', (!acct.cents && 'Empty') || (!mine && 'Need your ID')))) +
           `</ul>`;
       } else body = `<p class="shop-closed">The teller windows are dark.</p>`;
@@ -2263,6 +2370,14 @@ export class Game {
     if (this.tvState.on || !this.running) return;
     this.powerBtn.classList.add('pressed');
     this.tvState.on = true;
+    // iPhones only let a page feel the phone move once asked, from a tap.
+    const DM = (globalThis as { DeviceMotionEvent?: { requestPermission?: () => Promise<string> } }).DeviceMotionEvent;
+    DM?.requestPermission?.().catch(() => {});
+    // Coming round after a knockout: what happened, once the picture's back.
+    const woke = this.koLines;
+    this.koLines = null;
+    this.view.classList.remove('ko-out');
+    if (woke) this.timers.push(window.setTimeout(() => this.running && this.note(woke), 2900));
     // (Kept in timers, so quitting straight after can't touch the next game.)
     this.timers.push(window.setTimeout(() => {
       this.powerBtn.hidden = true;
@@ -2297,6 +2412,8 @@ export class Game {
 
   /** Closes the game view (back to the menu). */
   close() {
+    this.koListen?.abort();
+    this.koHint.remove();
     for (const t of this.timers) clearTimeout(t);
     this.timers.length = 0;
     // This game is done with: its window listeners go too, and the TV's GPU buffers.
@@ -2306,7 +2423,7 @@ export class Game {
     this.hitUi.clear();
     this.view.style.transform = '';
     this.pause();
-    this.view.classList.remove('active', 'jolt', 'in-encounter');
+    this.view.classList.remove('active', 'jolt', 'in-encounter', 'ko-out');
     this.tv.powerOff();
     this.lurkBtn.hidden = true;
     this.seenEl.replaceChildren();
@@ -2363,7 +2480,21 @@ export class Game {
     const frac = body.blood / body.maxBlood;
     this.fx.setLow(this.tvState.on ? Math.min(1, Math.max(0, (0.82 - frac) / (0.82 - PASS_OUT))) : 0);
     this.hitUi.update(dt);
+    // Bleeding from the head in a fight: blood runs down over the top of the
+    // screen, into your eyes. The worse the bleeding, the faster it comes.
+    const eb = this.encounter;
+    if (this.running && this.tvState.on && eb && eb.stage === 'combat' && eb.you.headBleed && eb.you.bleeding > 0 && !eb.you.out) {
+      if ((this.bleedClock -= dt) <= 0) {
+        this.bleedClock = 3.2 - eb.you.bleeding * 0.55 + Math.random() * 1.2;
+        this.fx.bleedTop(eb.you.bleeding);
+      }
+    } else {
+      if (this.bleedClock < 0.5) this.fx.resetBleedTop();
+      this.bleedClock = 0.6;
+    }
   }
+  /** Seconds to the next run of blood from the top (bleeding from the head). */
+  private bleedClock = 0.6;
 
   /** The device's time, top right (redrawn when the minute changes). */
   private tickClock() {

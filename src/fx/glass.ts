@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Spill } from '../game/encounter';
 import { createFullscreenShader, glslHash } from './fullscreen';
+import { drawCracks } from './cracks';
 
 /**
  * The glass: one layer drawn on the GPU over everything (the game and every
@@ -81,6 +82,21 @@ export function createGlass(opts: GlassOptions = {}) {
   pendingTex.magFilter = THREE.LinearFilter;
   pendingTex.generateMipmaps = false;
 
+  // Cracks in the glass (how close you are to going out): drawn once per
+  // fight, revealed by the shader as the level rises. See cracks.ts.
+  const crackCanvas = document.createElement('canvas');
+  crackCanvas.width = crackCanvas.height = 1;
+  /** (A new texture each time: the canvas changes size, and a texture can't.) */
+  const newCrackTex = () => {
+    const t = new THREE.CanvasTexture(crackCanvas);
+    t.minFilter = THREE.LinearFilter;
+    t.magFilter = THREE.LinearFilter;
+    t.generateMipmaps = false;
+    t.premultiplyAlpha = false;
+    return t;
+  };
+  let crackTex = newCrackTex();
+
   // ---------- GPU passes ----------
   /** Adds what was painted, and lets wet blood dry. */
   const addPass = createFullscreenShader(
@@ -130,23 +146,24 @@ export function createGlass(opts: GlassOptions = {}) {
         if (w <= 0.0) { gl_FragColor = s; return; }
         // Skin ridges and uneven pressure leave streaks along the stroke.
         float across = dot(p - uA, vec2(-dir.y, dir.x));
-        float streak = 0.75 + 0.25 * vnoise(vec2(across * 0.32, 0.5), uSeed);
+        float streak = 0.62 + 0.38 * vnoise(vec2(across * 0.32, 0.5), uSeed);
         streak *= 0.88 + 0.12 * vnoise(vec2(across * 1.7, 0.5), uSeed + 3.0);
         // Wet blood is pushed along with the finger.
         vec4 b = texture2D(tState, toUv(p - dir * min(L, uR * 0.55)));
         float wetB = clamp(b.g / max(b.r, 0.02), 0.0, 1.0);
         w *= uPower;
-        float drag = w * 0.3 * wetB;
+        // (More of it goes along with the finger than comes off: it smears.)
+        float drag = w * 0.5 * wetB;
         float r = mix(s.r, b.r, drag);
         float g = mix(s.g, b.g, drag);
         // Some is lifted off; dry blood hardly comes away.
         float wet = clamp(g / max(r, 0.02), 0.0, 1.0);
-        float lift = w * streak * mix(0.62, 0.9, wet);
+        float lift = w * streak * mix(0.46, 0.78, wet);
         float r2 = r * (1.0 - lift);
         float g2 = g * (1.0 - lift);
         // What came off spreads as a thin smear; the smear wipes away slowly.
         float gone = max(s.r - r2, 0.0);
-        float smear = s.b * (1.0 - w * streak * 0.65) + gone * mix(0.08, 0.18, wet) * streak;
+        float smear = s.b * (1.0 - w * streak * 0.45) + gone * mix(0.22, 0.38, wet) * streak;
         // Dust is moved about; skin leaves a little grease, most at the edges.
         float edge = smoothstep(0.55, 0.95, d / uR);
         float grime = s.a * (1.0 - w * 0.1 * streak) + w * ((1.0 - streak) * 0.01 + edge * 0.012);
@@ -188,6 +205,8 @@ export function createGlass(opts: GlassOptions = {}) {
       uniform float uHurt;
       uniform float uLow;
       uniform float uGlitch;
+      uniform sampler2D tCrack;
+      uniform float uCrack;
       ${glslHash}
       ${noiseGlsl}
 
@@ -236,6 +255,32 @@ export function createGlass(opts: GlassOptions = {}) {
         vec3 grimeCol = mix(vec3(0.46, 0.43, 0.37), vec3(0.09, 0.07, 0.05), darkSpeck * speck);
         vec3 rgb = grimeCol * grimeA;
         float a = grimeA;
+
+        // ---- Cracks: in the glass itself, under whatever's on it. Each line
+        // is a bright, cold glint with a dark edge beside it (light bending
+        // through the break), revealed where its threshold is under the level.
+        if (uCrack > 0.002) {
+          vec4 k = texture2D(tCrack, vUv);
+          vec2 off = vec2(1.3, -1.3) / uRes;
+          vec4 k2 = texture2D(tCrack, vUv + off);
+          float show = smoothstep(k.g - 0.02, k.g + 0.01, uCrack) * k.a;
+          float show2 = smoothstep(k2.g - 0.02, k2.g + 0.01, uCrack) * k2.a;
+          // Broken glass catches the light unevenly: dull grey in most places,
+          // a sharp bright glint where the break faces the light.
+          float nz = vnoise(P / 34.0, 71.0);
+          float glim = 0.45 + 0.4 * nz + 0.9 * pow(smoothstep(0.55, 0.95, vnoise(P / 18.0, 72.0)), 2.0);
+          float shadow = show2 * (1.0 - show) * 0.4;
+          rgb = rgb * (1.0 - shadow);
+          a = shadow + a * (1.0 - shadow);
+          float lineA = clamp(show * (0.3 + 0.6 * k.r) * glim, 0.0, 0.95);
+          rgb = vec3(0.86, 0.9, 0.96) * lineA + rgb * (1.0 - lineA);
+          a = lineA + a * (1.0 - lineA);
+          // Close to going out, the world dims at the edges.
+          vec2 cv = (vUv - 0.5) * vec2(aspect, 1.0);
+          float dim = smoothstep(0.55, 1.0, uCrack) * smoothstep(0.25, 0.95, length(cv / vec2(max(aspect, 1.0) * 0.6, 0.62))) * 0.55;
+          rgb = rgb * (1.0 - dim);
+          a = dim + a * (1.0 - dim);
+        }
 
         // ---- Smear: a thin, streaky film of blood left by wiping.
         float sm = smoothstep(0.0, 0.5, s.b);
@@ -335,6 +380,8 @@ export function createGlass(opts: GlassOptions = {}) {
       uHurt: { value: 0 },
       uLow: { value: 0 },
       uGlitch: { value: 0 },
+      tCrack: { value: crackTex },
+      uCrack: { value: 0 },
     },
   );
   showPass.material.transparent = true;
@@ -365,6 +412,11 @@ export function createGlass(opts: GlassOptions = {}) {
   let hurt = 0;
   let glitch = 0;
   let low = 0;
+  /** Cracks: how far they've spread (shown), where they're heading, and whether the pattern is fresh. */
+  let crack = 0;
+  let crackTarget = 0;
+  let crackStale = true;
+  let crackScale = 1;
   let pendingDirty = false;
   let redraw = true;
   /** Seconds since fresh blood last landed (it's drying while this is small). */
@@ -929,6 +981,8 @@ export function createGlass(opts: GlassOptions = {}) {
   return {
     setSize(width: number, height: number, pixelRatio: number) {
       const pr = Math.min(pixelRatio, 2);
+      crackScale = Math.min(2, Math.max(1, pr));
+      crackStale = true;
       if (width === w && height === h && pr === lastPr) return;
       lastPr = pr;
       // Anything just painted goes onto the glass before it's resized.
@@ -1030,6 +1084,15 @@ export function createGlass(opts: GlassOptions = {}) {
       }
     },
 
+    /**
+     * How awake you are (100 fine .. 0 knocked out): cracks spread across the
+     * glass as it falls, and close up again as you come round.
+     */
+    setAwake(v: number) {
+      // Slow to start (a hairline or two), then it goes.
+      crackTarget = Math.pow(Math.min(1, Math.max(0, (92 - v) / 92)), 1.35);
+    },
+
     /** How low your blood is (0 fine .. 1 about to pass out): a pulsing red border. */
     setLow(v: number) {
       low = v;
@@ -1109,6 +1172,24 @@ export function createGlass(opts: GlassOptions = {}) {
         redraw = true;
       }
 
+      // Cracks: they spread fast when you're hit, and fade slowly as you
+      // come round. A new pattern for the next time it breaks.
+      if (crackTarget > 0 && crackStale && crack < 0.01 && w) {
+        drawCracks(crackCanvas, w, h, crackScale, (Math.random() * 1e9) | 0);
+        crackTex.dispose();
+        crackTex = newCrackTex();
+        showPass.material.uniforms.tCrack.value = crackTex;
+        crackStale = false;
+      }
+      if (crack !== crackTarget) {
+        crack = crackTarget > crack ? Math.min(crackTarget, crack + dt * 1.6) : Math.max(crackTarget, crack - dt * 0.12);
+        if (crack < 0.004 && crackTarget === 0) {
+          crack = 0;
+          crackStale = true;
+        }
+        redraw = true;
+      }
+
       // Kept on the device once things have settled.
       if (unsaved && quiet > 6 && !drips.length && !fingers.size) persist();
 
@@ -1129,6 +1210,7 @@ export function createGlass(opts: GlassOptions = {}) {
       su.uHurt.value = 0;
       su.uLow.value = 0;
       su.uGlitch.value = glitch;
+      su.uCrack.value = crack;
       renderer.setRenderTarget(null);
       renderer.clear();
       showPass.render(renderer);

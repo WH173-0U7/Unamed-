@@ -1168,6 +1168,17 @@ export class Game {
   }
 
   /** What you're on right now, for how the screen looks (fx/drugs.ts), and how strongly. */
+  /**
+   * How awake you are, for the cracks on the glass: in a fight, your Awake
+   * bar (knocked out, nothing left); otherwise fine, or a little less while
+   * you're concussed.
+   */
+  get awakeNow(): number {
+    const e = this.encounter;
+    if (e && (e.stage === 'combat' || e.stage === 'over') && this.tvState.on) return e.you.out ? 0 : (e.you.awake ?? 100);
+    return this.health.concussion > 0 ? 82 : 100;
+  }
+
   get drugNow(): { drug: DrugLook | null; k: number } {
     const e = this.encounter;
     if (e && e.stage === 'combat' && e.you.high) return { drug: e.you.high, k: 1 };

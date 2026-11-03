@@ -345,6 +345,7 @@ renderer.setAnimationLoop(() => {
   if (document.body.classList.contains('in-menu') !== menuUp) document.body.classList.toggle('in-menu', menuUp);
   const high = game && !game.dead ? game.drugNow : null;
   drugs.update(high?.drug ?? null, high?.k ?? 0, dt);
+  glass.setAwake(game && !game.dead ? game.awakeNow : 100);
   glass.update(dt);
 
   frames++;

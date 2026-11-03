@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.49',
+    date: 'Nov 3',
+    items: [
+      'Your screen cracks as you get knocked silly: a hairline or two when you’re rattled, a spreading web when you’re wobbly, and three breaks with the edges going dark when you’re about to go out. The cracks fade as you come round, and break differently every fight.',
+      'Wiping blood off now smears it: one pass leaves a streaky red film, and it takes another pass or two to get it properly clean.',
+    ],
+  },
+  {
     v: '0.48',
     date: 'Nov 3',
     items: [

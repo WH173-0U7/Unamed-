@@ -94,6 +94,7 @@
       <section class="screen" id="screen-main" aria-label="Main menu">
         <div class="brand">
           <h1 class="title" data-text="DarcVoyd">DarcVoyd</h1>
+          <p class="version" id="version"></p>
         </div>
         <nav class="nav">
           <button type="button" id="btn-continue" hidden>
@@ -102,7 +103,19 @@
           </button>
           <button type="button" id="btn-new">New game</button>
           <button type="button" data-go="settings">Settings</button>
+          <button type="button" data-go="news">What’s new</button>
         </nav>
+      </section>
+
+      <section class="screen panel" id="screen-news" aria-label="What’s new">
+        <header class="panel-head">
+          <button type="button" class="back" data-back aria-label="Back">‹</button>
+          <h2>What’s new</h2>
+        </header>
+        <div class="rows news-rows">
+          <div class="news" id="news"></div>
+          <button type="button" class="news-ok" data-back>OK</button>
+        </div>
       </section>
 
       <section class="screen" id="screen-pause" aria-label="Paused">

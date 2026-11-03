@@ -1,9 +1,10 @@
 import { uiGlitch } from '../fx/uiGlitch';
+import { CHANGES, VERSION } from '../core/changelog';
 import { isMobile } from '../core/quality';
 import { onSettingsChange, updateSettings, type ButtonStyle, type FontStyle, type GraphicsQuality } from '../core/settings';
 import { formatAgo, formatPlayTime, type SaveData } from '../core/save';
 
-export type Screen = 'main' | 'pause' | 'settings' | 'confirm';
+export type Screen = 'main' | 'pause' | 'settings' | 'confirm' | 'news';
 
 const QUALITY_NOTES: Record<GraphicsQuality, string> = {
   auto: 'Adjusts resolution on the fly to keep things smooth.',
@@ -29,7 +30,7 @@ const $ = (id: string) => document.getElementById(id) as HTMLElement;
 export function createMenu(handlers: MenuHandlers) {
   const root = $('menu');
   const screens = new Map<Screen, HTMLElement>();
-  for (const name of ['main', 'pause', 'settings', 'confirm'] as Screen[]) {
+  for (const name of ['main', 'pause', 'settings', 'confirm', 'news'] as Screen[]) {
     screens.set(name, $(`screen-${name}`));
   }
 
@@ -152,6 +153,36 @@ export function createMenu(handlers: MenuHandlers) {
     document.body.dataset.font = s.font;
     document.body.dataset.buttons = s.buttons;
   });
+
+  // ---------- Version, and what's new ----------
+  $('version').textContent = `v${VERSION} · ${CHANGES[0].date}`;
+  const SEEN = 'darcvoyd.seenVersion';
+  let seen: string | null = null;
+  try {
+    seen = localStorage.getItem(SEEN);
+  } catch {
+    /* no storage */
+  }
+  /** Fill the What's new screen: everything since `since` (or the latest few). */
+  const fillNews = (since: string | null) => {
+    const idx = since ? CHANGES.findIndex((r) => r.v === since) : -1;
+    const list = idx > 0 ? CHANGES.slice(0, idx) : CHANGES.slice(0, since ? CHANGES.length : 3);
+    $('news').innerHTML = list
+      .map((r) => `<section><h3>v${r.v} <em>${r.date}</em></h3><ul>${r.items.map((i) => `<li>${i}</li>`).join('')}</ul></section>`)
+      .join('');
+  };
+  fillNews(null);
+  root.querySelectorAll<HTMLElement>('[data-go="news"]').forEach((b) => b.addEventListener('click', () => fillNews(null)));
+  // Updated since you last played: say what changed (not for automated test runs).
+  if (seen !== VERSION && !new URLSearchParams(location.search).has('debug')) {
+    fillNews(seen);
+    requestAnimationFrame(() => show('news', true));
+  }
+  try {
+    localStorage.setItem(SEEN, VERSION);
+  } catch {
+    /* no storage */
+  }
 
   // ---------- Toast ----------
   const toastEl = $('toast');

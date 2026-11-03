@@ -359,6 +359,10 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
 - **Fights take less room.** The status box shows only the two blood bars
   until you tap it (then stamina, fear and conditions); the log shows the last
   three lines with a count of earlier ones, and tapping it shows everything.
+- **Version notes.** The version is on the main menu; the first time the game
+  opens after an update, a What's new list says what changed since you last
+  played (Main menu → What's new to see it again). Every update adds to it
+  (`src/core/changelog.ts`).
 - **Intimidation** is a fifth stat, trained by all of the above. On small
   screens the stats along the top use short names.
 - **The cash machine** at the bank works any hour: a stolen card with the PIN

@@ -3912,3 +3912,62 @@ body[data-buttons] .enc-opts button:disabled {
     max-height: 55vh;
   }
 }
+
+/* ================= Version and What's new ================= */
+.version {
+  margin: 6px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.news {
+  width: min(100%, 460px);
+  max-height: 56vh;
+  overflow-y: auto;
+  margin: 0 auto 14px;
+  padding: 0 4px;
+  text-align: left;
+}
+.news section + section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.news h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+}
+.news h3 em {
+  font-style: normal;
+  color: var(--ink-faint);
+  margin-left: 6px;
+}
+.news ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+.news li + li {
+  margin-top: 4px;
+}
+
+.news-rows {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.news-rows .news {
+  width: 100%;
+  max-height: 62vh;
+}
+.news-ok {
+  align-self: center;
+  min-width: 140px;
+  min-height: 44px;
+  margin-top: 4px;
+}

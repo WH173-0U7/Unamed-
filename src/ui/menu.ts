@@ -96,6 +96,14 @@ export function createMenu(handlers: MenuHandlers) {
     b.addEventListener('click', () => updateSettings({ quality: b.dataset.v as GraphicsQuality })),
   );
   fps.addEventListener('change', () => updateSettings({ showFps: fps.checked }));
+  // Film grain, glitches, static, colour fringe: sliders, tried out live.
+  const sliders: [HTMLInputElement, 'grain' | 'glitch' | 'staticFx' | 'fringe'][] = [
+    [$('set-grain') as HTMLInputElement, 'grain'],
+    [$('set-glitch') as HTMLInputElement, 'glitch'],
+    [$('set-static') as HTMLInputElement, 'staticFx'],
+    [$('set-fringe') as HTMLInputElement, 'fringe'],
+  ];
+  for (const [el, key] of sliders) el.addEventListener('input', () => updateSettings({ [key]: Number(el.value) }));
   const snd = $('set-sound') as HTMLInputElement;
   snd.addEventListener('change', () => updateSettings({ sound: snd.checked }));
   // Lettering and buttons: tried out live, all over the game.
@@ -128,6 +136,11 @@ export function createMenu(handlers: MenuHandlers) {
     $('quality-note').textContent = QUALITY_NOTES[s.quality];
     fps.checked = s.showFps;
     snd.checked = s.sound;
+    for (const [el, key] of sliders) {
+      el.value = String(s[key]);
+      const out = el.parentElement?.querySelector('output');
+      if (out) out.textContent = s[key] === 0 ? 'Off' : `${s[key]}%`;
+    }
     for (const [el, key] of segs) {
       el.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
         const on = b.dataset.v === s[key];

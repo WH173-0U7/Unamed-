@@ -74,8 +74,10 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     onAct(b.dataset.id!);
   });
 
+  /** Violence looks and feels different from everything else. */
+  const HARM = new Set(['violence', 'attack', 'stomp', 'torture']);
   const button = (o: Option) =>
-    `<button type="button" data-id="${o.id}" ${o.disabled ? 'disabled' : ''}>${o.label}${o.hint ? `<small>${o.hint}</small>` : ''}</button>`;
+    `<button type="button" data-id="${o.id}" ${o.cat && HARM.has(o.cat) ? 'data-tone="harm"' : ''} ${o.disabled ? 'disabled' : ''}>${o.label}${o.hint ? `<small>${o.hint}</small>` : ''}</button>`;
 
   /** The tab bar, the options under the chosen tab, and the ones always shown. */
   function drawOptions(switched = false) {
@@ -85,7 +87,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     tabs.innerHTML = cats
       .map((c) => {
         const n = opts.filter((o) => o.cat === c && !o.disabled).length;
-        return `<button type="button" role="tab" data-tab="${c}" aria-selected="${c === tab}" class="${c === tab ? 'on' : ''}">${CATEGORY_NAMES[c]}${c === 'search' && n ? `<i>${n}</i>` : ''}</button>`;
+        return `<button type="button" role="tab" data-tab="${c}" ${HARM.has(c) ? 'data-tone="harm"' : ''} aria-selected="${c === tab}" class="${c === tab ? 'on' : ''}">${CATEGORY_NAMES[c]}${c === 'search' && n ? `<i>${n}</i>` : ''}</button>`;
       })
       .join('');
     const panel = q('.enc-opts');

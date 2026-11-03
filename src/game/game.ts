@@ -526,6 +526,8 @@ export class Game {
         // Blood only when the blow would throw it (see Spill).
         this.fx.impact(you, im.ml, im.severe, im.spill);
         if (im.ml > 0) this.hitUi.kick(power, you);
+        // The picture breaks up a little with every blow (more when it's you).
+        if (im.ml > 0) dispatchEvent(new CustomEvent('ui-glitch', { detail: (you ? 0.3 : 0.15) + power * 0.5 }));
         const wet = im.spill === 'splash' || im.spill === 'spray' || (im.spill === 'spatter' && you);
         if (wet && you && (power > 0.35 || Math.random() < 0.4)) this.hitUi.splash(im.severe ? 2 : 1, im.severe);
         if (wet && !you && im.severe && Math.random() < 0.6) this.hitUi.splash(1, false);

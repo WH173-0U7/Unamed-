@@ -111,6 +111,11 @@ export const sound = {
     tone(660, 0.14, 0.12, 'triangle');
     tone(990, 0.22, 0.12, 'triangle', undefined, 0.11);
   },
+  /** Something good for you (medicine, a drink, a smoke, warmth): a soft, low chime. */
+  good() {
+    tone(520, 0.22, 0.07, 'sine');
+    tone(780, 0.3, 0.05, 'sine', undefined, 0.06);
+  },
   /** Money changing hands: a couple of little metallic ticks. */
   coin() {
     tone(2600, 0.05, 0.07, 'square');

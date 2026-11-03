@@ -361,8 +361,8 @@ canvas {
 #game.hit #stats,
 #game.hit #you-status {
   text-shadow:
-    calc(var(--hitca) * -1) 0 rgba(255, 30, 50, 0.75),
-    var(--hitca) 0 rgba(30, 220, 255, 0.75);
+    calc(var(--hitca) * var(--fk, 1) * -1) 0 rgba(255, 30, 50, 0.75),
+    calc(var(--hitca) * var(--fk, 1)) 0 rgba(30, 220, 255, 0.75);
 }
 .enc-card,
 .enc-status,
@@ -1942,28 +1942,28 @@ body.in-game #menu {
 @keyframes ui-glitch {
   0% {
     opacity: 0.55;
-    translate: -9px 0;
-    filter: drop-shadow(-5px 0 rgba(255, 30, 60, 0.85)) drop-shadow(5px 0 rgba(30, 220, 255, 0.75)) brightness(1.5);
+    translate: calc(var(--gk, 1) * -9px) calc(var(--gk, 1) * 0px);
+    filter: drop-shadow(calc(var(--fk, 1) * -5px) 0 rgba(255, 30, 60, 0.85)) drop-shadow(calc(var(--fk, 1) * 5px) 0 rgba(30, 220, 255, 0.75)) brightness(1.5);
   }
   12% {
     opacity: 1;
-    translate: 7px 0;
+    translate: calc(var(--gk, 1) * 7px) calc(var(--gk, 1) * 0px);
   }
   24% {
-    translate: -3px 1px;
-    filter: drop-shadow(3px 0 rgba(255, 30, 60, 0.7)) drop-shadow(-3px 0 rgba(30, 220, 255, 0.6));
+    translate: calc(var(--gk, 1) * -3px) calc(var(--gk, 1) * 1px);
+    filter: drop-shadow(calc(var(--fk, 1) * 3px) 0 rgba(255, 30, 60, 0.7)) drop-shadow(calc(var(--fk, 1) * -3px) 0 rgba(30, 220, 255, 0.6));
   }
   36% {
     opacity: 0.8;
-    translate: 4px 0;
+    translate: calc(var(--gk, 1) * 4px) calc(var(--gk, 1) * 0px);
   }
   48% {
     opacity: 1;
     translate: 0 0;
-    filter: drop-shadow(-1.5px 0 rgba(255, 30, 60, 0.5)) drop-shadow(1.5px 0 rgba(30, 220, 255, 0.4));
+    filter: drop-shadow(calc(var(--fk, 1) * -1.5px) 0 rgba(255, 30, 60, 0.5)) drop-shadow(calc(var(--fk, 1) * 1.5px) 0 rgba(30, 220, 255, 0.4));
   }
   70% {
-    translate: -1px 0;
+    translate: calc(var(--gk, 1) * -1px) calc(var(--gk, 1) * 0px);
     filter: none;
   }
   100% {
@@ -3686,4 +3686,128 @@ body[data-buttons] .enc-opts button:disabled {
 }
 #seen {
   top: 40%;
+}
+
+/* ================= Film over the whole game (see fx/film.ts) ================= */
+#film-game {
+  position: fixed;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 27;
+  pointer-events: none;
+}
+/* A faint colour fringe on everything written in the game, always (the
+   Colour fringe setting; a hit makes it flare, see #game.hit). */
+#game,
+.sheet-card {
+  text-shadow:
+    calc(var(--fk, 1) * -0.6px) 0 rgba(255, 36, 72, 0.32),
+    calc(var(--fk, 1) * 0.6px) 0 rgba(0, 224, 255, 0.28);
+}
+/* Settings: the effect sliders. */
+.fx-sliders {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 10px;
+}
+.row.slider {
+  display: grid;
+  grid-template-columns: 1fr minmax(100px, 46%) 38px;
+  align-items: center;
+  gap: 10px;
+}
+.row.slider output {
+  font-size: 12px;
+  text-align: right;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.row.slider input[type='range'] {
+  width: 100%;
+  height: 28px;
+  accent-color: #d9d4c8;
+  background: transparent;
+}
+
+/* ================= Button feedback ================= */
+/* A ripple from where you touched. */
+.fx-ripple {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.fx-ripple i {
+  position: absolute;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.22;
+  transform: scale(0);
+  animation: fx-ripple 0.55s ease-out forwards;
+}
+.fx-ripple.fx-harm i {
+  background: #ff3b4e;
+  opacity: 0.35;
+}
+.fx-ripple.fx-good i {
+  background: #ffd98a;
+  opacity: 0.3;
+}
+@keyframes fx-ripple {
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+/* Violence: a red flash and a jolt. */
+.fb-harm {
+  animation: fb-harm 0.4s ease-out;
+}
+@keyframes fb-harm {
+  0% {
+    color: #ff5a68;
+    box-shadow: inset 0 0 0 1px rgba(255, 60, 80, 0.8), 0 0 18px rgba(255, 40, 60, 0.45);
+    translate: 3px 0;
+    text-shadow:
+      calc(var(--fk, 1) * -2px) 0 rgba(255, 30, 60, 0.8),
+      calc(var(--fk, 1) * 2px) 0 rgba(30, 220, 255, 0.6);
+  }
+  20% {
+    translate: -3px 0;
+  }
+  40% {
+    translate: 1px 0;
+  }
+  100% {
+    translate: 0 0;
+  }
+}
+/* Good for you: a warm glow that swells and fades. */
+.fb-good {
+  animation: fb-good 0.45s ease-out;
+}
+@keyframes fb-good {
+  0% {
+    color: #ffe2a6;
+    box-shadow: 0 0 0 1px rgba(255, 220, 150, 0.7), 0 0 22px rgba(255, 200, 110, 0.5);
+    scale: 1.04;
+  }
+  100% {
+    scale: 1;
+  }
+}
+/* Violence options and tabs carry a faint red edge, so you know what they are. */
+#enc .enc-opts button[data-tone='harm']:not(:disabled) {
+  border-color: rgba(255, 70, 90, 0.28);
+}
+#enc .enc-tabs button[data-tone='harm'].on {
+  color: #ff8a94;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fb-harm,
+  .fb-good {
+    animation-duration: 0.01s;
+  }
 }

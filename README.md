@@ -324,6 +324,19 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   drawers breathe, the signal crackles when you lurk, a stat going up rings
   twice (no sounds for blows or attacks), money clinks. All made on the spot; Settings → Sound turns
   it off.
+- **Film, glitch, static and colour fringe everywhere.** The old-film layer
+  that was only on the menus now covers the game too (coarser, cheaper): grain,
+  dust, hairs and scratches, a flicker, scanlines rolling down, and now and
+  then the picture breaks up into static. Every screen change and every blow
+  that lands glitches it. All text carries a faint red/cyan fringe that flares
+  when you're hit. **Settings** has a slider for each: Film grain, Glitches,
+  Static, Colour fringe (0 is off, 50 the usual, 100 double); all at 0 turns
+  the in-game film layer off entirely.
+- **Buttons feel like what they do.** Every press ripples from where you
+  touched. Violence (attacks, stamps, torture, and their tabs, which carry a
+  faint red edge) flashes red with a jolt; things that are good for you
+  (medicine, a drink, a smoke, a fire, buying something) glow warm and chime
+  softly.
 - **Intimidation** is a fifth stat, trained by all of the above. On small
   screens the stats along the top use short names.
 - **The cash machine** at the bank works any hour: a stolen card with the PIN

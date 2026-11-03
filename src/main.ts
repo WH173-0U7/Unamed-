@@ -29,8 +29,9 @@ const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'h
 renderer.setClearColor(0x000000, 1);
 $('screen').appendChild(renderer.domElement);
 
-// Film grain / glitch layer over the menus.
+// Film grain / glitch layer over the menus; and one over the whole game.
 const film = createFilm($('menu'));
+const filmGame = createFilm(document.body, true);
 
 // The glass over everything: blood, smears and grime stay on it, through
 // every menu and the game, until wiped off with a finger.
@@ -49,9 +50,52 @@ addEventListener(
     if (!b) return;
     if (b.dataset.tab || b.getAttribute('role') === 'tab' || b.getAttribute('role') === 'radio') sound.tab();
     else sound.click();
+    feedback(b, ev as MouseEvent);
   },
   true,
 );
+
+/**
+ * What a press feels like: a ripple from where you touched, and for some
+ * buttons more. Violence (attacks, stamps, torture, and their tabs) flashes
+ * red with a jolt; things that are good for you (medicine, a drink, a smoke,
+ * a fire, buying something) glow warm and chime softly.
+ */
+const GOOD = ['use', 'drink', 'smoke', 'fire', 'buy', 'stock', 'pack', 'bump'];
+function feedback(b: HTMLButtonElement, ev: MouseEvent) {
+  const tone = b.dataset.tone === 'harm' ? 'harm' : GOOD.some((k) => b.dataset[k] !== undefined) ? 'good' : '';
+  if (tone === 'good') sound.good();
+  const r = b.getBoundingClientRect();
+  if (r.width < 4) return;
+  if (getComputedStyle(b).position === 'static') b.style.position = 'relative';
+  const wrap = document.createElement('span');
+  wrap.className = `fx-ripple ${tone ? `fx-${tone}` : ''}`;
+  const dot = document.createElement('i');
+  const size = Math.max(r.width, r.height) * 2.2;
+  const x = (ev.clientX || r.left + r.width / 2) - r.left;
+  const y = (ev.clientY || r.top + r.height / 2) - r.top;
+  dot.style.cssText = `width:${size}px;height:${size}px;left:${x - size / 2}px;top:${y - size / 2}px`;
+  wrap.append(dot);
+  b.append(wrap);
+  window.setTimeout(() => wrap.remove(), 600);
+  if (tone) {
+    const flash = (el: HTMLElement) => {
+      el.classList.remove('fb-harm', 'fb-good');
+      void el.offsetWidth;
+      el.classList.add(`fb-${tone}`);
+      window.setTimeout(() => el.classList.remove(`fb-${tone}`), 450);
+    };
+    flash(b);
+    // Pressing it may redraw the list (buying something): flash the new one.
+    const attrs = Object.entries(b.dataset).filter(([k]) => k !== 'tone');
+    window.setTimeout(() => {
+      if (b.isConnected || !attrs.length) return;
+      const sel = attrs.map(([k, v]) => `[data-${k.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())}="${CSS.escape(v ?? '')}"]`).join('');
+      const again = document.querySelector<HTMLElement>(`button${sel}`);
+      if (again) flash(again);
+    }, 0);
+  }
+}
 addEventListener(
   'pointerdown',
   (ev) => {
@@ -61,7 +105,11 @@ addEventListener(
   true,
 );
 // The screen changing (a tab, a drawer, a menu): the glass flickers.
-addEventListener('ui-glitch', (e) => glass.pulse((e as CustomEvent<number>).detail));
+addEventListener('ui-glitch', (e) => {
+  const p = (e as CustomEvent<number>).detail;
+  glass.pulse(p);
+  filmGame.kick(p);
+});
 
 const fixedPR = params.has('pr') ? Number(params.get('pr')) : null;
 let pixelRatio = 1;
@@ -70,6 +118,7 @@ function applySize() {
   renderer.setPixelRatio(pixelRatio);
   renderer.setSize(innerWidth, innerHeight);
   film.setSize(pixelRatio);
+  filmGame.setSize(pixelRatio);
   glass.setSize(innerWidth, innerHeight, pixelRatio);
   rain.resize(innerWidth, innerHeight, pixelRatio);
   senses.resize(innerWidth, innerHeight);
@@ -79,6 +128,12 @@ addEventListener('resize', applySize);
 
 onSettingsChange((s) => {
   setMuted(!s.sound);
+  // Each effect's strength: 50 in the settings is the usual (1), 100 double.
+  const lv = { grain: s.grain / 50, glitch: s.glitch / 50, static: s.staticFx / 50, fringe: s.fringe / 50 };
+  film.setLevels(lv);
+  filmGame.setLevels(lv);
+  document.body.style.setProperty('--fk', String(lv.fringe));
+  document.body.style.setProperty('--gk', String(Math.min(1.6, lv.glitch)));
   pixelRatio = fixedPR ?? pixelRatioFor(s.quality);
   applySize();
   $('fps').style.display = s.showFps || params.has('debug') ? 'block' : 'none';
@@ -276,6 +331,9 @@ renderer.setAnimationLoop(() => {
   }
 
   if (menuVisible) film.update(dt);
+  // In the game (not under the menu, which has its own).
+  if (game && !menuVisible && !filmGame.off) filmGame.update(dt);
+  filmGame.visible(!!game && !menuVisible);
   // It only rains in a game (the weather is the save's).
   rain.setAmount(game?.rainAmount ?? 0);
   // Paused: the rain holds still under the menu (no need to draw it every frame).

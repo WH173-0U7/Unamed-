@@ -14,6 +14,11 @@ export interface Settings {
   buttons: ButtonStyle;
   /** Clicks and other little sounds (off: muted). */
   sound: boolean;
+  /** How strong the film grain, glitches, static and colour fringing are (0..100; 50 is the usual). */
+  grain: number;
+  glitch: number;
+  staticFx: number;
+  fringe: number;
 }
 
 const KEY = 'darcvoyd.settings';
@@ -26,6 +31,10 @@ const defaults: Settings = {
   font: 'report',
   buttons: 'lines',
   sound: true,
+  grain: 50,
+  glitch: 50,
+  staticFx: 50,
+  fringe: 50,
 };
 
 function load(): Settings {

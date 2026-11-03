@@ -9,6 +9,7 @@ import { HIGH_HOURS, LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditi
 import { ALL_TECHNIQUES, PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
 import { uiGlitch } from '../fx/uiGlitch';
+import type { DrugLook } from '../fx/drugs';
 import { clockText, dateText, now, partOfDay } from './clock';
 import { RAIN_AMOUNT, WEATHER_NAME, newWeather, updateWeather, weatherLine, type WeatherState } from './weather';
 import { COLD_NAMES } from './health';
@@ -996,6 +997,18 @@ export class Game {
     buzz(6);
   }
 
+  /** What you're on right now, for how the screen looks (fx/drugs.ts), and how strongly. */
+  get drugNow(): { drug: DrugLook | null; k: number } {
+    const e = this.encounter;
+    if (e && e.stage === 'combat' && e.you.high) return { drug: e.you.high, k: 1 };
+    const h = this.health;
+    const left = (h.highUntil ?? 0) - now();
+    // Wearing off over its last ten minutes.
+    if (h.high && left > 0) return { drug: h.high, k: Math.min(1, 0.25 + left / 800_000) };
+    if (h.wired) return { drug: 'cocaine', k: 1 };
+    return { drug: null, k: 0 };
+  }
+
   /** Smoking now (a cigarette that hasn't burned down yet). */
   get smoking(): boolean {
     const h = this.health;
@@ -1349,6 +1362,9 @@ export class Game {
       lines.push(...passHours(h, 4));
       if (h.dead) return this.die(lines);
       lines.push('You wake hours later, your skin crawling, with no idea how long you were gone.');
+      // Groggy for a while after.
+      h.high = 'tranq';
+      h.highUntil = now() + HIGH_HOURS.tranq * 3_600_000;
     }
     if (!knew) lines.push(`It was ${DRUG_TEST[drug].name}.`);
     if (this.dead) return;

@@ -28,7 +28,7 @@ export interface Health {
   /** On cocaine: the next fight, you've energy to burn and feel less. */
   wired?: boolean;
   /** On something from a syringe, until this time (ms, real clock). */
-  high?: 'heroin' | 'fentanyl' | 'meth';
+  high?: 'heroin' | 'fentanyl' | 'meth' | 'tranq';
   highUntil?: number;
   /** Stress, 0..100 (see encounter.ts addStress): eases with time and cigarettes. */
   stress?: number;
@@ -50,7 +50,7 @@ const STRESS_EASE = 6;
 
 export const COLD_NAMES = ['', 'Chilled', 'Cold', 'Freezing'];
 /** How long a high lasts (real hours). */
-export const HIGH_HOURS = { heroin: 2, fentanyl: 2, meth: 4 } as const;
+export const HIGH_HOURS = { heroin: 2, fentanyl: 2, meth: 4, tranq: 1 } as const;
 
 /** Hours for each kind of break to heal. */
 const MEND_HOURS: Record<Part, number> = {
@@ -355,7 +355,9 @@ export function injuryEffects(h: Health): InjuryInfo[] {
       effects:
         h.high === 'meth'
           ? ['Your blows do 12% more damage', 'Your blows land: −4% (you can\'t keep still)']
-          : ['Your blows land: −12%', 'Their blows land: +10% (you\'re slow to move)'],
+          : h.high === 'tranq'
+            ? ['Your blows land: −8%', 'Their blows land: +6% (groggy)']
+            : ['Your blows land: −12%', 'Their blows land: +10% (you\'re slow to move)'],
       heals: `Wears off in about ${mins < 90 ? `${mins} minutes` : `${Math.round(mins / 60)} hours`}.`,
     });
   }

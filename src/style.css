@@ -3043,3 +3043,320 @@ body[data-buttons='lines'] .spot-bar {
     height: auto;
   }
 }
+
+/* ================= What you're on (see fx/drugs.ts) ================= */
+#drug {
+  --k: 0;
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 6s ease;
+}
+body[data-drug] #drug {
+  opacity: var(--k);
+}
+#drug i {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+#drug .d-lid {
+  left: 0;
+  right: 0;
+  height: 55%;
+}
+#drug .d-top {
+  top: 0;
+  bottom: auto;
+  transform: translateY(-100%);
+  background: linear-gradient(to bottom, #000 40%, rgba(0, 0, 0, 0.7) 75%, transparent);
+}
+#drug .d-bot {
+  top: auto;
+  bottom: 0;
+  transform: translateY(100%);
+  background: linear-gradient(to top, #000 40%, rgba(0, 0, 0, 0.7) 75%, transparent);
+}
+
+/* Cocaine: cold, crisp, buzzing. */
+body[data-drug='cocaine'] {
+  --line: rgba(220, 235, 255, 0.4);
+}
+body[data-drug='cocaine'] #drug .d-tint {
+  opacity: 1;
+  background: rgba(205, 225, 255, 0.07);
+  mix-blend-mode: screen;
+}
+body[data-drug='cocaine'] #drug .d-glow {
+  opacity: 1;
+  background: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 62%, rgba(225, 240, 255, 0.28) 100%);
+  mix-blend-mode: screen;
+  animation: d-frost 2.4s ease-in-out infinite;
+}
+body[data-drug='cocaine'] #game {
+  animation: d-buzz 0.09s steps(2) infinite;
+}
+@keyframes d-frost {
+  50% {
+    opacity: 0.6;
+  }
+}
+@keyframes d-buzz {
+  0% {
+    translate: 0.5px 0;
+  }
+  50% {
+    translate: -0.5px 0.4px;
+  }
+}
+
+/* Heroin: warm, faded, nodding. */
+body[data-drug='heroin'] #drug .d-tint {
+  opacity: 1;
+  background: rgba(150, 110, 70, 0.5);
+  mix-blend-mode: color;
+}
+body[data-drug='heroin'] #drug .d-glow {
+  opacity: 1;
+  background: radial-gradient(ellipse 60% 50% at 50% 48%, rgba(255, 196, 140, 0.16), transparent 70%);
+  mix-blend-mode: screen;
+  animation: d-warm 7s ease-in-out infinite;
+}
+body[data-drug='heroin'] #drug .d-lid {
+  opacity: 0.92;
+}
+body[data-drug='heroin'] #drug .d-top {
+  animation: d-nod-top 11s ease-in-out infinite;
+}
+body[data-drug='heroin'] #drug .d-bot {
+  animation: d-nod-bot 11s ease-in-out infinite;
+}
+@keyframes d-warm {
+  50% {
+    opacity: 0.55;
+  }
+}
+@keyframes d-nod-top {
+  0%,
+  30%,
+  100% {
+    transform: translateY(-88%);
+  }
+  55% {
+    transform: translateY(-52%);
+  }
+  62% {
+    transform: translateY(-58%);
+  }
+  70% {
+    transform: translateY(-85%);
+  }
+}
+@keyframes d-nod-bot {
+  0%,
+  30%,
+  100% {
+    transform: translateY(92%);
+  }
+  55% {
+    transform: translateY(62%);
+  }
+  62% {
+    transform: translateY(66%);
+  }
+  70% {
+    transform: translateY(90%);
+  }
+}
+
+/* Fentanyl: drained, cold, going under. */
+body[data-drug='fentanyl'] #drug .d-tint {
+  opacity: 1;
+  background: rgba(70, 85, 105, 0.62);
+  mix-blend-mode: color;
+}
+body[data-drug='fentanyl'] #drug .d-glow {
+  opacity: 1;
+  background: radial-gradient(ellipse 70% 62% at 50% 50%, transparent 45%, rgba(2, 4, 10, 0.72) 100%);
+  animation: d-breathe 6.5s ease-in-out infinite;
+}
+body[data-drug='fentanyl'] #drug .d-lid {
+  opacity: 1;
+}
+body[data-drug='fentanyl'] #drug .d-top {
+  animation: d-under-top 14s ease-in-out infinite;
+}
+body[data-drug='fentanyl'] #drug .d-bot {
+  animation: d-under-bot 14s ease-in-out infinite;
+}
+@keyframes d-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  45% {
+    opacity: 1;
+  }
+}
+@keyframes d-under-top {
+  0%,
+  100% {
+    transform: translateY(-80%);
+  }
+  40% {
+    transform: translateY(-70%);
+  }
+  58% {
+    transform: translateY(-12%);
+  }
+  64% {
+    transform: translateY(-15%);
+  }
+  74% {
+    transform: translateY(-78%);
+  }
+}
+@keyframes d-under-bot {
+  0%,
+  100% {
+    transform: translateY(84%);
+  }
+  40% {
+    transform: translateY(76%);
+  }
+  58% {
+    transform: translateY(20%);
+  }
+  64% {
+    transform: translateY(24%);
+  }
+  74% {
+    transform: translateY(82%);
+  }
+}
+
+/* Meth: hot, electric, racing. */
+body[data-drug='meth'] {
+  --line: rgba(255, 140, 170, 0.42);
+}
+body[data-drug='meth'] #drug .d-tint {
+  opacity: 1;
+  background: rgba(255, 40, 90, 0.16);
+  mix-blend-mode: overlay;
+  animation: d-race 0.43s ease-out infinite;
+}
+body[data-drug='meth'] #drug .d-fringe {
+  opacity: 1;
+  box-shadow:
+    inset 6px 0 18px -6px rgba(255, 30, 60, 0.55),
+    inset -6px 0 18px -6px rgba(40, 240, 255, 0.5);
+  animation: d-split 0.16s steps(3) infinite;
+}
+body[data-drug='meth'] #drug .d-glow {
+  opacity: 1;
+  background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 55%, rgba(255, 60, 120, 0.22) 100%);
+  mix-blend-mode: screen;
+}
+body[data-drug='meth'] #game {
+  animation: d-jitter 0.13s steps(3) infinite;
+}
+@keyframes d-race {
+  0% {
+    opacity: 1;
+  }
+  25% {
+    opacity: 0.45;
+  }
+  40% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0.4;
+  }
+}
+@keyframes d-split {
+  0% {
+    transform: translateX(-1.5px);
+  }
+  50% {
+    transform: translateX(1.5px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+@keyframes d-jitter {
+  0% {
+    translate: 0.8px -0.6px;
+  }
+  33% {
+    translate: -0.9px 0.4px;
+  }
+  66% {
+    translate: 0.3px 0.9px;
+  }
+}
+
+/* Tranq: green, sick, swimming. */
+body[data-drug='tranq'] #drug .d-tint {
+  opacity: 1;
+  background: rgba(120, 150, 70, 0.34);
+  mix-blend-mode: multiply;
+}
+body[data-drug='tranq'] #drug .d-blot {
+  opacity: 1;
+  inset: -20%;
+  background:
+    radial-gradient(circle at 30% 40%, rgba(20, 40, 10, 0.5), transparent 22%),
+    radial-gradient(circle at 72% 62%, rgba(25, 45, 15, 0.42), transparent 26%),
+    radial-gradient(circle at 50% 85%, rgba(15, 30, 8, 0.38), transparent 20%);
+  animation: d-drift 13s ease-in-out infinite alternate;
+}
+body[data-drug='tranq'] #drug .d-lid {
+  opacity: 0.85;
+}
+body[data-drug='tranq'] #drug .d-top {
+  animation: d-nod-top 8s ease-in-out infinite;
+}
+body[data-drug='tranq'] #drug .d-bot {
+  animation: d-nod-bot 8s ease-in-out infinite;
+}
+body[data-drug='tranq'] #game {
+  animation: d-sway 7s ease-in-out infinite;
+}
+@keyframes d-drift {
+  to {
+    transform: translate(8%, -6%) scale(1.15);
+  }
+}
+@keyframes d-sway {
+  0%,
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+  }
+  30% {
+    translate: -6px 2px;
+    rotate: -0.7deg;
+  }
+  70% {
+    translate: 5px -1px;
+    rotate: 0.6deg;
+  }
+}
+
+/* No shaking or swaying for people who'd rather not. */
+@media (prefers-reduced-motion: reduce) {
+  body[data-drug] #game {
+    animation: none !important;
+  }
+  body[data-drug] #drug i {
+    animation-duration: 0s !important;
+  }
+}
+/* The menu (paused) is clear of it. */
+body.paused #drug {
+  opacity: 0 !important;
+}

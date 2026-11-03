@@ -289,6 +289,16 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   and adds 12% to your blows for 4 hours, and stress; tranq knocks you out
   for hours wherever you are. The empty syringe is still a weapon. The fence
   buys loaded ones; the police count them as evidence.
+- **How each drug looks.** While you're on something, the screen shows it,
+  each its own way: coke is cold and crisp (a frosty rim, a fine buzzing
+  tremor); heroin is warm and slow (an amber, faded wash, a soft glow, and
+  heavy eyelids that droop as you nod); fentanyl is cold and fading
+  (blue-grey, drained, the dark breathing in, your eyes nearly closing now
+  and then); meth is hot and electric (a red glare, red and cyan fringes, a
+  fast jitter, flashes on a racing heartbeat); tranq is sick and swimming (a
+  green murk, a slow sway, dark blotches drifting through, and you're groggy
+  for an hour after you wake). It fades as a high wears off, and stops
+  shaking and swaying if your phone is set to reduce motion.
 - **Intimidation** is a fifth stat, trained by all of the above. On small
   screens the stats along the top use short names.
 - **The cash machine** at the bank works any hour: a stolen card with the PIN

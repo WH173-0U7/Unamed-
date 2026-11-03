@@ -113,7 +113,7 @@ export interface Body {
   /** Yours: a cigarette in your mouth (cooler under pressure), until a blow knocks it out. */
   smoking?: boolean;
   /** Yours: on something from a syringe (see `dose`), for this fight. */
-  high?: 'heroin' | 'fentanyl' | 'meth';
+  high?: 'heroin' | 'fentanyl' | 'meth' | 'tranq';
   /** Theirs: how scared of you they are, 0..100 (see `scare`). */
   fear?: number;
   /** Theirs: they've given up. They won't fight; they'll hand it over. */
@@ -962,6 +962,8 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   if (A.high === 'heroin' || A.high === 'fentanyl') hit -= 0.12;
   if (D.high === 'heroin' || D.high === 'fentanyl') hit += 0.1;
   if (A.high === 'meth') hit -= 0.04;
+  if (A.high === 'tranq') hit -= 0.08;
+  if (D.high === 'tranq') hit += 0.06;
   if (tired) hit -= 0.15;
   if (A.down) hit -= kind === 'kick' ? 0.1 : 0.2;
   if (D.down) hit += 0.2;
@@ -1129,6 +1131,7 @@ function dose(drug: Exclude<import('./person').Drug, 'empty'>) {
     } else {
       y.dazed = 3;
       y.stamina = Math.max(0, y.stamina - 30);
+      y.high = 'tranq';
       say('info', "A heavy, sick drowsiness drags at you. You fight it, barely.");
     }
   }

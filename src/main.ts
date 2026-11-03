@@ -7,6 +7,7 @@ import { deleteSave, formatAgo, formatPlayTime, hasSave, loadSave, newSave } fro
 import { createFilm } from './fx/film';
 import { createRain } from './fx/rain';
 import { createSenses } from './fx/senses';
+import { createDrugs } from './fx/drugs';
 import { createGlass } from './fx/glass';
 import { createMenu } from './ui/menu';
 import { Game } from './game/game';
@@ -37,6 +38,8 @@ const glass = createGlass({ onHint: () => menu.toast('Rub the screen with your f
 const rain = createRain($('rainfall') as HTMLCanvasElement, glass);
 // How you see: stress (tunnel vision) and a cigarette (smoke, brighter).
 const senses = createSenses();
+// What you're on: each drug has its own look.
+const drugs = createDrugs();
 // The screen changing (a tab, a drawer, a menu): the glass flickers.
 addEventListener('ui-glitch', (e) => glass.pulse((e as CustomEvent<number>).detail));
 
@@ -258,6 +261,8 @@ renderer.setAnimationLoop(() => {
   senses.setStress(game && !game.dead ? game.stressNow : 0);
   senses.setSmoking(!!game && !game.dead && game.smoking);
   senses.update(dt);
+  const high = game && !game.dead ? game.drugNow : null;
+  drugs.set(high?.drug ?? null, high?.k ?? 0);
   glass.update(dt);
 
   frames++;

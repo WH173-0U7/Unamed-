@@ -59,7 +59,7 @@ const STOMP_HELPLESS_COST = 1;
 const TORTURE_COST = 3;
 const MUG_COST = 0.5;
 
-import { COIN_MACHINE_FEE, GAS_STOCK, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type Place } from './shops';
+import { COIN_MACHINE_FEE, ER_PRICES, GAS_STOCK, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place } from './shops';
 import { BILLS, COINS, addTo, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
 import { hoursText, isOpen } from './clock';
 import { createHitUi } from '../fx/hitUi';
@@ -170,6 +170,7 @@ export class Game {
       else if (b.dataset.bank) this.bank(b.dataset.bank);
       else if (b.dataset.atm) this.atm(Number(b.dataset.atm));
       else if (b.dataset.records) this.getId();
+      else if (b.dataset.er) this.er(b.dataset.er as ErCare);
     };
     this.restBtn.hidden = true;
     this.hitUi = createHitUi(view);
@@ -874,6 +875,8 @@ export class Game {
     this.shopNote = [];
     this.closeSheet();
     if (p === this.place) return;
+    // A new trip to the ER is a new wait.
+    this.erSeen = false;
     // Thrown out of the pawn shop: he won't let you back in for a while.
     if (((this.save.state.pawnBan as number) ?? 0) > now() + 30 * 60_000) this.save.state.pawnBan = now() + 30 * 60_000;
     if (p === 'pawn' && ((this.save.state.pawnBan as number) ?? 0) > now()) {
@@ -898,6 +901,7 @@ export class Game {
         bank: 'You walk to the bank.',
         liquor: 'You walk into the liquor store. A bell jangles over the door.',
         records: 'You push through the doors of the City Records Office and take a ticket.',
+        hospital: 'The ER doors hiss open. You give a name at the desk and they tell you to sit.',
       }[p],
     ];
     const h = this.health;
@@ -1063,6 +1067,93 @@ export class Game {
     }
     return place === 'pawn' ? `He glances at the ${lc(id.name)} and copies the name into a book.` : `The clerk squints at the ${lc(id.name)}, and lets it go.`;
   }
+  /** What the ER can do for you right now (and for which limbs). */
+  private erNeeds() {
+    const h = this.health;
+    const limbs = h.broken.filter((p) => /arm|leg/.test(p) && !h.splinted?.includes(p));
+    return {
+      stitches: h.bleeding > 0 || !!h.marks?.brow || !!h.marks?.lip,
+      nose: h.broken.includes('nose') && (h.mending.nose ?? 0) > 6,
+      cast: limbs,
+      lung: !!h.lung,
+      blood: h.blood < h.maxBlood * 0.8,
+    };
+  }
+  /** Seen once this visit: the wait in the waiting room is over. */
+  private erSeen = false;
+
+  /**
+   * The ER. They treat what you can't: stitches, setting a nose, a cast, a
+   * chest tube, blood. Self-pay at the window. First the wait (unless you're
+   * bleeding badly or can't breathe: then they take you straight in), and
+   * the wait is real: you keep bleeding while you sit there.
+   */
+  private er(what: ErCare) {
+    if (this.place !== 'hospital') return;
+    const h = this.health;
+    const inv = this.inventory;
+    const need = this.erNeeds();
+    const price = ER_PRICES[what] * (what === 'cast' ? Math.max(1, need.cast.length) : 1);
+    const can = what === 'cast' ? need.cast.length > 0 : need[what];
+    if (!can || cashOf(inv) * 100 < price * 100) return;
+    const lines: string[] = [];
+    if (!this.erSeen) {
+      const urgent = h.bleeding >= 3 || h.lung;
+      if (urgent) lines.push('One look at you and triage takes you straight through, past everyone waiting.');
+      else {
+        const wait = 2 + Math.floor(Math.random() * 3);
+        lines.push(`You wait. ${wait} hours of plastic chairs, a TV nobody's watching, and a vending machine that eats your change.`);
+        lines.push(...passHours(h, wait, true));
+        if (h.dead) return this.die(lines, 'You died in the waiting room.');
+      }
+      this.erSeen = true;
+      // By the time they call your name, it may not need doing.
+      const now_ = this.erNeeds();
+      if (what === 'cast' ? !now_.cast.length : !now_[what]) {
+        lines.push('By the time they call your name, there’s nothing they need to do. They send you home.');
+        this.refresh();
+        this.note(lines);
+        return;
+      }
+    }
+    switch (what) {
+      case 'stitches': {
+        const was = h.bleeding;
+        h.bleeding = 0;
+        if (h.marks?.lip) (h.markHours ??= {}).lip = Math.min(h.markHours.lip ?? 24, 12);
+        lines.push(was ? 'A tired resident cleans you up, numbs it and sews you shut. The bleeding stops.' : 'They clean the cut out, glue it and tape it. It stings like hell.');
+        if (h.marks?.brow) lines.push('Stitched, the cut over your eye will still scar, but less.');
+        break;
+      }
+      case 'nose':
+        h.mending.nose = Math.ceil((h.mending.nose ?? 8) / 2);
+        lines.push('A doctor puts both thumbs on your nose and pushes it straight. You see white. Packing, tape, and a sheet of instructions.');
+        break;
+      case 'cast':
+        for (const p of need.cast) {
+          h.mending[p] = Math.ceil((h.mending[p] ?? 24) / 2);
+          (h.splinted ??= []).push(p);
+        }
+        lines.push(`An X-ray, then they set the ${need.cast.join(' and the ')} and put ${need.cast.length > 1 ? 'them' : 'it'} in a cast. ${need.cast.some((p) => p.endsWith('leg')) ? 'They give you crutches and a lecture.' : 'They give you a sling.'}`);
+        break;
+      case 'lung':
+        h.lung = false;
+        lines.push('They numb your side and push a tube in between your ribs. Air hisses out, and you can breathe again. An hour on a gurney, then they let you go.');
+        lines.push(...passHours(h, 1, true));
+        break;
+      case 'blood':
+        h.blood = Math.max(h.blood, Math.round(h.maxBlood * 0.92));
+        lines.push('Two bags of someone else’s blood, an hour on a drip. Colour comes back into your hands.');
+        lines.push(...passHours(h, 1, true));
+        break;
+    }
+    if (h.dead) return this.die(lines);
+    lines.push(this.payLine(price * 100).replace(/^You hand over/, 'At the window you hand over'));
+    this.refresh();
+    this.note(lines);
+    buzz(8);
+  }
+
   /** At the Records Office: your own State ID, in your name. */
   private getId() {
     const inv = this.inventory;
@@ -1822,6 +1913,19 @@ export class Game {
       body =
         `<ul class="shop-list">${SOLD_MEDS().map((m) => li(m.name, `${m.desc}${have(m.id) ? ` · You have ${have(m.id)}` : ''}`, btn('buy', m.id, money(m.price * 100), c < m.price * 100 && 'Not enough cash'))).join('')}</ul>` +
         (c < Math.min(...SOLD_MEDS().map((m) => m.price)) * 100 ? `<p class="shop-broke">You can't afford anything. Cash only.</p>` : '');
+    } else if (place === 'hospital') {
+      const need = this.erNeeds();
+      const row = (care: ErCare, name: string, what: string, needed: boolean, n = 1) =>
+        li(name, what, btn('er', care, money(ER_PRICES[care] * n * 100), (!needed && 'Nothing to treat') || (c < ER_PRICES[care] * n * 100 && 'Not enough cash')));
+      body =
+        `<ul class="shop-list">` +
+        row('stitches', 'Stitches', 'Close a cut and stop the bleeding.', need.stitches) +
+        row('nose', 'Set your nose', 'Straightened, it heals in half the time.', need.nose) +
+        row('cast', need.cast.length > 1 ? `Casts (${need.cast.length})` : 'A cast', need.cast.length ? `Set the ${need.cast.join(' and ')}: heals in half the time.` : 'For a broken arm or leg.', need.cast.length > 0, Math.max(1, need.cast.length)) +
+        row('lung', 'Chest tube', 'For a punctured lung: breathe again.', need.lung) +
+        row('blood', 'Blood', 'A transfusion, when you’ve lost too much.', need.blood) +
+        `</ul>` +
+        `<p class="shop-broke">${this.erSeen ? 'You’ve been seen. They’ll fit you in.' : 'First you wait, unless you’re bleeding badly or can’t breathe.'} Self-pay, cash at the window. They can’t do anything for ribs or a concussion but tell you to rest.</p>`;
     } else if (place === 'records') {
       const mine = this.ownId();
       body = open

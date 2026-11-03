@@ -20,7 +20,7 @@ import type { InvItem } from './inventory';
  *   and breaks big ones down. After hours, the coin machine in the lobby
  *   still turns coins into bills, for a cut.
  */
-export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records';
+export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records' | 'hospital';
 
 export interface PlaceInfo {
   id: Place;
@@ -77,6 +77,14 @@ export const PLACES: PlaceInfo[] = [
     desc: 'Beer, wine and spirits. They check ID.',
     hours: EVERY(10, 2),
     blurb: 'Bars on the windows, bottles floor to ceiling, and a sign by the till: WE ID EVERYONE.',
+    indoors: true,
+  },
+  {
+    id: 'hospital',
+    name: 'County General ER',
+    desc: 'Open all hours. Stitches, casts, blood. Self-pay, and a long wait.',
+    hours: null,
+    blurb: 'Bright lights, a smell of bleach, rows of bolted chairs. A man holding a towel to his head; a woman asleep sitting up. Triage looks at you without much interest.',
     indoors: true,
   },
   {
@@ -208,3 +216,8 @@ export const PAWN_STOCK: Stock[] = [
   { id: 'beanie', name: 'Beanie', price: 5, desc: 'Covers your hair.', slot: 'head' },
   { id: 'shades', name: 'Sunglasses', price: 5, desc: 'Hides your eyes. At night, a bit odd.', slot: 'eyes' },
 ];
+
+// ---------- The ER (self-pay) ----------
+/** What the ER does, and what it costs you with no insurance (dollars). */
+export const ER_PRICES = { stitches: 80, nose: 60, cast: 150, lung: 250, blood: 200 } as const;
+export type ErCare = keyof typeof ER_PRICES;

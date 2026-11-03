@@ -90,6 +90,7 @@ export const COIN_MACHINE_FEE = 0.1;
 export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'known' | 'doses'>): number {
   const n = x.name.toLowerCase();
   if (x.secret === 'cocaine') return 60 * (x.doses ?? 1);
+  if (x.secret && x.secret !== 'empty') return { heroin: 40, fentanyl: 50, meth: 35, tranq: 15 }[x.secret];
   if (x.med) return { bandages: 8, gauze: 15, painkillers: 6, splint: 22, iron: 12, testkit: 10 }[x.med];
   if (x.kind === 'phone') return 180;
   if (x.kind === 'car keys') return 80;

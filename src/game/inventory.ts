@@ -23,7 +23,7 @@ export interface InvItem {
   /** Which spot it's in (Spot.id). */
   spot: string;
   /** What it really is (see Loot.secret), whether you know, and uses left. */
-  secret?: 'cocaine';
+  secret?: import('./person').Secret;
   known?: boolean;
   doses?: number;
   /** A card: the PIN they gave you, whether it's real, and whether it's been used at the cash machine. */

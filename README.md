@@ -276,6 +276,19 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   blades off you if they stop you; the fence buys them, the pawn shop won't.
   A new **Weapons** stat (+1.2% damage and +0.5% to land a level) grows as
   you use them.
+- **What's in a junkie's syringe.** Heroin, fentanyl, meth, tranq (xylazine),
+  or nothing (a used, empty one). You can't tell by looking: take it, and the
+  drug test kit tells you. Stuck with a loaded one in a fight (about a third
+  of the times it lands), it goes into you: heroin makes you slow and dazed
+  but calm; fentanyl the same, harder, and it can put you out; meth gives you
+  stamina and hits harder but sets you on edge; tranq can drop you where you
+  stand. **Inject** one yourself (from Pockets): heroin takes all the stress
+  away and slows you in fights for 2 hours (5% chance of an overdose that
+  puts you out for hours); fentanyl the same with a 30% chance of overdose,
+  and about a third of overdoses kill you; meth wires you for the next fight
+  and adds 12% to your blows for 4 hours, and stress; tranq knocks you out
+  for hours wherever you are. The empty syringe is still a weapon. The fence
+  buys loaded ones; the police count them as evidence.
 - **Intimidation** is a fifth stat, trained by all of the above. On small
   screens the stats along the top use short names.
 - **The cash machine** at the bank works any hour: a stolen card with the PIN

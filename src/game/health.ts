@@ -27,6 +27,9 @@ export interface Health {
   cold?: number;
   /** On cocaine: the next fight, you've energy to burn and feel less. */
   wired?: boolean;
+  /** On something from a syringe, until this time (ms, real clock). */
+  high?: 'heroin' | 'fentanyl' | 'meth';
+  highUntil?: number;
   /** Stress, 0..100 (see encounter.ts addStress): eases with time and cigarettes. */
   stress?: number;
   /** How used to violence you are, 0..100: at 100 it doesn't stress you. */
@@ -46,6 +49,8 @@ export const MARK_HOURS: Record<HealingMark, number> = { lip: 24, cheek: 36, eye
 const STRESS_EASE = 6;
 
 export const COLD_NAMES = ['', 'Chilled', 'Cold', 'Freezing'];
+/** How long a high lasts (real hours). */
+export const HIGH_HOURS = { heroin: 2, fentanyl: 2, meth: 4 } as const;
 
 /** Hours for each kind of break to heal. */
 const MEND_HOURS: Record<Part, number> = {
@@ -83,6 +88,7 @@ export function healthConditions(h: Health): string[] {
   if (h.lung) c.push('Punctured lung');
   if (h.cold) c.push(COLD_NAMES[h.cold]);
   if (h.wired) c.push('Wired');
+  if (h.high && (h.highUntil ?? 0) > Date.now()) c.push(`High: ${h.high}`);
   c.push(...marksText(h.marks));
   const sl = stressLevel(h.stress ?? 0);
   if (sl) c.push(STRESS_NAMES[sl]);
@@ -102,6 +108,7 @@ export function bodyFrom(h: Health, stamina: number): Body {
     lung: h.lung,
     stress: h.stress ?? 0,
     smoking: (h.smokingUntil ?? 0) > Date.now(),
+    high: h.high && (h.highUntil ?? 0) > Date.now() ? h.high : undefined,
     marks: JSON.parse(JSON.stringify(h.marks ?? {})) as Marks,
     nerve: h.nerve ?? 0,
     bleeding: h.bleeding,
@@ -127,6 +134,11 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
   if (b.concussed && h.concussion <= 0) h.concussion = CONCUSSION_HOURS;
   if (b.lung) h.lung = true;
   h.stress = b.stress ?? h.stress;
+  // Stuck with a needle in the fight: it lasts.
+  if (b.high && b.high !== h.high) {
+    h.high = b.high;
+    h.highUntil = Date.now() + HIGH_HOURS[b.high] * 3_600_000;
+  }
   // New marks start healing (teeth and scars never do).
   const was = h.marks ?? {};
   h.marks = b.marks ?? was;
@@ -335,6 +347,17 @@ export function injuryEffects(h: Health): InjuryInfo[] {
     const effects = [`Fights start with ${h.cold * 10}% less stamina`, `Running from the police: −${h.cold * 5}%`];
     if (h.cold >= 2) effects.push(`Your body makes blood back ${h.cold >= 3 ? '40%' : '75%'} as fast`);
     out.push({ name: COLD_NAMES[h.cold], effects, heals: 'Get out of the rain: indoors, or by a fire.' });
+  }
+  if (h.high && (h.highUntil ?? 0) > Date.now()) {
+    const mins = Math.ceil(((h.highUntil ?? 0) - Date.now()) / 60000);
+    out.push({
+      name: `High: ${h.high}`,
+      effects:
+        h.high === 'meth'
+          ? ['Your blows do 12% more damage', 'Your blows land: −4% (you can\'t keep still)']
+          : ['Your blows land: −12%', 'Their blows land: +10% (you\'re slow to move)'],
+      heals: `Wears off in about ${mins < 90 ? `${mins} minutes` : `${Math.round(mins / 60)} hours`}.`,
+    });
   }
   if (h.wired) {
     out.push({

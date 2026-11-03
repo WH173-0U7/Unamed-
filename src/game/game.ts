@@ -5,7 +5,7 @@ import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf } from 
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
 import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
-import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
+import { HIGH_HOURS, LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
 import { ALL_TECHNIQUES, PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
 import { uiGlitch } from '../fx/uiGlitch';
@@ -709,6 +709,7 @@ export class Game {
     else if (b.dataset.taste) this.identify(Number(b.dataset.taste), false);
     else if (b.dataset.test) this.identify(Number(b.dataset.test), true);
     else if (b.dataset.bump) this.bump(Number(b.dataset.bump));
+    else if (b.dataset.inject) this.inject(Number(b.dataset.inject));
   }
 
   /** Walk somewhere else. */
@@ -1098,7 +1099,7 @@ export class Game {
       }
       // Do you look like who they're after?
       const looks = Math.random() < (f.heat / 100) * (1 - anonymity(inv) * 0.5);
-      const evidence = inv.items.filter((x) => x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card' || x.secret);
+      const evidence = inv.items.filter((x) => x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card' || (x.secret && x.secret !== 'empty'));
       lines.push('They pat you down and go through your pockets.');
       // Blades get taken off you, and they remember it.
       const blades = inv.items.filter((x) => x.kind === 'weapon' && x.cuts);
@@ -1247,6 +1248,20 @@ export class Game {
     const it = inv.items[i];
     if (!it?.secret || it.known) return;
     let line: string;
+    if (it.secret !== 'cocaine') {
+      // A syringe: only the kit can tell you.
+      const k = inv.items.findIndex((x) => x.med === 'testkit');
+      if (!kit || k < 0 || it.secret === 'empty') return;
+      inv.items.splice(k, 1);
+      const what = DRUG_TEST[it.secret];
+      it.known = true;
+      it.name = `Syringe of ${what.name}`;
+      it.detail = what.name[0].toUpperCase() + what.name.slice(1);
+      this.refresh();
+      this.note([`You squeeze a drop from the needle into the vial and shake it. ${what.line}`]);
+      buzz(8);
+      return;
+    }
     if (kit) {
       const k = inv.items.findIndex((x) => x.med === 'testkit');
       if (k < 0) return;
@@ -1261,6 +1276,85 @@ export class Game {
     this.refresh();
     this.note([line]);
     buzz(8);
+  }
+
+  /** Why you can't inject right now, or null. */
+  private injectBlocked(): string | null {
+    if (!this.canOpenSheet) return 'Not now';
+    const h = this.health;
+    if (h.high && (h.highUntil ?? 0) > now()) return 'Still high';
+    return null;
+  }
+
+  /**
+   * Shooting up whatever's in the syringe (you may not know what it is).
+   * Heroin: calm, no stress, slow in the next fights for a couple of hours,
+   * and a small chance of overdose. Fentanyl: the same, far stronger, and an
+   * overdose that can kill. Meth: wired for the next fight, harder hitting,
+   * and on edge. Tranq: you're out for hours, wherever you are.
+   */
+  private inject(i: number) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    const h = this.health;
+    if (!it?.secret || it.secret === 'cocaine' || it.secret === 'empty' || this.injectBlocked()) return;
+    const drug = it.secret;
+    const knew = it.known;
+    this.closeSheet();
+    // The syringe is spent: still a needle, still sharp.
+    it.secret = 'empty';
+    it.known = true;
+    it.name = 'Syringe';
+    it.detail = 'Empty. Used.';
+    const lines: string[] = [knew ? `You find a vein and push the ${DRUG_TEST[drug].name} in.` : 'You find a vein and push the plunger, not knowing what goes in.'];
+    const od = (chance: number, deadly: number): boolean => {
+      if (Math.random() >= chance) return false;
+      if (Math.random() < deadly) {
+        lines.push('Your breathing slows. Slower. Then it stops, and nobody comes.');
+        this.die(lines);
+        return true;
+      }
+      lines.push('Your breathing slows to almost nothing, and the world goes out.');
+      lines.push(...passHours(h, 4));
+      if (h.dead) {
+        this.die(lines);
+        return true;
+      }
+      lines.push('You come round on the pavement hours later, soaked and shaking, sick to your stomach. You nearly died.');
+      return true;
+    };
+    if (drug === 'heroin') {
+      lines.push('Warmth floods up your arm and all through you. The stress melts away. Your eyelids are heavy.');
+      h.stress = 0;
+      h.high = 'heroin';
+      h.highUntil = now() + HIGH_HOURS.heroin * 3_600_000;
+      if (od(0.05, 0)) {
+        if (h.dead) return;
+      }
+    } else if (drug === 'fentanyl') {
+      lines.push('It hits like a wall, all at once. Nothing hurts. Nothing matters. It is very hard to breathe.');
+      h.stress = 0;
+      h.high = 'fentanyl';
+      h.highUntil = now() + HIGH_HOURS.fentanyl * 3_600_000;
+      if (od(0.3, 0.35) && h.dead) return;
+      if (this.health.dead) return;
+    } else if (drug === 'meth') {
+      lines.push('Your heart slams. Your jaw locks tight. Everything is fast and bright and loud, and you could fight anyone.');
+      h.wired = true;
+      h.high = 'meth';
+      h.highUntil = now() + HIGH_HOURS.meth * 3_600_000;
+      h.stress = Math.min(100, (h.stress ?? 0) + 15);
+    } else {
+      lines.push("A heavy, sick drowsiness pulls you down before you can get the needle out. You're out where you sit.");
+      lines.push(...passHours(h, 4));
+      if (h.dead) return this.die(lines);
+      lines.push('You wake hours later, your skin crawling, with no idea how long you were gone.');
+    }
+    if (!knew) lines.push(`It was ${DRUG_TEST[drug].name}.`);
+    if (this.dead) return;
+    this.refresh();
+    this.note(lines);
+    buzz([20, 40, 20]);
   }
 
   /** A bump of coke: you're wired for the next fight (more stamina, less pain). */
@@ -1435,8 +1529,10 @@ export class Game {
                 const why = m?.blocked(h);
                 const small = m
                   ? (why ?? m.desc)
-                  : x.secret && x.known
+                  : x.secret === 'cocaine' && x.known
                     ? `${x.doses} bump${x.doses === 1 ? '' : 's'} left`
+                    : x.kind === 'weapon' && /syringe/i.test(x.name)
+                      ? `${x.detail ?? 'A syringe'} · +${x.weapon ?? 0} damage, cuts`
                     : /^cigarettes$/i.test(x.name)
                       ? `${x.detail ? `${x.detail}, ` : ''}${x.doses ?? 0} left`
                       : /^lighter$/i.test(x.name)
@@ -1455,7 +1551,10 @@ export class Game {
                 if (/^(lighter|matches)$/i.test(x.name)) acts += act('fire', 'Fire', this.fireBlocked());
                 if (/^cigarettes$/i.test(x.name)) acts += act('smoke', this.smoking ? 'Smoking' : 'Smoke', this.smokeBlocked());
                 if (x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card') acts += act('burn', 'Burn', this.burnBlocked());
-                if (x.secret && !x.known) {
+                if (x.secret && x.secret !== 'cocaine' && x.secret !== 'empty') {
+                  if (!x.known && inv.items.some((y) => y.med === 'testkit')) acts += act('test', 'Test');
+                  acts += act('inject', 'Inject', this.injectBlocked());
+                } else if (x.secret && !x.known) {
                   acts += act('taste', 'Taste');
                   if (inv.items.some((y) => y.med === 'testkit')) acts += act('test', 'Test');
                 }
@@ -1990,3 +2089,11 @@ function withA(s: string): string {
 function list2(xs: string[]): string {
   return xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
 }
+
+/** What the test kit shows for what's in a syringe. */
+const DRUG_TEST: Record<'heroin' | 'fentanyl' | 'meth' | 'tranq', { name: string; line: string }> = {
+  heroin: { name: 'heroin', line: 'The liquid turns a deep purple: heroin.' },
+  fentanyl: { name: 'fentanyl', line: 'The strip shows one line, not two. Fentanyl. A drop of this could kill you.' },
+  meth: { name: 'meth', line: 'The liquid goes orange, then dark brown: methamphetamine.' },
+  tranq: { name: 'tranq', line: "The liquid doesn't change at all, but the little xylazine strip does. Tranq: an animal sedative." },
+};

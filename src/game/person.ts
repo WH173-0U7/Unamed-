@@ -63,6 +63,8 @@ export interface Item {
   cuts?: boolean;
   /** Pepper spray: blinds you instead of hurting. */
   spray?: boolean;
+  /** A syringe: what's in it. */
+  drug?: Drug;
 }
 
 /**
@@ -114,6 +116,17 @@ const PERSONALITY_CHANCES: Record<Kind, [Personality, number][]> = {
 /** Their personality (people from before personalities were counted are calm). */
 export const personalityOf = (p: Person): PersonalityInfo => PERSONALITIES[p.personality ?? 'calm'];
 
+/** What can be in a junkie's syringe (or nothing: a used, empty one). */
+export type Drug = 'heroin' | 'fentanyl' | 'meth' | 'tranq' | 'empty';
+export type Secret = 'cocaine' | Drug;
+const DRUG_CHANCES: [Drug, number][] = [
+  ['heroin', 30],
+  ['fentanyl', 25],
+  ['meth', 20],
+  ['tranq', 10],
+  ['empty', 15],
+];
+
 export interface Person {
   kind: Kind;
   /** How they are, inside (see PERSONALITIES). */
@@ -149,8 +162,8 @@ export interface Loot {
   med?: MedId;
   /** It belonged to one of your dead characters. */
   yours?: boolean;
-  /** What it really is, if that's not obvious (a baggie of powder: 'cocaine'). */
-  secret?: 'cocaine';
+  /** What it really is, if that's not obvious (a baggie of powder: 'cocaine'; what's in a syringe). */
+  secret?: Secret;
   /** Found out what it is. */
   known?: boolean;
   /** How many uses are left (a baggie). */
@@ -308,6 +321,8 @@ export function makePerson(): Person {
     const item = Object.values(ITEMS).flat().find(([i]) => i.name === name)?.[0];
     if (item) carrying.push({ ...item });
   }
+  // A junkie's syringe has something in it (or it's spent).
+  for (const it of carrying) if (it.name === 'Syringe') it.drug = pick(DRUG_CHANCES);
   return {
     kind,
     personality,

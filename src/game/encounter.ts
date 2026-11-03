@@ -112,6 +112,8 @@ export interface Body {
   marks?: Marks;
   /** Yours: a cigarette in your mouth (cooler under pressure), until a blow knocks it out. */
   smoking?: boolean;
+  /** Yours: on something from a syringe (see `dose`), for this fight. */
+  high?: 'heroin' | 'fentanyl' | 'meth';
   /** Theirs: how scared of you they are, 0..100 (see `scare`). */
   fear?: number;
   /** Theirs: they've given up. They won't fight; they'll hand it over. */
@@ -956,6 +958,10 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   if (A.blinded > 0) hit -= 0.35;
   // Shaking with fear, they swing wild.
   if (a === 'them') hit -= (A.fear ?? 0) / 400;
+  // On heroin or fentanyl: slow to hit, slow to get out of the way.
+  if (A.high === 'heroin' || A.high === 'fentanyl') hit -= 0.12;
+  if (D.high === 'heroin' || D.high === 'fentanyl') hit += 0.1;
+  if (A.high === 'meth') hit -= 0.04;
   if (tired) hit -= 0.15;
   if (A.down) hit -= kind === 'kick' ? 0.1 : 0.2;
   if (D.down) hit += 0.2;
@@ -1034,6 +1040,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
         : (stomp ? (loc === 'head' ? roll(11, 17) : loc === 'stomach' ? roll(9, 14) : roll(10, 15)) : kind === 'kick' ? roll(9, 15) : roll(6, 11)) * damageMult(you.stats)
       : b.power + roll(-3, 3) + (kind === 'kick' ? 3 : stomp ? 4 : 0) + (weapon?.weapon ?? 0);
   if (tech) dmg *= tech.dmg;
+  if (A.high === 'meth') dmg *= 1.12;
   if (tired) dmg *= 0.75;
   if (A.stamina <= 0) dmg *= 0.7;
   if (A.down) dmg *= 0.6;
@@ -1070,7 +1077,8 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
             ? oneOf([`You snap a punch ${where.replace(/^in the /, 'into their ')}.`, `You punch them ${where}, short and hard.`])
             : `${N.S} punch ${N.o} ${where}.`;
   }
-  say(a, `${text} ${wound(d, loc, dmg, weapon?.cuts ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch')}`);
+  // (A needle punctures; it doesn't slice.)
+  say(a, `${text} ${wound(d, loc, dmg, weapon?.cuts && !/syringe/i.test(weapon.name) ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch')}`);
   if (a === 'you') {
     // Landing blows: it's fighting that teaches you to fight (and builds a little muscle).
     if (weapon) you.gain('weapons', 4);
@@ -1079,7 +1087,51 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
     you.gain('agility', 2);
     if (tech) techEffect(tech);
   }
+  // Stuck with a loaded needle: whatever's in it goes into you.
+  if (a === 'them' && weapon && /syringe/i.test(weapon.name)) {
+    const w = weapon as Item;
+    if (w.drug && w.drug !== 'empty' && Math.random() < 0.35) {
+      dose(w.drug);
+      w.drug = 'empty';
+    }
+  }
   return true;
+}
+
+/** Something from a syringe, in the middle of a fight. */
+function dose(drug: Exclude<import('./person').Drug, 'empty'>) {
+  const y = enc.you;
+  landed = null;
+  say('them', 'The needle goes in deep, and they press the plunger.');
+  if (drug === 'heroin') {
+    y.dazed = 2;
+    y.stamina = Math.max(0, y.stamina - 25);
+    y.stress = Math.max(0, (y.stress ?? 0) - 15);
+    y.high = 'heroin';
+    say('info', 'Warmth floods up your arm and through you. Your arms go heavy. Nothing hurts any more, and nothing matters.');
+  } else if (drug === 'fentanyl') {
+    y.dazed = 3;
+    y.stamina = Math.max(0, y.stamina - 40);
+    y.high = 'fentanyl';
+    if (Math.random() < 0.2) {
+      y.out = true;
+      say('info', 'Your breathing slows. Slower. The street tips sideways and goes dark.');
+    } else say('info', 'It hits like a wall. Your eyelids drag down and every breath is an effort.');
+  } else if (drug === 'meth') {
+    y.stamina = Math.min(y.maxStamina, y.stamina + 30);
+    addStress(y, 15);
+    y.high = 'meth';
+    say('info', 'Your heart slams. Your jaw locks. Everything is fast and loud and you want to hurt them.');
+  } else {
+    if (Math.random() < 0.45) {
+      y.out = true;
+      say('info', "Your legs go first. You're on the pavement before you know it, and then you're nowhere.");
+    } else {
+      y.dazed = 3;
+      y.stamina = Math.max(0, y.stamina - 30);
+      say('info', "A heavy, sick drowsiness drags at you. You fight it, barely.");
+    }
+  }
 }
 
 /**
@@ -1993,7 +2045,8 @@ function torture(how: string, inv?: Inventory) {
 function takeCarried(ci: number, inv: Inventory, quiet = false): boolean {
   const it = enc.person.carrying[ci];
   if (!it || !(it.weapon || it.spray)) return false;
-  const r = take(inv, { kind: 'weapon', name: it.name, weapon: it.weapon, cuts: it.cuts, spray: it.spray, doses: it.spray ? (it as { doses?: number }).doses ?? 3 : undefined, where: 'in their hand' });
+  const empty = !it.drug || it.drug === 'empty';
+  const r = take(inv, { kind: 'weapon', name: it.name, weapon: it.weapon, cuts: it.cuts, spray: it.spray, doses: it.spray ? (it as { doses?: number }).doses ?? 3 : undefined, where: 'in their hand', ...(it.name === 'Syringe' ? { secret: it.drug ?? 'empty', known: empty, detail: empty ? 'Empty. Used.' : 'Something in it' } : {}) });
   if (!quiet) say('you', r.text);
   if (!r.ok) return false;
   enc.person.carrying.splice(ci, 1);

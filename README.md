@@ -321,8 +321,8 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   opens your sheet: blood, cash, which character you are, your condition and
   every stat. Lurk sits just below the middle of the screen.
 - **Sound.** Buttons click, tabs tick, a button you can't press knocks,
-  drawers breathe, the signal crackles when you lurk, blows thud, a stat going
-  up rings twice, money clinks. All made on the spot; Settings → Sound turns
+  drawers breathe, the signal crackles when you lurk, a stat going up rings
+  twice (no sounds for blows or attacks), money clinks. All made on the spot; Settings → Sound turns
   it off.
 - **Intimidation** is a fifth stat, trained by all of the above. On small
   screens the stats along the top use short names.

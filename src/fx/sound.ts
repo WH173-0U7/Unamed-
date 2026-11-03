@@ -1,7 +1,7 @@
 /**
  * Little sounds, made on the spot (no audio files): a dry click for a button,
  * a softer tick for a tab, a breath of air for a drawer, static when the
- * signal cuts out to lurk, a dull thud when a blow lands, a couple of rising
+ * signal cuts out to lurk, a couple of rising
  * notes when a stat goes up, coins when money changes hands. Muted from
  * Settings → Sound. The audio only starts after the first touch (browsers
  * require it).
@@ -105,11 +105,6 @@ export const sound = {
   static(dur = 0.7) {
     noise(dur, 2400, 0.4, 0.08, 'highpass');
     for (let i = 0; i < 5; i++) noise(0.02, 1500 + Math.random() * 3000, 3, 0.14, 'bandpass', Math.random() * dur);
-  },
-  /** A blow landing: a dull thud (heavier for a bad one). */
-  thud(heavy = false) {
-    tone(heavy ? 90 : 130, heavy ? 0.22 : 0.13, heavy ? 0.5 : 0.32, 'sine', heavy ? 40 : 60);
-    noise(heavy ? 0.12 : 0.07, 500, 0.8, heavy ? 0.3 : 0.18, 'lowpass');
   },
   /** A stat going up: two rising notes. */
   levelUp() {

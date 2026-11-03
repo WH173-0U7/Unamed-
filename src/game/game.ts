@@ -525,10 +525,7 @@ export class Game {
         const power = Math.min(1, im.ml / 600) * (im.severe ? 1.3 : 1);
         // Blood only when the blow would throw it (see Spill).
         this.fx.impact(you, im.ml, im.severe, im.spill);
-        if (im.ml > 0) {
-          this.hitUi.kick(power, you);
-          sound.thud(im.severe || power > 0.6);
-        }
+        if (im.ml > 0) this.hitUi.kick(power, you);
         const wet = im.spill === 'splash' || im.spill === 'spray' || (im.spill === 'spatter' && you);
         if (wet && you && (power > 0.35 || Math.random() < 0.4)) this.hitUi.splash(im.severe ? 2 : 1, im.severe);
         if (wet && !you && im.severe && Math.random() < 0.6) this.hitUi.splash(1, false);

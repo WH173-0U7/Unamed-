@@ -47,7 +47,7 @@ export interface Health {
 
 type HealingMark = 'lip' | 'cheek' | 'eye' | 'brow' | 'jaw';
 /** Hours for a mark to heal (game time). A cut brow leaves a scar. */
-export const MARK_HOURS: Record<HealingMark, number> = { lip: 24, cheek: 36, eye: 72, brow: 96, jaw: 48 };
+export const MARK_HOURS: Record<HealingMark, number> = { lip: 24, cheek: 36, eye: 72, brow: 96, jaw: 400 };
 
 /** Stress lost per hour of game time (more when resting). */
 const STRESS_EASE = 6;

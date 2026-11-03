@@ -1108,10 +1108,11 @@ export class Game {
       lines.push('The street tips over. You sit down hard, and then you are somewhere else entirely.');
       lines.push(...passHours(h, 3));
       if (h.dead) return this.die(lines, 'You never woke up.');
-      h.drunk = 60;
+      h.drunk = 40;
       h.drunkAt = now();
       lines.push('You come round in a doorway, hours later, with your mouth tasting of sick.');
-    } else if (now_ > was) lines.push(['', "You're tipsy. Everything's a bit funnier.", "You're drunk. The street sways when you turn your head.", "You're wasted. Your feet aren't where you left them.", "You're blackout drunk. One more and you're gone."][now_]);
+    } else if (h.drunk >= 78 && h.drunk < 90) lines.push("The street spins. One more and you'll black out.");
+    else if (now_ > was) lines.push(['', "You're tipsy. Everything's a bit funnier.", "You're drunk. The street sways when you turn your head.", "You're wasted. Your feet aren't where you left them.", "You're blackout drunk. One more and you're gone."][now_]);
     this.closeSheet();
     this.refresh();
     this.note(lines);

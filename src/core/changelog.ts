@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.41',
+    date: 'Nov 3',
+    items: [
+      'Fight text fixes: someone on the floor or out cold no longer "staggers" or "limps"; the hard cases only spit blood when they’re bleeding.',
+      'Afterwards, you only remember a name you actually saw (and on what: a license, an ID, a card).',
+      'Your broken jaw takes weeks to heal, not two hours; Catch your breath respects broken ribs.',
+      'Drinking warns you one drink before you black out.',
+      'Small fixes: torture options that had nothing left to do are greyed out; the lurk static no longer cuts off.',
+    ],
+  },
+  {
     v: '0.40',
     date: 'Nov 3',
     items: [

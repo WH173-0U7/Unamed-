@@ -51,7 +51,7 @@ function noise(dur: number, freq: number, q: number, gain: number, type: BiquadF
   const t = c.currentTime + delay;
   const src = c.createBufferSource();
   src.buffer = noiseBuf;
-  src.loop = dur > 0.9;
+  src.loop = true; // (it starts at a random point: loop so it never runs out early)
   const f = c.createBiquadFilter();
   f.type = type;
   f.frequency.value = freq;

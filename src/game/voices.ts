@@ -49,7 +49,9 @@ function life(e: Encounter) {
   const shown = loot.filter((l) => !l.hidden);
   return {
     name: e.holder?.split(' ')[0],
-    sawName: seen.some((l) => l.kind === 'id' || /card/.test(l.kind)) || e.robbed,
+    sawName: seen.some((l) => l.kind === 'id' || /card/.test(l.kind)),
+    // What the name was on (a license, an expired state ID, a debit card).
+    nameOn: seen.find((l) => l.kind === 'id' || /card/.test(l.kind))?.name.toLowerCase().replace(/^state id/, 'state ID').replace(/^driver's/, "driver's"),
     kid: shown.some((l) => /photo of a kid/i.test(l.detail ?? '')),
     sawKid: seen.some((l) => /photo of a kid/i.test(l.detail ?? '')),
     wallet: shown.some((l) => l.where === 'wallet'),
@@ -202,10 +204,12 @@ export function voice(e: Encounter, m: Moment): string[] {
   const kind = KIND[e.person.kind];
   const L = life(e);
   const fear = e.them.fear ?? 0;
+  // (No blood in what they do unless they're actually bleeding.)
+  const noBlood = (xs: string[]) => (e.them.bleeding > 0 ? xs : xs.filter((x) => !/blood/i.test(x)));
   if (g === 'hothead' || g === 'proud' || g === 'hard') {
     // Scared enough, even the hard ones break (but they break bitter).
-    if (m === 'beg' && fear >= 85) return [...(BRUTE[g].beg ?? []), ...kind.beg.slice(0, 1)];
-    return BRUTE[g][m] ?? (m === 'giveUpDown' ? (BRUTE[g].giveUp ?? []) : m === 'letGo' ? kind.letGo : []);
+    if (m === 'beg' && fear >= 85) return noBlood([...(BRUTE[g].beg ?? []), ...kind.beg.slice(0, 1)]);
+    return noBlood(BRUTE[g][m] ?? (m === 'giveUpDown' ? (BRUTE[g].giveUp ?? []) : m === 'letGo' ? kind.letGo : []));
   }
   if (g === 'sly') {
     if (m === 'beg' && fear >= 75) return [...kind.beg];
@@ -259,7 +263,7 @@ export function voice(e: Encounter, m: Moment): string[] {
 export function guilt(e: Encounter, what: 'mug' | 'beat' | 'torture', lost: number): { lines: string[]; stress: number } {
   const L = life(e);
   const victim = !isBrute(e.person.personality);
-  const who = L.name && L.sawName ? `${L.name}. It said so on the license.` : e.person.kind === 'homeless' ? 'Someone with nothing.' : 'A person. Just a person.';
+  const who = L.name && L.sawName ? `${L.name}. It said so on the ${L.nameOn ?? 'card'}.` : e.person.kind === 'homeless' ? 'Someone with nothing.' : 'A person. Just a person.';
   if (lost >= 80) {
     return {
       lines: [what === 'torture' ? 'You replay their screaming on the walk back, and smile.' : 'You feel good. Better than you have in days.'],
@@ -289,17 +293,22 @@ export function guilt(e: Encounter, what: 'mug' | 'beat' | 'torture', lost: numb
       stress: victim ? 6 : 3,
     };
   }
-  // Still human: it lands.
+  // Still human: it lands. (What you'd remember, from how it went.)
+  const bled = (e.start?.blood ?? e.them.maxBlood) - e.them.blood > 150;
+  const fled = e.result === 'they-fled' || e.result === 'you-fled';
+  const beatLines = fled
+    ? ['You can still feel every blow in your knuckles.', 'You keep seeing their face as you hit it.']
+    : [...(bled ? ["You look at your knuckles. The blood on them isn't yours."] : []), "They were someone's son, someone's daughter. You left them lying there.", 'You keep seeing them lying there, not moving.'];
   const lines =
     what === 'torture'
       ? ["Your hands won't stop shaking. You can still feel it: the give, the sound they made.", `${who}`, 'You throw up in the gutter on the way back.']
       : what === 'mug'
         ? [
             oneOf(['Your hands are shaking. You stuff them in your pockets, around their money.', 'You can still see their face. The way they looked at you.']),
-            ...(L.sawKid ? ['There was a photo of a kid in the wallet. You try not to think about it.'] : L.name && L.sawName ? [who] : []),
+            ...(L.sawKid ? ['There was a photo of a kid in their pocket. You try not to think about it.'] : L.name && L.sawName ? [who] : []),
           ]
         : [
-            oneOf(["You look at your knuckles. The blood on them isn't yours.", "They were someone's son, someone's daughter. You left them on the pavement."]),
+            oneOf(beatLines),
             ...(L.name && L.sawName ? [who] : []),
           ];
   return { lines, stress: victim ? 14 : 7 };

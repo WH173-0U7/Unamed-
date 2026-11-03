@@ -174,7 +174,8 @@ export function createMenu(handlers: MenuHandlers) {
   fillNews(null);
   root.querySelectorAll<HTMLElement>('[data-go="news"]').forEach((b) => b.addEventListener('click', () => fillNews(null)));
   // Updated since you last played: say what changed (not for automated test runs).
-  if (seen !== VERSION && !new URLSearchParams(location.search).has('debug')) {
+  // (Not for someone playing for the first time: there's nothing to compare.)
+  if (seen && seen !== VERSION && !new URLSearchParams(location.search).has('debug')) {
     fillNews(seen);
     requestAnimationFrame(() => show('news', true));
   }

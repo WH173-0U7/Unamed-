@@ -338,7 +338,8 @@ function yieldedOptions(e: Encounter): Option[] {
   for (const c of e.cardsHeld ?? []) out.push({ id: `pin-mine:${c.i}`, label: '"What\'s the PIN?"', hint: `The ${c.name.toLowerCase()} you took`, cat: 'threaten' });
   if (e.canAsk && !asked.includes('thief')) out.push({ id: 'ask-thief', label: '"Seen anyone with my things?"', hint: 'What you had, before', cat: 'threaten' });
   // Hurting them, for the truth or for the fun of it.
-  out.push({ id: 't-finger', label: 'Bend a finger back', hint: 'Until it snaps', cat: 'torture' });
+  const fingers = T.marks?.fingers ?? 0;
+  out.push({ id: 't-finger', label: 'Bend a finger back', hint: fingers >= 10 ? 'None left to break' : 'Until it snaps', disabled: fingers >= 10, cat: 'torture' });
   out.push({ id: 't-stamp', label: 'Stamp on their hand', hint: T.down ? undefined : 'Knocks them down first', cat: 'torture' });
   out.push({ id: 't-burn', label: 'Burn them', hint: e.flame ? 'With your lighter or matches' : 'Nothing to burn them with', disabled: !e.flame, cat: 'torture' });
   if (arms(T)) out.push({ id: 't-twist', label: 'Twist the broken arm', cat: 'torture' });
@@ -950,7 +951,8 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory): Im
         end('walked');
         return impacts;
       case 'breathe':
-        y.stamina = Math.min(y.maxStamina, y.stamina + 22);
+        // (Broken ribs: you can't fill your lungs, whatever you do.)
+        y.stamina = Math.min(staminaCap(y), y.stamina + 22);
         say('you', y.down ? 'You stay down and catch your breath.' : 'You back off a step and catch your breath.');
         break;
     }
@@ -1500,7 +1502,16 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
       [...(brokeLeg ? ([[`The knee twists sideways with a sickening pop.`]] as Line[]) : ([[`${Pc} leg folds for a moment, and ${s} stumble.`]] as Line[]))],
     ],
   };
-  const pool = pools[loc]?.[tier];
+  let pool = pools[loc]?.[tier];
+  // On the floor (or out cold), nobody staggers, limps or steps back.
+  if (D.out || D.down) {
+    const standing = /stagger|step back|back a step|limp|hop back|knees dip|blink hard|shake out|stumble|gives out|barely stay standing|knee buckles|leg folds|head snaps back|head rocks|double over|sag,|fold over it|fold around it|bent over|knocks .* back/i;
+    pool = pool?.filter(([t]) => !standing.test(t));
+    const lying: Line[] = D.out
+      ? [[`${Pc} body jerks with it.`], [`${S} don't react. ${S === 'You' ? "You're" : "They're"} out.`], [`${Pc} limp body rocks with the blow.`]]
+      : [[`${S} curl up on the pavement around it.`], [`${S} writhe on the ground.`], [`${S} try to cover up, and can't.`]];
+    pool = [...(pool ?? []), ...lying];
+  }
   // A light blow often needs no more said; a break already says plenty.
   if (!pool?.length || (tier === 0 && Math.random() < 0.4) || (fx.newBreaks.length && Math.random() < 0.5)) return '';
   return pickLine(pool);
@@ -1978,7 +1989,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     if (Math.random() < yieldChance(e)) {
       T.yielded = true;
       say('you', oneOf(['"Give it up," you tell them. "Or this gets worse."', '"Stop. Look at you. Just give me what you\'ve got."']));
-      say('them', speak('giveUp'));
+      say('them', speak(T.down ? 'giveUpDown' : 'giveUp'));
       you.gain('intimidation', 8);
     } else {
       say('you', '"Give it up," you tell them.');

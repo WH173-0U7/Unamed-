@@ -195,7 +195,8 @@ export function remember(
   }
   const was = k.marks;
   k.marks = JSON.parse(JSON.stringify(T.marks ?? {}));
-  for (const m of Object.keys(MARK_DAYS) as (keyof typeof MARK_DAYS)[]) if (k.marks[m] && !was[m]) k.markEnds[m] = t + MARK_DAYS[m] * DAY;
+  // New marks (or more broken fingers) start healing from now.
+  for (const m of Object.keys(MARK_DAYS) as (keyof typeof MARK_DAYS)[]) if (k.marks[m] && (!was[m] || (typeof k.marks[m] === 'number' && (k.marks[m] as number) > ((was[m] as number) ?? 0)))) k.markEnds[m] = t + MARK_DAYS[m] * DAY;
   const mem = k.memory;
   mem.times++;
   // Did they get a look at you? Only if they were conscious to see it, and

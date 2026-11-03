@@ -11,6 +11,13 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.56',
+    date: 'Nov 3',
+    items: [
+      'Clothes and accessories cost what they really would. Gas station: sunglasses $20, a cap $22, a beanie $16, a ski mask $18, a bandana $8. Pawn shop (all second-hand): a coat $55, a puffer jacket $75, a hoodie $25, cargo pants $30, a backpack $35, a shoulder bag $25, a fanny pack $12, a decent used pair of sunglasses $25.',
+    ],
+  },
+  {
     v: '0.55',
     date: 'Nov 3',
     items: [

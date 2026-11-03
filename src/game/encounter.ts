@@ -134,6 +134,9 @@ export interface Marks {
   eye?: boolean;
   cheek?: boolean;
   jaw?: boolean;
+  /** Fingers broken (torture), a crushed hand. */
+  fingers?: number;
+  hand?: boolean;
   scars?: string[];
 }
 
@@ -142,6 +145,8 @@ export function marksText(m: Marks | undefined): string[] {
   if (!m) return [];
   const out: string[] = [];
   if (m.jaw) out.push('Jaw wired shut');
+  if (m.hand) out.push('A hand in a cast');
+  else if (m.fingers) out.push(m.fingers === 1 ? 'A finger in a splint' : `${m.fingers} fingers in splints`);
   if (m.teeth) out.push(m.teeth === 1 ? 'A tooth missing' : `${m.teeth} teeth missing`);
   if (m.eye) out.push('Black eye');
   if (m.brow) out.push('Stitches over one eye');
@@ -217,6 +222,8 @@ export interface Encounter {
   weapons?: { i: number; name: string; weapon?: number; cuts?: boolean; spray?: boolean; doses?: number; loaded?: string; known?: boolean }[];
   /** Out in the rain (a lighter burns more fuel). */
   wet?: boolean;
+  /** Lines said lately in this fight (so they aren't said again straight away). */
+  recent?: string[];
   /** Your Unarmed level (which techniques you know), set as you act. */
   unarmedLevel?: number;
   /** What they told you: someone has your old things ('thief'), or nothing. */
@@ -1060,36 +1067,50 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   if (A.down) dmg *= 0.6;
   dmg = Math.max(1, Math.round(dmg));
 
-  const where = { head: 'in the face', body: 'in the ribs', stomach: 'in the stomach', arm: 'on the arm', leg: 'in the leg' }[loc];
+  // Where it lands, said a few different ways.
+  const where = vary(
+    {
+      head: ['in the face', 'in the mouth', 'on the jaw', 'on the side of the head', 'on the cheekbone'],
+      body: ['in the ribs', 'in the side', 'in the chest'],
+      stomach: ['in the stomach', 'in the gut', 'just under the ribs'],
+      arm: ['on the arm', 'on the forearm', 'on the shoulder'],
+      leg: ['in the leg', 'in the thigh', 'on the knee'],
+    }[loc],
+  );
+  const into = { head: `into ${N.oP} face`, body: `into ${N.oP} ribs`, stomach: `into ${N.oP} gut`, arm: `into ${N.oP} arm`, leg: `into ${N.oP} leg` }[loc];
   let text: string;
   if (tech) {
     text = tech.text;
   } else if (kind === 'weapon' && weapon) {
+    const w = lc(weapon.name);
     text = weapon.cuts
       ? /bottle/i.test(weapon.name)
-        ? `${N.S} swing the bottle at ${N.o} and the glass catches ${N.o} ${where}.`
+        ? vary([`${N.S} swing the bottle at ${N.o} and the glass catches ${N.o} ${where}.`, `${N.S} smash the bottle ${into}.`, `${N.S} swing the bottle hard; it catches ${N.o} ${where}.`])
         : /syringe/i.test(weapon.name)
-          ? `${N.S} jab the syringe at ${N.o} and stick ${N.o} ${where}.`
-          : `${N.S} slash at ${N.o} with the ${lc(weapon.name)} and catch ${N.o} ${where}.`
-      : `${N.S} hit ${N.o} with the ${lc(weapon.name)} ${where}.`;
+          ? vary([`${N.S} jab the syringe at ${N.o} and stick ${N.o} ${where}.`, `${N.S} stab the needle ${into}.`])
+          : vary([`${N.S} slash at ${N.o} with the ${w} and catch ${N.o} ${where}.`, `The ${w} flashes, and catches ${N.o} ${where}.`, `${N.S} cut at ${N.o} with the ${w}, ${where}.`, `${N.S} lunge with the ${w} and open ${N.o} up ${where}.`])
+      : vary([`${N.S} hit ${N.o} with the ${w} ${where}.`, `${N.S} swing the ${w} ${into}.`]);
   } else if (stomp) {
-    text = { head: `${N.S} stomp on ${N.oP} head.`, stomach: `${N.S} stomp down on ${N.oP} stomach.`, body: `${N.S} stomp down on ${N.oP} ribs.` }[loc as 'head'] ?? `${N.S} stomp on ${N.o}.`;
+    text =
+      loc === 'head'
+        ? vary([`${N.S} stomp on ${N.oP} head.`, `${N.S} bring ${N.p} heel down on ${N.oP} head.`, `${N.S} stamp down on ${N.oP} face.`])
+        : loc === 'stomach'
+          ? vary([`${N.S} stomp down on ${N.oP} stomach.`, `${N.S} drive ${N.p} heel into ${N.oP} gut.`])
+          : vary([`${N.S} stomp down on ${N.oP} ribs.`, `${N.S} drop ${N.p} heel into ${N.oP} side.`, `${N.S} stamp on ${N.oP} chest.`]);
   } else if (kind === 'kick') {
     text =
       a === 'you' && novice()
-        ? oneOf([`You lash out with a clumsy kick and catch them ${loc === 'leg' ? 'in the knee' : where}.`, `You kick out, off balance, and catch them ${loc === 'leg' ? 'in the knee' : where}.`])
-        : loc === 'leg'
-          ? `${N.S} kick ${N.o} in the knee.`
-          : `${N.S} kick ${N.o} ${where}.`;
+        ? vary([`You lash out with a clumsy kick and catch them ${where}.`, `You kick out, off balance, and catch them ${where}.`, `You swing a wild kick; it connects ${where}.`])
+        : vary([`${N.S} kick ${N.o} ${where}.`, `${N.S} drive a boot ${into}.`, `${N.S} plant a kick ${where}.`, `${N.S} catch ${N.o} with a kick ${where}.`]);
   } else {
     text =
       loc === 'arm'
-        ? `${N.S} hit ${N.o} on the arm as ${N.oSub} cover up.`
+        ? vary([`${N.S} hit ${N.o} on the arm as ${N.oSub} cover up.`, `${N.S} catch ${N.o} on the forearm as ${N.oSub} block.`, `${N.oSubCap} get an arm up; ${N.S.toLowerCase()} hit it anyway.`])
         : a === 'you' && novice()
-          ? oneOf([`You swing wild and catch them ${where}.`, `You throw a sloppy punch and it lands ${where}.`, `You flail at them and connect ${where}.`])
+          ? vary([`You swing wild and catch them ${where}.`, `You throw a sloppy punch and it lands ${where}.`, `You flail at them and connect ${where}.`, `You throw everything into a clumsy swing; it lands ${where}.`])
           : a === 'you' && (enc.unarmedLevel ?? 1) >= 40
-            ? oneOf([`You snap a punch ${where.replace(/^in the /, 'into their ')}.`, `You punch them ${where}, short and hard.`])
-            : `${N.S} punch ${N.o} ${where}.`;
+            ? vary([`You snap a punch ${into}.`, `You punch them ${where}, short and hard.`, `You slip inside and drive a fist ${into}.`, `A tight punch, ${where}.`])
+            : vary([`${N.S} punch ${N.o} ${where}.`, `${N.S} catch ${N.o} ${where} with a right.`, `${N.S} land a fist ${where}.`, `${N.S} hit ${N.o} ${where}.`, `${N.S} drive a punch ${into}.`, `A left from ${a === 'you' ? 'you' : 'them'} lands ${where}.`]);
   }
   // (A needle punctures; it doesn't slice.)
   say(a, `${text} ${wound(d, loc, dmg, weapon && /syringe/i.test(weapon.name) ? 'jab' : weapon?.cuts ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch')}`);
@@ -1177,6 +1198,7 @@ function dose(drug: Exclude<import('./person').Drug, 'empty'>) {
  */
 function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | 'fall' | 'stomp' | 'jab'): string {
   const D = enc[d];
+  const brokenBefore = [...D.broken];
   landed = d;
   // Hit in the face: the cigarette goes flying.
   if (d === 'you' && loc === 'head' && enc.you.smoking) {
@@ -1219,6 +1241,8 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
     const open = part !== 'nose' && part !== 'ribs' && Math.random() < 0.3;
     if (part === 'nose') spills('splash');
     if (open) spills('drip');
+    // Bone through the skin bleeds.
+    if (open) openBreak = true;
     out.push(
       part === 'nose'
         ? `${N.oP[0].toUpperCase() + N.oP.slice(1)} nose flattens with a crunch: it's broken, and blood pours from it.`
@@ -1228,6 +1252,7 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
     );
     return true;
   };
+  let openBreak = false;
   const bleed = (n: number) => {
     const before = D.bleeding;
     D.bleeding = Math.min(4, D.bleeding + n);
@@ -1295,6 +1320,7 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
     if (breaks(`${side} leg` as Part, (dmg - 9) * 0.045)) fall(1);
     else fall(dmg >= 10 ? 0.25 : 0.08);
   }
+  if (openBreak) bleed(1);
   if (how === 'cut') bleed(Math.random() < 0.4 ? 2 : 1);
   // Blood only where it makes sense: blunt blows to the body throw none.
   if (how === 'cut') spills('spray');
@@ -1308,12 +1334,12 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   if (D.lung && loc !== 'head' && dmg >= 8 && Math.random() < 0.35) spills('cough');
   if (D.dazed && how !== 'fall') fall(0.15);
   // What it looks like, sounds like.
-  const g = how === 'jab' ? '' : gore(d, loc, how, ml, out.join(' '));
+  const g = how === 'jab' ? '' : gore(d, loc, how, ml, { newBreaks: D.broken.filter((p) => !brokenBefore.includes(p)), bleed });
   if (g) out.splice(1, 0, g);
-  // The blood matches what's described.
-  if (g && /blood|red\b/.test(g)) {
-    if (loc === 'head') spills(/spray|pours|choke/.test(g) ? 'splash' : 'spatter');
-    else if (loc === 'body' || loc === 'stomach') spills(/cough/.test(g) ? 'cough' : 'none');
+  // The blood on the screen matches what's described.
+  if (g && /blood|red\b|pink/.test(g)) {
+    if (loc === 'head') spills(/flies|rush|mouthful/.test(g) ? 'splash' : 'spatter');
+    else if (loc === 'body' || loc === 'stomach') spills(/pink/.test(g) ? 'cough' : 'none');
     else spills('drip');
   }
   impacts.push({ target: d, ml, severe, loc, spill });
@@ -1321,93 +1347,145 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
 }
 
 /**
- * The gruesome detail of a blow: what it does to a face, a chest, a limb.
- * Worse the more blood it costs. `already` is what's been said about it (so a
- * break or a knockout isn't described twice).
+ * What a blow looks and sounds like, beyond the bare facts. The rule: a line
+ * only says what really happened. Bone (a crunch, a crack, grinding, a limb
+ * bending wrong) only when something broke; blood only when someone's
+ * bleeding; a line that describes an injury makes it so (a split brow
+ * bleeds, a hanging jaw is a broken jaw). Light blows get only the impact.
+ * Worse the more blood it costs; lines said recently in this fight aren't
+ * said again. `newBreaks`: what broke with this blow.
  */
-function gore(d: Side, loc: Loc, how: string, ml: number, already: string): string {
+function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[]; bleed: (n: number) => void }): string {
   const you = d === 'you';
   const P = you ? 'your' : 'their';
   const Pc = you ? 'Your' : 'Their';
   const S = you ? 'You' : 'They';
   const s = you ? 'you' : 'they';
   const tier = ml >= 420 ? 2 : ml >= 220 ? 1 : 0;
-  if (how === 'fall') return tier ? `${S} hit the ground hard enough to skin ${P} palms raw.` : '';
-  const broke = already.includes('broken');
-  // What's already been done to this face and body stays done: the lines
-  // only say what can still happen, and what they say is kept (see Marks).
   const D = enc[d];
+  if (how === 'fall') return tier ? vary([`${S} hit the pavement hard.`, `The fall knocks the breath out of ${you ? 'you' : 'them'}.`]) : '';
   const m = (D.marks ??= {});
   const teeth = m.teeth ?? 0;
   type Line = [string, (() => void)?];
   const scar = (where: string) => () => {
     (m.scars ??= []).push(where);
   };
+  const daze = () => {
+    if (!D.out && !D.dazed) D.dazed = 1;
+  };
+  const wind = (n: number) => () => {
+    D.stamina = Math.max(0, D.stamina - n);
+  };
+  const bleeding = D.bleeding > 0;
+  const brokeArm = fx.newBreaks.some((p) => p.endsWith('arm'));
+  const brokeLeg = fx.newBreaks.some((p) => p.endsWith('leg'));
+  const ribsBroken = D.broken.includes('ribs');
   if (how === 'cut') {
+    // A blade always opens skin (the bleeding is applied with it).
     const where = { head: 'cheek', body: 'ribs', stomach: 'belly', arm: 'forearm', leg: 'thigh' }[loc];
     const cuts: Line[][] = [
-        [
-          [`The blade opens a shallow gash across ${P} ${where}. Blood beads along it.`, scar(where)],
-          [`A thin red line opens on ${P} ${where}, then starts to run.`, scar(where)],
-        ],
-        [
-          [`The cut is deep. Blood sheets down ${P} ${where}.`, scar(where)],
-          [`It opens ${P} ${where} like a zip. ${S} can see the white of fat.`, scar(where)],
-        ],
-        [
-          [`The blade goes into ${P} ${where} and comes out red to the handle.`, scar(where)],
-          [`Blood pumps from ${P} ${where} in thick spurts.`, scar(where)],
-        ],
-      ];
+      [
+        [`The blade opens a shallow gash across ${P} ${where}. Blood beads along it.`, scar(where)],
+        [`A thin red line opens on ${P} ${where}, then starts to run.`, scar(where)],
+        [`It nicks ${P} ${where}, and the blood comes slowly.`, scar(where)],
+      ],
+      [
+        [`The cut is deep. Blood sheets down ${P} ${where}.`, scar(where)],
+        [`It opens ${P} ${where} like a zip.`, scar(where)],
+        [`The edge drags through ${P} ${where}, and the blood comes fast.`, scar(where)],
+      ],
+      [
+        [`It goes deep into ${P} ${where}. The blood comes in a rush.`, scar(where)],
+        [`Blood pumps from ${P} ${where} in thick spurts.`, scar(where)],
+        [`The wound in ${P} ${where} gapes, and won't stop.`, scar(where)],
+      ],
+    ];
     return pickLine(cuts[tier]);
   }
-  const head: Line[][] = [
-    [
-      m.lip ? [`The split in ${P} lip tears open again.`] : [`${Pc} lip splits against ${P} teeth.`, () => (m.lip = true)],
-      [`${S} taste copper.`],
-      ...(m.brow ? [] : ([[`A cut opens over ${P} eye.`, () => (m.brow = true)]] as Line[])),
-      ...(m.cheek ? ([[`${Pc} swollen cheek takes it again, and ${s} cry out.`]] as Line[]) : ([[`${Pc} cheek swells, purple already.`, () => (m.cheek = true)]] as Line[])),
+  const pools: Record<Loc, Line[][]> = {
+    head: [
+      [
+        [`${Pc} head rocks to the side.`],
+        [`It catches ${you ? 'you' : 'them'} on the cheekbone.`],
+        [`${Pc} eyes water.`],
+        [`${S} blink hard, shaking it off.`],
+        ...(m.lip ? ([] as Line[]) : ([[`${Pc} lip splits against ${P} teeth.`, () => (m.lip = true)]] as Line[])),
+        ...(m.cheek ? ([] as Line[]) : ([[`${Pc} cheek swells, purple already.`, () => (m.cheek = true)]] as Line[])),
+        ...(bleeding ? ([[`${S} taste copper.`]] as Line[]) : []),
+      ],
+      [
+        [`${Pc} head snaps back.`],
+        [`${S} stagger, and ${P} eyes lose focus for a second.`, daze],
+        ...(bleeding ? ([[`${Pc} head snaps back, and blood flies from ${P} mouth.`]] as Line[]) : []),
+        ...(m.lip && !bleeding ? ([[`The split in ${P} lip tears open again.`, () => fx.bleed(1)]] as Line[]) : []),
+        ...(m.brow ? ([] as Line[]) : ([[`${Pc} eyebrow splits open and blood runs into ${P} eye.`, () => ((m.brow = true), fx.bleed(1))]] as Line[])),
+        ...(teeth < 10 ? ([[`A tooth comes loose; ${s} spit it out.`, () => (m.teeth = teeth + 1)]] as Line[]) : []),
+        ...(m.eye ? ([] as Line[]) : ([[`${Pc} eye swells shut.`, () => (m.eye = true)]] as Line[])),
+      ],
+      [
+        [`It lands flush, and ${P} eyes go blank for a moment.`, daze],
+        ...(m.jaw ? ([] as Line[]) : ([[`There's a crack, and ${P} jaw hangs wrong: it's broken.`, () => ((m.jaw = true), fx.bleed(1))]] as Line[])),
+        ...(D.down ? ([[`${Pc} head bounces off the pavement.`, daze]] as Line[]) : []),
+        ...(teeth < 8 ? ([[`Teeth go. ${S} spit them out with a mouthful of blood.`, () => ((m.teeth = Math.min(12, teeth + 2 + Math.floor(Math.random() * 2))), fx.bleed(1))]] as Line[]) : []),
+        ...(bleeding ? ([[`Blood runs freely down ${P} face now.`]] as Line[]) : []),
+      ],
     ],
-    [
-      [`${Pc} head snaps back, and blood sprays from ${P} mouth.`],
-      ...(m.brow ? ([[`The cut over ${P} eye opens up again and blood runs into it.`]] as Line[]) : ([[`${Pc} eyebrow splits open and blood runs into ${P} eye.`, () => (m.brow = true)]] as Line[])),
-      ...(teeth < 10
-        ? ([[teeth ? `Another tooth comes loose; ${s} spit it out in a string of blood.` : `A tooth comes loose; ${s} spit it out in a string of blood.`, () => (m.teeth = teeth + 1)]] as Line[])
-        : []),
-      ...(m.eye ? [] : ([[`${Pc} eye swells shut.`, () => (m.eye = true)]] as Line[])),
+    body: [
+      [[`${S} fold around it with a grunt.`], [`It knocks ${you ? 'you' : 'them'} back a step.`], [`The air goes out of ${P} chest in a rush.`, wind(6)]],
+      [[`It lands with a deep, heavy thud.`], [`${S} stagger, clutching ${P} side.`], [`${S} wheeze, bent over.`, wind(10)]],
+      [
+        [`${S} fold over it and can't straighten up.`, wind(15)],
+        [`${Pc} knees dip; ${s} barely stay standing.`],
+        ...(ribsBroken ? ([[`Broken bone grinds in ${P} chest.`]] as Line[]) : []),
+        ...(D.lung ? ([[`${S} cough, and it comes up pink.`]] as Line[]) : []),
+      ],
     ],
-    [
-      [`Something in ${P} face caves in with a wet crunch.`, () => (m.cheek = true)],
-      ...(m.jaw ? ([[`${Pc} broken jaw grinds, and ${s} make a sound with no words in it.`]] as Line[]) : ([[`${Pc} jaw hangs wrong, and blood pours over ${P} chin.`, () => (m.jaw = true)]] as Line[])),
-      ...(D.down ? ([[`${Pc} skull bounces off the pavement with a hollow knock.`]] as Line[]) : []),
-      ...(teeth < 8 ? ([[`${S} choke on ${P} own blood, teeth scattered on the ground.`, () => (m.teeth = Math.min(12, teeth + 2 + Math.floor(Math.random() * 2)))]] as Line[]) : []),
+    stomach: [
+      [[`${S} double over, retching.`], [`${S} gasp and clutch ${P} stomach.`]],
+      [[`${S} retch up bile and spit.`], [`${S} vomit onto the pavement.`], [`${S} sag, arms wrapped round ${P} middle.`]],
+      [
+        [`${S} vomit, and there's blood in it: something inside is torn.`, () => fx.bleed(1)],
+        [`${S} curl up around it, grey in the face, and can't get a breath.`, wind(15)],
+      ],
     ],
-  ];
-  const plain = (xs: string[][]): Line[][] => xs.map((t) => t.map((x) => [x] as Line));
-  const pools: Partial<Record<Loc, Line[][]>> = {
-    head,
-    body: plain([
-      [`${S} fold around it with a grunt.`, `The air goes out of ${P} chest in a rush.`],
-      [`It lands with a deep, heavy thud.`, `${S} cough, and there's blood in it.`],
-      [`Bone grinds against bone.`, `${S} cough up a mouthful of dark blood.`],
-    ]),
-    stomach: plain([
-      [`${S} double over, retching.`],
-      [`${S} retch up bile and spit.`, `${S} vomit onto the pavement.`],
-      [`${S} retch, and it comes up red.`, `Something tears inside ${P} gut. ${S} make a sound like a kicked dog.`],
-    ]),
-    arm: plain([[`${Pc} forearm goes numb.`], [`The skin of ${P} arm splits over the bone.`], [`The arm bends where an arm doesn't bend.`]]),
-    leg: plain([[`${Pc} knee buckles.`], [`Something pops in ${P} knee.`], [`The knee twists sideways with a sickening pop.`]]),
+    arm: [
+      [[`${Pc} forearm goes numb.`], [`It hammers into ${P} forearm.`], [`${S} shake out ${P} arm, wincing.`]],
+      [[`A bruise is already rising on ${P} arm.`], [`${Pc} arm drops for a moment, dead.`]],
+      [
+        ...(brokeArm ? ([[`The arm bends where an arm doesn't bend.`]] as Line[]) : ([[`${Pc} arm goes dead and drops to ${P} side for a moment.`]] as Line[])),
+        [`The skin over ${P} elbow splits.`, () => fx.bleed(1)],
+      ],
+    ],
+    leg: [
+      [[`${Pc} knee buckles.`], [`${S} hop back, favouring the leg.`], [`It stings ${P} thigh.`]],
+      [[`${Pc} leg nearly gives out.`], [`${S} limp a step.`]],
+      [...(brokeLeg ? ([[`The knee twists sideways with a sickening pop.`]] as Line[]) : ([[`${Pc} leg folds for a moment, and ${s} stumble.`]] as Line[]))],
+    ],
   };
-  const pool = pools[loc]?.[broke ? Math.max(tier, 1) : tier];
-  if (!pool || !pool.length || (tier === 0 && Math.random() < 0.4)) return '';
+  const pool = pools[loc]?.[tier];
+  // A light blow often needs no more said; a break already says plenty.
+  if (!pool?.length || (tier === 0 && Math.random() < 0.4) || (fx.newBreaks.length && Math.random() < 0.5)) return '';
   return pickLine(pool);
 }
 
-/** Picks a line and makes what it says true. */
+/** A line not said lately in this fight (from `xs`), and remembered. */
+function vary(xs: string[]): string {
+  const recent = (enc.recent ??= []);
+  const fresh = xs.filter((x) => !recent.includes(x));
+  const x = oneOf(fresh.length ? fresh : xs);
+  recent.push(x);
+  if (recent.length > 14) recent.shift();
+  return x;
+}
+
+/** Picks a line not said lately, and makes what it says true. */
 function pickLine(pool: [string, (() => void)?][]): string {
-  const [text, does] = pool[Math.floor(Math.random() * pool.length)];
+  const recent = (enc.recent ??= []);
+  const fresh = pool.filter(([t]) => !recent.includes(t));
+  const [text, does] = oneOf(fresh.length ? fresh : pool);
   does?.();
+  recent.push(text);
+  if (recent.length > 14) recent.shift();
   return text;
 }
 
@@ -2023,7 +2101,10 @@ function torture(how: string, inv?: Inventory) {
   let dry = '';
   switch (how) {
     case 'finger':
+      // A finger really breaks (they'll have it splinted when you see them again).
+      if ((T.marks?.fingers ?? 0) >= 10) return;
       text = oneOf(['You take one of their fingers and bend it back until it snaps. They scream into your hand.', "You grab their hand and bend a finger back, slowly. There's a wet crack. They howl."]);
+      (T.marks ??= {}).fingers = (T.marks.fingers ?? 0) + 1;
       ml = 40;
       break;
     case 'stamp':
@@ -2031,7 +2112,8 @@ function torture(how: string, inv?: Inventory) {
         T.down = true;
         say('you', 'You kick their legs out from under them. They hit the pavement.');
       }
-      text = 'You put your heel on their hand and lean on it until the small bones crunch.';
+      text = T.marks?.hand ? 'You grind your heel into their broken hand. They scream.' : 'You put your heel on their hand and lean on it until the small bones crunch. Their hand is broken.';
+      (T.marks ??= {}).hand = true;
       ml = 90;
       break;
     case 'burn': {

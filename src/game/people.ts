@@ -46,7 +46,7 @@ export interface Known {
   mends: Partial<Record<Part, number>>;
   marks: Marks;
   /** When each healing mark will be gone (ms). */
-  markEnds: Partial<Record<'lip' | 'cheek' | 'eye' | 'brow' | 'jaw', number>>;
+  markEnds: Partial<Record<'lip' | 'cheek' | 'eye' | 'brow' | 'jaw' | 'hand' | 'fingers', number>>;
   /** When you last left them. */
   at: number;
   /** When their healing was last brought up to date. */
@@ -59,7 +59,7 @@ export interface Known {
 const DAY = 86_400_000;
 /** Real time for a break to heal, roughly as in life. */
 const MEND_DAYS: Record<string, number> = { nose: 21, ribs: 42, 'left arm': 42, 'right arm': 42, 'left leg': 56, 'right leg': 56 };
-const MARK_DAYS = { lip: 4, cheek: 5, eye: 10, brow: 12, jaw: 42 };
+const MARK_DAYS = { lip: 4, cheek: 5, eye: 10, brow: 12, jaw: 42, hand: 42, fingers: 28 };
 const MAX_PEOPLE = 40;
 
 /** Heals someone up to now: bones knit, cuts close, blood comes back. */
@@ -73,7 +73,8 @@ export function heal(k: Known, t = now()) {
   for (const [m, end] of Object.entries(k.markEnds) as [keyof typeof MARK_DAYS, number][]) {
     if (end <= t) {
       delete k.markEnds[m];
-      k.marks[m] = false;
+      if (m === 'fingers') delete k.marks.fingers;
+      else k.marks[m] = false;
       if (m === 'brow') (k.marks.scars ??= []).push('eyebrow');
     }
   }

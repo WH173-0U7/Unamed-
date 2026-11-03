@@ -70,6 +70,14 @@
         </svg>
         <span>Pockets</span>
       </button>
+      <!-- Pull up from the bottom: you (your stats and everything about you) -->
+      <button id="you-btn" class="edge-tab edge-bottom" type="button" aria-label="You: your stats" hidden>
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="24" cy="16" r="7" />
+          <path d="M10 41c1.5-9 7-13 14-13s12.5 4 14 13" />
+        </svg>
+        <span>You</span>
+      </button>
       <!-- A place you've gone to (the pharmacy) -->
       <div id="shop" hidden></div>
       <!-- Sheets that slide up: where to go, what's in your pockets -->
@@ -156,6 +164,11 @@
             </div>
           </div>
           <p class="note" id="style-note"></p>
+
+          <label class="row" for="set-sound">
+            <span class="label">Sound</span>
+            <input type="checkbox" class="switch" id="set-sound" />
+          </label>
 
           <label class="row" for="set-fps">
             <span class="label">Show frame rate</span>

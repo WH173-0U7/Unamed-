@@ -3577,3 +3577,113 @@ body[data-buttons] .enc-opts button:disabled {
     min-height: 42px;
   }
 }
+
+/* ================= You: a tab at the bottom, not a bar at the top ================= */
+/* The stats along the top are gone: they live in the You sheet (pull it up
+   from the bottom, or tap the tab). Everything at the top moves up. */
+#stats {
+  display: none !important;
+}
+#you-status,
+#game #you-status {
+  top: calc(var(--pad-top) + 4px);
+}
+#enc {
+  top: calc(var(--pad-top) + 48px);
+}
+#clock {
+  top: calc(var(--pad-top) + 48px);
+}
+#shop {
+  top: calc(var(--pad-top) + 96px);
+}
+@media (max-width: 440px) {
+  #you-status {
+    top: calc(var(--pad-top) + 4px);
+  }
+  #enc {
+    top: calc(var(--pad-top) + 48px);
+  }
+  #clock {
+    top: calc(var(--pad-top) + 48px);
+  }
+  #shop {
+    top: calc(var(--pad-top) + 96px);
+  }
+}
+/* Lurk (and Rest) sit just below the middle of the screen. */
+#idle-bar {
+  top: 57%;
+  bottom: auto;
+}
+/* The You tab: low on the screen, in the middle. */
+.edge-tab.edge-bottom {
+  top: auto;
+  bottom: 0;
+  left: 50%;
+  width: 116px;
+  height: 26px;
+  margin: 0 0 0 -58px;
+  flex-direction: row;
+  gap: 8px;
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+}
+.edge-tab.edge-bottom svg {
+  width: 13px;
+  height: 13px;
+}
+.edge-tab.edge-bottom span {
+  writing-mode: horizontal-tb;
+  transform: none;
+}
+/* In an encounter it's a thin line (still easy to grab). */
+#game:has(#enc:not([hidden])) .edge-tab.edge-bottom {
+  width: 80px;
+  height: 7px;
+  margin-left: -40px;
+  opacity: 0.55;
+}
+/* The You sheet comes up from the bottom. */
+#sheet.from-bottom {
+  align-items: flex-end;
+  padding: var(--pad-top) 0 0;
+}
+#sheet.from-bottom .sheet-card {
+  width: min(100%, 560px);
+  max-height: 86%;
+  border-bottom: 0;
+  border-radius: 18px 18px 0 0;
+  padding-bottom: calc(16px + var(--pad-bot));
+  animation-name: drawer-up;
+}
+@keyframes drawer-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+.you-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.you-summary b {
+  margin-left: 4px;
+  font-size: 14px;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+/* With Lurk just below the middle: what happened sits just above it, and the
+   person you've seen a little higher. */
+#game:not(.in-shop) #note {
+  top: auto;
+  bottom: calc(43% + 10px);
+}
+#seen {
+  top: 40%;
+}

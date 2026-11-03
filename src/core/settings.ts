@@ -12,6 +12,8 @@ export interface Settings {
   showFps: boolean;
   font: FontStyle;
   buttons: ButtonStyle;
+  /** Clicks and other little sounds (off: muted). */
+  sound: boolean;
 }
 
 const KEY = 'darcvoyd.settings';
@@ -23,6 +25,7 @@ const defaults: Settings = {
   showFps: false,
   font: 'report',
   buttons: 'lines',
+  sound: true,
 };
 
 function load(): Settings {

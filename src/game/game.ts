@@ -104,6 +104,7 @@ export class Game {
   private readonly noteEl: HTMLElement;
   private readonly goBtn: HTMLButtonElement;
   private readonly bagBtn: HTMLButtonElement;
+  private readonly youBtn: HTMLButtonElement;
   private readonly shopEl: HTMLElement;
   private readonly sheetEl: HTMLElement;
   private sheet: 'places' | 'pockets' | 'stats' | 'police' | null = null;
@@ -139,11 +140,13 @@ export class Game {
     this.restBtn.onclick = () => this.rest();
     this.goBtn = view.querySelector('#go-btn') as HTMLButtonElement;
     this.bagBtn = view.querySelector('#bag-btn') as HTMLButtonElement;
+    this.youBtn = view.querySelector('#you-btn') as HTMLButtonElement;
     this.shopEl = view.querySelector('#shop') as HTMLElement;
     this.shopEl.addEventListener('scroll', () => this.shopEl.classList.toggle('more', this.shopEl.scrollTop + this.shopEl.clientHeight < this.shopEl.scrollHeight - 6), { signal: this.listeners.signal, passive: true });
     this.sheetEl = view.querySelector('#sheet') as HTMLElement;
     this.goBtn.onclick = () => this.openSheet('places');
     this.bagBtn.onclick = () => this.openSheet('pockets');
+    this.youBtn.onclick = () => this.openSheet('stats');
     this.edgeSwipes();
     this.sheetEl.onclick = (ev) => this.sheetClick(ev);
     this.shopEl.onclick = (ev) => {
@@ -627,7 +630,7 @@ export class Game {
    */
   private edgeSwipes() {
     const EDGE = 44;
-    type Drag = { id: number; x: number; y: number; side: 'left' | 'right'; closing: boolean };
+    type Drag = { id: number; x: number; y: number; side: 'left' | 'right' | 'bottom'; closing: boolean };
     let drag: Drag | null = null;
     const down = (id: number, x: number, y: number, target: EventTarget | null) => {
       drag = null;
@@ -635,17 +638,34 @@ export class Game {
       if (this.sheet === 'police') return;
       if (this.sheet) {
         // On the open drawer: a push back towards its edge closes it.
-        const side = this.sheetEl.classList.contains('from-right') ? 'right' : 'left';
+        const side = this.sheetEl.classList.contains('from-right') ? 'right' : this.sheetEl.classList.contains('from-bottom') ? 'bottom' : 'left';
         drag = { id, x, y, side, closing: true };
         return;
       }
-      if (!this.canOpenSheet) return;
       const tab = (target as Element | null)?.closest?.('.edge-tab');
+      // Up from the bottom: you (any time, like the stats used to be).
+      if (tab === this.youBtn || (!tab && y > innerHeight - EDGE && Math.abs(x - innerWidth / 2) < innerWidth * 0.3 && !this.youBtn.hidden)) {
+        drag = { id, x, y, side: 'bottom', closing: false };
+        return;
+      }
+      if (!this.canOpenSheet) return;
       if (tab === this.goBtn || (!tab && x < EDGE)) drag = { id, x, y, side: 'left', closing: false };
       else if (tab === this.bagBtn || (!tab && x > innerWidth - EDGE)) drag = { id, x, y, side: 'right', closing: false };
     };
     const move = (id: number, x: number, y: number) => {
       if (!drag || drag.id !== id) return;
+      if (drag.side === 'bottom') {
+        const up = drag.y - y;
+        const dx = Math.abs(x - drag.x);
+        if (!drag.closing && up > 34 && up > dx * 1.2) {
+          drag = null;
+          this.openSheet('stats');
+        } else if (drag.closing && -up > 60 && -up > dx * 1.2) {
+          drag = null;
+          this.closeSheet();
+        }
+        return;
+      }
       const inward = (x - drag.x) * (drag.side === 'left' ? 1 : -1);
       const dy = Math.abs(y - drag.y);
       if (!drag.closing && inward > 34 && inward > dy * 1.2) {
@@ -678,6 +698,7 @@ export class Game {
     // Where to go comes in from the left, pockets from the right.
     this.sheetEl.classList.toggle('from-left', kind === 'places');
     this.sheetEl.classList.toggle('from-right', kind === 'pockets');
+    this.sheetEl.classList.toggle('from-bottom', kind === 'stats');
     this.sheetEl.hidden = false;
     uiGlitch(this.sheetEl.firstElementChild, 0.4);
     buzz(6);
@@ -1583,7 +1604,9 @@ export class Game {
       return;
     }
     if (this.sheet === 'stats') {
-      card.innerHTML = `<div class="sheet-head"><h2>You</h2>${close}</div><div class="sheet-body">${this.statsHtml()}</div>`;
+      const h = this.health;
+      const summary = `<p class="you-summary"><span>Blood <b>${(h.blood / 1000).toFixed(1)} L</b></span><span>Cash <b>${money(Math.round(cashOf(this.inventory) * 100))}</b></span><span>Character <b>#${this.world.lives}</b></span></p>`;
+      card.innerHTML = `<div class="sheet-head"><h2>You</h2>${close}</div><div class="sheet-body">${summary}${this.statsHtml()}</div>`;
       return;
     }
     if (this.sheet === 'places') {
@@ -2077,6 +2100,7 @@ export class Game {
     this.noteEl.hidden = true;
     this.goBtn.hidden = true;
     this.bagBtn.hidden = true;
+    this.youBtn.hidden = true;
     this.shopEl.hidden = true;
     this.closeSheet();
     this.view.querySelector('#death')?.remove();
@@ -2157,6 +2181,9 @@ export class Game {
     const pull = this.canOpenSheet && !this.sheet;
     if (this.goBtn.hidden === pull) this.goBtn.hidden = !pull;
     if (this.bagBtn.hidden === pull) this.bagBtn.hidden = !pull;
+    // You (your stats): any time the TV's on and nothing's open, even mid-fight.
+    const you = this.running && this.tvState.on && !this.sheet && !this.dead;
+    if (this.youBtn.hidden === you) this.youBtn.hidden = !you;
   }
 
   /** Writes progress to the device. Returns false if storage is unavailable. */

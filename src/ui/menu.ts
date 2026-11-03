@@ -96,6 +96,8 @@ export function createMenu(handlers: MenuHandlers) {
     b.addEventListener('click', () => updateSettings({ quality: b.dataset.v as GraphicsQuality })),
   );
   fps.addEventListener('change', () => updateSettings({ showFps: fps.checked }));
+  const snd = $('set-sound') as HTMLInputElement;
+  snd.addEventListener('change', () => updateSettings({ sound: snd.checked }));
   // Lettering and buttons: tried out live, all over the game.
   const segs: [HTMLElement, 'font' | 'buttons'][] = [
     [$('set-font'), 'font'],
@@ -125,6 +127,7 @@ export function createMenu(handlers: MenuHandlers) {
     });
     $('quality-note').textContent = QUALITY_NOTES[s.quality];
     fps.checked = s.showFps;
+    snd.checked = s.sound;
     for (const [el, key] of segs) {
       el.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
         const on = b.dataset.v === s[key];

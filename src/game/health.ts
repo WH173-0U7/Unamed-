@@ -152,6 +152,8 @@ export function healthConditions(h: Health): string[] {
 /** Your body going into a fight. */
 export function bodyFrom(h: Health, stamina: number): Body {
   return {
+    // Concussed, you're already part of the way there.
+    awake: h.concussion > 0 ? 80 : 100,
     blood: h.blood,
     maxBlood: h.maxBlood,
     toughness: 100,

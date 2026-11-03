@@ -78,7 +78,13 @@ export interface LogLine {
 
 /** Someone's body in a fight. */
 export interface Body {
-  /** Blood (ml). Passes out at or below 55% of `maxBlood`. */
+  /**
+   * How awake you are, 100 to 0: blunt blows (to the head above all) knock it
+   * down, and at 0 you're knocked out. Below 0 is how deep under you are; a
+   * beating that drives it to -100 kills (a brain can only take so much).
+   */
+  awake: number;
+  /** Blood (ml): only cuts and bleeding lose it. Passes out at or below 55% of `maxBlood`. */
   blood: number;
   maxBlood: number;
   /** How much punishment it takes to lose that much blood. */
@@ -359,10 +365,13 @@ export const DEATH = 0.4;
 export const BLEEDING = ['None', 'Light', 'Moderate', 'Heavy', 'Severe'];
 /** Blood lost per turn at each level of bleeding, per 5 litres of blood. */
 const BLEED_ML = [0, 35, 80, 150, 260];
+/** How much a blunt blow there takes out of staying awake (the head, the most). */
+const AWAKE_HIT: Record<Loc, number> = { head: 2.2, body: 0.8, stomach: 0.7, arm: 0.4, leg: 0.5 };
 const COST = { punch: 8, kick: 14, grapple: 12, weapon: 10, run: 15, getUp: 10, ambush: 10 };
 
 function body(blood: number, toughness: number, stamina: number): Body {
   return {
+    awake: 100,
     blood,
     maxBlood: blood,
     toughness,
@@ -593,6 +602,8 @@ const say = (by: LogLine['by'], text: string) => {
 /** Does one thing (an option id, or 'open' to start from the person button). */
 export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory, moves?: Record<string, number>): Impact[] {
   practice = moves ?? {};
+  e.you.awake ??= 100;
+  e.them.awake ??= e.them.out ? -25 : 100;
   pendingTier = null;
   const out = actInner(e, id, stats, inv);
   if (pendingTier) e.log.push({ by: 'info', text: pendingTier });
@@ -823,6 +834,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         if (Math.random() < 0.5 + (lvl - CHOKE_AMBUSH_LEVEL) * 0.01) {
           e.them.out = true;
           e.them.down = true;
+          e.them.awake = -8; // choked out: back in seconds
           say('you', `${amb('rear-choke')} They kick, and claw at you, and then they sag. Out cold, and not a drop of blood.`);
         } else {
           e.them.down = true;
@@ -1233,6 +1245,7 @@ function doseThemNow(drug: Exclude<import('./person').Drug, 'empty'>) {
   if (Math.random() < (drug === 'heroin' ? 0.25 : drug === 'fentanyl' ? 0.55 : 0.6)) {
     T.out = true;
     T.down = true;
+    T.awake = -70; // drugged under: they won't come round soon
     say('them', drug === 'tranq' ? 'Their legs fold and they slump to the pavement, out.' : "Their eyes roll up. They sag to the pavement, breathing slow and shallow. They're out.");
   } else {
     T.dazed = 3;
@@ -1291,6 +1304,7 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   const D = enc[d];
   const brokenBefore = [...D.broken];
   const wasDown = D.down;
+  const outAtStart = !!D.out;
   landed = d;
   // Hit in the face: the cigarette goes flying.
   if (d === 'you' && loc === 'head' && enc.you.smoking) {
@@ -1305,9 +1319,14 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   // Every blow you land scares them more; every one they land makes them braver.
   scare(d === 'them' ? dmg * 0.9 : -2);
   const N = names(d === 'you' ? 'them' : 'you'); // the attacker's view: N.o is the one hurt
+  // How hard it was (in the blood it would cost if it were all blood).
   const ml = Math.round((dmg * (D.maxBlood * (1 - PASS_OUT))) / D.toughness);
-  D.blood = Math.max(0, D.blood - ml);
-  const out: string[] = [`(−${ml}\u00a0ml)`];
+  // A blade or a needle costs blood; a blunt blow doesn't, it rattles you
+  // (the head most of all) and puts you closer to going out.
+  const sharp = how === 'cut' || how === 'jab';
+  if (sharp) D.blood = Math.max(0, D.blood - ml);
+  D.awake = Math.max(-120, (D.awake ?? 100) - Math.round((dmg * AWAKE_HIT[loc] * (sharp ? 0.3 : how === 'fall' ? 0.6 : 1) * (d === 'you' ? 0.75 : 1) * 100) / D.toughness));
+  const out: string[] = [sharp ? `(−${ml}\u00a0ml)` : ''];
   const re = N.oRe;
   let severe = ml >= 450;
   const bledBefore = D.bleeding;
@@ -1318,9 +1337,11 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   /** Blood already lost makes passing out more likely. */
   const lost = 1 - D.blood / D.maxBlood;
   const knockOut = (chance: number) => {
-    if (!D.out && Math.random() < chance) {
+    // At the end of it, or a lucky one before that.
+    if (!D.out && (D.awake <= 0 || Math.random() < chance * 0.5)) {
       D.out = true;
       D.down = true;
+      D.awake = Math.min(D.awake, -20);
       severe = true;
       out.push(`${re} out cold.`);
     }
@@ -1426,8 +1447,15 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   if (D.lung && loc !== 'head' && dmg >= 8 && Math.random() < 0.35) spills('cough');
   if (D.dazed && how !== 'fall') fall(0.15);
   // What it looks like, sounds like.
-  const g = how === 'jab' ? '' : gore(d, loc, how, ml, { newBreaks: D.broken.filter((p) => !brokenBefore.includes(p)), bleed, wasDown });
+  const g = how === 'jab' ? '' : gore(d, loc, how, ml, { newBreaks: D.broken.filter((p) => !brokenBefore.includes(p)), bleed, wasDown, outAtStart });
   if (g) out.splice(1, 0, g);
+  // Rattled past the point of staying awake, wherever it landed (and then
+  // "dazed" isn't worth saying).
+  knockOut(0);
+  if (!outAtStart && D.out) {
+    const i = out.indexOf(`${re} dazed.`);
+    if (i >= 0) out.splice(i, 1);
+  }
   // The blood on the screen matches what's described.
   if (g && /blood|red\b|pink/.test(g)) {
     if (loc === 'head') spills(/flies|rush|mouthful/.test(g) ? 'splash' : 'spatter');
@@ -1435,7 +1463,7 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
     else spills('drip');
   }
   impacts.push({ target: d, ml, severe, loc, spill });
-  return out.join(' ');
+  return out.filter(Boolean).join(' ');
 }
 
 /**
@@ -1447,7 +1475,7 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
  * Worse the more blood it costs; lines said recently in this fight aren't
  * said again. `newBreaks`: what broke with this blow.
  */
-function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[]; bleed: (n: number) => void; wasDown: boolean }): string {
+function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[]; bleed: (n: number) => void; wasDown: boolean; outAtStart?: boolean }): string {
   const you = d === 'you';
   const P = you ? 'your' : 'their';
   const Pc = you ? 'Your' : 'Their';
@@ -1556,10 +1584,11 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
   };
   let pool = pools[loc]?.[tier];
   // On the floor (or out cold), nobody staggers, limps or steps back.
-  if (D.out || D.down) {
+  // (Knocked out by this very blow: it still landed on someone awake.)
+  if (fx.outAtStart || fx.wasDown) {
     const standing = /stagger|step back|back a step|limp|hop back|knees dip|blink hard|shake out|stumble|gives out|barely stay standing|knee buckles|leg folds|head snaps back|head rocks|double over|sag,|fold over it|fold around it|bent over|knocks .* back/i;
     pool = pool?.filter(([t]) => !standing.test(t));
-    const lying: Line[] = D.out
+    const lying: Line[] = fx.outAtStart
       ? [[`${Pc} body jerks with it.`], [`${S} don't react. ${S === 'You' ? "You're" : "They're"} out.`], [`${Pc} limp body rocks with the blow.`]]
       : [...(loc === 'stomach' ? [] : ([[`${S} curl up on the pavement around it.`]] as Line[])), [`${S} writhe on the ground.`], [`${S} try to cover up, and can't.`]];
     pool = [...(pool ?? []), ...lying];
@@ -1677,11 +1706,13 @@ function endOfRound() {
   // Knocked out by a blow, people come round on their own, usually in under a
   // minute (not if they've lost too much blood).
   const T0 = enc.them;
-  if (T0.out && !T0.dead && canWake(enc) && Math.random() < 0.12) {
+  for (const f of [enc.you, T0]) if (!f.dead) f.awake = f.out ? Math.min(-1, f.awake + 2) : Math.min(100, f.awake + 3);
+  if (T0.out && !T0.dead && canWake(enc) && Math.random() < (T0.awake > -15 ? 0.35 : T0.awake > -50 ? 0.12 : 0)) {
     T0.out = false;
     T0.outNoted = false;
     T0.down = true;
     T0.dazed = 3;
+    T0.awake = 25;
     say('them', 'They groan, and their eyes open. They come round on the pavement, dazed, trying to work out where they are.');
   }
   // A needle's dose, a few rounds after it went in.
@@ -1734,8 +1765,11 @@ function checkEnd(): boolean {
   if (!T.out && T.blood <= T.maxBlood * PASS_OUT) {
     T.out = true;
     T.down = true;
+    T.awake = Math.min(T.awake, -40);
     say('you', T.bleeding >= 3 ? "They've lost too much blood. They slump to the floor, unconscious." : "They go down and don't get up. They're unconscious.");
   }
+  // However they went out, they're under now.
+  for (const f of [enc.you, T]) if (f.out && f.awake > 0) f.awake = -25;
   // Out cold, they haven't given up any more: they're just a body to go through.
   if (T.out || T.dead) T.yielded = false;
   if (T.out && !T.outNoted) {
@@ -1743,9 +1777,9 @@ function checkEnd(): boolean {
     say('info', "They're unconscious. They can't fight back.");
   }
   // Unconscious and still losing blood: they can bleed out.
-  if (wasOut && T.blood <= T.maxBlood * DEATH) {
+  if (wasOut && (T.blood <= T.maxBlood * DEATH || T.awake <= -100)) {
     T.dead = true;
-    const bled = T.bleeding > 0;
+    const bled = T.bleeding > 0 && T.blood <= T.maxBlood * DEATH;
     T.bleeding = 0;
     // Bleeding, they bleed out; beaten with nothing open, the beating kills them.
     say('you', bled ? oneOf(["Their chest stops moving. The blood around them stops spreading. They're dead.", "One last rattling breath, then nothing. They've bled out."]) : oneOf(["Their breathing turns to snoring, then stops. They're dead.", "One last rattling breath, then nothing. They're dead."]));
@@ -1877,6 +1911,7 @@ function techEffect(t: Technique) {
       if (!T.out && Math.random() < 0.16 + (1 - T.blood / T.maxBlood) * 0.4) {
         T.out = true;
         T.down = true;
+        T.awake = Math.min(T.awake, -25);
         say('them', "Their head snaps back and their legs go. They're out cold.");
       }
       break;
@@ -1923,6 +1958,7 @@ function choke() {
   you.gain('unarmed', 3);
   if (T.stamina === 0 || Math.random() < 0.3) {
     T.out = true;
+    T.awake = -8;
     say('you', 'You get them in a headlock and squeeze. They claw at you, slower, slower, then go limp. Out cold.');
   } else say('you', 'You get them in a headlock and squeeze. They claw at your arm, choking, and tear free.');
   scare(15);
@@ -1951,7 +1987,7 @@ function mugSurprise(e: Encounter) {
 }
 
 /** Knocked out, but not bled out: a slap can bring them round. */
-const canWake = (e: Encounter) => !!e.them.out && !e.them.dead && e.them.blood > e.them.maxBlood * (PASS_OUT + 0.03);
+const canWake = (e: Encounter) => !!e.them.out && !e.them.dead && e.them.blood > e.them.maxBlood * (PASS_OUT + 0.03) && e.them.awake > -60;
 
 /** "Wallet. Now." Before any blows: they give it up, run, or fight. */
 function mug() {
@@ -2081,6 +2117,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
       T.outNoted = false;
       T.down = true;
       T.dazed = 2;
+      T.awake = 20;
       T.yielded = true;
       scare(30);
       say('you', 'You slap them until their eyes open.');
@@ -2255,6 +2292,7 @@ function torture(how: string) {
   if (Math.random() < 0.06 + lost * 0.4) {
     T.out = true;
     T.down = true;
+    T.awake = -10;
     T.yielded = false;
     say('them', 'Their eyes roll back. They pass out from the pain.');
   } else say('them', speak('torture') || "They're sobbing now.");

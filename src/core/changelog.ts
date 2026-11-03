@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.48',
+    date: 'Nov 3',
+    items: [
+      'New in fights: an Awake bar, for you and for them. Punches, kicks, stomps and clubs knock it down (blows to the head the most); when it runs out, you’re knocked out. It creeps back up between blows.',
+      'Blood is only lost to real wounds now: knives, broken glass, needles, a broken nose, a split brow, a punctured lung, and whatever keeps bleeding. A punch to the ribs no longer costs you half a litre.',
+      'Out cold isn’t the end of it: choked out, people come round in seconds; punched out, within a minute or so. Keep beating someone who’s already out and it can kill them, wound or no wound.',
+    ],
+  },
+  {
     v: '0.47',
     date: 'Nov 3',
     items: ['Menus no longer scroll sideways: at the bank (and anywhere else), buttons that don’t fit beside their text drop onto a line of their own.'],

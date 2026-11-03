@@ -4211,3 +4211,28 @@ body[data-buttons] #enc .enc-extra button {
 .pocket-list small {
   overflow-wrap: anywhere;
 }
+
+/* How awake someone is (blunt blows knock it down; at nothing, they're out). */
+.enc-bar.awake b {
+  background: #c9c4b4;
+}
+
+/* Folded, each bar keeps its value on the same line (two bars, two lines). */
+#enc:not(.status-open)[data-stage='combat'] .enc-fighter .enc-bar,
+#enc:not(.status-open)[data-stage='over'] .enc-fighter .enc-bar {
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: 0 5px;
+}
+#enc:not(.status-open)[data-stage='combat'] .enc-fighter .enc-bar em,
+#enc:not(.status-open)[data-stage='over'] .enc-fighter .enc-bar em {
+  grid-column: auto;
+  margin: 0;
+  white-space: nowrap;
+}
+#enc:not(.status-open) .enc-fighter .enc-bar .of {
+  display: none;
+}
+#enc:not(.status-open)[data-stage='combat'] .enc-name,
+#enc:not(.status-open)[data-stage='over'] .enc-name {
+  margin-bottom: 2px;
+}

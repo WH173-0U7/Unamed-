@@ -152,10 +152,13 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       cls === 'blood' ? `<s style="left:${PASS_OUT * 100}%"></s>` : ''
     }</i><em>${value}</em></div>`;
   const ml = (n: number) => `${(n / 1000).toFixed(1)} L`;
-  /** Blood, stamina, and conditions (standing or on the floor, injuries). */
+  /** How awake someone is, in words (the bar shows the rest). */
+  const awakeWord = (f: Body) => (f.dead ? 'Dead' : f.out ? 'Out cold' : (f.awake ?? 100) > 70 ? 'Clear' : (f.awake ?? 100) > 40 ? 'Rattled' : (f.awake ?? 100) > 15 ? 'Wobbly' : 'Fading');
+  /** Awake, blood, stamina, and conditions (standing or on the floor, injuries). */
   const fighter = (name: string, f: Body, cls: string) =>
     `<div class="enc-fighter ${cls}"><div class="enc-name">${name}</div>` +
-    bar('Blood', f.blood, f.maxBlood, 'blood', `${ml(f.blood)} / ${ml(f.maxBlood)}`) +
+    bar('Awake', f.dead ? 0 : Math.max(0, f.awake ?? 100), 100, 'awake', awakeWord(f)) +
+    bar('Blood', f.blood, f.maxBlood, 'blood', `${ml(f.blood)}<span class="of"> / ${ml(f.maxBlood)}</span>`) +
     bar('Stamina', f.stamina, f.maxStamina, 'stamina') +
     (cls === 'them' && f.fear != null && !f.dead ? bar('Fear', f.fear, 100, 'fear', FEAR_NAMES[fearLevel(f.fear)]) : '') +
     `<div class="enc-conds">${((cs) => (cs.length > 4 ? [...cs.slice(0, 3), `+${cs.length - 3} more`] : cs))(conditions(f))

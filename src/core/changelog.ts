@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.45',
+    date: 'Nov 3',
+    items: ['Removed burning someone with a lighter or matches as a torture option: nobody really does that on the street.'],
+  },
+  {
     v: '0.44',
     date: 'Nov 3',
     items: [

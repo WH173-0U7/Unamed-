@@ -344,7 +344,6 @@ function yieldedOptions(e: Encounter): Option[] {
   const fingers = T.marks?.fingers ?? 0;
   out.push({ id: 't-finger', label: 'Bend a finger back', hint: fingers >= 10 ? 'None left to break' : 'Until it snaps', disabled: fingers >= 10, cat: 'torture' });
   out.push({ id: 't-stamp', label: 'Stamp on their hand', hint: T.down ? undefined : 'Knocks them down first', cat: 'torture' });
-  out.push({ id: 't-burn', label: 'Burn them', hint: e.flame ? 'With your lighter or matches' : 'Nothing to burn them with', disabled: !e.flame, cat: 'torture' });
   if (arms(T)) out.push({ id: 't-twist', label: 'Twist the broken arm', cat: 'torture' });
   out.push({ id: 'punch', label: 'Hit them anyway', hint: 'It turns back into a fight', cat: 'attack' });
   out.push({ id: 'let-go', label: 'Let them go', hint: e.robbed ? 'With what you took' : undefined });
@@ -2163,7 +2162,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     return true;
   }
   if (id.startsWith('t-')) {
-    torture(id.slice(2), inv);
+    torture(id.slice(2));
     return true;
   }
   if (id === 'let-go') {
@@ -2176,12 +2175,11 @@ function threatAct(id: string, inv?: Inventory): boolean {
 }
 
 /** Hurting someone who's given up. It works; it costs you. */
-function torture(how: string, inv?: Inventory) {
+function torture(how: string) {
   const e = enc;
   const T = e.them;
   let text: string;
   let ml = 0;
-  let dry = '';
   switch (how) {
     case 'finger':
       // A finger really breaks (they'll have it splinted when you see them again).
@@ -2199,22 +2197,6 @@ function torture(how: string, inv?: Inventory) {
       (T.marks ??= {}).hand = true;
       ml = 90;
       break;
-    case 'burn': {
-      const fire = inv?.items.find((x) => /^(lighter|matches)$/i.test(x.name));
-      if (!fire) return;
-      // Same fuel as burning a card (see game.ts useFlame); more in the rain.
-      const matches = /matches/i.test(fire.name);
-      const left = fire.doses ?? (matches ? 10 : 60);
-      fire.doses = matches ? Math.max(0, left - 2 - (e.wet ? 1 : 0)) : Math.max(0, Math.round(left - 5 * (e.wet ? 1.5 : 1) * (0.7 + Math.random() * 0.6)));
-      if (fire.doses === 0) {
-        inv!.items.splice(inv!.items.indexOf(fire), 1);
-        dry = matches ? 'That was the last match. You drop the empty book.' : "The lighter sputters and dies. It's out of fuel. You toss it.";
-      }
-      text = matches
-        ? oneOf(['You strike a match and hold it to their wrist until it burns down to your fingers. The skin blisters.', 'You strike a match and push it against their neck. They scream; you light another.'])
-        : oneOf(['You flick the lighter and hold the flame to their wrist. The skin blisters, then blackens. The smell stays with you.', 'You hold the lighter under their chin. They try to twist away; you hold them there.']);
-      break;
-    }
     case 'twist':
       if (!arms(T)) return;
       text = "You take their broken arm and twist. The bone ends grind. They make a sound you'll hear later, trying to sleep.";
@@ -2228,8 +2210,7 @@ function torture(how: string, inv?: Inventory) {
   if (ml) T.blood = Math.max(0, T.blood - ml);
   landed = 'them';
   say('you', ml ? `${text} (−${ml}\u00a0ml)` : text);
-  if (dry) say('info', dry);
-  impacts.push({ target: 'them', ml, severe: false, loc: how === 'burn' ? 'head' : 'arm', spill: ml >= 60 ? 'drip' : 'none' });
+  impacts.push({ target: 'them', ml, severe: false, loc: 'arm', spill: ml >= 60 ? 'drip' : 'none' });
   // Fear like nothing else; and some of it gets into you.
   scare(28 * (1 - (T.fear ?? 0) / 200));
   addStress(e.you, 4);

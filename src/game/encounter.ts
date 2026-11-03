@@ -95,8 +95,10 @@ export interface Body {
   down: boolean;
   /** Next blow against them is easier to land. */
   offBalance: boolean;
-  /** Turns left half blind (pepper spray). */
+  /** Turns left half blind (pepper spray: it lasts the rest of the fight). */
   blinded: number;
+  /** Something injected that hasn't hit yet (a needle takes a minute to work). */
+  dosing?: { drug: Exclude<import('./person').Drug, 'empty'>; in: number };
   /** Knocked unconscious. */
   out?: boolean;
   /** Winded (stamped on the stomach): loses their next move. */
@@ -307,7 +309,7 @@ function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolea
     .map((w) =>
       w.spray
         ? { id: `wpn:${w.i}`, label: 'Pepper spray them', hint: `${w.doses ?? 0} left · blinds them`, cat }
-        : { id: `wpn:${w.i}`, label: /bottle/i.test(w.name) ? 'Swing the bottle' : /syringe/i.test(w.name) ? (w.loaded ? `Stab with the syringe (${w.known ? w.loaded : 'loaded'})` : 'Stab with the empty syringe') : `${w.cuts ? 'Slash' : 'Hit'} with the ${lc(w.name)}`, hint: tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0} damage${w.cuts ? ', cuts' : ''}${w.loaded ? ', may inject them' : ''}`, disabled: tired(COST.weapon), cat },
+        : { id: `wpn:${w.i}`, label: /bottle/i.test(w.name) ? 'Swing the bottle' : /syringe/i.test(w.name) ? (w.loaded ? `Stab with the syringe (${w.known ? w.loaded : 'loaded'})` : 'Stab with the empty syringe') : `${w.cuts ? 'Slash' : 'Hit'} with the ${lc(w.name)}`, hint: tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0} damage${w.cuts && !/bottle/i.test(w.name) ? ', cuts' : ''}${w.loaded ? ', may inject them' : ''}`, disabled: tired(COST.weapon), cat },
     );
 }
 
@@ -1165,10 +1167,10 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
     text = tech.text;
   } else if (kind === 'weapon' && weapon) {
     const w = lc(weapon.name);
-    text = weapon.cuts
-      ? /bottle/i.test(weapon.name)
-        ? vary([`${N.S} swing the bottle at ${N.o} and the glass catches ${N.o} ${where}.`, `${N.S} smash the bottle ${into}.`, `${N.S} swing the bottle hard; it catches ${N.o} ${where}.`])
-        : /syringe/i.test(weapon.name)
+    text = /bottle/i.test(weapon.name)
+      ? vary([`${N.S} swing the bottle at ${N.o} and it thumps ${N.o} ${where}.`, `${N.S} club ${N.o} with the bottle, ${where}.`, `${N.S} swing the bottle hard; it catches ${N.o} ${where}.`])
+      : weapon.cuts
+      ? /syringe/i.test(weapon.name)
           ? vary([`${N.S} jab the syringe at ${N.o} and stick ${N.o} ${where}.`, `${N.S} stab the needle ${into}.`])
           : vary([`${N.S} slash at ${N.o} with the ${w} and catch ${N.o} ${where}.`, `The ${w} flashes, and catches ${N.o} ${where}.`, `${N.S} cut at ${N.o} with the ${w}, ${where}.`, `${N.S} lunge with the ${w} and open ${N.o} up ${where}.`])
       : vary([`${N.S} hit ${N.o} with the ${w} ${where}.`, `${N.S} swing the ${w} ${into}.`]);
@@ -1188,7 +1190,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
         : vary([`${N.S} punch ${N.o} ${where}.`, `${N.S} catch ${N.o} ${where} with a right.`, `${N.S} land a fist ${where}.`, `${N.S} hit ${N.o} ${where}.`, `${N.S} drive a punch ${into}.`, `A left from ${a === 'you' ? 'you' : 'them'} lands ${where}.`]);
   }
   // (A needle punctures; it doesn't slice.)
-  say(a, `${text} ${wound(d, loc, dmg, weapon && /syringe/i.test(weapon.name) ? 'jab' : weapon?.cuts ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch')}`);
+  say(a, `${text} ${wound(d, loc, dmg, weapon && /syringe/i.test(weapon.name) ? 'jab' : weapon?.cuts && !/bottle/i.test(weapon.name) ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch')}`);
   if (a === 'you') {
     // Landing blows: it's fighting that teaches you to fight (and builds a little muscle).
     if (weapon) you.gain('weapons', 4);
@@ -1216,8 +1218,12 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
 
 /** Your loaded syringe, pushed into them. */
 function doseThem(drug: Exclude<import('./person').Drug, 'empty'>) {
+  say('you', 'The needle goes in, and you press the plunger. Nothing happens, yet: in a muscle it takes a minute or two.');
+  enc.them.dosing = { drug, in: 3 };
+}
+/** What you put in them, hitting. */
+function doseThemNow(drug: Exclude<import('./person').Drug, 'empty'>) {
   const T = enc.them;
-  say('you', 'The needle goes in, and you press the plunger.');
   if (drug === 'meth') {
     T.stamina = Math.min(T.maxStamina, T.stamina + 30);
     scare(-15);
@@ -1237,9 +1243,13 @@ function doseThem(drug: Exclude<import('./person').Drug, 'empty'>) {
 
 /** Something from a syringe, in the middle of a fight. */
 function dose(drug: Exclude<import('./person').Drug, 'empty'>) {
-  const y = enc.you;
   landed = null;
-  say('them', 'The needle goes in deep, and they press the plunger.');
+  say('them', 'The needle goes in deep, and they press the plunger. You feel the cold of it going in.');
+  enc.you.dosing = { drug, in: 3 };
+}
+/** What they put in you, hitting. */
+function doseNow(drug: Exclude<import('./person').Drug, 'empty'>) {
+  const y = enc.you;
   if (drug === 'heroin') {
     y.dazed = 2;
     y.stamina = Math.max(0, y.stamina - 25);
@@ -1631,8 +1641,8 @@ function theirTurn() {
   if (spray && !T.sprayed && !e.emptied && Math.random() < 0.6) {
     T.sprayed = true;
     (spray as { doses?: number }).doses = Math.max(0, ((spray as { doses?: number }).doses ?? 3) - 1);
-    e.you.blinded = 2;
-    say('them', 'They pepper spray you in the face. You can barely see.');
+    e.you.blinded = 99;
+    say('them', 'They pepper spray you in the face. Your eyes clamp shut and burn like they\'re on fire. You can barely see.');
     return;
   }
   // Pulling a weapon.
@@ -1664,6 +1674,26 @@ function endOfRound() {
   // Every round of a fight: adrenaline, fear. And you get a little more used to it.
   addStress(enc.you, 1);
   enc.you.nerve = Math.min(100, (enc.you.nerve ?? 0) + 0.35);
+  // Knocked out by a blow, people come round on their own, usually in under a
+  // minute (not if they've lost too much blood).
+  const T0 = enc.them;
+  if (T0.out && !T0.dead && canWake(enc) && Math.random() < 0.12) {
+    T0.out = false;
+    T0.outNoted = false;
+    T0.down = true;
+    T0.dazed = 3;
+    say('them', 'They groan, and their eyes open. They come round on the pavement, dazed, trying to work out where they are.');
+  }
+  // A needle's dose, a few rounds after it went in.
+  for (const side of ['you', 'them'] as Side[]) {
+    const f = enc[side];
+    if (f.dosing && !f.dead && --f.dosing.in <= 0) {
+      const d = f.dosing.drug;
+      delete f.dosing;
+      if (side === 'you') doseNow(d);
+      else doseThemNow(d);
+    }
+  }
   const regen = { you: staminaRegen(you.stats), them: 7 };
   for (const side of ['you', 'them'] as Side[]) {
     const f = enc[side];
@@ -1715,8 +1745,10 @@ function checkEnd(): boolean {
   // Unconscious and still losing blood: they can bleed out.
   if (wasOut && T.blood <= T.maxBlood * DEATH) {
     T.dead = true;
+    const bled = T.bleeding > 0;
     T.bleeding = 0;
-    say('you', oneOf(["Their chest stops moving. The blood around them stops spreading. They're dead.", "One last rattling breath, then nothing. They've bled out."]));
+    // Bleeding, they bleed out; beaten with nothing open, the beating kills them.
+    say('you', bled ? oneOf(["Their chest stops moving. The blood around them stops spreading. They're dead.", "One last rattling breath, then nothing. They've bled out."]) : oneOf(["Their breathing turns to snoring, then stops. They're dead.", "One last rattling breath, then nothing. They're dead."]));
     end('killed');
     return true;
   }
@@ -1896,14 +1928,14 @@ function choke() {
   scare(15);
 }
 
-/** Pepper spray in their face: they can barely see to hit you for a couple of turns. */
+/** Pepper spray in their face: they can barely see to hit you for the rest of the fight. */
 function spray(i: number, inv: Inventory) {
   const it = inv.items[i];
   if (!it?.spray) return;
   it.doses = Math.max(0, (it.doses ?? 3) - 1);
   spend('you', 4);
-  enc.them.blinded = 3;
-  say('you', 'You pepper spray them full in the face. They stagger back, eyes streaming, swinging blind.');
+  enc.them.blinded = 99;
+  say('you', 'You pepper spray them full in the face. They stagger back, eyes streaming and screwed shut, swinging blind.');
   if (it.doses === 0) {
     inv.items.splice(i, 1);
     say('info', 'The can sputters out. You drop it.');
@@ -1928,8 +1960,11 @@ function mug() {
   e.stage = 'combat';
   e.facedYou = true;
   spend('you', COST.ambush);
-  const blade = (e.weapons ?? []).find((w) => w.cuts);
-  if (blade) say('you', `You let them see the ${lc(blade.name)}.`);
+  const blade = (e.weapons ?? []).find((w) => w.cuts && !/bottle|syringe/i.test(w.name));
+  if (blade) {
+    say('you', `You let them see the ${lc(blade.name)}.`);
+    scare(10);
+  }
   say(
     'you',
     [
@@ -2230,7 +2265,7 @@ function takeCarried(ci: number, inv: Inventory, quiet = false): boolean {
   const it = enc.person.carrying[ci];
   if (!it || !(it.weapon || it.spray)) return false;
   const empty = !it.drug || it.drug === 'empty';
-  const r = take(inv, { kind: 'weapon', name: it.name, weapon: it.weapon, cuts: it.cuts, spray: it.spray, doses: it.spray ? (it as { doses?: number }).doses ?? 3 : undefined, where: 'in their hand', ...(it.name === 'Syringe' ? { secret: it.drug ?? 'empty', known: empty, detail: empty ? 'Empty. Used.' : 'Something in it' } : {}), ...(it.name === 'Bottle' ? { drink: 'liquor' as const, doses: it.swigs ?? 0 } : {}) });
+  const r = take(inv, { kind: 'weapon', name: it.name, weapon: it.weapon, cuts: it.cuts && it.name !== 'Bottle', spray: it.spray, doses: it.spray ? (it as { doses?: number }).doses ?? 3 : undefined, where: 'in their hand', ...(it.name === 'Syringe' ? { secret: it.drug ?? 'empty', known: empty, detail: empty ? 'Empty. Used.' : 'Something in it' } : {}), ...(it.name === 'Bottle' ? { drink: 'liquor' as const, doses: it.swigs ?? 0 } : {}) });
   if (!quiet) say('you', r.text);
   if (!r.ok) return false;
   enc.person.carrying.splice(ci, 1);

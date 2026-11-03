@@ -11,6 +11,21 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.46',
+    date: 'Nov 3',
+    items: [
+      'Realism pass. Pepper spray now blinds for the rest of the fight, not a couple of turns.',
+      'Needles: almost every syringe people carry is already used and empty, and a loaded one takes a minute to kick in instead of dropping someone on the spot.',
+      'A bottle is a club now, not a blade: it bruises, it doesn’t slice. Drunks carry them less.',
+      'Someone knocked out by a punch comes round on their own, usually within a minute. Knocked out yourself, you wake a minute or two later (bleeding out is still hours).',
+      'Painkillers ease pain and stress but no longer heal concussions. Iron tablets aren’t sold any more (they take weeks). A splint sets a break so it heals at the normal speed. Coke lasts about 40 minutes and doesn’t fix your head.',
+      'Booze: a swig of whiskey or vodka hits harder than a beer, and drinking no longer warms you up (it only feels that way).',
+      'Strangers can’t sense your past any more, only a little in your eyes; a blade scares them when you show it, not while it’s in your pocket.',
+      'Masks are sold at the gas station now, not the pawn shop. The fence won’t touch drugs or needles. Caught with stolen cards, you get charged.',
+      'Fewer movie lines from the people you fight. Beaten to death without a wound, someone doesn’t “bleed out”.',
+    ],
+  },
+  {
     v: '0.45',
     date: 'Nov 3',
     items: ['Removed burning someone with a lighter or matches as a torture option: nobody really does that on the street.'],

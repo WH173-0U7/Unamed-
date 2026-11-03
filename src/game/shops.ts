@@ -142,8 +142,10 @@ export function offer(place: 'pawn' | 'fence', x: InvItem): { cents: number } | 
     return { cents: Math.max(25, Math.floor((v * 0.2 * 100) / 25) * 25) };
   }
   if (v <= 0 || /receipt|note|house keys|transfer|slip|photo/i.test(x.name)) return { why: '"What am I gonna do with that?"' };
-  // The fence pays less, but takes anything; whole dollars, small bills.
-  const rate = x.secret ? 0.25 : x.kind === 'phone' ? 0.08 : 0.12;
+  // Drugs, or a needle: that's a dealer's business, not his.
+  if (x.secret || /syringe/i.test(x.name)) return { why: '"I don\'t touch that. Find a dealer."' };
+  // The fence pays less, but takes anything stolen; whole dollars, small bills.
+  const rate = x.kind === 'phone' ? 0.08 : 0.12;
   return { cents: Math.max(100, Math.floor(v * rate) * 100) };
 }
 
@@ -184,7 +186,10 @@ export const GAS_STOCK: Stock[] = [
   { id: 'lighter', name: 'Lighter', price: 3, desc: 'Full of fuel.', doses: 100 },
   { id: 'matches', name: 'Matches', price: 1, desc: 'A book of 20.', doses: 20 },
   { id: 'bandages', name: 'Bandages', price: 11, desc: 'Slows bleeding a level. Pricier than the pharmacy.', med: 'bandages' },
-  { id: 'painkillers', name: 'Painkillers', price: 8, desc: 'Clears 3 hours of a concussion. Pricier than the pharmacy.', med: 'painkillers' },
+  { id: 'painkillers', name: 'Painkillers', price: 8, desc: 'Takes the edge off the pain. Pricier than the pharmacy.', med: 'painkillers' },
+  { id: 'bandana', name: 'Bandana', price: 5, desc: 'Over your nose and mouth. Hides about half.', slot: 'face' },
+  { id: 'skimask', name: 'Ski mask', price: 12, desc: 'Off the winter rack. Hides almost all of your face. People stare.', slot: 'face' },
+  { id: 'surgical', name: 'Surgical mask', price: 1, desc: 'Hides a little. Nobody looks twice.', slot: 'face' },
   { id: 'cap', name: 'Baseball cap', price: 12, desc: 'Off the spinner. Shades your eyes from cameras.', slot: 'head' },
   { id: 'beanie', name: 'Beanie', price: 10, desc: 'Covers your hair.', slot: 'head' },
   { id: 'shades', name: 'Sunglasses', price: 10, desc: 'Gas station shades. Hides your eyes.', slot: 'eyes' },
@@ -199,9 +204,6 @@ export const PAWN_STOCK: Stock[] = [
   { id: 'hoodie', name: 'Hoodie', price: 14, desc: 'One big front pocket.', slot: 'top' },
   { id: 'cargo', name: 'Cargo pants', price: 18, desc: 'Two cargo pockets for medium things.', slot: 'bottom' },
   { id: 'lighter', name: 'Lighter', price: 2, desc: 'A cheap plastic one.' },
-  { id: 'skimask', name: 'Ski mask', price: 8, desc: 'Hides almost all of your face. People stare.', slot: 'face' },
-  { id: 'bandana', name: 'Bandana', price: 4, desc: 'Over your nose and mouth. Hides about half.', slot: 'face' },
-  { id: 'surgical', name: 'Surgical mask', price: 1, desc: 'Hides a little. Nobody looks twice.', slot: 'face' },
   { id: 'cap', name: 'Baseball cap', price: 6, desc: 'Shades your eyes from cameras.', slot: 'head' },
   { id: 'beanie', name: 'Beanie', price: 5, desc: 'Covers your hair.', slot: 'head' },
   { id: 'shades', name: 'Sunglasses', price: 5, desc: 'Hides your eyes. At night, a bit odd.', slot: 'eyes' },

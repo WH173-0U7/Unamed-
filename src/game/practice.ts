@@ -129,10 +129,10 @@ export function stompText(t: Tier, loc: 'head' | 'stomach' | 'body'): string[] {
 export function weaponText(t: Tier, kind: 'blade' | 'blunt' | 'bottle' | 'needle', w: string, where: string, into: string): string[] {
   if (kind === 'bottle')
     return t === 0
-      ? [`You swing the bottle blindly and it catches them ${where}.`, `You flail with the bottle; the glass catches them ${where}.`]
+      ? [`You swing the bottle blindly and it bounces off them ${where}.`, `You flail with the bottle; it thumps them ${where}.`]
       : t === 1
-        ? [`You swing the bottle at them and the glass catches them ${where}.`, `You smash the bottle ${into}.`, `You swing the bottle hard; it catches them ${where}.`]
-        : [`You bring the jagged end round fast and low; it catches them ${where}.`, `You jab the broken neck of the bottle ${into}, and pull it back.`];
+        ? [`You swing the bottle at them and it thumps them ${where}.`, `You club them with the bottle, ${where}.`, `You swing the bottle hard; it catches them ${where}.`]
+        : [`You hold the bottle by the neck and swing it hard ${into}.`, `A short, heavy swing of the bottle, ${where}.`];
   if (kind === 'needle')
     return t === 0
       ? [`You stab clumsily with the syringe and stick them ${where}.`]
@@ -153,7 +153,7 @@ export function weaponText(t: Tier, kind: 'blade' | 'blunt' | 'bottle' | 'needle
     ? [`You swing the ${w} wildly and it hits them ${where}.`, `You flail with the ${w}; it catches them ${where}.`]
     : t === 1
       ? [`You hit them with the ${w} ${where}.`, `You swing the ${w} ${into}.`]
-      : [`You choke up on the ${w} and crack it ${into}.`, `A short, tight swing of the ${w}, ${where}.`, `You let them come and meet them with the ${w}, ${where}.`];
+      : [`You choke up on the ${w} and drive it ${into}.`, `A short, tight swing of the ${w}, ${where}.`, `You let them come and meet them with the ${w}, ${where}.`];
 }
 
 /** The learned moves: [clumsy, polished] (practiced uses the move's own line). */

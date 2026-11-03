@@ -308,18 +308,18 @@ export const MEDS: Med[] = [
     id: 'painkillers',
     name: 'Painkillers',
     price: 6,
-    desc: 'Takes the edge off a concussion (clears 3 hours sooner).',
-    blocked: (h) => (h.concussion > 0 ? null : "You aren't concussed"),
+    desc: 'Takes the edge off the pain, and so the stress. They don’t heal anything.',
+    blocked: (h) => (h.concussion > 0 || h.broken.length || h.bleeding || h.blood < h.maxBlood * 0.9 ? null : 'Nothing hurts enough'),
     use(h) {
-      h.concussion = Math.max(0, h.concussion - 3);
-      return h.concussion ? 'You dry-swallow a couple of pills. The pounding in your head eases.' : 'You dry-swallow a couple of pills. Your head clears.';
+      h.stress = Math.max(0, (h.stress ?? 0) - 12);
+      return 'You dry-swallow a couple of pills. After a while the pain dulls to an ache.';
     },
   },
   {
     id: 'splint',
     name: 'Splint',
     price: 22,
-    desc: 'Set a broken arm or leg: it heals twice as fast.',
+    desc: 'Set a broken arm or leg so it can knit straight. Left unset, a break takes twice as long.',
     blocked: (h) => (limbs(h).length ? null : h.splinted?.length ? 'Already splinted' : 'No broken arm or leg'),
     use(h) {
       // The limb that will take longest to heal.
@@ -333,11 +333,10 @@ export const MEDS: Med[] = [
     id: 'iron',
     name: 'Iron tablets',
     price: 12,
-    desc: 'Helps your body make blood back (+0.4 L).',
-    blocked: (h) => (h.blood < h.maxBlood ? null : 'Your blood is full'),
-    use(h) {
-      h.blood = Math.min(h.maxBlood, h.blood + 400);
-      return 'You take the iron tablets with a mouthful of water. Some colour comes back to your face.';
+    desc: 'Iron takes weeks to do anything. No longer sold.',
+    blocked: () => null,
+    use() {
+      return 'You take the iron tablets. It’ll be weeks before they make any difference.';
     },
   },
 ];

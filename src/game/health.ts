@@ -28,6 +28,8 @@ export interface Health {
   /** On cocaine (or meth): the next fight, you've energy to burn and feel less. */
   wired?: boolean;
   wiredBy?: 'coke' | 'meth';
+  /** When being wired wears off (real time). */
+  wiredUntil?: number;
   /** On something from a syringe, until this time (ms, real clock). */
   high?: 'heroin' | 'fentanyl' | 'meth' | 'tranq';
   highUntil?: number;
@@ -199,14 +201,12 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
   for (const k of Object.keys(MARK_HOURS) as HealingMark[]) if (h.marks[k] && !was[k]) (h.markHours ??= {})[k] = MARK_HOURS[k];
   // Every fight you live through, you get a little more used to it.
   h.nerve = Math.min(100, (b.nerve ?? h.nerve ?? 0) + 2);
+  // (Being wired wears off on the clock now, not at the end of a fight.)
   const lines: string[] = [];
-  if (h.wired) {
-    h.wired = false;
-    lines.push(h.wiredBy === 'meth' ? 'The meth crash starts: your jaw aches, your skin crawls, and you feel hollow.' : 'The coke wears off. Your jaw aches, and you feel hollow.');
-    delete h.wiredBy;
-  }
   if (result === 'lost') {
-    // Out cold for a few hours, still bleeding. You may not wake up.
+    // Knocked out by a blow: a minute or two, and you come round.
+    if (h.blood > h.maxBlood * (PASS_OUT + 0.01)) return ['You come to on the pavement a minute or two later, your head ringing.', ...(h.bleeding ? ["You're still bleeding."] : [])];
+    // Passed out from blood loss: out for hours, still bleeding. You may not wake up.
     const out = lieThere(h);
     if (!h.dead) out.unshift('You come to on the pavement, hours later.');
     return [...out, ...(h.dead ? [] : lines)];
@@ -387,7 +387,7 @@ export function injuryEffects(h: Health): InjuryInfo[] {
       effects,
       heals:
         `Heals in about ${hrs(left)}.` +
-        (p.endsWith('arm') || p.endsWith('leg') ? (splinted ? '' : ' A splint halves that.') : ''),
+        (p.endsWith('arm') || p.endsWith('leg') ? (splinted ? '' : ' Unset, it takes twice as long as it should: a splint sets it.') : ''),
     });
   }
   if (h.lung) {
@@ -454,9 +454,9 @@ export function injuryEffects(h: Health): InjuryInfo[] {
     return left ? `Heals in about ${hrs(left)}.` : 'Heals with time.';
   };
   const looks = 'It shows on your face, nothing more: it doesn\'t slow you in a fight';
-  if (m.jaw) out.push({ name: 'Broken jaw, wired shut', effects: [looks], heals: markLeft('jaw') });
+  if (m.jaw) out.push({ name: 'Broken jaw', effects: [looks], heals: markLeft('jaw') });
   if (m.eye) out.push({ name: 'Black eye', effects: [looks], heals: markLeft('eye') });
-  if (m.brow) out.push({ name: 'Stitches over one eye', effects: [looks], heals: `${markLeft('brow')} It will leave a scar.` });
+  if (m.brow) out.push({ name: 'Cut over one eye', effects: [looks], heals: `${markLeft('brow')} Unstitched, it will leave a scar.` });
   if (m.lip) out.push({ name: 'Split lip', effects: [looks], heals: markLeft('lip') });
   if (m.cheek) out.push({ name: 'Swollen face', effects: [looks], heals: markLeft('cheek') });
   if (m.teeth) out.push({ name: m.teeth === 1 ? 'A tooth missing' : `${m.teeth} teeth missing`, effects: [looks], heals: 'They never grow back.' });

@@ -110,10 +110,10 @@ const KIND: Record<Kind, { beg: string[]; emptied: string[]; letGo: string[]; gi
 
 const BRUTE: Record<'hothead' | 'proud' | 'hard', Partial<Record<Moment, string[]>>> = {
   hothead: {
-    refuse: ['"You want it? Come and take it, you little shit!"', '"I\'ll put you in the ground!"', 'They spit at your feet. "Try it."'],
+    refuse: ['"You want it? Come and take it, you little shit!"', '"Fuck off!"', 'They spit at your feet. "Try it."'],
     refuseMug: ['"WHAT did you say to me?" They come at you swinging.', '"Wrong guy, asshole." They\'re already swinging.'],
     hitYou: ['"How\'d that feel, huh? HOW\'D THAT FEEL?"', '"Get up! I\'m not done with you!"', '"That\'s what you get!"', 'They laugh, breathing hard. "Come on!"'],
-    youMiss: ['"Ha! Swing and a miss, champ."', '"You hit like you talk."', '"Is that it? Is that all you got?"'],
+    youMiss: ['They laugh at you, breathing hard.', '"You hit like you talk."', '"Is that it? Is that all you got?"'],
     youDown: ['"Stay down, bitch! Stay down!"', 'They stand over you, laughing. "Look at you."', '"Who\'s the big man now?"'],
     hitByYou: ['"Lucky. That was lucky."', 'They spit blood and grin. "Do it again."', '"That all you got?"'],
     giveUp: ['"Fine! FINE! Take it, you piece of shit!"', 'They\'re shaking with rage, not fear. Or not only fear. "Take it, then."'],
@@ -125,12 +125,12 @@ const BRUTE: Record<'hothead' | 'proud' | 'hard', Partial<Record<Moment, string[
     woken: ['They come round swinging, weak and wild.', '"Get off me! Get the fuck off me!"'],
   },
   proud: {
-    refuse: ['"Do you know who you\'re talking to?"', '"From you? Never."', '"I don\'t take orders from trash."'],
+    refuse: ['"No."', '"From you? Never."', '"Get away from me."'],
     refuseMug: ['"I don\'t think so." They square up, offended more than afraid.', '"Out of my way." They shove past you, and then they turn.'],
-    hitYou: ['"Pathetic."', '"Is this how you make your living? Hitting people?"', 'They straighten their jacket. "Had enough?"'],
+    hitYou: ['"Pathetic."', '"Is this how you make your living? Hitting people?"', '"Stay the fuck down."'],
     youMiss: ['"Embarrassing."', "They don't even flinch."],
     youDown: ['"Stay there. It suits you."', 'They look down at you like something on their shoe.'],
-    hitByYou: ["They touch their face and look at the blood like it's an insult.", '"How dare you."'],
+    hitByYou: ["They touch their face and look at the blood like it's an insult.", 'They touch their face and stare at you, furious.'],
     giveUp: ['They look at the ground. It costs them. "...Fine. Take it."', 'Their jaw works. "Fine," they spit. "Take it."'],
     emptied: ["They hand it over without looking at you, as if you don't exist.", '"I hope it\'s worth it to you."'],
     beg: ["They won't look at you. They won't give you that.", '"Get it over with."'],
@@ -142,9 +142,9 @@ const BRUTE: Record<'hothead' | 'proud' | 'hard', Partial<Record<Moment, string[
   hard: {
     refuse: ['They don\'t even blink. "Make me."', 'They spit on the ground. "Come and take it."', '"I\'ve been hit by better than you."'],
     refuseMug: ['"You picked the wrong night." They\'re already moving.', 'They smile, slow. "Go on, then."'],
-    hitYou: ['"First time?"', 'They roll their neck. "Get up. We\'re not done."', '"You should\'ve stayed home."'],
+    hitYou: ['"Get up."', 'They roll their neck. "Get up. We\'re not done."', '"You should\'ve stayed home."'],
     youMiss: ['"Slow."', "They step aside like they've done it a thousand times."],
-    youDown: ['"Stay down, kid. It\'s not worth it."', 'They wait, patient as a wall, for you to get up.'],
+    youDown: ['"Stay down."', 'They stand over you, breathing hard, waiting to see if you get up.'],
     hitByYou: ['They take it and keep coming.', 'They nod, like you\'ve told them something. "Okay."'],
     giveUp: ['They look at you for a long moment. "You win this one." It doesn\'t sound like a surrender.', 'They spit blood, and nod once. "Take it."'],
     emptied: ['"Spend it quick."', "They hand it over like they're paying a bill."],
@@ -152,15 +152,15 @@ const BRUTE: Record<'hothead' | 'proud' | 'hard', Partial<Record<Moment, string[
     letGo: ["They walk away without hurrying. That's worse.", '"See you around."'],
     torture: ['They grunt through it, white-faced, eyes on yours the whole time.', '"That all?" Their voice cracks on it.'],
     menaced: ['"I\'ve heard that before."', 'Nothing. Not a flicker.'],
-    woken: ['Their eyes open and find yours at once, clear and cold.', '"Bad idea, waking me."'],
+    woken: ['Their eyes open and find yours at once, clear and cold.', 'They come round swinging, before they even know where they are.'],
   },
 };
 
 const SLY: Partial<Record<Moment, string[]>> = {
-  refuse: ['"Funny. I was going to ask you the same thing."', 'They laugh. "You\'ll have to do better than that."', '"Let\'s not do anything we\'ll both regret."'],
+  refuse: ['"No. Walk away."', 'They laugh. "You\'ll have to do better than that."', '"Let\'s not do anything we\'ll both regret."'],
   giveUp: ['They put their hands up, and smile like it\'s nothing. "Sure, friend. Let\'s be reasonable."', '"Hey. Hey. No need for any of that. We can work something out."'],
   emptied: ['"There. All yours. No hard feelings, right?"', 'They hand it over a little too smoothly.'],
-  beg: ['"You don\'t want this kind of heat. Trust me."', '"I know people who\'d pay more for me in one piece."', '"We can both walk away from this."'],
+  beg: ['"You don\'t want this kind of heat. Trust me."', '"I\'ve got money at home. I can get you more."', '"We can both walk away from this."'],
   caught: ['"Worth a try, right?" They shrug, but their smile is gone.', '"Oh, that. I forgot about that."'],
   holdingOut: ['"That\'s everything, I swear." They\'re a very good liar.', '"Would I lie to you?"'],
   pinLie: ['They say it easily. Too easily?', '"That\'s it. Promise."'],

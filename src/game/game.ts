@@ -44,7 +44,11 @@ const HUMANITY: { at: number; name: string; line: string }[] = [
   { at: 190, name: 'Husk', line: "There's nothing left inside you. You're a husk." },
 ];
 /** How evil you are shows: people are more scared of you, the further gone you are. */
-const evilFear = (lost: number) => Math.min(55, lost * 0.35);
+// Someone far gone carries it in how they look at you, a little (strangers can't
+// know what you've done, only see it in your eyes).
+/** What the pharmacy sells (iron tablets aren't: they do nothing in a hurry). */
+const SOLD_MEDS = () => MEDS.filter((m) => m.id !== 'iron');
+const evilFear = (lost: number) => Math.min(15, lost * 0.1);
 const humanityLevel = (lost: number) => HUMANITY.filter((l) => lost >= l.at).pop() ?? null;
 const KILL_COST = 10;
 /** A cigarette, start to finish (real time), and how much stress it takes away. */
@@ -832,6 +836,7 @@ export class Game {
 
   /** Buy something at the pharmacy (cash only). */
   private buy(id: MedId) {
+    if (id === 'iron') return;
     const m = medById(id);
     const inv = this.inventory;
     if (this.place !== 'pharmacy' || cashOf(inv) < m.price) return;
@@ -1167,6 +1172,15 @@ export class Game {
     const e = this.encounter;
     if (e && e.stage === 'combat' && e.you.high) return { drug: e.you.high, k: 1 };
     const h = this.health;
+    // Coke (or meth's edge) wears off on the clock, fight or no fight.
+    if (h.wired) {
+      h.wiredUntil ??= now() + 40 * 60_000;
+      if (now() > h.wiredUntil && !(e && e.stage === 'combat')) {
+        h.wired = false;
+        delete h.wiredBy;
+        delete h.wiredUntil;
+      }
+    }
     const left = (h.highUntil ?? 0) - now();
     // Wearing off over its last ten minutes.
     if (h.high && left > 0) return { drug: h.high, k: Math.min(1, 0.25 + left / 800_000) };
@@ -1210,14 +1224,14 @@ export class Game {
     const was = drunkLevel(h.drunk ?? 0);
     const beer = it.drink === 'beer';
     it.doses = (it.doses ?? 1) - 1;
-    h.drunk = Math.min(100, (h.drunk ?? 0) + (beer ? 12 : 10));
+    // About one standard drink in a can or a swig of wine; a swig of whiskey or
+    // vodka from the bottle is nearer one and a half.
+    h.drunk = Math.min(100, (h.drunk ?? 0) + (beer || /wine/i.test(it.name) ? 10 : 14));
     h.drunkAt = now();
     h.stress = Math.max(0, (h.stress ?? 0) - 8);
     const lines = [beer ? 'You crack the can and drink it down. Cold, and a little sour.' : 'You take a long pull from the bottle. It burns all the way down.'];
-    if (h.cold) {
-      h.cold--;
-      lines.push(h.cold ? "It feels warmer, for a while. (You're not, really.)" : 'The warmth spreads out from your stomach. You stop shivering.');
-    }
+    // It feels like warmth, but it opens up your skin and you lose heat faster.
+    if (h.cold) lines.push("A glow spreads out from your stomach. You're not any warmer, really: you just can't feel the cold as much.");
     if ((it.doses ?? 0) <= 0) {
       if (beer || /vodka|whiskey|wine/i.test(it.name)) {
         inv.items.splice(inv.items.indexOf(it), 1);
@@ -1380,7 +1394,7 @@ export class Game {
         lines.push(`They find ${evidence.length === 1 ? `the ${lc(evidence[0].name)}` : `${evidence.length} things that aren't yours`}. "Whose is this?"`);
         arrested = true;
       } else if (looks) {
-        lines.push('One of them looks at you a long time, then at his phone. "That\'s him." The cuffs go on.');
+        lines.push('One of them looks at you a long time, then at his phone. "That\'s the one." The cuffs go on.');
         arrested = true;
       } else {
         lines.push('They find nothing. "Stay out of trouble." They get back in the car and roll away.');
@@ -1392,7 +1406,7 @@ export class Game {
       const before = inv.items.length;
       inv.items = inv.items.filter((x) => !((x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card' || x.kind === 'weapon' || (x.secret && x.secret !== 'empty')));
       const took = before - inv.items.length;
-      lines.push(`You're arrested.${took ? ` They keep ${took === 1 ? 'the evidence' : `all ${took} things that weren't yours`}.` : ''} You spend the night in a holding cell that smells of bleach and piss, and in the morning they let you go: not enough to charge you. This time.`);
+      lines.push(`You're arrested.${took ? ` They keep ${took === 1 ? 'the evidence' : `all ${took} things that weren't yours`}.` : ''} You spend the night in a holding cell that smells of bleach and piss.${took ? ' In the morning they charge you and let you go with a court date and a sheet of paper you lose by noon.' : ' In the morning they let you go: not enough to charge you. This time.'}`);
       lines.push(...passHours(h, 8, true));
       if (h.dead) return this.die(lines);
       f.heat = Math.max(0, f.heat - 45);
@@ -1610,6 +1624,7 @@ export class Game {
       lines.push('Your heart slams. Your jaw locks tight. Everything is fast and bright and loud, and you could fight anyone.');
       h.wired = true;
       h.wiredBy = 'meth';
+      h.wiredUntil = now() + HIGH_HOURS.meth * 3_600_000;
       h.high = 'meth';
       h.highUntil = now() + HIGH_HOURS.meth * 3_600_000;
       h.stress = Math.min(100, (h.stress ?? 0) + 15);
@@ -1638,7 +1653,8 @@ export class Game {
     it.doses = (it.doses ?? 1) - 1;
     h.wired = true;
     h.wiredBy = 'coke';
-    h.concussion = Math.max(0, h.concussion - 1);
+    // A bump lasts about forty minutes.
+    h.wiredUntil = now() + 40 * 60_000;
     const lines = ['You do a bump off the end of a key. Your heart kicks, your teeth buzz, and everything goes sharp and bright.'];
     if (it.doses <= 0) {
       inv.items.splice(i, 1);
@@ -1687,8 +1703,8 @@ export class Game {
     if (place === 'pharmacy') {
       const have = (id: MedId) => inv.items.filter((x) => x.med === id).length;
       body =
-        `<ul class="shop-list">${MEDS.map((m) => li(m.name, `${m.desc}${have(m.id) ? ` · You have ${have(m.id)}` : ''}`, btn('buy', m.id, money(m.price * 100), c < m.price * 100 && 'Not enough cash'))).join('')}</ul>` +
-        (c < Math.min(...MEDS.map((m) => m.price)) * 100 ? `<p class="shop-broke">You can't afford anything. Cash only.</p>` : '');
+        `<ul class="shop-list">${SOLD_MEDS().map((m) => li(m.name, `${m.desc}${have(m.id) ? ` · You have ${have(m.id)}` : ''}`, btn('buy', m.id, money(m.price * 100), c < m.price * 100 && 'Not enough cash'))).join('')}</ul>` +
+        (c < Math.min(...SOLD_MEDS().map((m) => m.price)) * 100 ? `<p class="shop-broke">You can't afford anything. Cash only.</p>` : '');
     } else if (place === 'records') {
       const mine = this.ownId();
       body = open
@@ -2057,15 +2073,15 @@ export class Game {
    */
   private menace(): number {
     const st = this.stats;
-    return fearBonus(st) + strengthFear(st) + evilFear(this.humanity.lost) + (conspicuous(this.inventory) ? 6 : 0) + (this.inventory.items.some(isBlade) ? 8 : 0);
+    return fearBonus(st) + strengthFear(st) + evilFear(this.humanity.lost) + (conspicuous(this.inventory) ? 6 : 0);
   }
   private menaceRows(): [string, string][] {
     const st = this.stats;
     const rows: [string, string][] = [['Fear, from your Strength', `+${strengthFear(st)}`]];
     const evil = Math.round(evilFear(this.humanity.lost));
-    if (evil) rows.push(['Fear, from how far gone you are', `+${evil}`]);
+    if (evil) rows.push(['Fear, from the look in your eyes', `+${evil}`]);
     if (conspicuous(this.inventory)) rows.push(['Fear, from the mask', '+6']);
-    if (this.inventory.items.some(isBlade)) rows.push(['Fear, from the blade on you', '+8']);
+    if (this.inventory.items.some(isBlade)) rows.push(['Fear, when you show them your blade', '+10']);
     return rows;
   }
 

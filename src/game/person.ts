@@ -122,11 +122,12 @@ export const personalityOf = (p: Person): PersonalityInfo => PERSONALITIES[p.per
 export type Drug = 'heroin' | 'fentanyl' | 'meth' | 'tranq' | 'empty';
 export type Secret = 'cocaine' | Drug;
 const DRUG_CHANCES: [Drug, number][] = [
-  ['heroin', 30],
-  ['fentanyl', 25],
-  ['meth', 20],
-  ['tranq', 10],
-  ['empty', 15],
+  // Hardly anyone walks around with a loaded rig: almost always it's used.
+  ['heroin', 4],
+  ['fentanyl', 3],
+  ['meth', 2],
+  ['tranq', 1],
+  ['empty', 90],
 ];
 
 export interface Person {
@@ -287,7 +288,8 @@ const ITEMS: Record<Kind, [Item, number][]> = {
     [{ name: 'Pepper spray', spray: true }, 0.12],
   ],
   drunk: [
-    [{ name: 'Bottle', weapon: 4, cuts: true }, 0.8],
+    // A whole bottle is a club, not a blade (it often doesn't even break).
+    [{ name: 'Bottle', weapon: 4 }, 0.5],
     [{ name: 'Wallet' }, 0.5],
     [{ name: 'Keys' }, 0.4],
     [{ name: 'Phone' }, 0.4],
@@ -303,7 +305,7 @@ const ITEMS: Record<Kind, [Item, number][]> = {
     [{ name: 'Knife', weapon: 7, cuts: true }, 0.2],
   ],
   junkie: [
-    [{ name: 'Syringe', weapon: 3, cuts: true }, 0.6],
+    [{ name: 'Syringe', weapon: 3, cuts: true }, 0.3],
     [{ name: 'Lighter' }, 0.6],
     [{ name: 'Cigarettes' }, 0.55],
     [{ name: 'Small baggie' }, 0.5],

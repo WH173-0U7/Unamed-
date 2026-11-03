@@ -26,6 +26,10 @@ export interface InvItem {
   secret?: 'cocaine';
   known?: boolean;
   doses?: number;
+  /** A card: the PIN they gave you, whether it's real, and whether it's been used at the cash machine. */
+  pin?: string;
+  pinOk?: boolean;
+  drained?: boolean;
 }
 
 /** Somewhere to keep things: a pocket, a bag. */
@@ -211,7 +215,7 @@ export function take(inv: Inventory, l: Loot): { ok: boolean; text: string } {
     addTo(inv.purse, p);
     return { ok: true, text: `You pocket the ${l.name.toLowerCase()}: ${money(cents(p))} (${purseText(p)}).${once}` };
   }
-  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses });
+  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk });
   if (!it) return { ok: false, text: `No room for the ${l.name.toLowerCase()}. ${noRoomWhy(inv, measure(l).size)}` };
   const spot = inv.spots.find((s) => s.id === it.spot)!;
   return { ok: true, text: `You put the ${l.name.toLowerCase()} in your ${spot.on.toLowerCase()} (${spot.name.toLowerCase()}).${once}` };

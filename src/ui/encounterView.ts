@@ -1,6 +1,6 @@
 import { uiGlitch } from '../fx/uiGlitch';
 import { BUILDS, NAMES } from '../game/person';
-import { CATEGORY_NAMES, PASS_OUT, conditions, distanceLabel, options, type Body, type Category, type Encounter, type Option } from '../game/encounter';
+import { CATEGORY_NAMES, FEAR_NAMES, PASS_OUT, conditions, fearLevel, distanceLabel, options, type Body, type Category, type Encounter, type Option } from '../game/encounter';
 
 const STAGE_TITLE: Record<string, string> = {
   menu: 'What now?',
@@ -8,6 +8,7 @@ const STAGE_TITLE: Record<string, string> = {
   violence: 'What now?',
   combat: 'Fight',
   helpless: 'Unconscious',
+  yielded: 'They gave up',
 };
 
 export const RESULT: Record<string, string> = {
@@ -19,6 +20,7 @@ export const RESULT: Record<string, string> = {
   left: 'You let them go.',
   walked: 'You walk away.',
   killed: "They're dead.",
+  mugged: 'You mugged them.',
 };
 
 /**
@@ -107,6 +109,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     `<div class="enc-fighter ${cls}"><div class="enc-name">${name}</div>` +
     bar('Blood', f.blood, f.maxBlood, 'blood', `${ml(f.blood)} / ${ml(f.maxBlood)}`) +
     bar('Stamina', f.stamina, f.maxStamina, 'stamina') +
+    (cls === 'them' && f.fear != null && !f.dead ? bar('Fear', f.fear, 100, 'fear', FEAR_NAMES[fearLevel(f.fear)]) : '') +
     `<div class="enc-conds">${conditions(f)
       .map((c) => `<span class="${c === 'Standing' ? 'ok' : c === 'On the floor' ? 'floor' : ''}">${c}</span>`)
       .join('')}</div></div>`;
@@ -180,7 +183,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       log.scrollTop = log.scrollHeight;
 
       q('.enc-title').textContent =
-        e.stage === 'over' ? RESULT[e.result ?? 'left'] : e.stage === 'combat' && e.them.out ? STAGE_TITLE.helpless : STAGE_TITLE[e.stage];
+        e.stage === 'over' ? RESULT[e.result ?? 'left'] : e.stage === 'combat' && e.them.out ? STAGE_TITLE.helpless : e.stage === 'combat' && e.them.yielded ? STAGE_TITLE.yielded : STAGE_TITLE[e.stage];
       opts = options(e);
       const cats = [...new Set(opts.filter((o) => o.cat).map((o) => o.cat!))];
       const key = cats.join(',');

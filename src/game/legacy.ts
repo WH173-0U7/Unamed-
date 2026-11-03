@@ -25,6 +25,8 @@ export interface World {
   people?: import('./people').Known[];
   /** Your reputation and the police's interest (see people.ts). */
   infamy?: import('./people').Infamy;
+  /** Someone told you who has your old things: they're more likely to turn up. */
+  lead?: string;
 }
 
 export const newWorld = (): World => ({ thieves: [], lives: 1, lifeStart: 0 });
@@ -45,7 +47,7 @@ export function robBody(w: World, inv: Inventory, e: Encounter | null): boolean 
   const loot: Loot[] = [];
   const c = cents(inv.purse);
   if (c > 0) loot.push({ kind: 'cash', name: 'Your cash', cash: c / 100, purse: { ...inv.purse }, where: 'stuffed in a pocket', yours: true });
-  for (const it of inv.items) loot.push({ kind: it.kind, name: it.name, detail: it.detail, med: it.med, secret: it.secret, known: it.known, doses: it.doses, where: 'stuffed in a pocket', yours: true });
+  for (const it of inv.items) loot.push({ kind: it.kind, name: it.name, detail: it.detail, med: it.med, secret: it.secret, known: it.known, doses: it.doses, pin: it.pin, pinOk: it.pinOk, where: 'stuffed in a pocket', yours: true });
   if (!loot.length) return false;
 
   let thief: Thief | undefined;
@@ -72,7 +74,15 @@ export function robBody(w: World, inv: Inventory, e: Encounter | null): boolean 
 
 /** Maybe one of them comes by this time (a copy to meet; the record stays). */
 export function maybeThief(w: World): Person | null {
-  if (!w.thieves.length || Math.random() >= THIEF_CHANCE) return null;
+  if (!w.thieves.length) return null;
+  // A tip-off: you know where to look.
+  const lead = w.lead ? w.thieves.find((t) => t.id === w.lead) : undefined;
+  if (w.lead && !lead) delete w.lead;
+  if (lead && Math.random() < 0.4) {
+    delete w.lead;
+    return JSON.parse(JSON.stringify(lead.person)) as Person;
+  }
+  if (Math.random() >= THIEF_CHANCE) return null;
   const t = w.thieves[Math.floor(Math.random() * w.thieves.length)];
   return JSON.parse(JSON.stringify(t.person)) as Person;
 }

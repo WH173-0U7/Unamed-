@@ -31,6 +31,8 @@ export interface Memory {
   grudge: number;
   /** You won that fight (they lost to you), or they beat you. */
   beatYou?: boolean;
+  /** How scared of you they were when you left them, 0..100 (fades with time). */
+  fear?: number;
 }
 
 export interface Known {
@@ -78,6 +80,8 @@ export function heal(k: Known, t = now()) {
   // Blood comes back over a few days (counted once; a clock set back heals nothing).
   const days = Math.max(0, t - (k.healedAt ?? k.at)) / DAY;
   k.blood = Math.min(k.maxBlood, Math.max(k.blood, 0) + days * k.maxBlood * 0.25);
+  // Fear fades too, slowly; what was done to them doesn't.
+  if (k.memory.fear) k.memory.fear = Math.max(0, k.memory.fear - days * 3);
   k.healedAt = Math.max(t, k.healedAt ?? 0);
 }
 
@@ -90,7 +94,7 @@ export function injuriesText(k: Pick<Known, 'broken'>): string[] {
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 /** The worst thing that happened to them in this encounter, in words. */
-function worstOf(e: Encounter, robbed: boolean, stomped: boolean): { worst: string; grudge: number } {
+function worstOf(e: Encounter, robbed: boolean, stomped: boolean, mugged = false, tortured = 0): { worst: string; grudge: number } {
   const T = e.them;
   // Only what happened this time: old injuries they came in with don't count.
   const start = e.start ?? { blood: T.maxBlood, broken: [] };
@@ -101,6 +105,10 @@ function worstOf(e: Encounter, robbed: boolean, stomped: boolean): { worst: stri
   if (e.result === 'they-fled') {
     worst = 'came at them, and they got away';
     grudge = 20;
+  }
+  if (mugged) {
+    worst = 'mugged them';
+    grudge = 30;
   }
   if (T.blood < start.blood - T.maxBlood * 0.15) {
     worst = 'beat them';
@@ -118,9 +126,13 @@ function worstOf(e: Encounter, robbed: boolean, stomped: boolean): { worst: stri
     worst += ', and stamped on them while they were down';
     grudge += 20;
   }
-  if (robbed) {
+  if (robbed && !mugged) {
     worst += ', and went through their pockets';
     grudge += 15;
+  }
+  if (tortured) {
+    worst += tortured > 2 ? ', and tortured them' : ', and hurt them while they begged';
+    grudge += 15 + tortured * 6;
   }
   return { worst, grudge: Math.min(100, grudge) };
 }
@@ -134,7 +146,7 @@ export function remember(
   people: Known[],
   e: Encounter,
   look: { anon: number; looked: string; clothes: string[] },
-  did: { robbed: boolean; stomped: boolean },
+  did: { robbed: boolean; stomped: boolean; mugged?: boolean; tortured?: number },
 ): Known | null {
   const T = e.them;
   const existing = e.person.known ? people.findIndex((x) => x.id === e.person.known) : -1;
@@ -147,7 +159,7 @@ export function remember(
   // and ran, or spotted you following, isn't your victim.)
   const start = e.start ?? { blood: T.maxBlood, broken: [] };
   const hurt = T.blood < start.blood - 1 || T.broken.some((p) => !start.broken.includes(p));
-  if (!e.fought && !hurt && e.result !== 'lost') return null;
+  if (!e.fought && !hurt && e.result !== 'lost' && !did.mugged) return null;
   let k = existing >= 0 ? people[existing] : undefined;
   if (!k) {
     k = {
@@ -193,8 +205,12 @@ export function remember(
     mem.looked = look.looked;
     mem.clothes = look.clothes;
   }
-  const w = worstOf(e, did.robbed, did.stomped);
+  const w = worstOf(e, did.robbed, did.stomped, did.mugged, did.tortured ?? 0);
+  // How scared of you they are now (torture stays with them).
+  mem.fear = Math.max(mem.fear ?? 0, Math.round((T.fear ?? 0) * (did.tortured ? 1 : 0.7)));
   mem.beatYou = e.result === 'lost';
+  // Beating you takes the fear out of them.
+  if (mem.beatYou) mem.fear = Math.round((mem.fear ?? 0) * 0.3);
   // Keep the worst thing you've done to them.
   if (w.grudge >= (k.worstLevel ?? 0) || mem.beatYou) {
     mem.worst = w.worst;
@@ -281,6 +297,8 @@ export const REP_LEVELS: [number, string][] = [
   [30, 'Known'],
   [60, 'Feared'],
   [100, 'Notorious'],
+  [150, 'Dreaded'],
+  [220, 'A legend of the street'],
 ];
 export const repName = (r: number) => REP_LEVELS.filter(([at]) => r >= at).pop()![1];
 export const HEAT_NAMES = ['None', 'Low', 'Watched', 'Wanted'];

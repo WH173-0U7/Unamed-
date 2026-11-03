@@ -213,6 +213,31 @@ publishes it there automatically (see `.github/workflows/deploy.yml`).
   in numbers ("Ambushes land +12%", "Damage ×1.24"), how far to the next
   level and how it grows; and the rest of you: stress, nerve, humanity,
   reputation, heat, how hidden your face is, how many people remember you.
+- **Fear, mugging and torture.** Everyone has a fear of you (a bar in the
+  fight view: Calm, Wary, Scared, Terrified). It starts from how frightening
+  you are (Intimidation, Strength, how far gone you are, a mask) and who they
+  are (drunks are braver, big builds braver still), whether they know you and
+  what you did to them last time, and your reputation; every blow you land
+  raises it. **Mug them** instead of ambushing: scared enough, they give up.
+  Mid-fight, tell them to **"Give it up"**, and the terrified give up on their
+  own. Someone knocked out (but not bled out) can be **slapped awake**. Once
+  they've given up: make them **empty their pockets** (if they're not scared
+  enough they hold the best thing back), **pat them down** to be sure,
+  **threaten** them, ask **"Is that everything?"**, get the **PIN** for their
+  cards (scared people tell the truth; the rest might lie), or ask who has
+  your old character's things (a tip makes that person likelier to turn up).
+  **Torture** (bend a finger back, stamp on a hand, the lighter, a broken arm)
+  terrifies them and costs you humanity. Let them go, or hit them anyway.
+  People remember being mugged and tortured, and the ones you terrified will
+  hand it over next time without being asked.
+- **Intimidation** is a fifth stat, trained by all of the above. On small
+  screens the stats along the top use short names.
+- **The cash machine** at the bank works any hour: a stolen card with the PIN
+  they gave you pays out once ($20–$300, more on a credit card); a lie and it
+  keeps the card. The camera raises your heat unless your face is covered.
+- **More titles for how far gone you are:** Cold, Callous, Cruel, Vicious,
+  Heartless, Sadist, Monster, Butcher, Devil, Husk. Reputation goes on past
+  Notorious to Dreaded and A legend of the street.
 - **Lighters run out.** Pockets shows a fuel gauge on every lighter (and how
   many matches are left in a book). Lighting a cigarette uses a little,
   burning an ID more, keeping a fire going a lot, and the rain makes it all

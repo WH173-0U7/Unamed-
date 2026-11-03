@@ -11,9 +11,12 @@
  *   Trained by landing blows and by dodging.
  * - **Stamina:** how long you can keep fighting before you're exhausted, and
  *   how fast you get your breath back. Trained by exhausting yourself.
+ * - **Intimidation:** how scared people are of you: scared people give up
+ *   without a fight, hand over what they've got, and tell you what you want
+ *   to know. Trained by threatening, mugging and torturing.
  */
 
-export type StatName = 'sneak' | 'strength' | 'agility' | 'stamina';
+export type StatName = 'sneak' | 'strength' | 'agility' | 'stamina' | 'intimidation';
 
 export interface Stat {
   level: number;
@@ -28,7 +31,10 @@ export const STAT_NAMES: Record<StatName, string> = {
   strength: 'Strength',
   agility: 'Agility',
   stamina: 'Stamina',
+  intimidation: 'Intimidation',
 };
+/** Shorter names for the stats along the top of a small screen. */
+export const STAT_SHORT: Record<StatName, string> = { sneak: 'Snk', strength: 'Str', agility: 'Agi', stamina: 'Stm', intimidation: 'Int' };
 
 export const MAX_LEVEL = 20;
 
@@ -38,6 +44,7 @@ export function newStats(): Stats {
     strength: { level: 1, xp: 0 },
     agility: { level: 1, xp: 0 },
     stamina: { level: 1, xp: 0 },
+    intimidation: { level: 1, xp: 0 },
   };
 }
 
@@ -73,3 +80,5 @@ export const dodgeBonus = (s: Stats) => (s.agility.level - 1) * 0.025;
 export const maxStamina = (s: Stats) => 100 + (s.stamina.level - 1) * 6;
 /** Stamina: how much comes back each turn (+0.6 a level). */
 export const staminaRegen = (s: Stats) => 7 + (s.stamina.level - 1) * 0.6;
+/** Intimidation: how much more scared of you people are (+3 fear a level). */
+export const fearBonus = (s: Stats) => (s.intimidation.level - 1) * 3;

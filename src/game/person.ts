@@ -104,6 +104,11 @@ export interface Loot {
   known?: boolean;
   /** How many uses are left (a baggie). */
   doses?: number;
+  /** Kept back when they turned out their pockets for you (a pat-down finds it). */
+  hidden?: boolean;
+  /** A card's PIN, as they told it you, and whether it was the truth (never shown). */
+  pin?: string;
+  pinOk?: boolean;
 }
 
 /** Something they're wearing or carrying that can be gone through. */

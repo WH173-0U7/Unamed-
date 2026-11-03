@@ -2769,3 +2769,50 @@ body[data-buttons='lines'] .spot-bar {
   height: 100%;
   background: #d9a66a;
 }
+
+/* Five stats along the top: short names on narrow screens. */
+.stat em {
+  font-style: normal;
+}
+.stat .short {
+  display: none;
+}
+@media (max-width: 560px) {
+  .stat .long {
+    display: none;
+  }
+  .stat .short {
+    display: inline;
+  }
+}
+
+/* How scared they are of you (in the fight view). */
+.enc-bar.fear b {
+  background: #b9a24a;
+}
+
+/* More titles for how far gone you are. */
+.you-humanity[data-level='callous'] b {
+  color: #b7b0a2;
+}
+.you-humanity[data-level='vicious'] b {
+  color: #d9774f;
+}
+.you-humanity[data-level='sadist'] b {
+  color: #d1495b;
+  text-shadow: 0 0 8px rgba(209, 73, 91, 0.45);
+}
+.you-humanity[data-level='monster'] b {
+  color: #e0303c;
+  text-shadow: 0 0 10px rgba(224, 48, 60, 0.6);
+}
+.you-humanity[data-level='butcher'] b {
+  color: #a3121e;
+  text-shadow: 0 0 10px rgba(163, 18, 30, 0.7);
+}
+.you-humanity[data-level='devil'] b {
+  color: #ff4433;
+  text-shadow:
+    0 0 12px rgba(255, 68, 51, 0.7),
+    -1px 0 rgba(255, 40, 60, 0.5);
+}

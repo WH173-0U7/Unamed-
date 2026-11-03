@@ -1,10 +1,10 @@
 import type * as THREE from 'three';
 import { writeSave, type SaveData } from '../core/save';
 import { createTv } from './tv';
-import { CHANCES, RACE_CHANCES, NAMES, makePerson } from './person';
+import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson } from './person';
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
-import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, type StatName, type Stats } from './stats';
+import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, type StatName, type Stats } from './stats';
 import { LURK_HOURS, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
 import { PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
@@ -30,16 +30,27 @@ interface Humanity {
 }
 const HUMANITY: { at: number; name: string; line: string }[] = [
   { at: 10, name: 'Cold', line: 'Something in you has gone cold.' },
-  { at: 30, name: 'Cruel', line: "You've started to enjoy their pain." },
-  { at: 60, name: 'Heartless', line: 'You feel nothing for them. Nothing at all.' },
-  { at: 100, name: 'Husk', line: "There's nothing left inside you. You're a husk." },
+  { at: 20, name: 'Callous', line: "Their pain doesn't reach you the way it did." },
+  { at: 32, name: 'Cruel', line: "You've started to enjoy their pain." },
+  { at: 46, name: 'Vicious', line: 'You hurt people more than you need to now. You know it.' },
+  { at: 62, name: 'Heartless', line: 'You feel nothing for them. Nothing at all.' },
+  { at: 80, name: 'Sadist', line: 'You take your time with them now. You like the begging.' },
+  { at: 100, name: 'Monster', line: 'People cross the street when they see you coming. They are right to.' },
+  { at: 125, name: 'Butcher', line: "You've stopped counting what you've done." },
+  { at: 155, name: 'Devil', line: "When they talk about you on the street, they don't use your name." },
+  { at: 190, name: 'Husk', line: "There's nothing left inside you. You're a husk." },
 ];
+/** How evil you are shows: people are more scared of you, the further gone you are. */
+const evilFear = (lost: number) => Math.min(55, lost * 0.35);
 const humanityLevel = (lost: number) => HUMANITY.filter((l) => lost >= l.at).pop() ?? null;
 const KILL_COST = 10;
 /** A cigarette, start to finish (real time), and how much stress it takes away. */
 const SMOKE_MS = 6 * 60_000;
 const SMOKE_EASE = 35;
 const STOMP_HELPLESS_COST = 1;
+/** Each time you torture someone; robbing someone who's given up costs a little. */
+const TORTURE_COST = 3;
+const MUG_COST = 0.5;
 
 import { COIN_MACHINE_FEE, PAWN_STOCK, PLACES, offer, placeInfo, type Place } from './shops';
 import { BILLS, COINS, addTo, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
@@ -140,6 +151,7 @@ export class Game {
       else if (b.dataset.sell) this.sell(Number(b.dataset.sell));
       else if (b.dataset.stock) this.buyStock(b.dataset.stock);
       else if (b.dataset.bank) this.bank(b.dataset.bank);
+      else if (b.dataset.atm) this.atm(Number(b.dataset.atm));
     };
     this.restBtn.hidden = true;
     this.hitUi = createHitUi(view);
@@ -243,7 +255,7 @@ export class Game {
   private rememberThem(e: Encounter) {
     const inv = this.inventory;
     const before = e.person.known ? this.people.find((k) => k.id === e.person.known)?.memory.sawFace : false;
-    const k = remember(this.people, e, { anon: anonymity(inv), looked: describe(inv), clothes: lookClothes(inv) }, { robbed: !!e.robbed, stomped: !!e.stomped });
+    const k = remember(this.people, e, { anon: anonymity(inv), looked: describe(inv), clothes: lookClothes(inv) }, { robbed: !!e.robbed, stomped: !!e.stomped, mugged: !!e.mugged, tortured: e.tortured ?? 0 });
     if (!k || k.memory.beatYou) return;
     const f = this.infamy;
     if (k.memory.sawFace && !before) f.rep += k.memory.grudge / 8;
@@ -404,8 +416,12 @@ export class Game {
       const k = e.person.known ? this.people.find((x) => x.id === e.person.known) : undefined;
       if (k) e.recognised = recognises(k, anonymity(inv), lookClothes(inv));
     }
+    if (e.stage === 'seen') e.them.fear = this.fearOf(e);
+    this.prime(e);
     const wasOver = e.stage === 'over';
     const wasOut = !!e.them.out;
+    const tortured = e.tortured ?? 0;
+    const mugged = !!e.mugged;
     const impacts = act(e, id, this.stats, this.inventory);
     // Knocked out of your mouth (or you're out cold): the cigarette's gone.
     if (this.smoking && e.you && (e.you.smoking === false || e.you.out || e.result === 'lost')) {
@@ -413,6 +429,20 @@ export class Game {
       e.you.smoking = false;
     }
     const worse: string[] = [];
+    // Torturing someone; robbing someone who'd given up.
+    if ((e.tortured ?? 0) > tortured) {
+      const l = this.loseHumanity(TORTURE_COST * ((e.tortured ?? 0) - tortured));
+      if (l) worse.push(l);
+    }
+    if (e.mugged && !mugged) {
+      const l = this.loseHumanity(MUG_COST);
+      if (l) worse.push(l);
+    }
+    // A tip-off about your old things.
+    if (e.tip === 'thief' && this.world.thieves.length) {
+      this.world.lead = this.world.thieves[Math.floor(Math.random() * this.world.thieves.length)].id;
+      delete e.tip;
+    }
     // Stamping on someone who can't defend themselves.
     if (wasOut && id.startsWith('stomp')) {
       e.stomped = true;
@@ -831,6 +861,37 @@ export class Game {
     buzz(8);
   }
 
+  /**
+   * A stolen card and the PIN they gave you. If they lied, the machine keeps
+   * the card. If not, it pays out, once: by morning the card is stopped.
+   * The camera sees whoever's using it.
+   */
+  private atm(i: number) {
+    const inv = this.inventory;
+    const card = inv.items[i];
+    if (this.place !== 'bank' || !card || !/card/.test(card.kind) || !card.pin || card.drained) return;
+    const anon = anonymity(inv);
+    const f = this.infamy;
+    const lines: string[] = [];
+    lines.push(anon >= 0.5 ? 'You keep your face down, away from the camera, and push the card in.' : 'You push the card in. The little camera over the screen watches you.');
+    if (!card.pinOk) {
+      inv.items.splice(i, 1);
+      lines.push(`You type ${card.pin}. WRONG PIN. You try again. On the third try the machine swallows the card. They lied to you.`);
+      f.heat = Math.min(100, f.heat + 4 * (1 - anon));
+    } else {
+      const credit = card.kind === 'credit card';
+      const twenties = credit ? 2 + Math.floor(Math.random() * 19) : 1 + Math.floor(Math.random() * 15);
+      addTo(inv.purse, { 2000: twenties });
+      card.drained = true;
+      lines.push(`You type ${card.pin}. It works. You take out ${money(twenties * 2000)}${credit ? ' on a cash advance' : ', all that was in there'}, in twenties.`);
+      lines.push("By morning they'll have stopped the card.");
+      f.heat = Math.min(100, f.heat + 10 * (1 - anon));
+    }
+    this.refresh();
+    this.note(lines);
+    buzz(8);
+  }
+
   /** Use medicine from your pockets (by its place in the list). */
   private useMed(i: number) {
     const inv = this.inventory;
@@ -1242,7 +1303,14 @@ export class Game {
             .join('') +
           `</ul>`;
       } else body = `<p class="shop-closed">The teller windows are dark.</p>`;
-      body += `<h3>Lobby</h3><ul class="shop-list">${li('Coin machine', `Turns coins into bills, any hour. Keeps ${COIN_MACHINE_FEE * 100}%.`, btn('bank', 'machine', 'Use', !coins && 'No coins'))}</ul>`;
+      body += `<h3>Lobby</h3><ul class="shop-list">${li('Coin machine', `Turns coins into bills, any hour. Keeps ${COIN_MACHINE_FEE * 100}%.`, btn('bank', 'machine', 'Use', !coins && 'No coins'))}`;
+      // The cash machine: a card and its PIN (one someone gave you, if you made them).
+      const cards = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind));
+      const usable = cards.filter(({ x }) => x.pin && !x.drained);
+      body += usable.length
+        ? usable.map(({ x, i }) => li(`Cash machine: ${x.name.toLowerCase()}`, `${x.detail ? `${x.detail}'s card · ` : ''}PIN ${x.pin}. There's a camera over the screen.`, btn('atm', i, 'Withdraw'))).join('')
+        : li('Cash machine', cards.length ? "You've got cards, but no PIN for them. Someone would have to tell you." : 'Any hour. You need a card, and its PIN.', btn('atm', -1, 'Use', 'No card with a PIN'));
+      body += `</ul>`;
     }
     this.shopEl.innerHTML =
       `<div class="shop-head"><h2>${info.name}</h2><p>${info.blurb}${info.hours ? ` <em>${hoursText(info.hours)}.</em>` : ''}</p></div>` +
@@ -1327,7 +1395,9 @@ export class Game {
                         ? `<span class="fuel" title="Fuel left"><i style="width:${flameLeft(x)}%"></i></span>Fuel ${flameLeft(x)}%${flameLeft(x) <= 15 ? ', nearly dry' : ''}`
                         : /^matches$/i.test(x.name)
                           ? `${flameLeft(x)} match${flameLeft(x) === 1 ? '' : 'es'} left`
-                          : x.detail;
+                          : /card/.test(x.kind) && (x.pin || x.drained)
+                            ? `${x.detail ? `${x.detail} · ` : ''}${x.drained ? 'Stopped' : `PIN ${x.pin} (cash machine at the bank)`}`
+                            : x.detail;
                 const act = (attr: string, label: string, no?: string | null) => `<button type="button" data-${attr}="${i}" ${no ? `disabled title="${no}"` : ''}>${label}</button>`;
                 let acts = m && m.id !== 'testkit' ? act('use', 'Use', why) : '';
                 if (/^(lighter|matches)$/i.test(x.name)) acts += act('fire', 'Fire', this.fireBlocked());
@@ -1360,6 +1430,16 @@ export class Game {
     card.querySelector('.sheet-body')!.scrollTop = scroll;
   }
 
+  /** What the encounter needs to know about you to offer its options (see Encounter.flame). */
+  private prime(e: Encounter) {
+    const inv = this.inventory;
+    e.flame = !!this.flame();
+    e.cardsHeld = e.holder
+      ? inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind) && x.detail === e.holder && !x.pin).map(({ x, i }) => ({ i, name: x.name }))
+      : [];
+    e.canAsk = this.world.thieves.length > 0 && !e.person.thief;
+  }
+
   /** Redraws the person button and the encounter screen from the saved state. */
   private refresh() {
     this.syncButtons();
@@ -1382,6 +1462,7 @@ export class Game {
       btn.onclick = () => this.act('open');
       this.seenEl.append(btn);
     }
+    if (e) this.prime(e);
     this.encView.render(this.tvState.on ? e : null);
     this.renderStats();
     this.renderYou(!!e && e.stage !== 'seen');
@@ -1409,12 +1490,18 @@ export class Game {
         ['Stamina', `${maxStamina(st)}`],
         ['Breath back each turn', `${staminaRegen(st).toFixed(1)}`],
       ],
+      intimidation: [
+        ['Fear, from this stat', `+${fearBonus(st)}`],
+        ...this.menaceRows(),
+        ['Total, before who they are', `+${Math.round(this.menace())}`],
+      ],
     };
     const how: Record<StatName, string> = {
       sneak: 'Surveilling, and ambushes (bum rush, sucker punch, shove).',
       strength: 'Landing blows.',
       agility: 'Landing blows, and dodging theirs.',
       stamina: 'Fighting yourself to exhaustion.',
+      intimidation: 'Mugging, threatening, making people give up, and torture. Scared people hand it over, tell the truth, and give up mid-fight.',
     };
     const rows = (xs: [string, string][]) => xs.map(([a, b]) => `<div><dt>${a}</dt><dd>${b}</dd></div>`).join('');
     // What's wrong with you comes first: each injury and what it's doing to you.
@@ -1456,6 +1543,46 @@ export class Game {
     return html;
   }
 
+  /**
+   * How frightening you are, before who they are comes into it: your
+   * Intimidation and Strength, how far gone you are, a mask.
+   */
+  private menace(): number {
+    const st = this.stats;
+    return fearBonus(st) + (st.strength.level - 1) * 2 + evilFear(this.humanity.lost) + (conspicuous(this.inventory) ? 6 : 0);
+  }
+  private menaceRows(): [string, string][] {
+    const st = this.stats;
+    const rows: [string, string][] = [['Fear, from your Strength', `+${(st.strength.level - 1) * 2}`]];
+    const evil = Math.round(evilFear(this.humanity.lost));
+    if (evil) rows.push(['Fear, from how far gone you are', `+${evil}`]);
+    if (conspicuous(this.inventory)) rows.push(['Fear, from the mask', '+6']);
+    return rows;
+  }
+
+  /**
+   * How scared of you someone is as you walk up (0..100): how frightening
+   * you are, who they are (a drunk is braver, a big build braver still),
+   * whether they know you and what you did to them, your reputation, and
+   * how hurt you look.
+   */
+  private fearOf(e: Encounter): number {
+    const p = e.person;
+    const f = this.infamy;
+    const h = this.health;
+    const tough = ['Easy', 'Fair', 'Hard', 'Brutal'].indexOf(BUILDS[p.build].difficulty);
+    let fear = 20 + this.menace() + { civilian: 10, junkie: 3, homeless: 0, drunk: -12 }[p.kind] - tough * 9;
+    if (e.recognised) {
+      const k = p.known ? this.people.find((x) => x.id === p.known) : undefined;
+      if (k) fear += Math.min(25, f.rep * 0.25) + (k.memory.fear ?? 0) * 0.7 - (k.memory.beatYou ? 15 : 0);
+      else fear += Math.min(30, f.rep * 0.3);
+    } else fear += Math.min(8, f.rep * 0.05 * (1 - anonymity(this.inventory)));
+    // You look like you'd lose.
+    if (h.broken.some((x) => x.endsWith('leg'))) fear -= 8;
+    if (h.blood < h.maxBlood * 0.7) fear -= 8;
+    return Math.max(0, Math.min(100, Math.round(fear)));
+  }
+
   /** More rows for the stats sheet (reputation, anonymity...). */
   private extraStatRows(): [string, string][] {
     const f = this.infamy;
@@ -1477,7 +1604,7 @@ export class Game {
       .map((k) => {
         const { level, xp } = st[k];
         const pct = level >= MAX_LEVEL ? 100 : (100 * xp) / xpToNext(level);
-        return `<div class="stat" data-stat="${k}"><span>${STAT_NAMES[k]}</span><b>${level}</b><i><u style="width:${pct}%"></u></i></div>`;
+        return `<div class="stat" data-stat="${k}"><span><em class="long">${STAT_NAMES[k]}</em><em class="short">${STAT_SHORT[k]}</em></span><b>${level}</b><i><u style="width:${pct}%"></u></i></div>`;
       })
       .join('');
   }
@@ -1538,6 +1665,7 @@ export class Game {
           e.grudge = known.memory.grudge;
           e.history = historyText(known);
           e.looks = [...injuriesText(known), ...marksText(known.marks)];
+          e.dread = known.memory.fear ?? 0;
         } else if (Math.random() < Math.min(0.5, this.infamy.rep / 200) * (1 - anon)) {
           // A stranger who's heard about you, and knows your face.
           e.recognised = true;
@@ -1548,7 +1676,7 @@ export class Game {
         e.start = { blood: e.them.blood, broken: [...e.them.broken] };
         this.encounter = e;
         // The ones who hate you most come looking: they find you first.
-        if (known && e.recognised && (e.grudge ?? 0) >= 70 && !known.broken.some((p) => p.endsWith('leg')) && Math.random() < 0.5) {
+        if (known && e.recognised && (e.grudge ?? 0) >= 70 && (e.dread ?? 0) < 60 && !known.broken.some((p) => p.endsWith('leg')) && Math.random() < 0.5) {
           // Through the normal path, so a fight that ends at once is dealt with properly.
           this.phase = 'idle';
           this.act('ambushed');

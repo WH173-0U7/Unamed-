@@ -290,7 +290,7 @@ export const purseKg = (inv: Inventory) => kgOf(inv.purse);
 /** How a piece of loot reads on a button or in a list. */
 export const lootLabel = (l: { kind: string; name: string; cash?: number; doses?: number }) =>
   l.kind === 'cash'
-    ? `${l.name}, ${dollars(l.cash ?? 0)}`
+    ? `${l.name}, ${money(Math.round((l.cash ?? 0) * 100))}`
     : l.doses != null && /^lighter$/i.test(l.name)
       ? `${l.name}, ${l.doses}% full`
       : l.doses != null && /^matches$/i.test(l.name)

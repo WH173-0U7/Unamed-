@@ -11,6 +11,18 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.83',
+    date: 'Nov 4',
+    items: [
+      'You can no longer walk off (or open Pockets) in the moment after a fight ends: a knockout is a knockout, and you get robbed like you should. Quitting to the menu in that moment can’t black out your next game any more.',
+      'When someone gets away, the message shows how they got away once, not your own thoughts twice. Reloading or pausing right as a fight ends keeps the full message, and messages don’t fade while the game is paused.',
+      'Court: you can only have your hearing on the day. Turn up early and the clerk tells you to come back then.',
+      'Standing outside a locked shop in the rain gets you cold. Waiting at the door when it opens, you go in (mask down, knife away, cigarette out); at closing time they show you out.',
+      'Caught asleep in a stolen car, the police tell you to step out of the vehicle, not ask where you’re walking. A night in a cell puts your cigarette out and warms you up. Turning yourself in while bleeding, they take you to the ER first.',
+      'Landscape shops keep your place in the list after you buy something. “No room” says when you’d need a bag. Cash in loot lists has commas.',
+    ],
+  },
+  {
     v: '0.82',
     date: 'Nov 4',
     items: [

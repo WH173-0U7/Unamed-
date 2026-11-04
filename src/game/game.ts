@@ -166,8 +166,10 @@ export class Game {
       const mark = () => {
         for (const b of this.sheetEl.querySelectorAll<HTMLElement>('.sheet-body')) b.classList.toggle('more', b.scrollTop + b.clientHeight < b.scrollHeight - 4);
       };
-      this.sheetEl.addEventListener('scroll', mark, true);
-      new MutationObserver(() => requestAnimationFrame(mark)).observe(this.sheetEl, { childList: true, subtree: true });
+      this.sheetEl.addEventListener('scroll', mark, { capture: true, signal: this.listeners.signal });
+      const mo = new MutationObserver(() => requestAnimationFrame(mark));
+      mo.observe(this.sheetEl, { childList: true, subtree: true });
+      this.listeners.signal.addEventListener('abort', () => mo.disconnect());
     }
     this.goBtn.onclick = () => this.openSheet('places');
     this.bagBtn.onclick = () => this.openSheet('pockets');
@@ -582,6 +584,7 @@ export class Game {
   private act(id: string) {
     const e = this.encounter;
     if (!e || !this.running || this.ending) return;
+    if ((id === 'lurk' || id === 'rest') && performance.now() < this.tapsFrom) return;
     if (id === 'lurk') return this.lurk();
     if (id === 'rest') return this.rest();
     if (id === 'pockets') return this.openSheet('pockets');
@@ -677,9 +680,11 @@ export class Game {
       }
     }
     after.push(...worse);
+    /** (Where the fight's own lines end, before what happens to you after.) */
+    const fightTo = e.log.length;
     for (const text of after) e.log.push({ by: 'info', text });
     // What finished you: the last thing they did.
-    const lastHit = [...e.log].reverse().find((l) => l.by === 'them')?.text;
+    const lastHit = ([...e.log].reverse().find((l) => l.by === 'them' && l.hit === 'you') ?? [...e.log].reverse().find((l) => l.by === 'them'))?.text;
     const hitText = lastHit?.replace(/\s*You're out cold\.\s*$/, '');
     const remember = hitText && !e.you.drugOut ? [`The last thing you remember: ${hitText[0].toLowerCase()}${hitText.slice(1)}`] : [];
     if (this.health.dead) {
@@ -695,19 +700,28 @@ export class Game {
     if (!wasOver && e.stage === 'over' && e.result !== 'killed') {
       const ko = e.result === 'lost';
       // They got away (or walked off): say how, and why, not just that they're gone.
-      const how = e.result === 'lost-them' || e.result === 'they-fled' ? e.log.slice(logFrom).filter((l) => l.by !== 'you').map((l) => l.text).slice(-2) : [];
+      const how = e.result === 'lost-them' || e.result === 'they-fled' ? e.log.slice(logFrom, fightTo).filter((l) => l.by !== 'you').map((l) => l.text).slice(-2) : [];
       const lines = ko ? [RESULT.lost, ...remember, ...after] : [RESULT[e.result ?? 'left'], ...how, ...after];
-      // (Saved now: a reload in the beat still wakes you up.)
+      // (Saved now: a reload in the beat still ends it properly.)
       if (ko) this.save.state.koLines = lines;
+      else this.save.state.endLines = lines;
       this.ending = true;
+      this.closeSheet();
       this.refresh();
-      setTimeout(() => {
-        this.ending = false;
-        if (this.encounter !== e) return;
-        if (ko) this.knockedOut(lines);
-        else this.closeEncounter(lines);
-      }, impacts.length ? 1100 : e.result === 'left' || e.result === 'walked' ? 700 : 1800);
+      this.timers.push(
+        window.setTimeout(() => {
+          this.ending = false;
+          if (this.closed || this.encounter !== e) return;
+          delete this.save.state.endLines;
+          if (ko) this.knockedOut(lines);
+          else this.closeEncounter(lines);
+        }, impacts.length ? 1100 : e.result === 'left' || e.result === 'walked' ? 700 : 1800),
+      );
       return;
+    }
+    // A body on the ground: a moment before Lurk and Rest take a tap.
+    if (!wasOver && e.stage === 'over') {
+      this.tapsFrom = performance.now() + 800;
     }
     this.refresh();
   }
@@ -870,7 +884,7 @@ export class Game {
   /** Pockets and Go can be opened when idle, and once a fight is over (from its options). */
   private get canOpenSheet() {
     const e = this.encounter;
-    return this.idle || (this.running && !!e && e.stage === 'over');
+    return !this.ending && (this.idle || (this.running && !!e && e.stage === 'over'));
   }
 
   /**
@@ -897,7 +911,7 @@ export class Game {
     const robbed = this.place === 'hospital' ? false : robBody(w, this.inventory, e);
     // A new you: nothing carried over but the world.
     // (Your name, your ID and your bank account were that character's.)
-    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy']) delete this.save.state[k];
+    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines']) delete this.save.state[k];
     // Nobody knows this face. The people the old you hurt are still out there
     // (and your things on some of them), but they'd be looking for someone else.
     this.world.infamy = newInfamy();
@@ -1097,6 +1111,7 @@ export class Game {
 
   /** Walk somewhere else. */
   private goTo(p: Place) {
+    if (this.ending) return;
     this.shopNote = [];
     this.closeSheet();
     if (p === this.place || HIDDEN_PLACES.has(p)) return;
@@ -1132,26 +1147,38 @@ export class Game {
         court: 'A deputy at the door watches you put your keys and phone in a plastic tray for the metal detector.',
       }[p],
     ];
-    const h = this.health;
     this.exposure = 0;
-    const w = wearing(this.inventory);
-    if (inside && w.masked) {
-      w.masked = false;
-      lines.push(`You pull the ${w.face!.toLowerCase()} down before you go in.`);
-    }
-    if (inside && h.cold) lines.push("It's warm in here. Stay a while and you'll thaw out.");
-    const inHand = this.inventory.items.filter((x) => x.hand);
-    if (inside && inHand.length) {
-      for (const x of inHand) delete x.hand;
-      lines.push(`You put the ${inHand.map((x) => lc(x.name)).join(' and the ')} away before you go in.`);
-    }
-    if (inside && this.smoking) {
-      delete h.smokingUntil;
-      lines.push('You stub the cigarette out on the wall before you go in.');
-    }
+    this.wasInside = inside;
+    this.insideAt = p;
+    if (inside) lines.push(...this.goingIn());
     if (!inside && WET_AMOUNT[this.weather.now] > 0) lines.push(`It's still ${isSnow(this.weather.now) ? 'snowing' : 'raining'} (${WEATHER_NAME[this.weather.now].toLowerCase()}).`);
     this.note(lines);
     buzz(10);
+  }
+
+  /** Whether you were inside the place you're at (it can open or close around you). */
+  private wasInside = false;
+  private insideAt: Place | null = null;
+  /** Through the door: the mask down, the knife away, the cigarette out. */
+  private goingIn(): string[] {
+    const lines: string[] = [];
+    const h = this.health;
+    const w = wearing(this.inventory);
+    if (w.masked) {
+      w.masked = false;
+      lines.push(`You pull the ${w.face!.toLowerCase()} down before you go in.`);
+    }
+    if (h.cold) lines.push("It's warm in here. Stay a while and you'll thaw out.");
+    const inHand = this.inventory.items.filter((x) => x.hand);
+    if (inHand.length) {
+      for (const x of inHand) delete x.hand;
+      lines.push(`You put the ${inHand.map((x) => lc(x.name)).join(' and the ')} away before you go in.`);
+    }
+    if (this.smoking) {
+      delete h.smokingUntil;
+      lines.push('You stub the cigarette out on the wall before you go in.');
+    }
+    return lines;
   }
 
   /** Buy something at the pharmacy (cash only). */
@@ -1284,7 +1311,7 @@ export class Game {
     } else if (s.knife && knifeOf(s.knife)) {
       const k = knifeOf(s.knife)!;
       if (!stow(inv, { kind: 'weapon', name: k.name, weapon: k.dmg, cuts: true })) {
-        this.note([`Nowhere to put it. ${noRoomWhy(inv, 'small')}`]);
+        this.note([`Nowhere to put it. ${noRoomWhy(inv, measure({ kind: 'weapon', name: k.name }).size)}`]);
         return;
       }
       line = `He unlocks the case and slides the ${lc(k.name)} across. ${k.desc}`;
@@ -1314,7 +1341,7 @@ export class Game {
     } else {
       const brand = s.id === 'cigs' ? ['Red Crest', 'Mayfair Lights', 'Dakota Menthols', 'Ridgeway Reds', 'Union Blues', 'Harbor 100s'][Math.floor(Math.random() * 6)] : undefined;
       if (!stow(inv, { kind: 'misc', name: s.name, ...(brand ? { detail: brand } : {}), ...(s.drinkType ? { drink: s.drinkType } : {}), ...(s.doses ? { doses: s.doses } : s.id === 'lighter' ? { doses: 100 } : {}) })) {
-        this.note([`Nowhere to put it. ${noRoomWhy(inv, 'small')}`]);
+        this.note([`Nowhere to put it. ${noRoomWhy(inv, measure({ kind: 'misc', name: s.name }).size)}`]);
         return;
       }
       line = s.id === 'energy' ? 'You buy an energy drink.' : s.id === 'beer' ? 'You buy a can of beer.' : s.id === 'vodka' ? 'You buy a pint of vodka in a paper bag.' : s.id === 'whiskey' ? 'You buy a pint of whiskey in a paper bag.' : s.id === 'wine' ? 'You buy a bottle of cheap red.' : s.id === 'cigs' ? `You buy a pack of ${brand}.` : s.id === 'matches' ? 'You buy a book of matches.' : `You buy the ${lc(s.name)}.`;
@@ -1913,7 +1940,7 @@ export class Game {
       this.infamy.heat = Math.min(100, this.infamy.heat + 10);
       it.car = 'gone';
       this.refresh();
-      this.note(lines);
+      this.save.state.policeWhy = lines;
       this.save.state.policeStop = 'car';
       this.openSheet('police');
       return;
@@ -1995,7 +2022,6 @@ export class Game {
    */
   private tickExposure(dt: number) {
     const h = this.health;
-    const info = placeInfo(this.place);
     if (this.place === 'street' || !this.tvState.on) return;
     if ((this.exposure += dt) < 120) return;
     this.exposure = 0;
@@ -2003,7 +2029,7 @@ export class Game {
       h.cold--;
       this.note([h.cold ? 'The warmth is getting into you. You thaw out a little.' : "You've warmed up. You stop shivering."]);
       this.refresh();
-    } else if (!info.indoors) {
+    } else if (!this.inside) {
       const c = this.chill();
       if (c) {
         this.note([c]);
@@ -2169,7 +2195,9 @@ export class Game {
       rec.last = now();
       lines.push(`You're arrested.${took ? ` They keep ${took === 1 ? 'the evidence' : `${took === 2 ? 'both' : `all ${took}`} things they took off you`}.` : ''}`);
       lines.push(...custodyCare(h));
+      delete h.smokingUntil;
       lines.push('You spend the night in a holding cell that smells of bleach and piss.', ...passHours(h, 8, true));
+      h.cold = 0;
       if (h.dead) return this.die(lines);
       if (charges.length) {
         // A case against you: bail, and a court date.
@@ -2329,6 +2357,10 @@ export class Game {
   private appear() {
     const c = this.case;
     if (this.place !== 'court' || !c || !isOpen(placeInfo('court').hours!) || this.inventory.items.some((x) => x.kind === 'weapon' && !/bottle|syringe/i.test(x.name))) return;
+    if (!c.warrant && !hearingToday(c.courtAt)) {
+      this.note([`The clerk finds your name. "Your hearing's ${dateText(c.courtAt)}. Come back then."`]);
+      return;
+    }
     const lines: string[] = [];
     if (c.warrant) {
       lines.push('You give your name at the desk. The clerk looks at her screen, then at the deputy. You\'re cuffed in the hall: there\'s a warrant out for you.');
@@ -2349,7 +2381,10 @@ export class Game {
   }
   /** A night held after turning yourself in. */
   private passCell(): string[] {
-    return ['You spend the night in a holding cell.', ...passHours(this.health, 8, true)];
+    const lines = [...custodyCare(this.health), 'You spend the night in a holding cell.', ...passHours(this.health, 8, true)];
+    this.health.cold = 0;
+    delete this.health.smokingUntil;
+    return lines;
   }
 
   /** Your criminal record (this character's): arrests, and what for. */
@@ -2780,8 +2815,11 @@ export class Game {
     if (html !== this.shopHtml) {
       this.shopHtml = html;
       const scroll = this.shopEl.scrollTop;
+      const listScroll = this.shopEl.querySelector('.shop-body')?.scrollTop ?? 0;
       this.shopEl.innerHTML = html;
       this.shopEl.scrollTop = scroll;
+      const list = this.shopEl.querySelector('.shop-body');
+      if (list) list.scrollTop = listScroll;
     }
     // More than fits: a fade at the bottom says scroll.
     requestAnimationFrame(() => this.markShopMore());
@@ -2830,10 +2868,13 @@ export class Game {
       card.innerHTML =
         `<div class="sheet-head"><h2>Police</h2></div><div class="sheet-body police">` +
         (Array.isArray(this.save.state.policeWhy) ? (this.save.state.policeWhy as string[]).map((l) => `<p class="police-why">${l}</p>`).join('') : '') +
-        `<p>A patrol car pulls up beside you, lights off. Two of them get out. One has a hand on his belt.</p>` +
-        `<p>"${masked ? 'Take that off your face. ' : ''}Hold up. Where are you headed ${partOfDay() === 'night' || partOfDay() === 'dusk' ? 'tonight' : 'today'}?"</p>` +
-        `<button type="button" class="place" data-police="stay"><b>Stay calm</b><small>Let them talk. They'll want to search you.</small></button>` +
-        `<button type="button" class="place" data-police="talk"><b>Talk your way out</b><small>Speech. A good story and they move on without a search; a bad one and they look harder.</small></button>` +
+        (this.save.state.policeStop === 'car'
+          ? `<p>A second flashlight on the other window. "Step out of the vehicle. Slowly. Hands where I can see them."</p>` +
+            `<button type="button" class="place" data-police="stay"><b>Step out</b><small>Do as they say. They've run the plate.</small></button>`
+          : `<p>A patrol car pulls up beside you, lights off. Two of them get out. One has a hand on his belt.</p>` +
+            `<p>"${masked ? 'Take that off your face. ' : ''}Hold up. Where are you headed ${partOfDay() === 'night' || partOfDay() === 'dusk' ? 'tonight' : 'today'}?"</p>` +
+            `<button type="button" class="place" data-police="stay"><b>Stay calm</b><small>Let them talk. They'll want to search you.</small></button>` +
+            `<button type="button" class="place" data-police="talk"><b>Talk your way out</b><small>Speech. A good story and they move on without a search; a bad one and they look harder.</small></button>`) +
         `<button type="button" class="place" data-police="run"><b>Run</b><small>Agility, and your legs. If they catch you, it'll hurt.</small></button>` +
         `</div>`;
       return;
@@ -3343,12 +3384,18 @@ export class Game {
       // Saved in the beat after a fight ended: finish ending it.
       const e = this.encounter;
       if (e?.stage === 'over' && e.result !== 'killed') {
-        const lines = Array.isArray(this.save.state.koLines) ? (this.save.state.koLines as string[]) : [RESULT[e.result ?? 'left']];
-        setTimeout(() => {
-          if (this.encounter !== e) return;
-          if (e.result === 'lost') this.knockedOut(lines);
-          else this.closeEncounter(lines);
-        }, 400);
+        const saved = e.result === 'lost' ? this.save.state.koLines : this.save.state.endLines;
+        const lines = Array.isArray(saved) ? (saved as string[]) : [RESULT[e.result ?? 'left']];
+        this.ending = true;
+        this.timers.push(
+          window.setTimeout(() => {
+            this.ending = false;
+            if (this.closed || this.encounter !== e) return;
+            delete this.save.state.endLines;
+            if (e.result === 'lost') this.knockedOut(lines);
+            else this.closeEncounter(lines);
+          }, 400),
+        );
       }
     } else if (Array.isArray(this.save.state.koLines)) {
       // Saved while you were out cold: you still have to come to.
@@ -3415,6 +3462,8 @@ export class Game {
 
   /** Closes the game view (back to the menu). */
   close() {
+    this.closed = true;
+    clearTimeout(this.noteFade);
     this.koListen?.abort();
     this.koHint.remove();
     for (const t of this.timers) clearTimeout(t);
@@ -3441,8 +3490,10 @@ export class Game {
     this.youBtn.hidden = true;
     this.shopEl.hidden = true;
     this.closeSheet();
-    this.view.querySelector('#death')?.remove();
+    document.getElementById('death')?.remove();
   }
+  /** Closed (quit to the menu, a new game): its leftover timers do nothing. */
+  private closed = false;
 
   setSize(width: number, height: number, pixelRatio = 1) {
     void pixelRatio;
@@ -3470,7 +3521,7 @@ export class Game {
         cs.warrant = true;
         cs.bailPaid = 0;
         this.infamy.heat = Math.min(100, this.infamy.heat + 40);
-        if (this.running) this.note(['You missed your court date. There\'s a warrant out for you now, and your bail is gone.']);
+        if (this.running && this.tvState.on) this.note(['You missed your court date. There\'s a warrant out for you now, and your bail is gone.']);
       }
       const was = this.weather.now;
       if (updateWeather(this.weather) && this.running && this.tvState.on && this.weather.now !== was && !this.inside) {
@@ -3486,7 +3537,7 @@ export class Game {
     this.tv.setJam(this.jam);
     this.syncButtons();
     if (this.sheet && this.sheet !== 'stats' && this.sheet !== 'police' && !this.canOpenSheet) this.closeSheet();
-    if (this.noteTimer > 0 && (this.noteTimer -= dt) <= 0) {
+    if (this.running && this.noteTimer > 0 && (this.noteTimer -= dt) <= 0) {
       // A short fade, not a blink.
       this.noteEl.classList.add('fading');
       this.noteFade = window.setTimeout(() => {
@@ -3531,7 +3582,19 @@ export class Game {
     this.clockShown = key;
     this.clockEl.querySelector('b')!.textContent = s;
     this.clockEl.querySelector('span')!.textContent = `${dateText(t)} · ${WEATHER_NAME[wx]}`;
-    // Opening hours change with the time.
+    // Opening hours change with the time: waiting at the door when it opens, you
+    // go in; there at closing, you're shown out.
+    if (this.place !== 'street' && this.running && this.tvState.on) {
+      const inside = this.inside;
+      // (Just arrived, or the game just loaded here: nothing's changed yet.)
+      if (this.insideAt !== this.place) {
+        this.insideAt = this.place;
+        this.wasInside = inside;
+      } else if (inside !== this.wasInside && placeInfo(this.place).indoors) {
+        this.wasInside = inside;
+        this.note(inside ? [`The ${placeInfo(this.place).name} opens. You go in.`, ...this.goingIn()] : [`Closing time. They show you out and lock the ${placeInfo(this.place).name} behind you.`]);
+      }
+    }
     if (this.place !== 'street') this.renderShop();
     if (this.sheet === 'places') this.renderSheet();
   }
@@ -3633,6 +3696,7 @@ function courtDate(t = Date.now()): number {
 
 /** Days inside: whatever you were on has long worn off, and the cigarette's out. */
 function wearOff(h: Health) {
+  h.cold = 0;
   h.wired = false;
   delete h.wiredBy;
   delete h.wiredUntil;
@@ -3653,4 +3717,9 @@ function custodyCare(h: Health): string[] {
   h.bleeding = 0;
   h.blood = Math.max(h.blood, Math.round(h.maxBlood * 0.6));
   return [was ? 'They see the blood and take you to the ER first, cuffed to a gurney. A nurse closes the wound without a word to you.' : "You're grey and shaking. They take you to the ER first, cuffed to a gurney, and someone hangs a bag of fluids."];
+}
+
+/** Your court date is today (the court sits weekdays, and the date is the afternoon it closes). */
+function hearingToday(courtAt: number, t = Date.now()): boolean {
+  return new Date(courtAt).toDateString() === new Date(t).toDateString();
 }

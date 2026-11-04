@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.82',
+    date: 'Nov 4',
+    items: [
+      'Fight fixes: pepper spray in your bag works again (dig it out, then spray); with both hands full, weapons you’d need a hand for are greyed out instead of doing nothing; a gun at the bottom of your bag can’t be flashed in a mugging or used to pistol-whip; you can take out a second knife of the same kind.',
+      'Drawing from an ankle sheath says so. Smashing, shooting or punching someone already on the ground reads like they’re on the ground.',
+      'Fight text: no “they lie there” while they’re standing, no “dazed” on someone out cold, no doubled “unconscious” lines, and how bad a cut reads matches how badly it bleeds. “What are they carrying?” no longer mistakes a baggie for a bag.',
+      'Knocked out by a drug, you’re under for an hour or more, not a minute. A bluff that works calms them, and the warning signs come again if they get suspicious again.',
+      'More variety in the lines you see most (missed kicks, running away, letting them go, getting up), and torture lines no longer scream twice.',
+    ],
+  },
+  {
     v: '0.81',
     date: 'Nov 4',
     items: [

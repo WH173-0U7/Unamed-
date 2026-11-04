@@ -66,7 +66,7 @@ export function punchText(t: Tier, where: string, into: string): string[] {
       `You throw a sloppy punch and it lands ${where}.`,
       `You flail at them and connect ${where}.`,
       `You throw everything into a clumsy swing; it lands ${where}.`,
-      `Your fist comes to in a big, slow arc and lands ${where}. Your knuckles sting.`,
+      `Your fist swings around in a big, slow arc and lands ${where}. Your knuckles sting.`,
       `You shut your eyes as you swing, and it lands ${where}.`,
     ];
   if (t === 1)
@@ -133,7 +133,7 @@ export function weaponText(t: Tier, kind: 'blade' | 'blunt' | 'bottle' | 'broken
       ? [`You jab the ${w} at them, wild, and it goes ${into}.`, `You stab at them with the ${w}, eyes half shut; it goes ${into}.`]
       : t === 1
         ? [`You stab the ${w} ${into}.`, `You drive the ${w} deep ${into}.`, `You lunge with the ${w} and it goes ${into}.`]
-        : [`Short and quick: the ${w} goes in ${where} and comes out again.`, `You step in and put the ${w} ${into}, twice.`];
+        : [`Short and quick: the ${w} goes ${into} and comes out again.`, `You step in and put the ${w} ${into}, twice.`];
   if (kind === 'broken')
     return t === 0
       ? [`You jab the broken bottle at them, wild, and the glass catches them ${where}.`, `You swipe the jagged neck at them; it catches them ${where}.`]
@@ -151,7 +151,7 @@ export function weaponText(t: Tier, kind: 'blade' | 'blunt' | 'bottle' | 'broken
       ? [`You stab clumsily with the syringe and stick them ${where}.`]
       : t === 1
         ? [`You jab the syringe at them and stick them ${where}.`, `You stab the needle ${into}.`]
-        : [`You slip the needle in ${where}, quick as a nurse.`, `One fast jab ${into}.`];
+        : [`You slip the needle ${into}, quick as a nurse.`, `One fast jab ${into}.`];
   if (kind === 'blade')
     return t === 0
       ? [`You wave the ${w} at them and it catches them ${where}.`, `You stab wildly with the ${w}; it catches them ${where}.`, `You slash at them, eyes half shut, and the ${w} catches them ${where}.`]

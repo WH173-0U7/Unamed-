@@ -250,7 +250,10 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
   if (result === 'lost') {
     // Knocked out by a blow: a minute or two, and you come to, concussed.
     if (b.drugOut && h.blood > h.maxBlood * (PASS_OUT + 0.01)) {
-      return ['You come to on the sidewalk, sick and slow, with no idea how long you were gone.', ...(h.bleeding ? ["You're still bleeding."] : []), ...lines];
+      // Under for hours, not minutes.
+      const gone = passHours(h, 1 + Math.floor(Math.random() * 3));
+      if (h.dead) return gone;
+      return ['You come to on the sidewalk, sick and slow, with no idea how long you were gone.', ...gone, ...(h.bleeding ? ["You're still bleeding."] : []), ...lines];
     }
     if (h.blood > h.maxBlood * (PASS_OUT + 0.01)) {
       h.concussion = Math.max(h.concussion, CONCUSSION_HOURS);

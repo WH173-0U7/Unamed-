@@ -681,7 +681,7 @@ export class Game {
     // What finished you: the last thing they did.
     const lastHit = [...e.log].reverse().find((l) => l.by === 'them')?.text;
     const hitText = lastHit?.replace(/\s*You're out cold\.\s*$/, '');
-    const remember = hitText ? [`The last thing you remember: ${hitText[0].toLowerCase()}${hitText.slice(1)}`] : [];
+    const remember = hitText && !e.you.drugOut ? [`The last thing you remember: ${hitText[0].toLowerCase()}${hitText.slice(1)}`] : [];
     if (this.health.dead) {
       if (impacts.length) this.feel(impacts);
       return this.die(after.length ? [...remember, ...after] : e.log.map((l) => l.text));

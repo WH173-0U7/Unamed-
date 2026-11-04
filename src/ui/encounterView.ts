@@ -74,11 +74,10 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
   let turnStart: HTMLElement | null = null;
   const markOld = () => {
     const ps = [...log.querySelectorAll<HTMLElement>('p:not(.log-more)')];
+    // From the first line the latest move added (or the last three, if more).
     let from = ps.length - KEEP;
-    for (let i = ps.length - 1; i >= 0; i--) if (ps[i].classList.contains('by-you')) {
-      from = Math.min(from, i);
-      break;
-    }
+    const first = ps.findIndex((p) => p.classList.contains('turn-start'));
+    if (first >= 0) from = Math.min(from, first);
     from = Math.max(0, from);
     turnStart = ps[from] ?? null;
     ps.forEach((p, i) => p.classList.toggle('old', i < from));
@@ -251,10 +250,13 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         : `<div class="enc-note">${distanceLabel(e)}</div>` + bar('Noticed', Math.min(100, Math.round(e.suspicion)), 100, 'notice');
 
       // New log lines.
+      if (shown < e.log.length) for (const p of log.querySelectorAll('p.turn-start')) p.classList.remove('turn-start');
+      // (Drawing it all afresh, after a reload: the turn starts at your last move.)
+      const turnFrom = shown === 0 ? Math.max(0, e.log.map((l) => l.by).lastIndexOf('you')) : shown;
       for (; shown < e.log.length; shown++) {
         const line = e.log[shown];
         const el = document.createElement('p');
-        el.className = `by-${line.by}${line.hit ? ` hit-${line.hit}` : ''}`;
+        el.className = `by-${line.by}${line.hit ? ` hit-${line.hit}` : ''}${shown === turnFrom ? ' turn-start' : ''}`;
         // The blood it cost stands out on a hit.
         const m = line.hit ? /^(.*?)(\(−\d+\s?ml\))(.*)$/.exec(line.text) : null;
         if (m) {

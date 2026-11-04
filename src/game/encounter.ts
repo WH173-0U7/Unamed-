@@ -215,6 +215,8 @@ export interface Encounter {
   facedYou?: boolean;
   /** They know you from before (see people.ts), and how much they hate you. */
   recognised?: boolean;
+  /** They've run for it and you can go after them: how far ahead they are (0 caught, 5 gone), and how it ends if they get away. */
+  chase?: { gap: number; result: 'lost-them' | 'they-fled' };
   grudge?: number;
   /** What you know of them: what you did, how they look now. */
   history?: string;
@@ -502,6 +504,94 @@ function fleeChance(f: Body, other: Body, bonus = 0) {
   return Math.max(0.02, Math.min(0.95, c));
 }
 
+/** How far ahead someone running from you is, in words. */
+const GAP_WORDS = ['Right in front of you', 'A few steps ahead', 'Half a block ahead', 'Most of a block ahead', 'Nearly out of sight'];
+
+/**
+ * How fast someone runs, about 1 for an ordinary adult: you by your Agility,
+ * them by what they are and their build; then for both what's wrong with
+ * them (legs, blood, breath, drink, drugs, a knock on the head).
+ */
+function speed(f: Body, side: Side): number {
+  let s: number;
+  if (side === 'you') s = 0.85 + ((you.stats.agility?.level ?? 1) - 1) * 0.004;
+  else {
+    const p = enc.person;
+    s = { homeless: 0.88, junkie: 0.95, drunk: 0.8, civilian: 1 }[p.kind] * ({ Frail: 0.85, Skinny: 1.04, Average: 1, Stocky: 0.95, Athletic: 1.12, Heavyset: 0.84, Muscular: 0.98 }[p.build] ?? 1);
+  }
+  if (legs(f)) return 0;
+  const blood = f.blood / f.maxBlood;
+  if (blood < 0.85) s *= Math.max(0.3, 1 - (0.85 - blood) * 2);
+  if (f.stamina < cost(f, COST.run)) s *= 0.6;
+  else if (f.stamina < f.maxStamina * 0.3) s *= 0.85;
+  if (f.broken.includes('ribs')) s *= 0.85;
+  if (f.lung) s *= 0.5;
+  if (f.dazed) s *= 0.8;
+  if (f.blinded > 0) s *= 0.6;
+  s *= 1 - Math.min(0.5, (f.drunk ?? 0) / 250);
+  if (f.high === 'heroin' || f.high === 'fentanyl' || f.high === 'tranq') s *= 0.75;
+  else if (f.high === 'meth') s *= 1.08;
+  return s;
+}
+
+/** They run for it: a head start, and it's up to you whether to go after them. */
+function bolt(result: 'lost-them' | 'they-fled', gap: number) {
+  const e = enc;
+  e.stage = 'combat';
+  e.facedYou = true;
+  e.them.down = false;
+  e.them.yielded = false;
+  e.chase = { gap: Math.min(4.5, gap + (e.you.down ? 1 : 0) + (e.you.dazed ? 0.5 : 0)), result };
+}
+
+/** One stretch of running after them. */
+function chaseStep() {
+  const e = enc;
+  const c = e.chase!;
+  const y = e.you;
+  const T = e.them;
+  if (y.down) {
+    y.down = false;
+    say('you', 'You scramble up off the sidewalk and go after them.');
+  }
+  const mine = speed(y, 'you');
+  const theirs = speed(T, 'them');
+  spend('you', COST.run + 5);
+  spend('them', COST.run + 5);
+  const before = c.gap;
+  c.gap = Math.max(0, c.gap + (theirs - mine) * 3 + (Math.random() - 0.5) * 1.6);
+  // Ahead of you, they can duck round a corner, into a crowd, into a doorway.
+  const slip = c.gap > 0.4 && Math.random() < 0.05 + c.gap * 0.035;
+  you.gain('agility', 2);
+  you.gain('stamina', 1);
+  if (c.gap <= 0.4) {
+    // Caught.
+    delete e.chase;
+    const tackle = Math.random() < 0.45 + (mine - theirs);
+    if (tackle) {
+      T.down = true;
+      say('you', oneOf(['You catch them by the back of the jacket and drag them down onto the sidewalk.', 'You dive and catch their legs. They go down hard.', 'You run them down and shove them from behind. They sprawl on the pavement.']));
+    } else say('you', oneOf(['You catch up and grab their arm, and spin them round. They\'re trapped.', 'You cut them off against a wall. Nowhere left to go.', 'You get a hand on their collar and yank them back.']));
+    say('them', oneOf(['They\'re gasping for air.', 'Their chest heaves. They\'ve got nothing left to run with.', '"Get off me!"']));
+    scare(10);
+    you.gain('agility', 3);
+    say('info', 'You caught them.');
+    return;
+  }
+  if (c.gap >= 5 || slip) {
+    delete e.chase;
+    say('them', oneOf(['They cut through a parking lot and they\'re gone.', 'They round a corner. By the time you get there, there\'s nobody.', 'They dart across the traffic, horns blaring, and you lose them.', 'You\'re still running, but they\'re long gone.']));
+    end(c.result);
+    return;
+  }
+  const lines = c.gap < before - 0.3
+    ? (c.gap < 1.5 ? ['You\'re right behind them now. You can hear them breathing.', 'You\'re gaining. A few more steps.', 'They look back, and you\'re right there.'] : ['You\'re gaining on them.', 'You close the gap, legs burning.', 'They\'re slowing. You\'re catching up.'])
+    : c.gap > before + 0.3
+      ? (c.gap > 3.5 ? ['They\'re pulling away. You can barely see them.', 'Your lungs are on fire. They\'re getting away.', 'They\'re almost out of sight.', 'A block ahead now, and still going.'] : ['They\'re faster than you. The gap grows.', 'They pull ahead.', 'You push harder, but they\'re pulling away.'])
+      : ['You keep pace, but you can\'t close the gap.', 'Neither of you is gaining.', 'Feet pounding the sidewalk. Same distance.'];
+  say(c.gap < before - 0.3 ? 'you' : c.gap > before + 0.3 ? 'them' : 'info', oneOf(lines));
+}
+
 /** Chance to get back up off the floor. */
 const getUpChance = (f: Body) => Math.max(0.1, 0.8 - legs(f) * 0.3 - (f.dazed ? 0.2 : 0) - (f.stamina < COST.getUp ? 0.3 : 0));
 
@@ -533,6 +623,20 @@ export function options(e: Encounter): Option[] {
 }
 
 function rawOptions(e: Encounter): Option[] {
+  if (e.chase && e.stage === 'combat') {
+    const y = e.you;
+    const lame = legs(y) > 0;
+    return [
+      {
+        id: 'chase',
+        label: y.down ? 'Get up and go after them' : 'Chase them',
+        hint: lame ? `Your leg${legs(y) > 1 ? 's are' : ' is'} broken` : `${GAP_WORDS[Math.min(4, Math.max(0, Math.ceil(e.chase.gap)))]}${y.stamina < cost(y, COST.run) ? " · you're out of breath" : ''}`,
+        disabled: lame,
+        cat: 'move',
+      },
+      { id: 'let-go', label: 'Let them go', cat: 'move' },
+    ];
+  }
   switch (e.stage) {
     case 'menu':
     case 'surveil':
@@ -742,8 +846,8 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           e.distance = 1;
         } else {
           say('them', oneOf([`The ${who} sees you, and knows you. They hurry away, looking back over their shoulder.`, `The ${who} catches sight of you and freezes, then runs.`]));
-          say('info', "They know you. They won't let you near them again.");
-          end('lost-them');
+          say('info', "They know you, and they're running.");
+          bolt('lost-them', 3);
         }
       } else say('info', `${p.kind === 'homeless' ? 'Someone homeless' : `A ${who}`}, ${DISTANCE[0].toLowerCase()}. They haven't seen you.`);
     }
@@ -1001,6 +1105,32 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
       say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
       if (theyGoFirst) theirTurn();
       endOfRound();
+    }
+    return impacts;
+  }
+
+  // ---------- They're running: after them, or let them go ----------
+  if (e.chase && e.stage === 'combat') {
+    if (id === 'let-go') {
+      const c = e.chase;
+      delete e.chase;
+      say('you', oneOf(['You let them go.', 'You stop and watch them go.', 'Not worth it. You let them run.']));
+      end(c.result);
+      return impacts;
+    }
+    if (id !== 'chase' || legs(e.you)) return impacts;
+    const fought = e.fought;
+    chaseStep();
+    // (No getting your breath back while you're running flat out.)
+    const wind = [e.you.stamina, e.them.stamina];
+    endOfRound();
+    [e.you.stamina, e.them.stamina] = [Math.min(e.you.stamina, wind[0]), Math.min(e.them.stamina, wind[1])];
+    e.fought = fought;
+    // Bled out while running: they go down in the street ahead of you.
+    if (e.chase && (e.them.out || e.them.blood <= e.them.maxBlood * PASS_OUT)) {
+      delete e.chase;
+      e.them.down = true;
+      say('them', 'Ahead of you they stagger, and fold onto the sidewalk.');
     }
     return impacts;
   }
@@ -2104,8 +2234,8 @@ function theirTurn() {
   if (T.blood < T.maxBlood * 0.72 && Math.random() < wants) {
     spend('them', COST.run);
     if (Math.random() < fleeChance(T, e.you)) {
-      say('them', legs(T) ? "They limp off into the dark. They're gone." : "They scramble away and run. They're gone.");
-      end('they-fled');
+      say('them', oneOf(['They scramble away and run for it.', 'They break away and run.']));
+      bolt('they-fled', 1.5);
     } else say('them', legs(T) ? "They try to run, but their leg won't carry them." : 'They try to run. You cut them off.');
     return;
   }
@@ -2310,9 +2440,9 @@ function spotted() {
     endOfRound();
   } else {
     enc.facedYou = true;
-    say('them', oneOf(['They spot you and bolt. Gone.', 'They see you, and run. Gone in seconds.']));
+    say('them', oneOf(['They spot you and bolt.', 'They see you, and run.']));
     say('info', spottedWhy());
-    end('lost-them');
+    bolt('lost-them', 3 - enc.distance);
   }
 }
 
@@ -2532,8 +2662,8 @@ function mug() {
   const P = personalityOf(e.person);
   if (fear >= 30 && legs(T) === 0 && Math.random() < clamp(0.55 * P.flee - P.fight, 0.05, 0.95)) {
     if (Math.random() < fleeChance(T, e.you, 0.1)) {
-      say('them', oneOf(['They shove past you and run. Gone.', 'They bolt into the traffic. You lose them.']));
-      end('lost-them');
+      say('them', oneOf(['They shove past you and run.', 'They bolt out into the traffic.']));
+      bolt('lost-them', 1.5);
       return;
     }
     say('them', 'They try to run. You grab them by the collar and drag them back.');
@@ -2559,8 +2689,8 @@ function yieldTurn() {
   if (fear < nerve && Math.random() < (nerve - fear) / 70) {
     if (!T.down && legs(T) === 0 && Math.random() < clamp(0.55 * P.flee - P.fight, 0.05, 0.95)) {
       if (Math.random() < fleeChance(T, e.you, 0.1)) {
-        say('them', "They see their chance and bolt. They're gone.");
-        end('they-fled');
+        say('them', 'They see their chance and bolt.');
+        bolt('they-fled', 1.5);
       } else {
         say('them', 'They try to bolt. You catch them by the collar and slam them into the wall.');
         scare(10);

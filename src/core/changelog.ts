@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.85',
+    date: 'Nov 4',
+    items: [
+      'When someone runs from you (they know you, they spot you following, or they break away mid-fight), they no longer just vanish. You can chase them, or let them go.',
+      'A chase is your Agility against how fast they are: their build, whether they’re drunk or high, hurt, bleeding or out of breath. You get tired too, and no one gets their breath back while running. Ahead of you, they can duck round a corner and be gone.',
+      'Catch them and you drag them down or pin them against a wall, and it’s on. Running after people trains your Agility.',
+    ],
+  },
+  {
     v: '0.84',
     date: 'Nov 4',
     items: [

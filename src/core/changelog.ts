@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.64',
+    date: 'Nov 4',
+    items: [
+      'New skill: Speech. It starts at 1 like the rest and grows by talking (faster when the lie works).',
+      'Stopped by the police, you can now try to talk your way out: a good story and they leave without searching you; a bad one and they search harder, bag and all. Harder when they’re after you, with a weapon showing, a mask on, or drink in you.',
+      'Following someone and they’re getting suspicious? “Act natural” to cover for yourself, or make it worse.',
+      'A clerk who doesn’t think your stolen ID is you can sometimes be talked round, and Speech helps a little when you’re telling someone to hand it over.',
+    ],
+  },
+  {
     v: '0.63',
     date: 'Nov 4',
     items: [

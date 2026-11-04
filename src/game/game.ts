@@ -4,7 +4,7 @@ import { createTv } from './tv';
 import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf, randomName } from './person';
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
-import { STAT_NAMES, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
+import { STAT_NAMES, lieBonus, persuadeBonus, train, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
 import { HIGH_HOURS, LURK_HOURS, addCaffeine, caffeineNow, caffeineLevel, drunkLevel, soberUp, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
 import { ALL_TECHNIQUES, PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
@@ -49,6 +49,8 @@ const HUMANITY: { at: number; name: string; line: string }[] = [
 /** How evil you are shows: people are more scared of you, the further gone you are. */
 // Someone far gone carries it in how they look at you, a little (strangers can't
 // know what you've done, only see it in your eyes).
+/** One of these, at random. */
+const oneOf = <T,>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)];
 /** What the pharmacy sells (iron tablets aren't: they do nothing in a hurry). */
 const SOLD_MEDS = () => MEDS.filter((m) => m.id !== 'iron');
 const evilFear = (lost: number) => Math.min(15, lost * 0.1);
@@ -879,7 +881,7 @@ export class Game {
         this.sheet = null;
         this.sheetEl.hidden = true;
         this.refresh();
-      } else if (b?.dataset.police && !this.save.state.policeResult) this.police(b.dataset.police as 'run' | 'stay');
+      } else if (b?.dataset.police && !this.save.state.policeResult) this.police(b.dataset.police as 'run' | 'stay' | 'talk');
       return;
     }
     if (t === this.sheetEl) return this.closeSheet(); // tapped outside the card
@@ -1136,7 +1138,14 @@ export class Game {
       this.note([place === 'pawn' ? '"I need to see some ID." He taps the sign: all customers must show photo ID.' : '"ID?" You haven\'t got any. "Then no."']);
       return null;
     }
-    if (Math.random() < (place === 'pawn' ? 0.2 : 0.25)) {
+    // It isn't you, and they can tell... unless you talk them round.
+    const doubt = Math.random() < (place === 'pawn' ? 0.2 : 0.25);
+    if (doubt && Math.random() < 0.15 + lieBonus(this.stats) * 0.8) {
+      train(this.stats, 'speech', 5);
+      return `They look at the photo, then at you, frowning. "Lost a lot of weight since then," you say, and laugh, and they let it go.`;
+    }
+    if (doubt) train(this.stats, 'speech', 1);
+    if (doubt) {
       // It isn't you, and they can tell.
       const line = place === 'pawn' ? `He looks at the ${lc(id.name)}, then at you, then at it again. "That's not you." He slides it back. "Get out of my shop."` : `The clerk looks at the photo, then at you. "Nice try." They keep the bottle.`;
       if (place === 'pawn') {
@@ -1691,7 +1700,7 @@ export class Game {
    * told, and you're arrested. Run: agility against your injuries; get
    * caught and they put you on the ground first.
    */
-  private police(choice: 'run' | 'stay') {
+  private police(choice: 'run' | 'stay' | 'talk') {
     const inv = this.inventory;
     const h = this.health;
     const f = this.infamy;
@@ -1701,6 +1710,24 @@ export class Game {
     let arrested = false;
     /** What they charge you with, if it comes to that. */
     const charges: string[] = [];
+    /** You lied to them and they didn't buy it: they look harder. */
+    let lied = false;
+    // Talking your way out: a story, a calm face. Harder the hotter you are,
+    // and with a weapon showing or a mask on.
+    const talk = () => {
+      const odds = Math.max(0.03, Math.min(0.9, 0.3 + lieBonus(this.stats) - f.heat / 150 - exposure(inv) * 0.6 - (w.masked ? 0.15 : 0) - ((h.drunk ?? 0) >= 40 ? 0.15 : 0)));
+      if (Math.random() < odds) {
+        lines.push(oneOf(['You tell them you\'re walking home from a late shift, and keep your voice bored. They look at each other. "Go on, then."', 'You give them a name, a street, a reason, all of it easy. One of them almost smiles. "Get home."', 'You apologise for nothing in particular and ask them for directions. They give you them, and drive off.']));
+        f.heat = Math.max(0, f.heat - 3);
+        const up = train(this.stats, 'speech', 6);
+        if (up) lines.push(`Speech went up to ${up}.`);
+        return true;
+      }
+      lines.push(oneOf(['You start on a story. Halfway through, you hear how it sounds. So do they.', 'You talk too fast. "Uh huh. Turn around, hands on the car."']));
+      lied = true;
+      train(this.stats, 'speech', 2);
+      return false;
+    };
     if (choice === 'run') {
       const legs = h.broken.filter((p) => p.endsWith('leg')).length;
       const odds = 0.35 + accuracyBonus(this.stats) - legs * 0.3 - (h.cold ?? 0) * 0.05 - (h.stress ?? 0) * 0.002 - (h.blood < h.maxBlood * 0.75 ? 0.15 : 0);
@@ -1715,17 +1742,19 @@ export class Game {
         arrested = true;
         charges.push('Resisting arrest');
       }
+    } else if (choice === 'talk' && talk()) {
+      // Talked your way out: no search.
     } else {
       if (w.masked) {
         w.masked = false;
         lines.push(`You pull the ${w.face!.toLowerCase()} down.`);
       }
       // Do you look like who they're after?
-      const looks = Math.random() < (f.heat / 100) * (1 - anonymity(inv) * 0.5);
+      const looks = Math.random() < (f.heat / 100) * (1 - anonymity(inv) * 0.5) + (lied ? 0.12 : 0);
       lines.push('They pat you down and go through your pockets.');
       // Weapons get taken off you, and they remember it. (A loaded syringe is evidence instead.)
       // A pat-down is your clothes. Your bag, only if they've reason to.
-      const bagSearched = looks || f.heat > 40 || Math.random() < 0.35;
+      const bagSearched = looks || lied || f.heat > 40 || Math.random() < 0.35;
       if (!bagSearched && inv.items.some((x) => x.kind === 'weapon' && inBag(inv, x.spot))) lines.push("They don't look in your bag.");
       const blades = inv.items.filter((x) => x.kind === 'weapon' && !(x.secret && x.secret !== 'empty') && (bagSearched || !inBag(inv, x.spot)));
       // A switchblade, a butterfly knife, a push dagger: illegal to carry, and that's an arrest.
@@ -2226,6 +2255,7 @@ export class Game {
         `<p>A patrol car pulls up beside you, lights off. Two of them get out. One has a hand on his belt.</p>` +
         `<p>"${masked ? 'Take that off your face. ' : ''}Hold up. Where are you headed ${partOfDay() === 'night' || partOfDay() === 'dusk' ? 'tonight' : 'today'}?"</p>` +
         `<button type="button" class="place" data-police="stay"><b>Stay calm</b><small>Let them talk. They'll want to search you.</small></button>` +
+        `<button type="button" class="place" data-police="talk"><b>Talk your way out</b><small>Speech. A good story and they move on without a search; a bad one and they look harder.</small></button>` +
         `<button type="button" class="place" data-police="run"><b>Run</b><small>Agility, and your legs. If they catch you, it'll hurt.</small></button>` +
         `</div>`;
       return;
@@ -2457,8 +2487,13 @@ export class Game {
         ...this.menaceRows(),
         ['Total, before who they are', `+${Math.round(this.menace())}`],
       ],
+      speech: [
+        ['Lies that land', `+${pct(lieBonus(st))}`],
+        ['Talking them into handing it over', `+${pct(persuadeBonus(st.speech.level))}`],
+      ],
     };
     const how: Record<StatName, string> = {
+      speech: 'Talking your way out of things: the police, a clerk who doubts your ID, someone who catches you following them. More when the lie works.',
       sneak: 'Surveilling, and ambushes (bum rush, sucker punch, shove).',
       strength: 'Landing blows (slowly).',
       unarmed: 'Landing blows, ambushes and techniques. Each new level can teach you a new move.',

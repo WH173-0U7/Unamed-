@@ -21,9 +21,13 @@
  * - **Intimidation:** how scared people are of you: scared people give up
  *   without a fight, hand over what they've got, and tell you what you want
  *   to know. Trained by threatening, mugging and torturing.
+ * - **Speech:** talking, and above all lying: talking your way past the
+ *   police, a clerk who doesn't think your ID is you, someone who's caught
+ *   you following them; and talking people into handing things over.
+ *   Trained by talking (more when the lie works).
  */
 
-export type StatName = 'sneak' | 'strength' | 'unarmed' | 'weapons' | 'agility' | 'stamina' | 'intimidation';
+export type StatName = 'sneak' | 'strength' | 'unarmed' | 'weapons' | 'agility' | 'stamina' | 'intimidation' | 'speech';
 
 export interface Stat {
   level: number;
@@ -41,9 +45,10 @@ export const STAT_NAMES: Record<StatName, string> = {
   agility: 'Agility',
   stamina: 'Stamina',
   intimidation: 'Intimidation',
+  speech: 'Speech',
 };
 /** Shorter names for the stats along the top of a small screen. */
-export const STAT_SHORT: Record<StatName, string> = { sneak: 'Snk', strength: 'Str', unarmed: 'Unr', weapons: 'Wpn', agility: 'Agi', stamina: 'Stm', intimidation: 'Itm' };
+export const STAT_SHORT: Record<StatName, string> = { sneak: 'Snk', strength: 'Str', unarmed: 'Unr', weapons: 'Wpn', agility: 'Agi', stamina: 'Stm', intimidation: 'Itm', speech: 'Spc' };
 
 /** Levels go to 100, and each one takes longer than the last. */
 export const MAX_LEVEL = 100;
@@ -57,6 +62,7 @@ export function newStats(): Stats {
     agility: { level: 1, xp: 0 },
     stamina: { level: 1, xp: 0 },
     intimidation: { level: 1, xp: 0 },
+    speech: { level: 1, xp: 0 },
   };
 }
 
@@ -108,3 +114,8 @@ export const maxStamina = (s: Stats) => 100 + Math.round((s.stamina.level - 1) *
 export const staminaRegen = (s: Stats) => 7 + (s.stamina.level - 1) * 0.12;
 /** Intimidation: how much more scared of you people are (+0.6 fear a level). */
 export const fearBonus = (s: Stats) => Math.round((s.intimidation.level - 1) * 0.6);
+
+/** Speech: how much more likely a lie is to work (+0.6% a level, +59% at 100). */
+export const lieBonus = (s: Stats) => ((s.speech?.level ?? 1) - 1) * 0.006;
+/** Speech: talking someone into handing it over (+0.2% a level, +20% at 100). */
+export const persuadeBonus = (level: number) => (level - 1) * 0.002;

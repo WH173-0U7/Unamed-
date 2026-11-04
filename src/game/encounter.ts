@@ -18,6 +18,8 @@ import {
   staminaRegen,
   strengthDamage,
   weaponAccuracy,
+  lieBonus,
+  persuadeBonus,
   weaponDamage,
   train,
   type StatName,
@@ -256,6 +258,8 @@ export interface Encounter {
   recent?: string[];
   /** Your Unarmed level (which techniques you know), set as you act. */
   unarmedLevel?: number;
+  /** Your Speech level, set as you act (for talking them into things). */
+  speechLevel?: number;
   /** What they told you: someone has your old things ('thief'), or nothing. */
   tip?: 'thief' | 'none';
 }
@@ -291,7 +295,7 @@ const VIOLENCE_IDS = ['bumrush', 'sucker', 'shove', 'mug', 'kneecap', 'slam', 'r
 export const FEAR_NAMES = ['Calm', 'Wary', 'Scared', 'Terrified'];
 export const fearLevel = (f: number) => (f >= 70 ? 3 : f >= 45 ? 2 : f >= 20 ? 1 : 0);
 /** Chance they give up when you tell them to (fear, and a bonus for surprise). */
-export const yieldChance = (e: Encounter, bonus = 0) => clamp(((e.them.fear ?? 0) - 20) / 60 + bonus + personalityOf(e.person).yield, 0.04, personalityOf(e.person).maxYield);
+export const yieldChance = (e: Encounter, bonus = 0) => clamp(((e.them.fear ?? 0) - 20) / 60 + bonus + persuadeBonus(e.speechLevel ?? 1) + personalityOf(e.person).yield, 0.04, personalityOf(e.person).maxYield);
 /** How it looks, on the button. */
 const oddsHint = (p: number) => (p >= 0.7 ? 'They look ready to break' : p >= 0.4 ? 'They might give it up' : p >= 0.15 ? 'They look unsure of you' : "They aren't scared of you");
 /** They get more (or less) scared of you. */
@@ -521,6 +525,8 @@ function rawOptions(e: Encounter): Option[] {
         { id: 'build', label: 'Size up their build', disabled: e.known.build, cat: 'surveil' },
         { id: 'carrying', label: 'What are they carrying?', disabled: e.known.carrying, hint: e.distance < 1 ? 'Need to be closer' : undefined, cat: 'surveil' },
         { id: 'awareness', label: 'How aware are they?', disabled: e.known.awareness, cat: 'surveil' },
+        // Noticed, or nearly: cover for yourself.
+        ...(e.suspicion >= 35 ? [{ id: 'bluff', label: 'Act natural', hint: 'Speech: look like you belong here', cat: 'surveil' as Category }] : []),
         { id: 'sex', label: 'Get a look at them', hint: e.known.sex && e.known.race ? undefined : e.distance < 1 ? 'Hard to tell from here' : 'Their face, their build', disabled: e.known.sex && !!e.known.race, cat: 'surveil' },
         { id: 'read', label: 'Read them', hint: e.known.personality ? undefined : e.distance < 1 ? 'Need to be closer' : 'What kind of person?', disabled: !!e.known.personality, cat: 'surveil' },
         { id: 'bumrush', label: 'Bum rush', hint: 'Knock them down', cat: 'violence' },
@@ -644,6 +650,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
   landed = null;
   enc = e;
   e.unarmedLevel = stats.unarmed?.level ?? 1;
+  e.speechLevel = stats.speech?.level ?? 1;
   outBefore = !!e.them.out;
   you = {
     stats,
@@ -778,6 +785,20 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         say('info', `${P.name}. ${P.desc}`);
         watch(6);
         you.gain('sneak', 2);
+        break;
+      }
+      case 'bluff': {
+        // Stop, check your phone, look lost: anything but following them.
+        const odds = clamp(0.35 + lieBonus(stats) - (e.conspicuous ? 0.2 : 0) - (e.exposed ?? 0) * 0.4 - aw * 0.06, 0.05, 0.92);
+        if (Math.random() < odds) {
+          e.suspicion = Math.max(0, e.suspicion - 35);
+          say('you', oneOf(['You stop and frown at your phone like you\'re lost, and let them get ahead. They glance back once, and lose interest.', 'You cross to a shop window and study it. In the glass you watch them decide you\'re nobody.', 'You make a call to no one, laughing at nothing. They look away.']));
+          you.gain('speech', 4);
+        } else {
+          e.suspicion += 25;
+          say('you', oneOf(['You stop dead and stare at your phone. It looks exactly like what it is.', 'You try to look casual and overdo it. They look right at you.']));
+          you.gain('speech', 1);
+        }
         break;
       }
       case 'sex': {

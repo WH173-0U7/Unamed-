@@ -266,9 +266,11 @@ export class Game {
       f.textContent = text;
       // Over the button as it is now (the list may have moved).
       const at = now?.isConnected ? now.getBoundingClientRect() : rect;
-      f.style.left = `${Math.min(innerWidth - 12, Math.max(12, at.left + at.width / 2))}px`;
       f.style.top = `${at.top}px`;
       document.body.append(f);
+      // (Centred on the button, but all of it on the screen.)
+      const half = f.offsetWidth / 2;
+      f.style.left = `${Math.min(innerWidth - half - 8, Math.max(half + 8, at.left + at.width / 2))}px`;
       window.setTimeout(() => f.remove(), 1300);
     }
     // Something new on you: the Pockets tab bounces.
@@ -710,7 +712,7 @@ export class Game {
     if (!wasOver && e.stage === 'over' && e.result !== 'killed') {
       const ko = e.result === 'lost';
       // They got away (or walked off): say how, and why, not just that they're gone.
-      const how = e.result === 'lost-them' || e.result === 'they-fled' ? [...e.log.slice(logFrom, fightTo).filter((l) => l.by !== 'you' && !/ went up to \d+\.$/.test(l.text)).map((l) => l.text).slice(-2), ...(e.whyRan ? [e.whyRan] : [])].filter((x, i, a) => a.indexOf(x) === i) : [];
+      const how = e.result === 'lost-them' || e.result === 'they-fled' ? [...e.log.slice(logFrom, fightTo).filter((l) => l.by !== 'you' && !/ went up to \d+\.$/.test(l.text)).map((l) => l.text).slice(-2), ...(e.chaseEnd ? [e.chaseEnd] : []), ...(e.whyRan ? [e.whyRan] : [])].filter((x, i, a) => a.indexOf(x) === i) : [];
       const lines = ko && e.chaseOut ? ['You collapsed.', ...after] : ko ? [RESULT.lost, ...remember, ...after] : [RESULT[e.result ?? 'left'], ...how, ...after];
       // (Saved now: a reload in the beat still ends it properly.)
       if (ko) this.save.state.koLines = lines;
@@ -3670,7 +3672,7 @@ export class Game {
           !inside
             ? ['Closing time. They show you out and lock up behind you.']
             : armed
-              ? [`${name} opens. The deputy waves you through the metal detector, and it shrieks.`, ...this.goingIn()]
+              ? [`${name} opens. You join the line for the metal detector.`, ...this.goingIn()]
               : [`${name} opens. You go in.`, ...this.goingIn()],
         );
       }

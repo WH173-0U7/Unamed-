@@ -277,7 +277,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       logMore();
 
       q('.enc-title').textContent =
-        e.stage === 'over' ? RESULT[e.result ?? 'left'] : e.stage === 'combat' && e.them.out ? STAGE_TITLE.helpless : e.stage === 'combat' && e.them.yielded ? STAGE_TITLE.yielded : STAGE_TITLE[e.stage];
+        e.stage === 'over' ? RESULT[e.result ?? 'left'] : e.stage === 'combat' && e.chase ? "They're running" : e.stage === 'combat' && e.them.out ? STAGE_TITLE.helpless : e.stage === 'combat' && e.them.yielded ? STAGE_TITLE.yielded : STAGE_TITLE[e.stage];
       opts = options(e);
       const cats = [...new Set(opts.filter((o) => o.cat).map((o) => o.cat!))];
       const key = cats.join(',');

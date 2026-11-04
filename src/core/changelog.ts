@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.94',
+    date: 'Nov 4',
+    items: [
+      'Chases: the Chase button now shows how far ahead they are, and why you can’t (a broken leg). The screen is titled “They’re running”, not “Fight”. When a chase ends because you ran out of breath, couldn’t get up, or let them go, the closing note says so.',
+      'Holding a blade to someone’s eye is pure fear: it no longer makes them pass out “from the pain”. Cutting the second cheek says the other cheek.',
+      'Lists of what’s on someone say “$105 in cash”, not “cash, $105”. The courthouse opening while you wait with a knife doesn’t say the detector shrieks twice.',
+      'Small layout fixes: the label after moving something in Pockets stays on screen, fight buttons don’t shift the list sideways when they jolt, and on very short landscape screens the police choices show just their names so the text has room.',
+    ],
+  },
+  {
     v: '0.93',
     date: 'Nov 4',
     items: [

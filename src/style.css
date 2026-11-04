@@ -4857,3 +4857,19 @@ body[data-drug='withdrawal'] #game {
     margin-top: 0;
   }
 }
+
+/* Round 8 (browser play) */
+/* A chase: the distance (and why you can't) shows under the button. */
+#enc[data-stage='combat'] .enc-extra button[data-id='chase'] small {
+  display: block;
+}
+/* The jolt on a fight button doesn't make the list scroll sideways. */
+#enc .enc-opts {
+  overflow-x: hidden;
+}
+/* Very short landscape: the police choices as just their names, so the text has room. */
+@media (orientation: landscape) and (max-height: 340px) {
+  .police-choice .place small {
+    display: none;
+  }
+}

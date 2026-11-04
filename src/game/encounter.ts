@@ -225,6 +225,8 @@ export interface Encounter {
   whyRan?: string;
   /** You collapsed while chasing them: nobody beat you, nobody was there to rob you. */
   chaseOut?: boolean;
+  /** How a chase ended on your side (out of breath, you stopped), for the closing note. */
+  chaseEnd?: string;
   grudge?: number;
   /** What you know of them: what you did, how they look now. */
   history?: string;
@@ -571,6 +573,7 @@ function chaseStep() {
       c.gap += speed(T, 'them') * 1.5;
       say('you', 'You try to get up, and your legs go out from under you. They\'re getting away.');
       if (c.gap >= 5) {
+        e.chaseEnd = 'You couldn\'t get up in time.';
         delete e.chase;
         end(c.result);
       }
@@ -582,7 +585,8 @@ function chaseStep() {
   if (y.stamina < cost(y, COST.run) / 2) {
     // Nothing left: you stop, hands on your knees.
     delete e.chase;
-    say('you', vary(['You can\'t go on. You stop, hands on your knees, and watch them go.', 'Your legs won\'t do it anymore. You stand there, heaving, and they\'re gone.']));
+    e.chaseEnd = vary(['You can\'t go on. You stop, hands on your knees, and watch them go.', 'Your legs won\'t do it anymore. You stand there, heaving, and they\'re gone.']);
+    say('you', e.chaseEnd);
     end(c.result);
     return;
   }
@@ -1162,7 +1166,8 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
     if (id === 'let-go') {
       const c = e.chase;
       delete e.chase;
-      say('you', oneOf(['You let them go.', 'You stop and watch them go.', 'Not worth it. You let them run.']));
+      e.chaseEnd = oneOf(['You let them go.', 'You stop and watch them go.', 'Not worth it. You let them run.']);
+      say('you', e.chaseEnd);
       // (Your choice: you didn't lose them, you stopped.)
       end(c.result === 'lost-them' ? 'left' : c.result);
       return impacts;
@@ -2864,7 +2869,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
       const best = [...all].sort((x, y) => valueOf(y) - valueOf(x))[0];
       best.hidden = true;
     }
-    const shown = all.filter((l) => !l.hidden).map((l) => a(lc(lootLabel(l))));
+    const shown = all.filter((l) => !l.hidden).map((l) => lootWords(l));
     say('them', shown.length ? `They turn out their pockets${isBrute(e.person.personality) ? '' : ' with shaking hands'}: ${list(shown)}.` : "They turn out their pockets. There's nothing in them.");
     if (shown.length) maybeSay('emptied', 0.85);
     const arms_ = e.person.carrying.filter((it) => it.weapon || it.spray);
@@ -2882,7 +2887,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
       for (const l of g.loot)
         if (l.hidden) {
           l.hidden = false;
-          hid.push(`${a(lc(lootLabel(l)))} (${g.name.toLowerCase()}, ${l.where})`);
+          hid.push(`${lootWords(l)} (${g.name.toLowerCase()}, ${l.where})`);
         }
     }
     const all = e.person.clothes.flatMap((g) => g.loot);
@@ -2891,7 +2896,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
       hid.length
         ? `You pat them down and find ${list(hid)} they were keeping from you.`
         : all.length
-          ? `You pat them down: ${list([...all.map((l) => a(lc(lootLabel(l)))), ...e.person.carrying.filter((it) => it.weapon || it.spray).map((it) => a(lc(it.name)))])}. Nothing else.`
+          ? `You pat them down: ${list([...all.map((l) => lootWords(l)), ...e.person.carrying.filter((it) => it.weapon || it.spray).map((it) => a(lc(it.name)))])}. Nothing else.`
           : 'You pat them down. Nothing on them at all.',
     );
     if (hid.length) {
@@ -2908,7 +2913,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     if (hidden.length && Math.random() < fear / 100 + 0.1) {
       const { g, l } = hidden[0];
       l.hidden = false;
-      say('them', `"Okay! Okay, there's this too." They pull ${a(lc(lootLabel(l)))} out of their ${g.name.toLowerCase()}.`);
+      say('them', `"Okay! Okay, there's this too." They pull ${lootWords(l)} out of their ${g.name.toLowerCase()}.`);
       you.gain('intimidation', 4);
     } else say('them', speak(hidden.length ? 'holdingOut' : 'allThere') || (fear >= 50 ? '"That\'s all of it, I swear. I swear!"' : '"That\'s everything." They hold your eye a little too long.'));
     return true;
@@ -2991,7 +2996,9 @@ function torture(how: string) {
     case 'cut': {
       const b = heldBlade(e);
       if (!b || (T.marks?.scars ?? []).filter((x) => x === 'cheek').length >= 2) return;
-      text = `You take their jaw in one hand and draw the ${lc(b.name)} across their cheek. It opens like paper.`;
+      text = (T.marks?.scars ?? []).includes('cheek')
+        ? `You turn their head the other way and draw the ${lc(b.name)} across the other cheek. It opens like paper.`
+        : `You take their jaw in one hand and draw the ${lc(b.name)} across their cheek. It opens like paper.`;
       (T.marks ??= {}).scars = [...(T.marks.scars ?? []), 'cheek'];
       T.bleeding = Math.max(T.bleeding, 1);
       ml = 60;
@@ -3014,15 +3021,20 @@ function torture(how: string) {
   scare(28 * (1 - (T.fear ?? 0) / 200));
   addStress(e.you, 4);
   you.gain('intimidation', 5);
-  // The pain can be too much.
+  // The pain can be too much (a blade held to the eye is fear, not pain).
   const lost = 1 - T.blood / T.maxBlood;
-  if (Math.random() < 0.03 + lost * 0.4) {
+  if (how !== 'blade' && Math.random() < 0.03 + lost * 0.4) {
     T.out = true;
     T.down = true;
     T.awake = -10;
     T.yielded = false;
     say('them', 'Their eyes roll back. They pass out from the pain.');
   } else say('them', speak('torture') || "They're sobbing now.");
+}
+
+/** A thing off them in a list ("$105 in cash", not "cash, $105"). */
+function lootWords(l: Loot): string {
+  return a(lc(lootLabel(l))).replace(/^(?:some )?cash, (\$[\d,.]+)$/i, '$1 in cash');
 }
 
 /** Takes a weapon they were carrying (it's yours now: they can't use it on you). */
@@ -3052,8 +3064,8 @@ function search(id: string, inv?: Inventory) {
     }
     const wallet = g.loot.filter((l) => l.where === 'wallet');
     const loose = g.loot.filter((l) => l.where !== 'wallet');
-    const parts = loose.map((l) => `${a(lc(lootLabel(l)))} (${l.where})`);
-    if (wallet.length) parts.unshift(`a wallet with ${list(wallet.map((l) => a(lc(lootLabel(l)))))}`);
+    const parts = loose.map((l) => `${lootWords(l)} (${l.where})`);
+    if (wallet.length) parts.unshift(`a wallet with ${list(wallet.map((l) => lootWords(l)))}`);
     say('you', `You go through their ${g.name.toLowerCase()} and find ${list(parts)}.`);
     return;
   }

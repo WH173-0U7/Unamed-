@@ -11,6 +11,19 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.84',
+    date: 'Nov 4',
+    items: [
+      'A message while someone’s across the street now sits under their card, not on top of it, and it gets out of the way when you go up to them.',
+      'Walking into a shop starts at the top of its list, not wherever you were in the last one. In landscape, what just happened shows its newest line.',
+      'In the moment after a fight ends, the buttons fade out instead of sitting there doing nothing. On small phones the fight log keeps its newest line in view.',
+      'Fight buttons no longer break words in half.',
+      'Waiting outside the courthouse with a knife: when it opens, the metal detector stops you at the door, rather than letting you in and then turning you away.',
+      'Police stops: the patrol car pulls up before you hear what they noticed, and the choices stay on screen instead of scrolling away (side by side in landscape).',
+      'Small wording fixes: what you remember before a knockout, people who see you and run, and the Stress card.',
+    ],
+  },
+  {
     v: '0.83',
     date: 'Nov 4',
     items: [

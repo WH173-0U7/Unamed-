@@ -401,7 +401,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
     const sl = stress >= 75 ? 3 : stress >= 45 ? 2 : stress >= 20 ? 1 : 0;
     const p = Math.round(stress / 4);
     out.push({
-      name: `Stress: ${['calm enough', 'on edge', 'stressed', 'panicking'][sl]}`,
+      name: `Stress: ${['calm enough', 'on edge', 'high', 'panicking'][sl]}`,
       status: true,
       meter: { k: Math.min(1, stress / 100), text: `${Math.round(stress)} / 100` },
       effects: [`Your blows land: −${p}%`, `Dodging their blows: −${p}%`, ...(sl >= 3 ? ['Your hands shake; the world narrows'] : [])],

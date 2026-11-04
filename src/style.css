@@ -2934,7 +2934,7 @@ body[data-buttons='lines'] .spot-bar {
 .enc-opts button {
   min-width: 0;
   height: auto;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   line-height: 1.2;
 }
 .enc-opts small {
@@ -3765,6 +3765,30 @@ body[data-buttons] .enc-opts button:disabled {
 #game:not(.in-shop) #note {
   top: auto;
   bottom: calc(43% + 10px);
+}
+/* Someone across the street: what happened goes under their card. */
+#game:not(.in-shop) #note.low {
+  top: 64%;
+  bottom: auto;
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  #note.low p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+}
+/* Talking to someone, or in a fight: the street's note gets out of the way. */
+#game.note-off #note {
+  visibility: hidden;
+}
+/* The beat after a fight ends: no buttons that can't be pressed. */
+#game.ending .enc-opts,
+#game.ending .enc-extra,
+#game.ending .enc-tabs {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
 }
 #seen {
   top: 40%;
@@ -4810,5 +4834,26 @@ body[data-drug='withdrawal'] #game {
 @media (orientation: landscape) and (max-height: 340px) {
   #shop .shop-head p:not(.shop-hours) {
     display: none;
+  }
+}
+
+/* Round 7 (browser play) */
+.sheet-body.police button[disabled] small,
+.police-choice button[disabled] small {
+  color: var(--ink-dim);
+  opacity: 1;
+}
+#shop > .shop-note.more {
+  -webkit-mask-image: linear-gradient(to top, #000 calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to top, #000 calc(100% - 22px), transparent);
+}
+/* Landscape: the police choices side by side, so all of them fit. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .police-choice {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    align-items: start;
+  }
+  .police-choice .place {
+    margin-top: 0;
   }
 }

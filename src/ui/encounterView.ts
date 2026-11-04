@@ -97,6 +97,10 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     const more = log.querySelector<HTMLElement>('.log-more');
     const bar = more && !more.hidden ? more.getBoundingClientRect().height : 0;
     log.scrollTop += turnStart.getBoundingClientRect().top - log.getBoundingClientRect().top - bar - 2;
+    // A small box and a long turn: the newest line matters most.
+    const last = log.lastElementChild;
+    const below = last ? last.getBoundingClientRect().bottom - log.getBoundingClientRect().bottom : 0;
+    if (below > 0) log.scrollTop += below + 2;
   };
   // More of the log below what shows: a fade at the bottom.
   const logMore = () => log.classList.toggle('more', log.scrollTop + log.clientHeight < log.scrollHeight - 4);

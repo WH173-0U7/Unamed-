@@ -2310,7 +2310,7 @@ function spotted() {
     endOfRound();
   } else {
     enc.facedYou = true;
-    say('them', oneOf(['They spot you and bolt. Gone.', 'They see you. They run, and you lose them.']));
+    say('them', oneOf(['They spot you and bolt. Gone.', 'They see you, and run. Gone in seconds.']));
     say('info', spottedWhy());
     end('lost-them');
   }

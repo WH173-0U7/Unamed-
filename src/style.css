@@ -4873,3 +4873,17 @@ body[data-drug='withdrawal'] #game {
     display: none;
   }
 }
+
+/* The note that waits for you: a quiet hint that a tap moves on. */
+#note p.note-tap {
+  margin-top: 10px;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  animation: note-tap-in 0.6s ease 1.2s both;
+}
+@keyframes note-tap-in {
+  from { opacity: 0; }
+  to { opacity: 0.55; }
+}

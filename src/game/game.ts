@@ -148,6 +148,16 @@ export class Game {
     this.statsEl.onclick = () => this.openSheet('stats');
     this.youEl = view.querySelector('#you-status') as HTMLElement;
     // Tapping your injuries shows what they do.
+    // A tap on the street (not on a button or a panel) puts away the note that waits for you.
+    view.addEventListener(
+      'click',
+      (ev) => {
+        if (!this.noteSticky || performance.now() < this.tapsFrom) return;
+        if ((ev.target as HTMLElement).closest('button, a, input, #sheet, #shop, #enc, #seen')) return;
+        this.dismissNote();
+      },
+      { signal: this.listeners.signal },
+    );
     this.youEl.addEventListener('click', (ev) => {
       if ((ev.target as HTMLElement).closest('.enc-conds')) this.openSheet('stats');
     }, { signal: this.listeners.signal });
@@ -439,7 +449,7 @@ export class Game {
   }
 
   /** A few lines shown in the middle of the screen for a while. */
-  private note(lines: string[]) {
+  private note(lines: string[], sticky = false) {
     if (!lines.length) return;
     // Mid-fight, it goes in the fight's log (not over the top of it).
     const fight = this.encounter;
@@ -462,7 +472,15 @@ export class Game {
       this.shopNote = lines;
       this.renderShop();
     }
-    this.noteEl.replaceChildren(...lines.map((l) => Object.assign(document.createElement('p'), { textContent: l })));
+    const p = (l: string) => Object.assign(document.createElement('p'), { textContent: l });
+    // What happened with someone stays up until you move on: anything else
+    // that comes in meanwhile (the weather, a cigarette burning down) goes under it.
+    if (!sticky && this.noteSticky && !this.noteEl.hidden) {
+      this.noteEl.querySelector('.note-tap')?.before(...lines.map(p));
+      return;
+    }
+    this.noteSticky = sticky;
+    this.noteEl.replaceChildren(...lines.map(p), ...(sticky ? [Object.assign(p('Tap to go on'), { className: 'note-tap' })] : []));
     this.noteEl.hidden = false;
     clearTimeout(this.noteFade);
     this.noteEl.classList.remove('fading');
@@ -476,12 +494,20 @@ export class Game {
     this.noteEl.style.animation = 'none';
     void this.noteEl.offsetWidth;
     this.noteEl.style.animation = '';
-    this.noteTimer = 3 + lines.length * 1.2;
+    this.noteTimer = sticky ? 0 : 3 + lines.length * 1.2;
+  }
+  /** The note that waits for you (see note): up until you tap, lurk, rest or go somewhere. */
+  private noteSticky = false;
+  private dismissNote() {
+    if (!this.noteSticky) return;
+    this.noteSticky = false;
+    this.noteTimer = 0.01;
   }
 
   /** Rest: several hours pass, and you heal. */
   rest() {
     if (!this.canLurk) return;
+    this.noteSticky = false;
     if (!isHurt(this.health)) {
       this.note(["You're not hurt. There's nothing to rest off."]);
       return;
@@ -546,6 +572,7 @@ export class Game {
     sound.static();
     this.timer = 0.45;
     this.encounter = null;
+    this.noteSticky = false;
     this.noteEl.hidden = true;
     this.wipeBlood();
     // Time passes while you wait: wounds bleed, or heal; the rain soaks you.
@@ -862,7 +889,7 @@ export class Game {
     this.tapsFrom = performance.now() + 800;
     this.refresh();
     uiGlitch(this.view, 0.35);
-    this.note(lines);
+    this.note(lines, true);
     this.noteEl.firstElementChild?.classList.add('note-title');
   }
 
@@ -1175,6 +1202,7 @@ export class Game {
     }
     this.place = p;
     this.encounter = null;
+    this.noteSticky = false;
     this.noteEl.hidden = true;
     this.wipeBlood();
     this.jam = 0.8;
@@ -3580,7 +3608,7 @@ export class Game {
     const woke = this.save.state.wokeLines;
     if (!this.running || this.closed || !Array.isArray(woke)) return;
     delete this.save.state.wokeLines;
-    this.note(woke as string[]);
+    this.note(woke as string[], true);
   }
 
   /** Closes the game view (back to the menu). */

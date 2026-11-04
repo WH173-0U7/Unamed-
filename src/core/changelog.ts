@@ -11,6 +11,13 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.98',
+    date: 'Nov 4',
+    items: [
+      'When you’re done with someone, what happened stays on the screen until you move on: tap the street, lurk, rest or go somewhere. The same goes for what you find when you come to after a knockout. Anything else that happens meanwhile (the weather, a cigarette burning down) shows underneath it.',
+    ],
+  },
+  {
     v: '0.97',
     date: 'Nov 4',
     items: [

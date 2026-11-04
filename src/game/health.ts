@@ -355,6 +355,10 @@ export interface InjuryInfo {
   effects: string[];
   /** How long it has left, and what helps. */
   heals: string;
+  /** A state you're in (stress, drink, a drug...), not an injury: shown with its own meter. */
+  status?: boolean;
+  /** How far along it is: 0..1, with words for the bar. */
+  meter?: { k: number; text: string };
 }
 
 const hrs = (n: number) => {
@@ -369,8 +373,26 @@ const litres = (ml: number) => `${(ml / 1000).toFixed(2).replace(/0$/, '')} L`;
  * and the police chase in game.ts). Hours are game hours: a lurk is one,
  * resting is four, and resting heals half as fast again.
  */
-export function injuryEffects(h: Health): InjuryInfo[] {
+export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
   const out: InjuryInfo[] = [];
+  // Stress: on edge, stressed, panicking.
+  const stress = stressNow ?? h.stress ?? 0;
+  if (stress >= 1) {
+    const sl = stress >= 75 ? 3 : stress >= 45 ? 2 : stress >= 20 ? 1 : 0;
+    const p = Math.round(stress / 4);
+    out.push({
+      name: `${['Calm enough', 'On edge', 'Stressed', 'Panicking'][sl]}: stress`,
+      status: true,
+      meter: { k: Math.min(1, stress / 100), text: `${Math.round(stress)} / 100` },
+      effects: [`Your blows land: −${p}%`, `Dodging their blows: −${p}%`, ...(sl >= 3 ? ['Your hands shake; the world narrows'] : [])],
+      heals: `Eases about ${STRESS_EASE} an hour (faster resting), and quicker with a cigarette, a drink or painkillers.`,
+    });
+  }
+  // Smoking: a cigarette burning.
+  if ((h.smokingUntil ?? 0) > Date.now()) {
+    const left = ((h.smokingUntil ?? 0) - Date.now()) / 60000;
+    out.push({ name: 'Smoking', status: true, meter: { k: Math.min(1, left / 6), text: `${Math.ceil(left)} min left` }, effects: ['Stress eases while it burns'], heals: 'Burns down in a few minutes.' });
+  }
   const legs = h.broken.filter((p) => p.endsWith('leg')).length;
   const lost = 1 - h.blood / h.maxBlood;
 
@@ -438,18 +460,20 @@ export function injuryEffects(h: Health): InjuryInfo[] {
     out.push({
       name: 'Concussed',
       effects: ['Your blows land: −10%', 'Dazed more easily: 1.5× the chance', 'Easier to knock out: +5% from a head blow (+12% on the floor)'],
-      heals: `Clears in about ${hrs(h.concussion)}. Painkillers clear 3 hours of it.`,
+      heals: `Clears in about ${hrs(h.concussion)}. Rest helps; painkillers only dull the headache.`,
     });
   }
   if (h.cold) {
     const effects = [`Fights start with ${h.cold * 10}% less stamina`, `Running from the police: −${h.cold * 5}%`];
     if (h.cold >= 2) effects.push(`Your body makes blood back ${h.cold >= 3 ? '40%' : '75%'} as fast`);
-    out.push({ name: COLD_NAMES[h.cold], effects, heals: 'Get out of the rain: indoors, or by a fire.' });
+    out.push({ name: COLD_NAMES[h.cold], status: true, meter: { k: h.cold / 3, text: `${h.cold} / 3` }, effects, heals: 'Get out of the rain: indoors, or by a fire.' });
   }
   if (h.high && (h.highUntil ?? 0) > Date.now()) {
     const mins = Math.ceil(((h.highUntil ?? 0) - Date.now()) / 60000);
     out.push({
       name: `High: ${h.high}`,
+      status: true,
+      meter: { k: Math.min(1, mins / (HIGH_HOURS[h.high] * 60)), text: mins < 90 ? `${mins} min left` : `${Math.round(mins / 60)} h left` },
       effects:
         h.high === 'meth'
           ? ['Your blows do 12% more damage', 'Your blows land: −4% (you can\'t keep still)']
@@ -464,7 +488,9 @@ export function injuryEffects(h: Health): InjuryInfo[] {
     const edge = caffeineEdge(mg);
     const pct = `${edge >= 0 ? '+' : '−'}${Math.abs(Math.round(edge * 100))}%`;
     out.push({
-      name: `${CAFFEINE_NAMES[caffeineLevel(mg)]}: caffeine (${Math.round(mg)} mg)`,
+      name: `${CAFFEINE_NAMES[caffeineLevel(mg)]}: caffeine`,
+      status: true,
+      meter: { k: Math.min(1, mg / 600), text: `${Math.round(mg)} mg (jittery at 400)` },
       effects: [`Your blows land: ${pct}`, `Their blows land: ${edge >= 0 ? '−' : '+'}${Math.abs(Math.round(edge * 100))}%`, ...(mg >= 400 ? ['Stress builds faster (your heart is pounding)'] : [])],
       heals: `Half of it is gone every 5 hours (real time). Below 40 mg you won't feel it: about ${Math.max(1, Math.ceil(Math.log2(mg / 40) * 5))} hours from now.`,
     });
@@ -473,16 +499,22 @@ export function injuryEffects(h: Health): InjuryInfo[] {
   if (h.drunk && drunkLevel(h.drunk)) {
     const d = h.drunk;
     out.push({
-      name: `${DRUNK_NAMES[drunkLevel(d)]} (${Math.round(d)})`,
+      name: DRUNK_NAMES[drunkLevel(d)],
+      status: true,
+      meter: { k: Math.min(1, d / 100), text: `${Math.round(d)} / 100 (blackout at 90)` },
       effects: [`Your blows land: −${Math.round(d / 4)}%`, `Their blows land: +${Math.round(d / 5)}%`, `Your blows do ${Math.round(d / 10)}% more damage (you swing heavy)`, ...(d >= 80 ? ['Any more and you black out'] : [])],
       heals: `Sobers you up 20 a real hour: about ${Math.max(1, Math.ceil(d / 20))} hour${Math.ceil(d / 20) === 1 ? '' : 's'} to clear.`,
     });
   }
   if (h.wired) {
+    const left = Math.max(0, ((h.wiredUntil ?? Date.now()) - Date.now()) / 60000);
+    const full = h.wiredBy === 'meth' ? HIGH_HOURS.meth * 60 : 40;
     out.push({
-      name: 'Wired',
-      effects: ['Next fight: 25% more stamina'],
-      heals: 'Wears off when that fight is over, and leaves you hollow.',
+      name: `Wired${h.wiredBy ? ` (${h.wiredBy})` : ''}`,
+      status: true,
+      meter: { k: Math.min(1, left / full), text: left < 90 ? `${Math.ceil(left)} min left` : `${Math.round(left / 60)} h left` },
+      effects: ['Fights: 25% more stamina'],
+      heals: 'Wears off on its own, and leaves you hollow.',
     });
   }
   const m = h.marks ?? {};

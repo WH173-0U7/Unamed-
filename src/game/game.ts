@@ -2521,8 +2521,23 @@ export class Game {
     };
     const rows = (xs: [string, string][]) => xs.map(([a, b]) => `<div><dt>${a}</dt><dd>${b}</dd></div>`).join('');
     // What's wrong with you comes first: each injury and what it's doing to you.
-    const hurts = injuryEffects(this.health);
-    let html = hurts.length
+    const all = injuryEffects(this.health, this.stressNow);
+    const states = all.filter((i) => i.status);
+    const hurts = all.filter((i) => !i.status);
+    // The states you're in (stress, drink, drugs, caffeine, cold), each with its meter.
+    let html = states.length
+      ? `<section class="stat-card injuries status"><h3><span>Status</span><b>${states.length}</b></h3>` +
+        states
+          .map(
+            (i) =>
+              `<div class="injury"><h4>${i.name}</h4>` +
+              (i.meter ? `<div class="spot-bar status-bar"><i style="width:${Math.round(i.meter.k * 100)}%"></i><span>${i.meter.text}</span></div>` : '') +
+              `<ul>${i.effects.map((x) => `<li>${x}</li>`).join('')}</ul><p class="stat-how">${i.heals}</p></div>`,
+          )
+          .join('') +
+        `</section>`
+      : '';
+    html += hurts.length
       ? `<section class="stat-card injuries"><h3><span>Condition</span><b>${hurts.length}</b></h3>` +
         hurts
           .map((i) => `<div class="injury"><h4>${i.name}</h4><ul>${i.effects.map((x) => `<li>${x}</li>`).join('')}</ul><p class="stat-how">${i.heals}</p></div>`)

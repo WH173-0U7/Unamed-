@@ -381,10 +381,12 @@ function yieldedOptions(e: Encounter): Option[] {
   const out: Option[] = [];
   if (!e.emptied) out.push({ id: 'empty', label: '"Empty your pockets"', hint: 'They hand it over', cat: 'search' });
   out.push(...(e.emptied || e.person.clothes.some((g) => g.searched) ? searchOptions(e).filter((o) => o.id !== 'nothing') : []));
-  out.push({ id: 'patdown', label: 'Pat them down', hint: 'Slower, but nothing gets past you', cat: 'search' });
+  // (Each of these once: done, it's done.)
+  const patted = asked.includes('patdown');
+  if (!patted) out.push({ id: 'patdown', label: 'Pat them down', hint: 'Slower, but nothing gets past you', cat: 'search' });
   // Questions.
-  out.push({ id: 'menace', label: '"Don\'t even think about it"', hint: (e.them.fear ?? 0) >= 80 ? "They can't get any more scared" : 'Scare them more', cat: 'threaten' });
-  if (e.emptied) out.push({ id: 'ask-rest', label: '"Is that everything?"', hint: 'Are they holding out on you?', cat: 'threaten' });
+  if (!asked.includes('menace')) out.push({ id: 'menace', label: '"Don\'t even think about it"', hint: (e.them.fear ?? 0) >= 80 ? "They can't get any more scared" : 'Scare them more', cat: 'threaten' });
+  if (e.emptied && !patted && !asked.includes('rest')) out.push({ id: 'ask-rest', label: '"Is that everything?"', hint: 'Are they holding out on you?', cat: 'threaten' });
   e.person.clothes.forEach((g, gi) =>
     g.loot.forEach((l, li) => {
       if (g.searched && !l.hidden && /card/.test(l.kind) && !l.pin) out.push({ id: `pin:${gi}:${li}`, label: '"What\'s the PIN?"', hint: `Their ${l.name.toLowerCase()}`, cat: 'threaten' });
@@ -400,8 +402,9 @@ function yieldedOptions(e: Encounter): Option[] {
   // A knife in your hand.
   const blade = heldBlade(e);
   if (blade) {
-    out.push({ id: 't-blade', label: `Hold the ${lc(blade.name)} to their eye`, hint: 'No blood: just fear', cat: 'torture' });
-    out.push({ id: 't-cut', label: `Cut their cheek`, hint: 'A scar they’ll carry', cat: 'torture' });
+    if (!asked.includes('blade')) out.push({ id: 't-blade', label: `Hold the ${lc(blade.name)} to their eye`, hint: 'No blood: just fear', cat: 'torture' });
+    const cheeks = (T.marks?.scars ?? []).filter((x) => x === 'cheek').length;
+    if (cheeks < 2) out.push({ id: 't-cut', label: cheeks ? 'Cut their other cheek' : 'Cut their cheek', hint: 'A scar they’ll carry', cat: 'torture' });
   }
   if (arms(T)) out.push({ id: 't-twist', label: 'Twist the broken arm', cat: 'torture' });
   out.push({ id: 'punch', label: 'Hit them anyway', hint: 'It turns back into a fight', cat: 'attack' });
@@ -645,13 +648,13 @@ function rawOptions(e: Encounter): Option[] {
       // between the two is free; it's only a tab.
       return [
         { id: 'follow', label: e.distance < 2 ? 'Follow' : 'Keep following', hint: e.suspicion >= 45 ? 'They\'re onto you: they may run' : e.distance < 2 ? 'Closer: easier to see, easier to notice you' : 'Each step risks being noticed', cat: 'surveil' },
-        { id: 'build', label: 'Size up their build', disabled: e.known.build, cat: 'surveil' },
-        { id: 'carrying', label: 'What are they carrying?', disabled: e.known.carrying || e.distance < 1, hint: e.distance < 1 ? 'Need to be closer' : undefined, cat: 'surveil' },
-        { id: 'awareness', label: 'How aware are they?', disabled: e.known.awareness, cat: 'surveil' },
+        ...(e.known.build ? [] : [{ id: 'build', label: 'Size up their build', cat: 'surveil' as Category }]),
+        ...(e.known.carrying ? [] : [{ id: 'carrying', label: 'What are they carrying?', disabled: e.distance < 1, hint: e.distance < 1 ? 'Need to be closer' : undefined, cat: 'surveil' as Category }]),
+        ...(e.known.awareness ? [] : [{ id: 'awareness', label: 'How aware are they?', cat: 'surveil' as Category }]),
         // Noticed, or nearly: cover for yourself.
         ...(e.suspicion >= 35 ? [{ id: 'bluff', label: 'Act natural', hint: 'Speech: look like you belong here', cat: 'surveil' as Category }] : []),
-        { id: 'sex', label: 'Get a look at them', hint: e.known.sex && e.known.race ? undefined : e.distance < 1 ? 'Hard to tell from here' : 'Their face, their build', disabled: e.known.sex && !!e.known.race, cat: 'surveil' },
-        { id: 'read', label: 'Read them', hint: e.known.personality ? undefined : e.distance < 1 ? 'Need to be closer' : 'What kind of person?', disabled: !!e.known.personality || e.distance < 1, cat: 'surveil' },
+        ...(e.known.sex && e.known.race ? [] : [{ id: 'sex', label: 'Get a look at them', hint: e.distance < 1 ? 'Hard to tell from here' : 'Their face, their build', cat: 'surveil' as Category }]),
+        ...(e.known.personality ? [] : [{ id: 'read', label: 'Read them', hint: e.distance < 1 ? 'Need to be closer' : 'What kind of person?', disabled: e.distance < 1, cat: 'surveil' as Category }]),
         { id: 'bumrush', label: 'Bum rush', hint: 'Knock them down', cat: 'violence' },
         { id: 'sucker', label: 'Sucker punch', hint: 'Hit them in the head', cat: 'violence' },
         { id: 'shove', label: 'Shove', hint: 'Easiest to land', cat: 'violence' },
@@ -2770,6 +2773,8 @@ function threatAct(id: string, inv?: Inventory): boolean {
   if (!T.yielded || T.out) return false;
   const fear = T.fear ?? 0;
   if (id === 'menace') {
+    if (asked.includes('menace')) return false;
+    asked.push('menace');
     const bl = heldBlade(e);
     say('you', bl ? (/broken bottle/i.test(bl.name) ? 'You hold the jagged edge of the bottle under their chin. "Try anything."' : `You lay the flat of the ${lc(bl.name)} against their cheek. "Try anything."`) : oneOf(['You lean in close. "Try anything, and I\'ll know where to find you."', 'You grab their face and make them look at you. "Don\'t even think about it."', '"Run, and I\'ll catch you. And then it gets worse."']));
     // It only goes so far: past terrified, more threats do nothing.
@@ -2802,6 +2807,8 @@ function threatAct(id: string, inv?: Inventory): boolean {
     return true;
   }
   if (id === 'patdown') {
+    if (asked.includes('patdown')) return false;
+    asked.push('patdown');
     e.emptied = true;
     const hid: string[] = [];
     for (const g of e.person.clothes) {
@@ -2828,6 +2835,8 @@ function threatAct(id: string, inv?: Inventory): boolean {
     return true;
   }
   if (id === 'ask-rest') {
+    if (asked.includes('rest')) return false;
+    asked.push('rest');
     const hidden = e.person.clothes.flatMap((g) => g.loot.map((l) => ({ g, l }))).filter(({ l }) => l.hidden);
     say('you', '"Is that everything?"');
     if (hidden.length && Math.random() < fear / 100 + 0.1) {
@@ -2908,13 +2917,14 @@ function torture(how: string) {
       break;
     case 'blade': {
       const b = heldBlade(e);
-      if (!b) return;
+      if (!b || e.asked?.includes('blade')) return;
+      (e.asked ??= []).push('blade');
       text = oneOf([`You put the point of the ${lc(b.name)} under their eye, close enough that they can't blink without feeling it.`, `You hold the ${lc(b.name)} an inch from their eye and let them look at it.`]);
       break;
     }
     case 'cut': {
       const b = heldBlade(e);
-      if (!b) return;
+      if (!b || (T.marks?.scars ?? []).filter((x) => x === 'cheek').length >= 2) return;
       text = `You take their jaw in one hand and draw the ${lc(b.name)} across their cheek. It opens like paper.`;
       (T.marks ??= {}).scars = [...(T.marks.scars ?? []), 'cheek'];
       T.bleeding = Math.max(T.bleeding, 1);

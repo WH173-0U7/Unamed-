@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.86',
+    date: 'Nov 4',
+    items: [
+      'Things you can only do once now go away once you’ve done them: patting someone down, “Don’t even think about it”, “Is that everything?” and holding the blade to their eye. Cutting a cheek works twice: one each side.',
+      'Patting someone down finds everything, so after it there’s no “Is that everything?”.',
+      'While following someone, what you’ve already found out (their build, what they’re carrying, how aware they are, their face, what kind of person they are) drops off the list instead of sitting there greyed out.',
+    ],
+  },
+  {
     v: '0.85',
     date: 'Nov 4',
     items: [

@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.65',
+    date: 'Nov 4',
+    items: ['Hitting someone who’s out cold no longer has them gasping, spitting, coughing, clutching, curling up or covering up. Their body reacts (blood at the lips, vomit running from the mouth, a tooth falling from a slack jaw); they don’t.'],
+  },
+  {
     v: '0.64',
     date: 'Nov 4',
     items: [

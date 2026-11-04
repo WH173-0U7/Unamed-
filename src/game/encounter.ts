@@ -1258,7 +1258,8 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
     text = vary(stompText(t, loc === 'head' ? 'head' : loc === 'stomach' ? 'stomach' : 'body'));
   } else if (a === 'you' && kind === 'kick') {
     text = vary(kickText(t, where, into));
-  } else if (a === 'you' && loc !== 'arm') {
+  } else if (a === 'you' && (loc !== 'arm' || D.out)) {
+    // (Out cold, nobody covers up.)
     text = vary(punchText(t, where, into));
   } else if (tech) {
     text = tech.text;
@@ -1422,6 +1423,35 @@ function reloadGun(inv: Inventory, i: number) {
   box.doses = (box.doses ?? 0) - n;
   if (box.doses <= 0) inv.items.splice(inv.items.indexOf(box), 1);
   say('you', g.holds > 6 && g.power < 1.5 ? 'You drop the empty magazine and thumb rounds into it, fumbling.' : 'You feed rounds in one by one, fumbling.');
+}
+
+/**
+ * What a blow does to someone who's already unconscious: no gasping,
+ * spitting, clutching or curling up (none of that's done on purpose), just
+ * what a body does. Rewrites those sentences, and drops the ones that have
+ * no unconscious version; if nothing's left but the bare facts, the body
+ * jerks with it.
+ */
+function asUnconscious(text: string, d: Side): string {
+  if (d !== 'them') return text;
+  const swaps: [RegExp, string][] = [
+    [/They gasp, and blood bubbles at their lips\./g, 'Blood bubbles at their lips with every shallow breath.'],
+    [/They vomit, and there's blood in it: something inside is torn\./g, 'Vomit and blood run from the corner of their mouth: something inside is torn.'],
+    [/They vomit onto the pavement\./g, 'Vomit runs from the corner of their mouth onto the pavement.'],
+    [/They retch up bile and spit\./g, 'Bile trickles from the corner of their mouth.'],
+    [/They cough, and it comes up pink\./g, 'Pink froth comes up with their next breath.'],
+    [/A tooth comes loose; they spit it out\./g, 'A tooth comes loose and falls from their slack mouth.'],
+    [/They spit them out with a mouthful of blood\./g, 'They fall out of their slack mouth with a gush of blood.'],
+    [/They gasp and clutch their stomach\.\s?/g, ''],
+    [/They curl up[^.]*\.\s?/g, ''],
+    [/Their eyes water\.\s?/g, ''],
+    [/They (?:howl|scream|groan|moan|whimper|sob|wince|flinch)[^.]*\.\s?/g, ''],
+    [/(?:It knocks the wind out of them|The wind's knocked out of them)\.\s?/g, 'The air goes out of them.'],
+  ];
+  let t = text;
+  for (const [re, to] of swaps) t = t.replace(re, to);
+  t = t.replace(/\s{2,}/g, ' ').trim();
+  return t || 'Their body jerks with it.';
 }
 
 /** The blade in the blow being struck: how it bleeds them, and stab or slash. */
@@ -1741,7 +1771,8 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
     else spills('drip');
   }
   impacts.push({ target: d, ml, severe, loc, spill });
-  return out.filter(Boolean).join(' ');
+  // Out cold, the body reacts; the person doesn't.
+  return outAtStart ? asUnconscious(out.filter(Boolean).join(' '), d) : out.filter(Boolean).join(' ');
 }
 
 /**

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Spill } from '../game/encounter';
 import { createFullscreenShader, glslHash } from './fullscreen';
 import { drawCracks } from './cracks';
+import { createCrackGhost } from './crackGhost';
 
 /**
  * The glass: one layer drawn on the GPU over everything (the game and every
@@ -96,6 +97,9 @@ export function createGlass(opts: GlassOptions = {}) {
     return t;
   };
   let crackTex = newCrackTex();
+  // Seeing double through the broken glass (a filter on the game view under it).
+  const gameView = document.getElementById('game');
+  const ghost = gameView ? createCrackGhost(gameView) : null;
 
   // ---------- GPU passes ----------
   /** Adds what was painted, and lets wet blood dry. */
@@ -1239,7 +1243,8 @@ export function createGlass(opts: GlassOptions = {}) {
       // Cracks: they spread fast when you're hit, and fade slowly as you
       // come to. A new pattern for the next time it breaks.
       if (crackTarget > 0 && crackStale && crack < 0.01 && w) {
-        drawCracks(crackCanvas, w, h, crackScale, (Math.random() * 1e9) | 0);
+        const shards = drawCracks(crackCanvas, w, h, crackScale, (Math.random() * 1e9) | 0);
+        ghost?.setShards(shards, w, h);
         crackTex.dispose();
         crackTex = newCrackTex();
         showPass.material.uniforms.tCrack.value = crackTex;
@@ -1252,6 +1257,7 @@ export function createGlass(opts: GlassOptions = {}) {
           crackStale = true;
         }
         redraw = true;
+        ghost?.update(crack);
       }
 
       // Kept on the device once things have settled.

@@ -23,7 +23,11 @@ function rng(seed: number) {
   };
 }
 
-export function drawCracks(canvas: HTMLCanvasElement, w: number, h: number, scale: number, seed: number) {
+import type { Shard } from './crackGhost';
+
+/** Draws the cracks; returns the shards of glass between them (for seeing double, see crackGhost.ts). */
+export function drawCracks(canvas: HTMLCanvasElement, w: number, h: number, scale: number, seed: number): Shard[] {
+  const shards: Shard[] = [];
   canvas.width = Math.max(1, Math.round(w * scale));
   canvas.height = Math.max(1, Math.round(h * scale));
   const c = canvas.getContext('2d')!;
@@ -119,6 +123,30 @@ export function drawCracks(canvas: HTMLCanvasElement, w: number, h: number, scal
     // The web: short cross-cracks between neighbouring rays, at a few
     // distances out, bowed slightly and a little jagged.
     const rings = [0.07, 0.14, 0.24, 0.36].map((f) => f * reach * (0.8 + R() * 0.4));
+    // The shards: between two neighbouring rays and two rings (the last runs
+    // out to the end of the rays). Each bends the light its own way; nearer
+    // the impact, more.
+    const bounds = [core * 0.5, ...rings, Infinity];
+    for (let j = 0; j < n; j++) {
+      const A = rays[j];
+      const B = rays[(j + 1) % n];
+      for (let q = 0; q < bounds.length - 1; q++) {
+        const lo = bounds[q];
+        const hi = bounds[q + 1];
+        const a = A.filter((p) => p.r >= lo && p.r <= hi);
+        const b = B.filter((p) => p.r >= lo && p.r <= hi);
+        if (a.length + b.length < 3 || !a.length || !b.length) continue;
+        const outer = Math.min(hi, Math.max(a[a.length - 1].r, b[b.length - 1].r));
+        const ang = R() * Math.PI * 2;
+        const mag = (0.45 + R() * 0.55) * (1 - Math.min(0.5, outer / reach) * 0.6);
+        shards.push({
+          pts: [...a.map(({ x, y }) => ({ x, y })), ...b.reverse().map(({ x, y }) => ({ x, y }))],
+          t: t0 + span * Math.pow(Math.min(1, outer / reach), 0.85) + 0.04,
+          dx: Math.cos(ang) * mag,
+          dy: Math.sin(ang) * mag,
+        });
+      }
+    }
     for (const rr of rings) {
       for (let j = 0; j < n; j++) {
         if (R() < 0.3) continue;
@@ -141,4 +169,5 @@ export function drawCracks(canvas: HTMLCanvasElement, w: number, h: number, scal
       }
     }
   }
+  return shards;
 }

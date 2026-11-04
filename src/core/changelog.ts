@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.99',
+    date: 'Nov 4',
+    items: [
+      'Seeing double: as you’re hit toward going out and the glass cracks, each shard between the cracks bends the light its own way. What’s behind it shows twice, a faint copy shifted a few pixels and broken off sharp along the crack lines, and it gets worse the closer you are to going out.',
+      'It’s a heavy effect on some phones: if it slows the game down it switches itself off, and it’s off on the Low graphics setting.',
+    ],
+  },
+  {
     v: '0.98',
     date: 'Nov 4',
     items: [

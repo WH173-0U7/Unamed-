@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.74',
+    date: 'Nov 4',
+    items: [
+      'Getting charged means a court case now. After the night in the cell, bail is set by the charges and your record: pay it (cash, then your bank) and walk out with a court date, or wait in County for the hearing.',
+      'New place: the County Courthouse, weekdays 9 to 4. Turn up and the judge decides: dropped, a fine, probation, or days in jail. Your record counts against you; Speech counts for you. Turn up and you get your bail back.',
+      'Miss your date and there’s a warrant: your bail is gone, the police are hotter on you, and any stop ends in cuffs. Turn yourself in at the courthouse to clear it.',
+      'On probation, any arrest is no bail and straight to County. Your case, court date and warrant show under Criminal record in You.',
+    ],
+  },
+  {
     v: '0.73',
     date: 'Nov 4',
     items: [

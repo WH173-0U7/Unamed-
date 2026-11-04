@@ -64,7 +64,7 @@ const STOMP_HELPLESS_COST = 1;
 const TORTURE_COST = 3;
 const MUG_COST = 0.5;
 
-import { COIN_MACHINE_FEE, ER_PRICES, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place } from './shops';
+import { chargeOf, COIN_MACHINE_FEE, ER_PRICES, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place } from './shops';
 import { BILLS, COINS, addTo, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
 import { hoursText, isOpen } from './clock';
 import { createHitUi } from '../fx/hitUi';
@@ -189,6 +189,7 @@ export class Game {
       else if (b.dataset.atm) this.atm(Number(b.dataset.atm));
       else if (b.dataset.records) this.getId();
       else if (b.dataset.er) this.er(b.dataset.er as ErCare);
+      else if (b.dataset.court) this.appear();
   }
 
   /** What you're carrying and holding, to see whether a tap did anything. */
@@ -833,7 +834,7 @@ export class Game {
     const robbed = this.place === 'hospital' ? false : robBody(w, this.inventory, e);
     // A new you: nothing carried over but the world.
     // (Your name, your ID and your bank account were that character's.)
-    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult']) delete this.save.state[k];
+    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer']) delete this.save.state[k];
     // Nobody knows this face. The people the old you hurt are still out there
     // (and your things on some of them), but they'd be looking for someone else.
     this.world.infamy = newInfamy();
@@ -981,7 +982,9 @@ export class Game {
     if (this.sheet === 'police') {
       // No walking away from this one: you answer.
       const b = t.closest('button');
-      if (b?.dataset.police === 'done') {
+      if (b?.dataset.police === 'bail' && !b.hasAttribute('disabled')) this.payBail();
+      else if (b?.dataset.police === 'custody') this.heldForCourt();
+      else if (b?.dataset.police === 'done') {
         delete this.save.state.policeResult;
         this.sheet = null;
         this.sheetEl.hidden = true;
@@ -1061,6 +1064,7 @@ export class Game {
         records: 'You push through the doors of the City Records Office and take a ticket.',
         hospital: 'The ER doors hiss open. You give a name at the desk and they tell you to sit.',
         guns: 'A buzzer sounds as you push the door. The man behind the counter looks up, and keeps looking.',
+        court: 'You empty your pockets into a tray for the metal detector, and the deputy waves you through.',
       }[p],
     ];
     const h = this.health;
@@ -1982,6 +1986,13 @@ export class Game {
     let lied = false;
     // Talking your way out: a story, a calm face. Harder the hotter you are,
     // and with a weapon showing or a mask on.
+    // A warrant out for you: they run your name, and that's that.
+    const pending = this.case;
+    if (pending?.warrant && choice !== 'run') {
+      lines.push('One of them runs your name on the radio. A pause. "There\'s a warrant out for you. Turn around."');
+      arrested = true;
+      charges.push('Failure to appear');
+    }
     // A weapon in your hand when they pull up: that's the whole stop.
     const brandished = inv.items.find((x) => x.kind === 'weapon' && x.hand);
     if (brandished && choice !== 'run') {
@@ -2018,7 +2029,7 @@ export class Game {
         arrested = true;
         charges.push('Resisting arrest');
       }
-    } else if (brandished) {
+    } else if (brandished || (pending?.warrant && arrested)) {
       // (Nothing to talk about.)
     } else if (choice === 'talk' && talk()) {
       // Talked your way out: no search.
@@ -2079,7 +2090,25 @@ export class Game {
       for (const c of charges) rec.charges[c] = (rec.charges[c] ?? 0) + 1;
       rec.last = now();
       lines.push(`You're arrested.${took ? ` They keep ${took === 1 ? 'the evidence' : `all ${took} things they took off you`}.` : ''} You spend the night in a holding cell that smells of bleach and piss.`);
-      lines.push(charges.length ? `In the morning you're charged: ${charges.map((c) => c.toLowerCase()).join(', ')}. They let you go with a court date and a sheet of paper you lose by noon.` : 'In the morning they let you go: not enough to charge you. This time.');
+      if (charges.length) {
+        // A case against you: bail, and a court date.
+        const c = this.case ?? { charges: [], bail: 0, courtAt: 0 };
+        c.charges = [...c.charges, ...charges];
+        const priors = Math.max(0, rec.arrests - 1);
+        const noBail = c.charges.some((x) => chargeOf(x).bail === 0) || now() < ((this.save.state.probationUntil as number) ?? 0);
+        c.bail = noBail ? 0 : Math.round(c.charges.reduce((n, x) => n + chargeOf(x).bail, 0) * (1 + priors * 0.5));
+        c.courtAt = courtDate();
+        c.warrant = false;
+        this.save.state.case = c;
+        lines.push(`In the morning you're charged: ${charges.map((x) => x.toLowerCase()).join(', ')}.`);
+        if (noBail) {
+          lines.push(now() < ((this.save.state.probationUntil as number) ?? 0) ? 'You were on probation. The judge doesn\'t even look up: no bail. You\'re held for your hearing.' : 'No bail. You\'re held until your hearing.');
+          this.save.state.bailOffer = 'custody';
+        } else {
+          lines.push(`Bail is set at ${money(c.bail * 100)}. Pay it and you walk out today with a court date (and get it back when you turn up); or wait in jail for the hearing.`);
+          this.save.state.bailOffer = 'bail';
+        }
+      } else lines.push('In the morning they let you go: not enough to charge you. This time.');
       lines.push(...passHours(h, 8, true));
       if (h.dead) return this.die(lines);
       f.heat = Math.max(0, f.heat - 45);
@@ -2091,6 +2120,138 @@ export class Game {
     this.refresh();
     this.renderSheet();
     buzz(arrested ? [80, 60, 120] : 12);
+  }
+
+  /** A case against you: the charges, bail, and when your court date is. */
+  private get case(): { charges: string[]; bail: number; courtAt: number; warrant?: boolean; bailPaid?: number } | undefined {
+    return this.save.state.case as { charges: string[]; bail: number; courtAt: number; warrant?: boolean; bailPaid?: number } | undefined;
+  }
+  /** Paying bail: cash first, then the bank. You're out, with a court date. */
+  private payBail() {
+    const c = this.case;
+    if (!c || this.save.state.bailOffer !== 'bail') return;
+    const inv = this.inventory;
+    const want = c.bail * 100;
+    const cash = Math.round(cashOf(inv) * 100);
+    const acct = this.account;
+    if (cash + (acct?.cents ?? 0) < want) return;
+    const fromCash = Math.min(cash, want);
+    if (fromCash) {
+      inv.purse = {};
+      addTo(inv.purse, fewest(cash - fromCash));
+    }
+    if (want > fromCash && acct) acct.cents -= want - fromCash;
+    c.bailPaid = want;
+    delete this.save.state.bailOffer;
+    this.save.state.policeResult = [
+      `You pay the ${money(want)}${want > fromCash ? ' (some of it from your bank account)' : ''} and sign where they tell you to.`,
+      `Your court date: ${dateText(c.courtAt)}, at the County Courthouse (weekdays, 9 to 4). Turn up and you get the bail back. Don't, and there'll be a warrant out for you.`,
+    ];
+    sound.coin();
+    this.refresh();
+    this.renderSheet();
+  }
+  /** No bail (or you wouldn't pay it): County until the hearing, then the judge. */
+  private heldForCourt() {
+    const c = this.case;
+    if (!c) return;
+    const h = this.health;
+    delete this.save.state.bailOffer;
+    const lines = ['A day and a half in County: a bunk, a toilet with no seat, grey food and the noise that never stops.', ...passHours(h, 36, true)];
+    if (h.dead) return this.die(lines);
+    h.stress = Math.min(100, (h.stress ?? 0) + 20);
+    lines.push(...this.verdict(true));
+    this.save.state.policeResult = lines;
+    this.refresh();
+    this.renderSheet();
+  }
+  /**
+   * Before the judge: dropped, a fine, probation, or jail time, by the
+   * charges, your record and how well you talk. Clears the case.
+   */
+  private verdict(inCustody: boolean): string[] {
+    const c = this.case;
+    if (!c) return [];
+    const f = this.infamy;
+    const rec = this.record;
+    const priors = Math.max(0, rec.arrests - 1);
+    const sev = c.charges.reduce((n, x) => n + chargeOf(x).sev, 0);
+    const lines: string[] = [`Your case is called: ${c.charges.map((x) => x.toLowerCase()).join(', ')}. A public defender you've never met reads your file in the corridor.`];
+    // Talking to the judge.
+    const talk = lieBonus(this.stats);
+    train(this.stats, 'speech', 4);
+    // Your bail back, for turning up.
+    if (c.bailPaid && !inCustody) {
+      addTo(this.inventory.purse, fewest(c.bailPaid));
+      lines.push(`You get your ${money(c.bailPaid)} bail back.`);
+    }
+    delete this.save.state.case;
+    if (Math.random() < Math.max(0.03, Math.min(0.6, 0.38 - sev * 0.04 + talk * 0.5 - priors * 0.06))) {
+      lines.push('The witness doesn\'t show and the evidence is thin. "Dismissed." You\'re out of the door before anyone changes their mind.');
+      f.heat = Math.max(0, f.heat - 20);
+      return lines;
+    }
+    if (sev <= 3) {
+      const fine = Math.round(c.charges.reduce((n, x) => n + chargeOf(x).fine, 0) * (1 + priors * 0.25));
+      const have = Math.round(cashOf(this.inventory) * 100) + (this.account?.cents ?? 0);
+      if (have >= fine * 100) {
+        let left = fine * 100;
+        const cash = Math.round(cashOf(this.inventory) * 100);
+        const fromCash = Math.min(cash, left);
+        this.inventory.purse = {};
+        addTo(this.inventory.purse, fewest(cash - fromCash));
+        left -= fromCash;
+        if (left && this.account) this.account.cents -= left;
+        lines.push(`Guilty. A ${money(fine * 100)} fine, paid at the window on the way out.`);
+        f.heat = Math.max(0, f.heat - 30);
+        return lines;
+      }
+      const days = Math.max(2, Math.round(fine / 100));
+      lines.push(`Guilty. A ${money(fine * 100)} fine you can't pay, so it's ${days} days instead.`);
+      return [...lines, ...this.serve(days)];
+    }
+    if (sev <= 6) {
+      this.save.state.probationUntil = now() + 3 * 24 * 3_600_000;
+      lines.push('Guilty. Three days\' probation: get arrested for anything before then and you go straight to jail, no bail.');
+      f.heat = Math.max(0, f.heat - 30);
+      return lines;
+    }
+    const days = Math.round(c.charges.reduce((n, x) => n + chargeOf(x).days, 0) * (1 + priors * 0.3));
+    lines.push(`Guilty. ${days} days in County.`);
+    return [...lines, ...this.serve(days)];
+  }
+  /** Time inside: you heal, you get harder, and you come out with nothing new. */
+  private serve(days: number): string[] {
+    const h = this.health;
+    const lines = [`You serve your ${days} days. The food is grey, the nights are loud, and you learn who not to look at.`, ...passHours(h, Math.min(days * 24, 96), true)];
+    if (h.dead) return lines;
+    h.stress = Math.min(100, (h.stress ?? 0) + 25);
+    h.nerve = Math.min(100, (h.nerve ?? 0) + 5);
+    this.infamy.heat = 0;
+    lines.push('They give you back what you came in with, in a plastic bag, and open the door.');
+    return lines;
+  }
+  /** At the courthouse: appear for your hearing (turning up late, with a warrant, they hold you). */
+  private appear() {
+    const c = this.case;
+    if (this.place !== 'court' || !c || !isOpen(placeInfo('court').hours!)) return;
+    const lines: string[] = [];
+    if (c.warrant) {
+      lines.push('You give your name at the desk. The clerk looks at her screen, then at the deputy. You\'re cuffed in the hall: there\'s a warrant out for you.');
+      c.charges.push('Failure to appear');
+      c.warrant = false;
+      lines.push(...this.passCell());
+      if (this.health.dead) return this.die(lines);
+    }
+    lines.push(...this.verdict(false));
+    if (this.health.dead) return this.die(lines);
+    this.refresh();
+    this.note(lines);
+    buzz(10);
+  }
+  /** A night held after turning yourself in. */
+  private passCell(): string[] {
+    return ['You spend the night in a holding cell.', ...passHours(this.health, 8, true)];
   }
 
   /** Your criminal record (this character's): arrests, and what for. */
@@ -2122,6 +2283,8 @@ export class Game {
     const rows = Object.entries(r.charges).filter(([, n]) => n > 0);
     return (
       `<section class="stat-card record"><h3><span>Criminal record</span><b>${r.arrests ? `${r.arrests} arrest${r.arrests > 1 ? 's' : ''}` : 'Clean'}</b></h3>` +
+      (this.case ? `<p class="record-case${this.case.warrant ? ' warrant' : ''}">${this.case.warrant ? 'WARRANT out for you: missed court. Any stop is an arrest. Turn yourself in at the County Courthouse to end it.' : `Court date: ${dateText(this.case.courtAt)}, County Courthouse (weekdays 9 to 4). Charges: ${this.case.charges.map((x) => x.toLowerCase()).join(', ')}.${this.case.bailPaid ? ` Bail paid: ${money(this.case.bailPaid)} (back when you turn up).` : ''}`}</p>` : '') +
+      (now() < ((this.save.state.probationUntil as number) ?? 0) ? `<p class="record-case">On probation until ${dateText(this.save.state.probationUntil as number)} ${clockText(this.save.state.probationUntil as number)}: any arrest is jail.</p>` : '') +
       (r.arrests
         ? (rows.length ? `<ul class="record-list">${rows.map(([c, n]) => `<li><span>${c}</span><b>×${n}</b></li>`).join('')}</ul>` : '') +
           `<p class="record-note">${rows.length ? 'Each charge means a court date.' : 'Held, and let go without charge.'}${r.last ? ` Last arrested ${dateText(r.last)}.` : ''}</p>`
@@ -2437,6 +2600,14 @@ export class Game {
         row('blood', 'Blood', 'A transfusion, when you’ve lost too much.', need.blood) +
         `</ul>` +
         `<p class="shop-broke">${this.erSeen ? 'You’ve been seen. They’ll fit you in.' : 'First you wait, unless you’re bleeding badly or can’t breathe.'} Self-pay, cash at the window. They can’t do anything for ribs or a concussion but tell you to rest.</p>`;
+    } else if (place === 'court') {
+      const c = this.case;
+      body = open
+        ? c
+          ? `<ul class="shop-list">${li(c.warrant ? 'Turn yourself in' : 'Appear for your hearing', `${c.charges.map((x) => x.toLowerCase()).join(', ')}.${c.warrant ? ' There’s a warrant: they’ll hold you overnight first.' : ` Your date: ${dateText(c.courtAt)}.`}`, btn('court', 'appear', c.warrant ? 'Go in' : 'Go in'))}</ul>` +
+            `<p class="shop-broke">Could go any way: dropped, a fine, probation, or jail time. Your record counts against you; a good story counts for you.</p>`
+          : `<p class="shop-broke">Your name isn't on any list. Nothing for you here.</p>`
+        : `<p class="shop-closed">The doors are locked. Weekdays, 9 to 4.</p>`;
     } else if (place === 'records') {
       const mine = this.ownId();
       body = open
@@ -2535,7 +2706,13 @@ export class Game {
       card.innerHTML =
         `<div class="sheet-head"><h2>Police</h2></div><div class="sheet-body police">` +
         res.map((l) => `<p>${l}</p>`).join('') +
-        `<button type="button" class="place" data-police="done"><b>Go on</b><small>${this.record.arrests ? 'It’s on your record (You: Criminal record).' : 'Back to the street.'}</small></button>` +
+        (this.save.state.bailOffer === 'bail'
+          ? ((have) =>
+              `<button type="button" class="place" data-police="bail" ${have < (this.case?.bail ?? 0) * 100 ? 'disabled' : ''}><b>Pay bail: ${money((this.case?.bail ?? 0) * 100)}</b><small>${have < (this.case?.bail ?? 0) * 100 ? `You've only got ${money(have)}, cash and bank together` : 'Cash first, then your bank account. You get it back if you show up to court.'}</small></button>` +
+              `<button type="button" class="place" data-police="custody"><b>Wait in jail for the hearing</b><small>A day and a half in County, then the judge.</small></button>`)(Math.round(cashOf(this.inventory) * 100) + (this.account?.cents ?? 0))
+          : this.save.state.bailOffer === 'custody'
+            ? `<button type="button" class="place" data-police="custody"><b>Wait for the hearing</b><small>A day and a half in County, then the judge.</small></button>`
+            : `<button type="button" class="place" data-police="done"><b>Go on</b><small>${this.record.arrests ? 'It’s on your record (You: Criminal record).' : 'Back to the street.'}</small></button>`) +
         `</div>`;
       return;
     }
@@ -3165,6 +3342,14 @@ export class Game {
     }
     if ((this.weatherTimer -= dt) <= 0) {
       this.weatherTimer = 2;
+      // Missed your court date: a warrant.
+      const cs = this.case;
+      if (cs && !cs.warrant && !this.save.state.bailOffer && now() > cs.courtAt) {
+        cs.warrant = true;
+        cs.bailPaid = 0;
+        this.infamy.heat = Math.min(100, this.infamy.heat + 40);
+        if (this.running) this.note(['You missed your court date. There\'s a warrant out for you now, and your bail is gone.']);
+      }
       const was = this.weather.now;
       if (updateWeather(this.weather) && this.running && this.tvState.on && this.weather.now !== was && !placeInfo(this.place).indoors) {
         this.note([weatherLine(this.weather.now, was)]);
@@ -3306,4 +3491,12 @@ const hideWord = (c: number) => (c >= 0.9 ? 'hides well' : c >= 0.7 ? 'hides som
 /** A knife or a box cutter (a bottle or a needle doesn't frighten like a blade). */
 function isBlade(x: { kind: string; name: string }): boolean {
   return x.kind === 'weapon' && (/knife|box cutter/i.test(x.name) || !!knifeOf(x.name));
+}
+
+/** A court date: a weekday afternoon, at least a day off (real time). */
+function courtDate(t = Date.now()): number {
+  const d = new Date(t + 20 * 3_600_000);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  d.setHours(16, 0, 0, 0);
+  return d.getTime();
 }

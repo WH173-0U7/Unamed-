@@ -20,7 +20,7 @@ import type { InvItem } from './inventory';
  *   and breaks big ones down. After hours, the coin machine in the lobby
  *   still turns coins into bills, for a cut.
  */
-export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records' | 'hospital' | 'guns';
+export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records' | 'hospital' | 'guns' | 'court';
 
 export interface PlaceInfo {
   id: Place;
@@ -93,6 +93,14 @@ export const PLACES: PlaceInfo[] = [
     desc: 'Handguns, a shotgun, ammunition. Your own ID and a background check.',
     hours: [[12, 17], [10, 19], [10, 19], [10, 19], [10, 19], [10, 19], [10, 19]],
     blurb: 'Rifles racked behind the counter, glass cases of handguns, a camera over the door and a man with a holstered pistol who watches your hands.',
+    indoors: true,
+  },
+  {
+    id: 'court',
+    name: 'County Courthouse',
+    desc: 'Where your court date is, if you have one.',
+    hours: WEEKDAYS(9, 16),
+    blurb: 'A metal detector, a bored deputy, long benches and a list of names taped to every door.',
     indoors: true,
   },
   {
@@ -265,3 +273,16 @@ export const GUN_STOCK: Stock[] = [
   { id: 'a-12', name: '12-gauge shells', price: 25, desc: 'A box of 25.', ammo: 25 },
   { id: 'holster', name: 'Holster', price: 35, desc: 'Inside the waistband, for a handgun: ready to draw. Hidden under a jacket, coat or hoodie; on show under a T-shirt.', slot: 'gear' },
 ];
+
+// ---------- Charges: bail, and what a court does with them ----------
+/** For each charge: bail (0 = none), the usual fine, jail days if it comes to that, and how serious it is. */
+export const CHARGES: Record<string, { bail: number; fine: number; days: number; sev: number }> = {
+  'Possession of stolen property': { bail: 250, fine: 300, days: 3, sev: 2 },
+  'Possession of a controlled substance': { bail: 500, fine: 500, days: 7, sev: 3 },
+  'Carrying an illegal weapon': { bail: 400, fine: 400, days: 5, sev: 3 },
+  'Brandishing a weapon': { bail: 1000, fine: 800, days: 14, sev: 5 },
+  'Resisting arrest': { bail: 500, fine: 400, days: 5, sev: 2 },
+  Assault: { bail: 1500, fine: 1000, days: 30, sev: 6 },
+  'Failure to appear': { bail: 0, fine: 500, days: 10, sev: 4 },
+};
+export const chargeOf = (c: string) => CHARGES[c] ?? { bail: 300, fine: 300, days: 3, sev: 2 };

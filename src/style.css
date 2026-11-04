@@ -4428,6 +4428,17 @@ body[data-buttons] #enc .enc-extra button {
 .record-list b {
   color: #c98a6a;
 }
+.record-case {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #d8b48a;
+  overflow-wrap: anywhere;
+}
+.record-case.warrant {
+  color: #ff6a5a;
+  font-weight: 600;
+}
 .record-note {
   margin: 6px 0 0;
   font-size: 12px;

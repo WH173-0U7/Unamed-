@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.71',
+    date: 'Nov 4',
+    items: [
+      'Weapons can be held: in Pockets, “Right hand” or “Left hand” takes one out, and “Put away” puts it back. In a fight you can take one out or put it away (each takes a turn), and using a weapon puts it in your hand. Your left hand is clumsier with it.',
+      'A knife in your hand changes things: “Give it up” works better and says so, threats land harder, and torture offers holding it to their eye or cutting their cheek. Mugging with a blade, you take it out and show it. But a hard case might grab your wrist and take it off you.',
+      'Everyone can see what’s in your hand. You put it away before you walk into a shop, and if the police stop you holding it, that’s an arrest for brandishing a weapon, no talking your way out.',
+      'Stamping on someone’s hand is only offered when they’re already on the floor.',
+    ],
+  },
+  {
     v: '0.70',
     date: 'Nov 4',
     items: [

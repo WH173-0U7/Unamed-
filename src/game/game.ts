@@ -22,7 +22,7 @@ import { gunOf } from './guns';
 import { HEAT_NAMES, applyTo, comeBack, heal, fade, heatLevel, historyText, injuriesText, meet, newInfamy, recognises, remember, repName, type Infamy, type Known } from './people';
 import { anonymity, conspicuous, describe, hasHood, lookClothes, wearing } from './look';
 import { marksText } from './encounter';
-import { MEDS, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
+import { MEDS, freeHand, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
 
 /**
  * What's left of your humanity. Killing someone takes a lot of it; stamping
@@ -1006,6 +1006,9 @@ export class Game {
     else if (b.dataset.pack) this.packLoose(Number(b.dataset.pack));
     else if (b.dataset.move) this.moveItem(Number(b.dataset.move));
     else if (b.dataset.combine) this.combinePack(Number(b.dataset.combine));
+    else if (b.dataset.holdR) this.hold(Number(b.dataset.holdR), 'right');
+    else if (b.dataset.holdL) this.hold(Number(b.dataset.holdL), 'left');
+    else if (b.dataset.putaway) this.putAway(Number(b.dataset.putaway));
     else if (b.dataset.load) this.loadGun(Number(b.dataset.load));
     else if (b.dataset.drink) this.drink(Number(b.dataset.drink));
   }
@@ -1053,6 +1056,11 @@ export class Game {
       lines.push(`You pull the ${w.face!.toLowerCase()} down before you go in.`);
     }
     if (info.indoors && h.cold) lines.push("It's warm in here. Stay a while and you'll thaw out.");
+    const inHand = this.inventory.items.filter((x) => x.hand);
+    if (info.indoors && inHand.length) {
+      for (const x of inHand) delete x.hand;
+      lines.push(`You put the ${inHand.map((x) => lc(x.name)).join(' and the ')} away before you go in.`);
+    }
     if (info.indoors && this.smoking) {
       delete h.smokingUntil;
       lines.push('You stub the cigarette out on the wall before you go in.');
@@ -1748,6 +1756,32 @@ export class Game {
     buzz(5);
   }
 
+  /** A weapon into your hand: out, ready, and seen by everyone. */
+  private hold(i: number, hand: 'left' | 'right') {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    if (!it || it.kind !== 'weapon' || inv.items.some((y) => y.hand === hand)) return;
+    if (placeInfo(this.place).indoors) {
+      this.note(['Not in here.']);
+      return;
+    }
+    it.hand = hand;
+    this.refresh();
+    this.note([`You take out the ${lc(it.name)} and hold it in your ${hand} hand. Anyone who looks can see it.`]);
+    buzz(6);
+  }
+  /** A weapon back where it's kept. */
+  private putAway(i: number) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    if (!it?.hand) return;
+    delete it.hand;
+    const sp = inv.spots.find((s) => s.id === it.spot);
+    this.refresh();
+    this.note([`You put the ${lc(it.name)} away${sp ? ` (${sp.on.toLowerCase()}, ${sp.name.toLowerCase()})` : ''}.`]);
+    buzz(5);
+  }
+
   /** Cigarettes from one pack into another (the fullest with room; a pack holds 20). */
   private combinePack(i: number) {
     const inv = this.inventory;
@@ -1850,6 +1884,13 @@ export class Game {
     let lied = false;
     // Talking your way out: a story, a calm face. Harder the hotter you are,
     // and with a weapon showing or a mask on.
+    // A weapon in your hand when they pull up: that's the whole stop.
+    const brandished = inv.items.find((x) => x.kind === 'weapon' && x.hand);
+    if (brandished && choice !== 'run') {
+      lines.push(`"Drop it! DROP THE ${brandished.name.toUpperCase()}!" Two guns on you. You drop it. They put you face down on the pavement.`);
+      arrested = true;
+      charges.push('Brandishing a weapon');
+    }
     const talk = () => {
       const odds = Math.max(0.03, Math.min(0.9, 0.3 + lieBonus(this.stats) - f.heat / 150 - exposure(inv) * 0.6 - (w.masked ? 0.15 : 0) - ((h.drunk ?? 0) >= 40 ? 0.15 : 0)));
       if (Math.random() < odds) {
@@ -1879,6 +1920,8 @@ export class Game {
         arrested = true;
         charges.push('Resisting arrest');
       }
+    } else if (brandished) {
+      // (Nothing to talk about.)
     } else if (choice === 'talk' && talk()) {
       // Talked your way out: no search.
     } else {
@@ -2527,10 +2570,19 @@ export class Game {
                 if (x.secret === 'cocaine' && x.known) acts += act('bump', 'Bump', h.wired ? 'Already wired' : null);
                 // A gun: load it from a box of its rounds.
                 if (gunOf(x.name)) acts += act('load', 'Load', (x.doses ?? 0) >= gunOf(x.name)!.holds ? 'Full' : inv.items.some((y) => y.name === gunOf(x.name)!.ammo && (y.doses ?? 0) > 0) ? null : 'No ammunition');
+                // A weapon: in your hand (out, and seen), or put away.
+                if (x.kind === 'weapon' && !x.spray) {
+                  if (x.hand) acts += act('putaway', 'Put away');
+                  else {
+                    const fh = freeHand(inv);
+                    acts += act('hold-r', 'Right hand', fh === null || inv.items.some((y) => y.hand === 'right') ? 'Hand full' : null);
+                    acts += act('hold-l', 'Left hand', inv.items.some((y) => y.hand === 'left') ? 'Hand full' : null);
+                  }
+                }
                 // Into another pocket (to hide it better, or have it to hand).
-                acts += act('move', 'Move', nextSpot(inv, x) ? null : 'Nowhere else');
+                if (!x.hand) acts += act('move', 'Move', nextSpot(inv, x) ? null : 'Nowhere else');
                 return (
-                  `<li><div><b>${x.name}</b><small>${small ? `${small} · ` : ''}${kgLabel(x.kg)}${x.kind === 'weapon' ? ` · ${hideStat(bulkOf(x))}, ${alarmStat(alarmOf(x))} · <span class="shows${showing(inv, x) >= 0.16 ? ' seen' : ''}">${showWord(showing(inv, x))}${inBag(inv, x.spot) ? ' (a moment to get out)' : ''}</span>` : ''}</small></div>` +
+                  `<li><div><b>${x.name}</b><small>${small ? `${small} · ` : ''}${kgLabel(x.kg)}${x.kind === 'weapon' ? ` · ${hideStat(bulkOf(x))}, ${alarmStat(alarmOf(x))} · <span class="shows${showing(inv, x) >= 0.16 ? ' seen' : ''}">${x.hand ? `In your ${x.hand} hand` : showWord(showing(inv, x))}${inBag(inv, x.spot) ? ' (a moment to get out)' : ''}</span>` : ''}</small></div>` +
                   `<span class="acts">${acts}<button type="button" class="drop" data-drop="${i}" aria-label="Drop ${x.name}">Drop</button></span></li>`
                 );
               })
@@ -2559,7 +2611,7 @@ export class Game {
       ? inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind) && x.detail === e.holder && !x.pin).map(({ x, i }) => ({ i, name: x.name }))
       : [];
     e.canAsk = this.world.thieves.length > 0 && !e.person.thief;
-    e.weapons = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'weapon').map(({ x, i }) => ({ i, name: x.name, weapon: x.weapon, cuts: x.cuts, spray: x.spray, doses: x.doses, loaded: x.secret && x.secret !== 'empty' && x.secret !== 'cocaine' ? x.secret : undefined, known: x.known, ...(gunOf(x.name) ? { gun: true, ammo: inv.items.filter((y) => y.name === gunOf(x.name)!.ammo).reduce((n, y) => n + (y.doses ?? 0), 0) } : {}) }));
+    e.weapons = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'weapon').map(({ x, i }) => ({ i, name: x.name, weapon: x.weapon, cuts: x.cuts, spray: x.spray, doses: x.doses, loaded: x.secret && x.secret !== 'empty' && x.secret !== 'cocaine' ? x.secret : undefined, known: x.known, hand: x.hand, ...(gunOf(x.name) ? { gun: true, ammo: inv.items.filter((y) => y.name === gunOf(x.name)!.ammo).reduce((n, y) => n + (y.doses ?? 0), 0) } : {}) }));
     e.wet = WET_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors;
     // How much of what you're carrying shows (a handle out of a pocket, the shape of a blade).
     e.exposed = exposure(inv);

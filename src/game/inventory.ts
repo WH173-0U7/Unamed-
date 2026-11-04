@@ -36,6 +36,8 @@ export interface InvItem {
   own?: number;
   /** Something to drink (beer, liquor, an energy drink), swigs in `doses`. */
   drink?: 'beer' | 'liquor' | 'energy';
+  /** Held, out in the open, in this hand (a weapon you've taken out), not in its pocket. */
+  hand?: 'left' | 'right';
   /** A weapon: extra damage, whether it cuts, pepper spray (uses in `doses`). */
   weapon?: number;
   cuts?: boolean;
@@ -440,6 +442,8 @@ export function bulkOf(x: { kind: string; name: string }): number {
 
 /** How much of this weapon shows, where it is (0 hidden .. 1 out in the open). */
 export function showing(inv: Inventory, x: InvItem): number {
+  // In your hand: everyone can see it.
+  if (x.hand) return 1;
   const sp = inv.spots.find((s) => s.id === x.spot);
   // (A shotgun sticks out of anything.)
   const v = bulkOf(x) * (1 - (sp ? concealOf(sp, inv.clothes[0]) : 0));
@@ -495,3 +499,9 @@ export function nextSpot(inv: Inventory, x: InvItem): Spot | null {
 
 /** Is this spot in a bag (it takes a moment to get something out)? */
 export const inBag = (inv: Inventory, spotId: string) => /backpack|shoulder bag|tote|fanny|ankle/i.test(inv.spots.find((s) => s.id === spotId)?.on ?? '');
+
+/** A free hand to hold something in (right first), or null. */
+export function freeHand(inv: Inventory): 'left' | 'right' | null {
+  const busy = new Set(inv.items.map((x) => x.hand).filter(Boolean));
+  return !busy.has('right') ? 'right' : !busy.has('left') ? 'left' : null;
+}

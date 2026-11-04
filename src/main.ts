@@ -213,6 +213,8 @@ function startGame(fresh: boolean) {
     menu.setSaveInfo(null);
     return;
   }
+  // (Never two games at once: a double tap on Continue.)
+  game?.close();
   game = new Game(data, $('game'), renderer, glass);
   // Dying saves at once: that character is gone, and you go on as someone new.
   game.onDeath = () => save();

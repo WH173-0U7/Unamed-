@@ -48,6 +48,8 @@ export interface Health {
   marks?: Marks;
   /** Cuts the ER stitched (they heal to a faint line, not a scar). */
   stitched?: { brow?: boolean; lip?: boolean };
+  /** The ER set your broken nose (once is all it takes). */
+  noseSet?: boolean;
   markHours?: Partial<Record<HealingMark, number>>;
 }
 
@@ -326,6 +328,7 @@ export function passHours(h: Health, hours: number, resting = false): string[] {
         h.broken = h.broken.filter((x) => x !== p);
         delete h.mending[p];
         h.splinted = h.splinted?.filter((x) => x !== p);
+        if (p === 'nose') delete h.noseSet;
         lines.push(`Your ${p} ${p === 'ribs' ? 'have' : 'has'} healed.`);
         if (p === 'ribs' && h.lung) {
           h.lung = false;

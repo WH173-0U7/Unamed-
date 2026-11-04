@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.60',
+    date: 'Nov 4',
+    items: [
+      'ER triage: lost a lot of blood, you’re taken straight in; bleeding at all, they move you up (an hour, not four). Waiting in the chair no longer counts as resting, and a cut still gets stitched (and paid for) even if it stopped bleeding while you waited.',
+      'A broken nose can only be set once. Dying in the ER, nobody goes through your pockets.',
+      'Reloading while you’re knocked out no longer skips coming round: the screen stays off until you shake (or tap).',
+      'Fixes behind the scenes: the bank can’t be fed nonsense amounts; tapping Continue twice can’t start two games.',
+    ],
+  },
+  {
     v: '0.59',
     date: 'Nov 4',
     items: [

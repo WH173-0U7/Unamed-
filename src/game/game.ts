@@ -566,6 +566,8 @@ export class Game {
     }
     this.encounter = null;
     this.koLines = lines;
+    // (Saved too: a reload while you're out doesn't skip coming round.)
+    this.save.state.koLines = lines;
     this.tvState.on = false;
     this.tv.switchOff();
     this.view.classList.add('ko-out');
@@ -574,6 +576,11 @@ export class Game {
     this.koHint.hidden = true;
     this.refresh();
     buzz([200, 80, 400]);
+    this.waitToComeRound();
+  }
+
+  /** Out cold, the screen off: the hint, then a shake (or a tap) brings the power button back. */
+  private waitToComeRound() {
     this.koListen?.abort();
     const ko = (this.koListen = new AbortController());
     const comeRound = () => {
@@ -709,10 +716,11 @@ export class Game {
     // The encounter you died in (its person may be the one who robs you).
     const e = this.encounter;
     if (e) settle(w, e);
-    const robbed = robBody(w, this.inventory, e);
+    // (Dying in the ER, nobody goes through your pockets.)
+    const robbed = this.place === 'hospital' ? false : robBody(w, this.inventory, e);
     // A new you: nothing carried over but the world.
     // (Your name, your ID and your bank account were that character's.)
-    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves']) delete this.save.state[k];
+    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines']) delete this.save.state[k];
     // Nobody knows this face. The people the old you hurt are still out there
     // (and your things on some of them), but they'd be looking for someone else.
     this.world.infamy = newInfamy();
@@ -1103,7 +1111,7 @@ export class Game {
     const limbs = h.broken.filter((p) => /arm|leg/.test(p) && !h.splinted?.includes(p));
     return {
       stitches: h.bleeding > 0 || (!!h.marks?.brow && !h.stitched?.brow) || (!!h.marks?.lip && !h.stitched?.lip),
-      nose: h.broken.includes('nose') && (h.mending.nose ?? 0) > 6,
+      nose: h.broken.includes('nose') && !h.noseSet && (h.mending.nose ?? 0) > 6,
       cast: limbs,
       lung: !!h.lung,
       blood: h.blood < h.maxBlood * 0.8,
@@ -1127,18 +1135,24 @@ export class Game {
     const can = what === 'cast' ? need.cast.length > 0 : need[what];
     if (!can || cashOf(inv) * 100 < price * 100) return;
     const lines: string[] = [];
+    const hadCut = h.bleeding > 0;
     if (!this.erSeen) {
-      const urgent = h.bleeding >= 3 || h.lung;
+      // Triage: bleeding badly, can't breathe, or white as a sheet, you go straight in;
+      // bleeding at all, they move you up the list.
+      const urgent = h.bleeding >= 3 || h.lung || h.blood < h.maxBlood * 0.5;
       if (urgent) lines.push('One look at you and triage takes you straight through, past everyone waiting.');
       else {
-        const wait = 2 + Math.floor(Math.random() * 3);
-        lines.push(`You wait. ${wait} hours of plastic chairs, a TV nobody's watching, and a vending machine that eats your change.`);
-        lines.push(...passHours(h, wait, true));
+        const wait = h.bleeding >= 2 ? 1 : 2 + Math.floor(Math.random() * 3);
+        lines.push(wait === 1 ? 'Triage moves you up the list. Still an hour in a plastic chair, pressing a wad of paper towels to it.' : `You wait. ${wait} hours of plastic chairs, a TV nobody's watching, and a vending machine that eats your change.`);
+        // (Sitting up in a chair, not lying down resting.)
+        lines.push(...passHours(h, wait, false));
         if (h.dead) return this.die(lines, 'You died in the waiting room.');
       }
       this.erSeen = true;
-      // By the time they call your name, it may not need doing.
+      // By the time they call your name, it may not need doing (a cut that's
+      // stopped bleeding still gets closed, though).
       need = this.erNeeds();
+      if (what === 'stitches' && hadCut) need.stitches = true;
       price = ER_PRICES[what] * (what === 'cast' ? Math.max(1, need.cast.length) : 1);
       if (what === 'cast' ? !need.cast.length : !need[what]) {
         lines.push('By the time they call your name, there’s nothing they need to do. They send you home.');
@@ -1162,6 +1176,7 @@ export class Game {
       }
       case 'nose':
         h.mending.nose = Math.ceil((h.mending.nose ?? 8) / 2);
+        h.noseSet = true;
         lines.push('A doctor puts both thumbs on your nose and pushes it straight. You see white. Packing, tape, and a sheet of instructions.');
         break;
       case 'cast':
@@ -1246,7 +1261,8 @@ export class Game {
         sound.coin();
         line = `You hand over everything: ${money(c)}. Your balance is ${money(acct.cents)}.`;
       } else if (what.startsWith('d:')) {
-        const want = Number(what.slice(2));
+        const want = Math.round(Number(what.slice(2)));
+        if (!Number.isFinite(want) || want <= 0) return;
         const have = Math.round(cashOf(inv) * 100);
         if (want > have) {
           this.note([`You've only got ${money(have)} on you.`]);
@@ -1260,7 +1276,8 @@ export class Game {
         sound.coin();
         line = `The teller counts your cash, puts ${money(want)} in your account and hands back ${money(have - want)}. Balance: ${money(acct.cents)}.`;
       } else {
-        const want = what === 'w:all' ? acct.cents : Number(what.slice(2));
+        const want = what === 'w:all' ? acct.cents : Math.round(Number(what.slice(2)));
+      if (!Number.isFinite(want) || want <= 0) return;
         const c = Math.min(acct.cents, want);
         if (c <= 0) return;
         acct.cents -= c;
@@ -2535,6 +2552,14 @@ export class Game {
       // The set was already on at the save point: no warm-up.
       this.powerBtn.hidden = true;
       this.tv.powerOnSettled();
+    } else if (Array.isArray(this.save.state.koLines)) {
+      // Saved while you were out cold: you still have to come round.
+      this.tv.powerOff();
+      this.koLines = this.save.state.koLines as string[];
+      this.view.classList.add('ko-out');
+      this.powerBtn.hidden = true;
+      this.powerBtn.classList.remove('pressed');
+      this.waitToComeRound();
     } else {
       this.tv.powerOff();
       this.powerBtn.hidden = false;
@@ -2555,6 +2580,7 @@ export class Game {
     // Coming round after a knockout: what happened, once the picture's back.
     const woke = this.koLines;
     this.koLines = null;
+    delete this.save.state.koLines;
     this.view.classList.remove('ko-out');
     if (woke) this.timers.push(window.setTimeout(() => this.running && this.note(woke), 2900));
     // (Kept in timers, so quitting straight after can't touch the next game.)

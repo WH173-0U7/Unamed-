@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.97',
+    date: 'Nov 4',
+    items: [
+      'A pack is now called a “Pack of cigarettes”, so it’s easy to tell from loose ones. Packs you already had are renamed.',
+      'Drop is now Trash in Pockets: it’s gone for good, so the button says so.',
+    ],
+  },
+  {
     v: '0.96',
     date: 'Nov 4',
     items: [

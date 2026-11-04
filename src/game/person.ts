@@ -470,7 +470,7 @@ function dress(kind: Kind, carrying: Item[]): Garment[] {
     // A pack (with however many left in it), or a few loose ones in a pocket.
     if (r() < (kind === 'homeless' ? 0.35 : kind === 'junkie' ? 0.55 : 0.8)) {
       const n = kind === 'homeless' ? 1 + Math.floor(r() * 4) : 3 + Math.floor(r() * 17);
-      put({ kind: 'misc', name: 'Cigarettes', detail: `${any(SMOKES)}`, doses: n });
+      put({ kind: 'misc', name: 'Pack of cigarettes', detail: `${any(SMOKES)}`, doses: n });
     } else put({ kind: 'misc', name: 'Loose cigarettes', doses: 1 + Math.floor(r() * 3) });
     // Smokers usually have something to light them with.
     if (!has('Lighter') && r() < 0.65) {

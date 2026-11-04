@@ -256,7 +256,7 @@ export class Game {
       const sp = it && this.inventory.spots.find((x) => x.id === it.spot);
       if (sp) bits.push(`→ ${sp.name}`);
     } else if (attr === 'load') bits.push('Loaded');
-    else if (attr === 'drop' || after.items < before.items) bits.push(attr === 'drop' ? 'Dropped' : attr === 'use' ? 'Used' : '');
+    else if (attr === 'drop' || after.items < before.items) bits.push(attr === 'drop' ? 'Trashed' : attr === 'use' ? 'Used' : '');
     if (db) bits.push(`${db > 0 ? '+' : '−'}${money(Math.abs(db))} in the bank`);
     else if (dc) bits.push(`${dc > 0 ? '+' : '−'}${money(Math.abs(dc))}`);
     const text = bits.filter(Boolean).join('  ');
@@ -1917,7 +1917,7 @@ export class Game {
     const inv = this.inventory;
     const loose = inv.items[i];
     if (!loose || !/^loose cigarettes$/i.test(loose.name)) return;
-    const pack = inv.items.filter((y) => /^cigarettes$/i.test(y.name) && (y.doses ?? 0) < 20).sort((a, b) => (b.doses ?? 0) - (a.doses ?? 0))[0];
+    const pack = inv.items.filter((y) => /^(pack of )?cigarettes$/i.test(y.name) && (y.doses ?? 0) < 20).sort((a, b) => (b.doses ?? 0) - (a.doses ?? 0))[0];
     if (!pack) return;
     const n = Math.min(loose.doses ?? 1, 20 - (pack.doses ?? 0));
     pack.doses = (pack.doses ?? 0) + n;
@@ -1965,7 +1965,7 @@ export class Game {
       { kind: 'cash', name: 'Cash in the glovebox', cash: Math.round(5 + r() * 55), where: 'glovebox' },
       { kind: 'misc', name: 'Laptop', detail: 'In a bag on the back seat', where: 'back seat' },
       { kind: 'misc', name: 'Phone charger', where: 'console' },
-      { kind: 'misc', name: 'Cigarettes', doses: 6 + Math.floor(r() * 10), where: 'door pocket' },
+      { kind: 'misc', name: 'Pack of cigarettes', doses: 6 + Math.floor(r() * 10), where: 'door pocket' },
       { kind: 'misc', name: 'Painkillers', med: 'painkillers', where: 'glovebox' },
       { kind: 'weapon', name: 'Pocket knife', weapon: 4, cuts: true, where: 'glovebox' },
       { kind: 'misc', name: 'Parking tickets', detail: 'A wad of them, unpaid', where: 'sun visor' },
@@ -2036,8 +2036,8 @@ export class Game {
   private combinePack(i: number) {
     const inv = this.inventory;
     const from = inv.items[i];
-    if (!from || !/^cigarettes$/i.test(from.name) || (from.doses ?? 0) <= 0) return;
-    const to = inv.items.filter((y) => y !== from && /^cigarettes$/i.test(y.name) && (y.doses ?? 0) < 20).sort((a, b) => (b.doses ?? 0) - (a.doses ?? 0))[0];
+    if (!from || !/^(pack of )?cigarettes$/i.test(from.name) || (from.doses ?? 0) <= 0) return;
+    const to = inv.items.filter((y) => y !== from && /^(pack of )?cigarettes$/i.test(y.name) && (y.doses ?? 0) < 20).sort((a, b) => (b.doses ?? 0) - (a.doses ?? 0))[0];
     if (!to) return;
     const n = Math.min(from.doses ?? 0, 20 - (to.doses ?? 0));
     to.doses = (to.doses ?? 0) + n;
@@ -2766,7 +2766,7 @@ export class Game {
     if (!it) return;
     inv.items.splice(i, 1);
     this.refresh();
-    this.note([`You drop the ${lc(it.name)}.`]);
+    this.note([`You throw the ${lc(it.name)} away.`]);
     buzz(6);
   }
 
@@ -3051,10 +3051,10 @@ export class Game {
                       ? `${knifeOf(x.name)!.desc} +${knifeOf(x.name)!.dmg} damage.`
                     : x.kind === 'weapon' && /syringe/i.test(x.name)
                       ? `${x.detail ?? 'A syringe'} · +${x.weapon ?? 0} damage, cuts`
-                    : /^cigarettes$/i.test(x.name)
+                    : /^(pack of )?cigarettes$/i.test(x.name)
                       ? x.doses
-                        ? `A pack${x.detail ? ` of ${x.detail}` : ''}, ${x.doses} left`
-                        : `An empty pack${x.detail ? ` of ${x.detail}` : ''}`
+                        ? `${x.detail ? `${x.detail}, ` : ''}${x.doses} left`
+                        : `Empty${x.detail ? ` (${x.detail})` : ''}`
                       : /^loose cigarettes$/i.test(x.name)
                         ? `${x.doses ?? 1} loose`
                       : /^lighter$/i.test(x.name)
@@ -3067,7 +3067,7 @@ export class Game {
                               : `A weapon: +${x.weapon ?? 0} damage${x.cuts ? ', cuts' : ''}`
                             : x.kind === 'car keys'
                             ? `${x.detail ?? 'Car keys'} · ${x.car === 'found' ? `the car's parked nearby${x.carSearched ? ', searched' : ''} (the fence buys cars)` : x.car === 'gone' ? "the car's gone" : 'press it on the street to find the car'}`
-                            : /^cigarettes$/i.test(x.name)
+                            : /^(pack of )?cigarettes$/i.test(x.name)
                             ? `${x.detail ? `${x.detail} · ` : ''}${x.doses ?? 0} of 20`
                             : /^loose cigarettes$/i.test(x.name)
                             ? `${x.doses ?? 1} loose`
@@ -3077,13 +3077,13 @@ export class Game {
                 const act = (attr: string, label: string, no?: string | null) => `<button type="button" data-${attr}="${i}" ${no ? `disabled title="${no}"` : ''}>${label}${no ? `<small>${no}</small>` : ''}</button>`;
                 let acts = m && m.id !== 'testkit' ? act('use', 'Use', why) : '';
                 if (/^(lighter|matches)$/i.test(x.name)) acts += act('fire', 'Fire', this.fireBlocked());
-                if (/^(loose )?cigarettes$/i.test(x.name)) acts += act('smoke', this.smoking ? 'Smoking' : 'Smoke', (x.doses ?? 1) <= 0 ? 'Empty' : this.smokeBlocked());
+                if (/^(loose |pack of )?cigarettes$/i.test(x.name)) acts += act('smoke', this.smoking ? 'Smoking' : 'Smoke', (x.doses ?? 1) <= 0 ? 'Empty' : this.smokeBlocked());
                 if (x.drink) acts += act('drink', 'Drink', (x.doses ?? 0) <= 0 ? 'Empty' : this.canOpenSheet ? null : 'Not now');
                 // Loose ones into a pack with room in it.
-                if (/^loose cigarettes$/i.test(x.name) && inv.items.some((y) => /^cigarettes$/i.test(y.name) && (y.doses ?? 0) < 20))
+                if (/^loose cigarettes$/i.test(x.name) && inv.items.some((y) => /^(pack of )?cigarettes$/i.test(y.name) && (y.doses ?? 0) < 20))
                   acts += act('pack', 'Put in pack');
                 // One pack into another (a pack holds 20).
-                if (/^cigarettes$/i.test(x.name) && (x.doses ?? 0) > 0 && inv.items.some((y) => y !== x && /^cigarettes$/i.test(y.name) && (y.doses ?? 0) < 20))
+                if (/^(pack of )?cigarettes$/i.test(x.name) && (x.doses ?? 0) > 0 && inv.items.some((y) => y !== x && /^(pack of )?cigarettes$/i.test(y.name) && (y.doses ?? 0) < 20))
                   acts += act('combine', 'Into another pack');
                 if (x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card') acts += act('burn', 'Burn', this.burnBlocked());
                 if (x.secret && x.secret !== 'cocaine' && x.secret !== 'empty') {
@@ -3117,7 +3117,7 @@ export class Game {
                 if (!x.hand) acts += act('move', 'Move', nextSpot(inv, x) ? null : 'Nowhere else');
                 return (
                   `<li><div><b>${x.name}</b><small>${small ? `${small} · ` : ''}${kgLabel(x.kg)}${x.kind === 'weapon' ? ` · ${hideStat(bulkOf(x))}, ${alarmStat(alarmOf(x))} · <span class="shows${showing(inv, x) >= 0.16 ? ' seen' : ''}">${x.hand ? `In your ${x.hand} hand` : showWord(showing(inv, x))}${inBag(inv, x.spot) ? ' (a moment to get out)' : ''}</span>` : ''}</small></div>` +
-                  `<span class="acts">${acts}<button type="button" class="drop" data-drop="${i}" aria-label="Drop ${x.name}">Drop</button></span></li>`
+                  `<span class="acts">${acts}<button type="button" class="drop" data-drop="${i}" aria-label="Throw away ${x.name}">Trash</button></span></li>`
                 );
               })
               .join('')}</ul>`

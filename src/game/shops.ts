@@ -224,7 +224,7 @@ export const ID_FEE = 30;
 export const GAS_STOCK: Stock[] = [
   { id: 'coffee', name: 'Hot coffee', price: 2, desc: 'Burnt, and scalding. Warms you through; about 95 mg of caffeine.', drink: true },
   { id: 'energy', name: 'Energy drink', price: 4, desc: '160 mg of caffeine in a can. Kicks in after half an hour; lasts for hours.', doses: 1, drinkType: 'energy' },
-  { id: 'cigs', name: 'Cigarettes', price: 9, desc: 'A pack of 20. Takes the edge off stress.', doses: 20 },
+  { id: 'cigs', name: 'Pack of cigarettes', price: 9, desc: '20 in a pack. Takes the edge off stress.', doses: 20 },
   { id: 'lighter', name: 'Lighter', price: 3, desc: 'Full of fuel.', doses: 100 },
   { id: 'matches', name: 'Matches', price: 1, desc: 'A book of 20.', doses: 20 },
   { id: 'bandages', name: 'Bandages', price: 11, desc: 'Slows bleeding a level. Pricier than the pharmacy.', med: 'bandages' },

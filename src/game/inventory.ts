@@ -141,6 +141,8 @@ export function upgradeInventory(inv: Inventory) {
     inv.purse = fewest(Math.round((inv.cash ?? 0) * 100));
     delete inv.cash;
   }
+  // (A pack used to be called just "Cigarettes": hard to tell from loose ones.)
+  for (const x of inv.items) if (x.name === 'Cigarettes') x.name = 'Pack of cigarettes';
   if (inv.spots) return;
   const fresh = newInventory();
   inv.clothes = fresh.clothes;

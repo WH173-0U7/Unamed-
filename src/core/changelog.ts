@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.67',
+    date: 'Nov 4',
+    items: ['Shops won’t sell you what you’ve already got: clothes and a bag you’re wearing, a cap, mask or shades you’ve got on, a sheath, or a knife of that kind say “Wearing it” or “You have one”. Things that get used up (smokes, drink, coffee, medicine) you can always buy more of.'],
+  },
+  {
     v: '0.66',
     date: 'Nov 4',
     items: [

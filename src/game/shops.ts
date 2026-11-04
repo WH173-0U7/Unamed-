@@ -113,6 +113,8 @@ export const PLACES: PlaceInfo[] = [
   },
 ];
 export const placeInfo = (p: Place) => PLACES.find((x) => x.id === p)!;
+/** Places that exist but aren't open to the player yet (the gun store: not yet). Remove one to bring it back. */
+export const HIDDEN_PLACES: ReadonlySet<Place> = new Set<Place>(['guns']);
 
 /** The bank lobby (coin machine) is open all hours. */
 export const COIN_MACHINE_FEE = 0.1;

@@ -62,7 +62,7 @@ const STOMP_HELPLESS_COST = 1;
 const TORTURE_COST = 3;
 const MUG_COST = 0.5;
 
-import { COIN_MACHINE_FEE, ER_PRICES, GAS_STOCK, GUN_STOCK, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place } from './shops';
+import { COIN_MACHINE_FEE, ER_PRICES, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place } from './shops';
 import { BILLS, COINS, addTo, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
 import { hoursText, isOpen } from './clock';
 import { createHitUi } from '../fx/hitUi';
@@ -308,7 +308,9 @@ export class Game {
 
   /** Where you are (saved). */
   private get place(): Place {
-    return (this.save.state.place as Place) ?? 'street';
+    const p = (this.save.state.place as Place) ?? 'street';
+    // (Saved inside a place that's hidden now: you're back outside.)
+    return HIDDEN_PLACES.has(p) ? 'street' : p;
   }
   private set place(p: Place) {
     this.save.state.place = p;
@@ -901,7 +903,7 @@ export class Game {
   private goTo(p: Place) {
     this.shopNote = [];
     this.closeSheet();
-    if (p === this.place) return;
+    if (p === this.place || HIDDEN_PLACES.has(p)) return;
     // A new trip to the ER is a new wait.
     this.erSeen = false;
     // Thrown out of the pawn shop: he won't let you back in for a while.
@@ -2179,7 +2181,7 @@ export class Game {
     if (this.sheet === 'places') {
       card.innerHTML =
         `<div class="sheet-head"><h2>Where to?</h2>${close}</div><div class="sheet-body places">` +
-        PLACES.map(
+        PLACES.filter((p) => !HIDDEN_PLACES.has(p.id)).map(
           (p) =>
             `<button type="button" class="place ${p.id === this.place ? 'here' : ''}" data-place="${p.id}"><b>${p.name}</b><small>${p.id === this.place ? "You're here" : p.desc}${p.id !== this.place && p.id !== 'street' ? (p.hours ? `<i class="${isOpen(p.hours) ? 'open' : 'shut'}">${hoursText(p.hours)}</i>` : '<i class="open">Open all hours</i>') : ''}</small></button>`,
         ).join('') +

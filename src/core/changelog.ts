@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.62',
+    date: 'Nov 4',
+    items: ['The gun store is closed for now: it’s off the map until guns are ready to come into the game.'],
+  },
+  {
     v: '0.61',
     date: 'Nov 4',
     items: [

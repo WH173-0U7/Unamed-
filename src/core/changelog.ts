@@ -11,6 +11,19 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.78',
+    date: 'Nov 4',
+    items: [
+      'The blow that ends a fight lands before the screen changes: a beat to see it, and when you’re knocked out you’re told the last thing you remember.',
+      'Fights have sound now: a dull thud for every blow, a crack when something breaks, and a deep thunk when you go out.',
+      'Taps meant for the fight no longer skip the death screen or start a lurk the moment a fight ends.',
+      'Something happening mid-fight goes in the fight log instead of over it; with someone across the street, notes sit under them; notes fade out instead of blinking off.',
+      'The fight log shows your whole last turn from its first line. When the police stop you, they say why, and what happened while you waited stays on screen.',
+      'A shop button only chimes when it worked; when it didn’t, it buzzes. Knocked out on a phone that won’t share its motion, tap anywhere to wake up.',
+      'Smaller things: cans and coffee are pocket-sized now (not paper), “Lurk again” starts over for a new character, and the Blood card says how much you’ve lost.',
+    ],
+  },
+  {
     v: '0.77',
     date: 'Nov 4',
     items: [

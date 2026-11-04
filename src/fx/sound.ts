@@ -116,6 +116,17 @@ export const sound = {
     tone(520, 0.22, 0.07, 'sine');
     tone(780, 0.3, 0.05, 'sine', undefined, 0.06);
   },
+  /** A blow landing: a low, dull thud (harder ones louder); a bone going, a sharp crack on top. */
+  hit(power: number, severe: boolean) {
+    noise(0.12, 160, 0.7, 0.12 + power * 0.18, 'lowpass');
+    tone(90, 0.14, 0.08 + power * 0.1, 'sine', 45);
+    if (severe) noise(0.05, 2200, 1.2, 0.12, 'bandpass', 0.03);
+  },
+  /** The set going off: a deep thunk. */
+  thunk() {
+    tone(70, 0.35, 0.2, 'sine', 30);
+    noise(0.08, 120, 0.6, 0.15, 'lowpass');
+  },
   /** Money changing hands: a couple of little metallic ticks. */
   coin() {
     tone(2600, 0.05, 0.07, 'square');

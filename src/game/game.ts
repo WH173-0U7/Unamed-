@@ -154,7 +154,7 @@ export class Game {
     this.restBtn = view.querySelector('#rest-btn') as HTMLButtonElement;
     this.noteEl = view.querySelector('#note') as HTMLElement;
     this.clockEl = view.querySelector('#clock') as HTMLElement;
-    this.restBtn.onclick = () => this.rest();
+    this.restBtn.onclick = () => performance.now() >= this.tapsFrom && this.rest();
     this.goBtn = view.querySelector('#go-btn') as HTMLButtonElement;
     this.bagBtn = view.querySelector('#bag-btn') as HTMLButtonElement;
     this.youBtn = view.querySelector('#you-btn') as HTMLButtonElement;
@@ -175,7 +175,7 @@ export class Game {
     this.hitUi = createHitUi(view);
     this.encView = createEncounterView(view.querySelector('#enc') as HTMLElement, (id) => this.act(id));
     this.powerBtn.onclick = () => this.turnOn();
-    this.lurkBtn.onclick = () => this.lurk();
+    this.lurkBtn.onclick = () => performance.now() >= this.tapsFrom && this.lurk();
     this.lurkBtn.hidden = true;
     this.refresh();
   }
@@ -224,8 +224,12 @@ export class Game {
       el.classList.remove('did-no');
       void el.offsetWidth;
       el.classList.add('did-no');
+      sound.deny();
+      buzz([8, 40, 8]);
       return;
     }
+    // It worked: the good sound (unless money moved, which has its own).
+    if (after.cents === before.cents && after.bank === before.bank) sound.good();
     const row = (now ?? b).closest('li');
     if (row) {
       row.classList.remove('did-ok');
@@ -248,10 +252,12 @@ export class Game {
     const text = bits.filter(Boolean).join('  ');
     if (text) {
       const f = document.createElement('div');
-      f.className = `float-label${dc < 0 ? ' cost' : dc > 0 || db < 0 ? ' gain' : ''}`;
+      f.className = `float-label${db > 0 ? ' gain' : db < 0 || dc < 0 ? ' cost' : dc > 0 ? ' gain' : ''}`;
       f.textContent = text;
-      f.style.left = `${Math.min(innerWidth - 12, Math.max(12, rect.left + rect.width / 2))}px`;
-      f.style.top = `${rect.top}px`;
+      // Over the button as it is now (the list may have moved).
+      const at = now?.isConnected ? now.getBoundingClientRect() : rect;
+      f.style.left = `${Math.min(innerWidth - 12, Math.max(12, at.left + at.width / 2))}px`;
+      f.style.top = `${at.top}px`;
       document.body.append(f);
       window.setTimeout(() => f.remove(), 1300);
     }
@@ -417,6 +423,13 @@ export class Game {
   /** A few lines shown in the middle of the screen for a while. */
   private note(lines: string[]) {
     if (!lines.length) return;
+    // Mid-fight, it goes in the fight's log (not over the top of it).
+    const fight = this.encounter;
+    if (fight && fight.stage !== 'seen' && fight.stage !== 'over' && !this.sheet && this.tvState.on) {
+      for (const text of lines) fight.log.push({ by: 'info', text });
+      this.refresh();
+      return;
+    }
     // In a shop, or with a sheet open, what happened shows right there (the
     // street's note would be behind it).
     if (this.sheet) {
@@ -428,6 +441,10 @@ export class Game {
     }
     this.noteEl.replaceChildren(...lines.map((l) => Object.assign(document.createElement('p'), { textContent: l })));
     this.noteEl.hidden = false;
+    clearTimeout(this.noteFade);
+    this.noteEl.classList.remove('fading');
+    // Someone across the street: under their card, not on it.
+    this.noteEl.classList.toggle('low', this.encounter?.stage === 'seen');
     this.noteEl.style.animation = 'none';
     void this.noteEl.offsetWidth;
     this.noteEl.style.animation = '';
@@ -524,10 +541,17 @@ export class Game {
     const heat = this.infamy.heat;
     // A patrol stops you if they're looking for you, or if they can see what you're carrying.
     const shows = exposure(this.inventory);
-    if ((heat > 5 && Math.random() < Math.min(0.3, heat / 250)) || (shows > 0.15 && Math.random() < shows * 0.08)) {
+    const wanted = heat > 5 && Math.random() < Math.min(0.3, heat / 250);
+    if (wanted || (shows > 0.15 && Math.random() < shows * 0.08)) {
       this.phase = 'idle';
       this.refresh();
-      this.note(lines);
+      // What happened while you waited, and why they've stopped: at the top of the stop.
+      this.save.state.policeWhy = [
+        ...lines,
+        wanted
+          ? oneOf(['The one in the passenger seat looks from you to his phone, and back.', "They slow as they pass, and the brake lights come on. They've had a description."])
+          : oneOf(['One of them is looking at your pocket, at what shows.', 'His eyes go to the shape under your clothes and stay there.']),
+      ];
       this.save.state.policeStop = true;
       this.openSheet('police');
       buzz([30, 30, 30]);
@@ -549,7 +573,7 @@ export class Game {
   /** An option picked in the encounter (or 'open' from the person button). */
   private act(id: string) {
     const e = this.encounter;
-    if (!e || !this.running) return;
+    if (!e || !this.running || this.ending) return;
     if (id === 'lurk') return this.lurk();
     if (id === 'rest') return this.rest();
     if (id === 'pockets') return this.openSheet('pockets');
@@ -645,22 +669,43 @@ export class Game {
     }
     after.push(...worse);
     for (const text of after) e.log.push({ by: 'info', text });
+    // What finished you: the last thing they did.
+    const lastHit = [...e.log].reverse().find((l) => l.by === 'them')?.text;
+    const hitText = lastHit?.replace(/\s*You're out cold\.\s*$/, '');
+    const remember = hitText ? [`The last thing you remember: ${hitText[0].toLowerCase()}${hitText.slice(1)}`] : [];
     if (this.health.dead) {
       if (impacts.length) this.feel(impacts);
-      return this.die(after.length ? after : e.log.map((l) => l.text));
+      return this.die(after.length ? [...remember, ...after] : e.log.map((l) => l.text));
     }
     if (impacts.length) this.feel(impacts);
     else buzz(6);
     // It's over and they're gone (or you are): the screen closes, and how it
     // ended is a note. A body stays, to be searched, until you walk away.
     // Knocked out: the screen goes off, and you have to come to.
-    if (!wasOver && e.stage === 'over' && e.result === 'lost') return this.knockedOut([RESULT.lost, ...after]);
+    // (A beat first, so the blow that ended it lands, and you can read it.)
     if (!wasOver && e.stage === 'over' && e.result !== 'killed') {
-      return this.closeEncounter([RESULT[e.result ?? 'left'], ...after]);
+      const ko = e.result === 'lost';
+      const lines = ko ? [RESULT.lost, ...remember, ...after] : [RESULT[e.result ?? 'left'], ...after];
+      // (Saved now: a reload in the beat still wakes you up.)
+      if (ko) this.save.state.koLines = lines;
+      this.ending = true;
+      this.refresh();
+      setTimeout(() => {
+        this.ending = false;
+        if (this.encounter !== e) return;
+        if (ko) this.knockedOut(lines);
+        else this.closeEncounter(lines);
+      }, impacts.length ? 1100 : 700);
+      return;
     }
     this.refresh();
   }
 
+  private noteFade = 0;
+  /** A fight just ended: a beat to see it land before the screen changes. */
+  private ending = false;
+  /** Taps on Lurk and Rest count from here (not straight through from a fight). */
+  private tapsFrom = 0;
   /** Knocked out, the screen off: what to say when you come to. */
   private koLines: string[] | null = null;
   /** Out cold: listening for a shake to bring the power button back. */
@@ -684,6 +729,7 @@ export class Game {
     this.save.state.koLines = lines;
     this.tvState.on = false;
     this.tv.switchOff();
+    sound.thunk();
     this.view.classList.add('ko-out');
     this.powerBtn.hidden = true;
     this.powerBtn.classList.remove('pressed');
@@ -736,9 +782,12 @@ export class Game {
     this.timers.push(
       window.setTimeout(() => {
         if (ko.signal.aborted) return;
-        this.koHint.textContent = heard || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ? 'Shake your phone to wake up' : 'Tap to wake up';
+        // No motion heard yet (a computer, or a phone keeping it to itself): a tap.
+        this.koHint.textContent = heard ? 'Shake your phone to wake up' : 'Tap to wake up';
         this.koHint.hidden = false;
-        if (!heard && !/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) this.koHint.onclick = comeRound;
+        if (!heard) this.koHint.onclick = comeRound;
+        // Anywhere on the screen, not just the words.
+        this.view.addEventListener('click', () => !heard && comeRound(), { signal: ko.signal });
       }, 2600),
     );
     // A phone that won't share its motion (permission refused): a tap, after a while.
@@ -746,8 +795,9 @@ export class Game {
       window.setTimeout(() => {
         if (ko.signal.aborted) return;
         // (Shaking not working, or the phone's lying flat: a tap does it too.)
-        this.koHint.textContent = heard ? 'Shake your phone (or tap) to come to' : 'Tap to wake up';
+        this.koHint.textContent = heard ? 'Shake your phone (or tap) to wake up' : 'Tap to wake up';
         this.koHint.onclick = comeRound;
+        this.view.addEventListener('click', comeRound, { signal: ko.signal });
       }, 9000),
     );
   }
@@ -755,6 +805,7 @@ export class Game {
   /** Done with whoever it was: back to the street, with what happened as a note. */
   private closeEncounter(lines: string[]) {
     this.encounter = null;
+    this.tapsFrom = performance.now() + 800;
     this.refresh();
     uiGlitch(this.view, 0.35);
     this.note(lines);
@@ -773,6 +824,7 @@ export class Game {
         const power = Math.min(1, im.ml / 600) * (im.severe ? 1.3 : 1);
         // Blood only when the blow would throw it (see Spill).
         this.fx.impact(you, im.ml, im.severe, im.spill);
+        sound.hit(Math.max(0.15, power), im.severe);
         if (im.ml > 0) this.hitUi.kick(power, you);
         // The picture breaks up a little with every blow (more when it's you).
         if (im.ml > 0) dispatchEvent(new CustomEvent('ui-glitch', { detail: (you ? 0.3 : 0.15) + power * 0.5 }));
@@ -834,7 +886,7 @@ export class Game {
     const robbed = this.place === 'hospital' ? false : robBody(w, this.inventory, e);
     // A new you: nothing carried over but the world.
     // (Your name, your ID and your bank account were that character's.)
-    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan']) delete this.save.state[k];
+    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy']) delete this.save.state[k];
     // Nobody knows this face. The people the old you hurt are still out there
     // (and your things on some of them), but they'd be looking for someone else.
     this.world.infamy = newInfamy();
@@ -850,7 +902,7 @@ export class Game {
     const p = (t: string) => `<p>${t}</p>`;
     el.innerHTML =
       `<h2>${title}</h2>` +
-      `<div class="death-lines">${lines.slice(-2).map(p).join('')}</div>` +
+      `<div class="death-lines">${lines.slice(-3).map(p).join('')}</div>` +
       `<dl class="death-sum">` +
       `<div><dt>Lurked</dt><dd>${lurked}</dd></div>` +
       `<div><dt>Killed</dt><dd>${h.kills}</dd></div>` +
@@ -863,7 +915,9 @@ export class Game {
           : 'There was nothing on you worth taking.'
       }</p>` +
       `<button type="button" class="death-btn">Go on as someone new</button>`;
-    el.querySelector('button')!.addEventListener('click', () => this.rebirth());
+    // (Not before it's faded in: a tap meant for the fight mustn't skip this.)
+    const shownAt = performance.now();
+    el.querySelector('button')!.addEventListener('click', () => performance.now() - shownAt > 2500 && this.rebirth());
     // Above everything, the blood on the glass included, so it can be read.
     document.body.append(el);
   }
@@ -1979,6 +2033,7 @@ export class Game {
     const w = wearing(inv);
     const carStop = this.save.state.policeStop === 'car';
     delete this.save.state.policeStop;
+    delete this.save.state.policeWhy;
     const lines: string[] = [];
     let arrested = false;
     /** What they charge you with, if it comes to that. */
@@ -2756,6 +2811,7 @@ export class Game {
       const masked = wearing(this.inventory).masked;
       card.innerHTML =
         `<div class="sheet-head"><h2>Police</h2></div><div class="sheet-body police">` +
+        (Array.isArray(this.save.state.policeWhy) ? (this.save.state.policeWhy as string[]).map((l) => `<p class="police-why">${l}</p>`).join('') : '') +
         `<p>A patrol car pulls up beside you, lights off. Two of them get out. One has a hand on his belt.</p>` +
         `<p>"${masked ? 'Take that off your face. ' : ''}Hold up. Where are you headed ${partOfDay() === 'night' || partOfDay() === 'dusk' ? 'tonight' : 'today'}?"</p>` +
         `<button type="button" class="place" data-police="stay"><b>Stay calm</b><small>Let them talk. They'll want to search you.</small></button>` +
@@ -3236,8 +3292,8 @@ export class Game {
           return;
         }
         this.phase = 'idle';
-        // Whoever it is takes the middle of the screen: the note goes.
-        this.noteEl.hidden = true;
+        // Whoever it is takes the middle of the screen: the note moves under them.
+        this.noteEl.classList.add('low');
         this.refresh();
         uiGlitch(this.seenEl, 0.3);
         buzz(14);
@@ -3264,6 +3320,16 @@ export class Game {
       // The set was already on at the save point: no warm-up.
       this.powerBtn.hidden = true;
       this.tv.powerOnSettled();
+      // Saved in the beat after a fight ended: finish ending it.
+      const e = this.encounter;
+      if (e?.stage === 'over' && e.result !== 'killed') {
+        const lines = Array.isArray(this.save.state.koLines) ? (this.save.state.koLines as string[]) : [RESULT[e.result ?? 'left']];
+        setTimeout(() => {
+          if (this.encounter !== e) return;
+          if (e.result === 'lost') this.knockedOut(lines);
+          else this.closeEncounter(lines);
+        }, 400);
+      }
     } else if (Array.isArray(this.save.state.koLines)) {
       // Saved while you were out cold: you still have to come to.
       this.tv.powerOff();
@@ -3400,7 +3466,14 @@ export class Game {
     this.tv.setJam(this.jam);
     this.syncButtons();
     if (this.sheet && this.sheet !== 'stats' && this.sheet !== 'police' && !this.canOpenSheet) this.closeSheet();
-    if (this.noteTimer > 0 && (this.noteTimer -= dt) <= 0) this.noteEl.hidden = true;
+    if (this.noteTimer > 0 && (this.noteTimer -= dt) <= 0) {
+      // A short fade, not a blink.
+      this.noteEl.classList.add('fading');
+      this.noteFade = window.setTimeout(() => {
+        this.noteEl.hidden = true;
+        this.noteEl.classList.remove('fading');
+      }, 380);
+    }
     this.tv.update(dt);
     // The red edge pulses when your blood is low.
     const e2 = this.encounter;
@@ -3450,7 +3523,7 @@ export class Game {
     const show = this.canLurk && !(e && e.stage === 'over'); // then it's in the encounter screen
     if (this.lurkBtn.hidden === show) {
       this.lurkBtn.hidden = !show;
-      this.lurkBtn.querySelector('span')!.textContent = this.lurkState.times ? 'Lurk again' : 'Lurk';
+      this.lurkBtn.querySelector('span')!.textContent = this.lurkState.times > this.world.lifeStart ? 'Lurk again' : 'Lurk';
     }
     const rest = show && isHurt(this.health);
     if (this.restBtn.hidden === rest) this.restBtn.hidden = !rest;
@@ -3522,7 +3595,7 @@ const DRUG_TEST: Record<'heroin' | 'fentanyl' | 'meth' | 'tranq', { name: string
 };
 
 /** How well a pocket hides a weapon, in a word or two. */
-const hideWord = (c: number) => (c >= 0.9 ? 'hides well' : c >= 0.7 ? 'hides some' : c >= 0.45 ? 'shows a bulge' : 'shows everything');
+const hideWord = (c: number) => (c >= 0.9 ? 'hides well' : c >= 0.7 ? 'hides some' : c >= 0.45 ? 'shows a bulge' : 'anything in it shows');
 
 /** A knife or a box cutter (a bottle or a needle doesn't frighten like a blade). */
 function isBlade(x: { kind: string; name: string }): boolean {

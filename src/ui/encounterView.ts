@@ -65,13 +65,25 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     markOld();
     log.scrollTop = log.scrollHeight;
   });
-  /** Only the latest lines show until the log is opened; the rest are 'earlier'. */
+  /**
+   * Only the latest turn shows (from your last move on, at least the last
+   * three lines) until the log is opened; the rest are 'earlier'.
+   */
   const KEEP = 3;
+  /** Where the latest turn starts. */
+  let turnStart: HTMLElement | null = null;
   const markOld = () => {
-    const ps = log.querySelectorAll<HTMLElement>('p:not(.log-more)');
-    ps.forEach((p, i) => p.classList.toggle('old', i < ps.length - KEEP));
+    const ps = [...log.querySelectorAll<HTMLElement>('p:not(.log-more)')];
+    let from = ps.length - KEEP;
+    for (let i = ps.length - 1; i >= 0; i--) if (ps[i].classList.contains('by-you')) {
+      from = Math.min(from, i);
+      break;
+    }
+    from = Math.max(0, from);
+    turnStart = ps[from] ?? null;
+    ps.forEach((p, i) => p.classList.toggle('old', i < from));
     let more = log.querySelector<HTMLElement>('.log-more');
-    const hidden = Math.max(0, ps.length - KEEP);
+    const hidden = from;
     if (!more) {
       more = document.createElement('p');
       more.className = 'log-more';
@@ -109,7 +121,9 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
   function drawOptions(switched = false) {
     const cats = [...new Set(opts.filter((o) => o.cat).map((o) => o.cat!))];
     const tabs = q('.enc-tabs');
-    tabs.hidden = cats.length === 0;
+    // Just the one choice of tab: no bar, it's open.
+    if (cats.length === 1) tab = cats[0];
+    tabs.hidden = cats.length <= 1;
     tabs.innerHTML = cats
       .map((c) => {
         const n = opts.filter((o) => o.cat === c && !o.disabled).length;
@@ -236,7 +250,9 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         log.append(el);
       }
       markOld();
+      // The newest turn from its first line (not its last, cut off at the top).
       log.scrollTop = log.scrollHeight;
+      if (!root.classList.contains('log-open') && turnStart) log.scrollTop += turnStart.getBoundingClientRect().top - log.getBoundingClientRect().top - 2;
 
       q('.enc-title').textContent =
         e.stage === 'over' ? RESULT[e.result ?? 'left'] : e.stage === 'combat' && e.them.out ? STAGE_TITLE.helpless : e.stage === 'combat' && e.them.yielded ? STAGE_TITLE.yielded : STAGE_TITLE[e.stage];

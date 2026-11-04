@@ -441,6 +441,17 @@ canvas {
   pointer-events: none;
   animation: seen-in 0.9s ease both;
 }
+#note.low {
+  top: 64%;
+}
+#note.fading {
+  animation: note-out 0.38s ease forwards;
+}
+@keyframes note-out {
+  to {
+    opacity: 0;
+  }
+}
 #note p {
   margin: 0 0 6px;
   font-size: 14px;
@@ -1920,7 +1931,16 @@ body.in-game #menu {
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: var(--ink);
-  animation: power-in 1s ease 2.4s both;
+  animation: power-in 1s ease 2.4s both, no-taps 2.6s step-end both;
+}
+/* (Not tappable until it's there to see.) */
+@keyframes no-taps {
+  from {
+    pointer-events: none;
+  }
+  to {
+    pointer-events: auto;
+  }
 }
 
 /* ================= The screen changing: a quick glitch ================= */
@@ -2518,6 +2538,10 @@ body[data-buttons='keyline'] .enc-tabs button.on {
 }
 
 /* Stopped by the police. */
+.sheet-body.police p.police-why {
+  color: var(--ink-dim);
+  font-style: italic;
+}
 .sheet-body.police p {
   margin: 0 0 10px;
   font-size: 14px;

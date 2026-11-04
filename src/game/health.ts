@@ -428,7 +428,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
     });
   }
   if (h.blood < h.maxBlood) {
-    const effects = [`${litres(h.blood)} of ${litres(h.maxBlood)}. At ${litres(h.maxBlood * PASS_OUT)} you pass out`];
+    const effects = [`${litres(h.blood)} left of ${litres(h.maxBlood)} (${litres(h.maxBlood - h.blood)} lost). At ${litres(h.maxBlood * PASS_OUT)} you pass out`];
     if (lost >= 0.01) effects.push(`Easier to knock out: +${Math.round(lost * 20)}% from a head blow (+${Math.round(lost * 45)}% on the floor)`);
     if (h.blood < h.maxBlood * 0.75) effects.push('Running from the police: −15%');
     const regen = REGEN_PER_HOUR * ((h.cold ?? 0) >= 3 ? 0.4 : (h.cold ?? 0) === 2 ? 0.75 : 1);

@@ -36,7 +36,7 @@ const filmGame = createFilm(document.body, true);
 
 // The glass over everything: blood, smears and grime stay on it, through
 // every menu and the game, until wiped off with a finger.
-const glass = createGlass({ onHint: () => menu.toast('Rub the screen with your finger to wipe the blood off') });
+const glass = createGlass({ onHint: () => menu.toast('Rub the screen with your finger to wipe the blood off', 4500) });
 // Rain: falling over the picture, and running down the glass.
 const rain = createRain($('rainfall') as HTMLCanvasElement, glass);
 const snow = createSnow($('snowfall') as HTMLCanvasElement);
@@ -66,7 +66,8 @@ addEventListener(
 const GOOD = ['use', 'drink', 'smoke', 'fire', 'buy', 'stock', 'pack', 'bump'];
 function feedback(b: HTMLButtonElement, ev: MouseEvent) {
   const tone = b.dataset.tone === 'harm' ? 'harm' : GOOD.some((k) => b.dataset[k] !== undefined) ? 'good' : '';
-  if (tone === 'good') sound.good();
+  // (In a shop or a sheet, the sound waits to see if it worked: see withFeedback.)
+  if (tone === 'good' && !b.closest('#shop, #sheet')) sound.good();
   const r = b.getBoundingClientRect();
   if (r.width < 4) return;
   if (getComputedStyle(b).position === 'static') b.style.position = 'relative';

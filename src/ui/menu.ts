@@ -191,11 +191,11 @@ export function createMenu(handlers: MenuHandlers) {
   // ---------- Toast ----------
   const toastEl = $('toast');
   let toastTimer = 0;
-  function toast(text: string) {
+  function toast(text: string, ms = 2200) {
     toastEl.textContent = text;
     toastEl.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = window.setTimeout(() => toastEl.classList.remove('show'), 2200);
+    toastTimer = window.setTimeout(() => toastEl.classList.remove('show'), ms);
   }
 
   return {

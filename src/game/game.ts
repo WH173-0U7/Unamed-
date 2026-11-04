@@ -5,7 +5,7 @@ import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf, random
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
 import { STAT_NAMES, lieBonus, persuadeBonus, train, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
-import { cravingLine, useHabit, withdrawalEffects, HIGH_HOURS, LURK_HOURS, addCaffeine, caffeineNow, caffeineLevel, drunkLevel, soberUp, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
+import { clampClock, cravingLine, useHabit, withdrawalEffects, HIGH_HOURS, LURK_HOURS, addCaffeine, caffeineNow, caffeineLevel, drunkLevel, soberUp, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
 import { ALL_TECHNIQUES, PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
 import { uiGlitch } from '../fx/uiGlitch';
@@ -541,7 +541,7 @@ export class Game {
     this.noteEl.hidden = true;
     this.wipeBlood();
     // Time passes while you wait: wounds bleed, or heal; the rain soaks you.
-    const lines = passHours(this.health, LURK_HOURS);
+    const lines = passHours(this.health, LURK_HOURS, false, false);
     // Withdrawal: the craving, and (off drink or downers, badly) a seizure.
     {
       const wd = withdrawalEffects(this.health);
@@ -1450,7 +1450,7 @@ export class Game {
     if (!this.erSeen) {
       // Triage: bleeding badly, can't breathe, or white as a sheet, you go straight in;
       // bleeding at all, they move you up the list.
-      const urgent = h.bleeding >= 3 || h.lung || h.blood < h.maxBlood * 0.5;
+      const urgent = h.bleeding >= 3 || h.lung || h.blood < h.maxBlood * (PASS_OUT + 0.1);
       if (urgent) lines.push('One look at you and triage takes you straight through, past everyone waiting.');
       else {
         const wait = h.bleeding >= 2 ? 1 : 2 + Math.floor(Math.random() * 3);
@@ -2019,6 +2019,7 @@ export class Game {
     const h = this.health;
     // A clock that was set ahead, then put right: a cigarette lasts six minutes at most.
     if ((h.smokingUntil ?? 0) > now() + SMOKE_MS) h.smokingUntil = now() + SMOKE_MS;
+    clampClock(h);
     return (h.smokingUntil ?? 0) > now();
   }
 
@@ -2623,7 +2624,10 @@ export class Game {
     const lines: string[] = [knew ? `You find a vein and push the ${DRUG_TEST[drug].name} in.` : 'You find a vein and push the plunger, not knowing what goes in.'];
     useHabit(h, drug === 'meth' ? 'stimulants' : drug === 'tranq' ? 'sedatives' : 'opioids', drug === 'fentanyl' ? 20 : drug === 'heroin' ? 15 : drug === 'meth' ? 12 : 10);
     const od = (chance: number, deadly: number): boolean => {
-      if (Math.random() >= chance) return false;
+      // Drink or a downer on top, and the odds get worse.
+      const mix = 1 + (h.drunk ?? 0) / 60 + (h.high === 'tranq' ? 0.6 : 0);
+      if (Math.random() >= chance * mix) return false;
+      deadly = Math.min(0.9, deadly * mix);
       if (Math.random() < deadly) {
         lines.push('Your breathing slows. Slower. Then it stops, and nobody comes.');
         this.die(lines, 'You overdosed.');
@@ -2643,7 +2647,7 @@ export class Game {
       h.stress = 0;
       h.high = 'heroin';
       h.highUntil = now() + HIGH_HOURS.heroin * 3_600_000;
-      if (od(0.05, 0)) {
+      if (od(0.05, 0.12)) {
         if (h.dead) return;
       }
     } else if (drug === 'fentanyl') {

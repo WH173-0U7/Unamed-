@@ -118,7 +118,7 @@ const MEND_HOURS: Record<Part, number> = {
 };
 const CONCUSSION_HOURS = 6;
 /** Blood lost per hour at each level of bleeding. */
-const BLEED_PER_HOUR = [0, 60, 160, 320, 520];
+const BLEED_PER_HOUR = [0, 60, 200, 600, 1200];
 /** Chance per hour that bleeding eases by a level, by level. */
 const CLOT = [0, 0.6, 0.45, 0.3, 0.15];
 /** Blood your body makes back per hour (when not bleeding). */
@@ -199,18 +199,16 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
   if (b.lung) h.lung = true;
   h.stress = b.stress ?? h.stress;
   // Stuck with a needle in the fight: it lasts.
-  if (b.high && !(h.high === b.high && (h.highUntil ?? 0) > Date.now())) {
+  if (b.high && b.dosedHigh) {
     const d = b.high;
     useHabit(h, d === 'meth' ? 'stimulants' : d === 'tranq' ? 'sedatives' : 'opioids', d === 'fentanyl' ? 20 : d === 'heroin' ? 15 : d === 'meth' ? 12 : 10);
     if (d === 'meth') {
       h.wired = true;
       h.wiredBy = 'meth';
       h.wiredUntil = Date.now() + HIGH_HOURS.meth * 3_600_000;
-      if (h.high === 'meth') delete h.high;
-    } else {
-      h.high = d;
-      h.highUntil = Date.now() + HIGH_HOURS[d] * 3_600_000;
     }
+    h.high = d;
+    h.highUntil = Date.now() + HIGH_HOURS[d] * 3_600_000;
   }
   // New marks start healing (teeth and scars never do).
   const was = h.marks ?? {};
@@ -224,10 +222,9 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
   if (b.dosing) {
     const d = b.dosing.drug;
     useHabit(h, d === 'meth' ? 'stimulants' : d === 'tranq' ? 'sedatives' : 'opioids', d === 'fentanyl' ? 20 : d === 'heroin' ? 15 : d === 'meth' ? 12 : 10);
-    if (d !== 'meth') {
-      h.high = d;
-      h.highUntil = Date.now() + HIGH_HOURS[d] * 3_600_000;
-    } else {
+    h.high = d;
+    h.highUntil = Date.now() + HIGH_HOURS[d] * 3_600_000;
+    if (d === 'meth') {
       h.wired = true;
       h.wiredBy = 'meth';
       h.wiredUntil = Date.now() + HIGH_HOURS.meth * 3_600_000;
@@ -244,7 +241,14 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
     // Strong enough, and you're out where you stand.
     if ((d === 'fentanyl' && Math.random() < 0.3) || (d === 'tranq' && Math.random() < 0.5)) {
       lines.push('You sit down hard against a wall, and then you are somewhere else.');
+      // (Fentanyl stops people breathing; drink on top makes it likelier.)
+      if (d === 'fentanyl' && Math.random() < 0.15 + (h.drunk ?? 0) / 300) {
+        h.dead = true;
+        lines.push('Your breathing slows. Slower. Then it stops, and nobody comes.');
+        return lines;
+      }
       lines.push(...passHours(h, 3));
+      if (h.dead) return lines;
     }
   }
   if (result === 'lost') {
@@ -279,10 +283,12 @@ function lieThere(h: Health): string[] {
       h.blood -= BLEED_PER_HOUR[h.bleeding];
     }
     if (h.blood <= h.maxBlood * DEATH) {
-      // Sometimes someone finds you in time and presses on the wound.
-      if (Math.random() < 0.5) {
-        h.blood = Math.round(h.maxBlood * (DEATH + 0.04));
+      // Sometimes someone finds you in time and presses on the wound (not
+      // once you've lost far too much).
+      if (h.blood >= h.maxBlood * 0.3 && Math.random() < 0.5) {
+        h.blood = Math.round(h.maxBlood * (PASS_OUT + 0.03));
         h.bleeding = 0;
+        if ((h.cold ?? 0) > 0) h.cold = Math.min(3, (h.cold ?? 0) + 1);
         return ['Someone finds you lying there. They press on the wound until the bleeding stops, and leave before you can thank them.'];
       }
       h.blood = Math.max(0, Math.round(h.blood));
@@ -293,6 +299,8 @@ function lieThere(h: Health): string[] {
     if (i > 0 && Math.random() < Math.min(0.9, CLOT[h.bleeding] * 2)) h.bleeding--;
   }
   h.blood = Math.round(Math.max(h.blood, h.maxBlood * (PASS_OUT + 0.03)));
+  // (Hours lying on the sidewalk: the cold gets into you.)
+  if ((h.cold ?? 0) > 0) h.cold = Math.min(3, (h.cold ?? 0) + 1);
   return [h.bleeding ? "You're still bleeding." : 'The blood has dried on you.'];
 }
 
@@ -301,11 +309,14 @@ function lieThere(h: Health): string[] {
  * bones and concussion mend. Returns lines describing what changed. If you
  * bleed down to passing out, you collapse and wake up later.
  */
-export function passHours(h: Health, hours: number, resting = false): string[] {
+export function passHours(h: Health, hours: number, resting = false, clock = true): string[] {
   const lines: string[] = [];
+  if (clock) skipClock(h, hours);
   if (resting && h.bleeding) {
-    h.bleeding--;
-    lines.push(h.bleeding ? 'You press on the wound. The bleeding slows.' : 'You manage to stop the bleeding.');
+    if (Math.random() < [0, 0.85, 0.65, 0.4, 0.2][h.bleeding]) {
+      h.bleeding--;
+      lines.push(h.bleeding ? 'You press on the wound. The bleeding slows.' : 'You manage to stop the bleeding.');
+    } else lines.push('You press on the wound, hard. It keeps coming.');
   }
   // Time takes the edge off.
   if (h.stress) h.stress = Math.max(0, h.stress - hours * STRESS_EASE * (resting ? 1.5 : 1));
@@ -364,6 +375,50 @@ export function passHours(h: Health, hours: number, resting = false): string[] {
   }
   h.blood = Math.round(h.blood);
   return lines;
+}
+
+/**
+ * Hours gone by (resting, a cell, out cold) that the real clock didn't see:
+ * a high, being wired, the drink, caffeine, a cigarette and the cravings all
+ * move on by as much, so what you're told matches what's on the card.
+ */
+export function skipClock(h: Health, hours: number) {
+  const ms = hours * 3_600_000;
+  const t = Date.now();
+  clampClock(h, t);
+  if (h.highUntil != null) {
+    h.highUntil -= ms;
+    if (h.highUntil <= t) {
+      delete h.high;
+      delete h.highUntil;
+    }
+  }
+  if (h.wiredUntil != null) {
+    h.wiredUntil -= ms;
+    if (h.wiredUntil <= t) {
+      h.wired = false;
+      delete h.wiredBy;
+      delete h.wiredUntil;
+    }
+  }
+  if (h.smokingUntil != null && (h.smokingUntil -= ms) <= t) delete h.smokingUntil;
+  if (h.drunk) {
+    soberUp(h, t);
+    if (h.drunk) h.drunkAt = (h.drunkAt ?? t) - ms;
+    soberUp(h, t);
+  }
+  for (const d of h.caffeine ?? []) d.at -= ms;
+  for (const s of Object.values(habitsOf(h))) {
+    if (!s) continue;
+    s.last -= ms;
+    s.at -= ms;
+  }
+}
+
+/** A clock set ahead and put right: nothing lasts longer than it can. */
+export function clampClock(h: Health, t = Date.now()) {
+  if (h.high && h.highUntil != null) h.highUntil = Math.min(h.highUntil, t + HIGH_HOURS[h.high] * 3_600_000);
+  if (h.wiredUntil != null) h.wiredUntil = Math.min(h.wiredUntil, t + HIGH_HOURS.meth * 3_600_000);
 }
 
 /** One injury, for the stats sheet: what it is, what it does to you, how long it lasts. */
@@ -523,7 +578,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
     out.push({
       name: DRUNK_NAMES[drunkLevel(d)],
       status: true,
-      meter: { k: Math.min(1, d / 100), text: `${Math.round(d)} / 100 (blackout at 80)` },
+      meter: { k: Math.min(1, d / 100), text: `${Math.round(d)} / 100 (blackout at 90)` },
       effects: [`Your blows land: −${Math.round(d / 4)}%`, `Their blows land: +${Math.round(d / 5)}%`, `Your blows do ${Math.round(d / 10)}% more damage (you swing heavy)`, ...(d >= 80 ? ['Any more and you black out'] : [])],
       heals: `Sobers you up 20 a real hour: about ${Math.max(1, Math.ceil(d / 20))} hour${Math.ceil(d / 20) === 1 ? '' : 's'} to clear.`,
     });

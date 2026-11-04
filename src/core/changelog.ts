@@ -11,6 +11,19 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.89',
+    date: 'Nov 4',
+    items: [
+      'Hours that go by (resting, a night in a cell, County, out cold, an overdose) now move everything on with them. A high, the meth, the drink, caffeine, a cigarette and cravings wear off, or come on, as they would. No more coming out of 36 hours in County exactly as high as you went in.',
+      'Bleeding badly outside a fight is far more dangerous: heavy or severe bleeding left alone can kill you within a couple of hours. Resting and pressing on it doesn’t always stop it.',
+      'If you’ve lost nearly all your blood, nobody finds you in time. When someone does find you, you wake up able to stand, not still on the edge of passing out. Lying out in the cold makes you colder.',
+      'A high that ran out during a fight isn’t renewed for free at the end. Meth from a needle in a fight works the same as injecting it yourself.',
+      'Overdoses: heroin can kill, fentanyl from a needle in a fight can kill, and drink or downers on top make it likelier.',
+      'Caffeine pills count what’s still kicking in: you can’t swallow a whole bottle before the first ones hit. The drink card says blackout at 90, which is where it really happens.',
+      'The ER takes you straight in when you’re close to passing out. Setting the phone’s clock back can’t make a high last a day.',
+    ],
+  },
+  {
     v: '0.88',
     date: 'Nov 4',
     items: [

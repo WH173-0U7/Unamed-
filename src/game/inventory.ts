@@ -384,7 +384,8 @@ MEDS.push({
   name: 'Caffeine pills',
   price: 5,
   desc: '200 mg. Sharper in a fight for hours; too many and your hands shake.',
-  blocked: (h) => (caffeineNow(h) >= 600 ? "Your heart's already pounding" : null),
+  // (What's still on its way counts: pills take a while to hit.)
+  blocked: (h) => (caffeineNow(h, Date.now() + 45 * 60_000) >= 600 ? "Your heart's already pounding" : null),
   use(h) {
     addCaffeine(h, 200);
     return 'You dry-swallow two of the pills. Nothing yet; in half an hour or so you’ll feel it.';

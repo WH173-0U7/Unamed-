@@ -136,6 +136,8 @@ export interface Body {
   smoking?: boolean;
   /** Yours: on something from a syringe (see `dose`), for this fight. */
   high?: 'heroin' | 'fentanyl' | 'meth' | 'tranq';
+  /** (A needle went into you this fight: the high starts now, not when you walked up.) */
+  dosedHigh?: boolean;
   /** Yours: how drunk (0..100), and how much caffeine is in you (mg). */
   drunk?: number;
   caffeine?: number;
@@ -1857,6 +1859,7 @@ function dose(drug: Exclude<import('./person').Drug, 'empty'>) {
 /** What they put in you, hitting. */
 function doseNow(drug: Exclude<import('./person').Drug, 'empty'>) {
   const y = enc.you;
+  y.dosedHigh = true;
   if (drug === 'heroin') {
     y.dazed = 2;
     y.stamina = Math.max(0, y.stamina - 25);

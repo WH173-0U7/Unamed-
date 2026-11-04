@@ -179,4 +179,7 @@ export function purseText(p: Purse): string {
   return parts.length ? parts.join(', ') : 'nothing';
 }
 
-export const money = (c: number) => `$${(c / 100).toFixed(c % 100 ? 2 : 0)}`;
+export const money = (c: number) => {
+  const d = c % 100 ? 2 : 0;
+  return `$${(c / 100).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })}`;
+};

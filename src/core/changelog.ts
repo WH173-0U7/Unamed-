@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.79',
+    date: 'Nov 4',
+    items: [
+      'Fight buttons with long labels no longer run into each other, and on small phones the fight screen gives its room to the log and your options.',
+      'The fight log fades at the bottom when there’s more to read, and stays on your latest turn when the panel above it opens or closes.',
+      'In You, what’s hurting you (bleeding, breaks) comes first, before stress and the rest; meters for things doing you harm are amber.',
+      'Opening hours are always shown on their own line in a shop. A choice you can’t afford (bail) looks greyed out. Sheets fade at the bottom when they scroll.',
+      'Money over $999 has a comma; pocket headings, the Drop button and the settings pickers are tidier on small phones; “Tap to wake up” is easier to see.',
+    ],
+  },
+  {
     v: '0.78',
     date: 'Nov 4',
     items: [

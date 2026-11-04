@@ -382,7 +382,7 @@ const hrs = (n: number) => {
   const h = Math.max(1, Math.ceil(n));
   return `${h} hour${h === 1 ? '' : 's'}`;
 };
-const litres = (ml: number) => `${(ml / 1000).toFixed(2).replace(/0$/, '')} L`;
+const litres = (ml: number) => `${(ml / 1000).toFixed(2).replace(/0$/, '')}\u00a0L`;
 
 /**
  * Everything wrong with you and exactly what it does (the same numbers the

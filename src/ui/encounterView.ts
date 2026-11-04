@@ -92,6 +92,21 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     more.hidden = hidden === 0;
     more.textContent = root.classList.contains('log-open') ? 'Tap to show less' : `▴ ${hidden} earlier line${hidden === 1 ? '' : 's'}`;
   };
+  /** The newest turn's first line at the top of the box (under the "earlier lines" bar). */
+  const pinTurn = () => {
+    if (root.classList.contains('log-open') || !turnStart) return;
+    const more = log.querySelector<HTMLElement>('.log-more');
+    const bar = more && !more.hidden ? more.getBoundingClientRect().height : 0;
+    log.scrollTop += turnStart.getBoundingClientRect().top - log.getBoundingClientRect().top - bar - 2;
+  };
+  // More of the log below what shows: a fade at the bottom.
+  const logMore = () => log.classList.toggle('more', log.scrollTop + log.clientHeight < log.scrollHeight - 4);
+  log.addEventListener('scroll', logMore);
+  // Resized (the status panel opened, another tab): keep the newest turn in view.
+  new ResizeObserver(() => {
+    pinTurn();
+    logMore();
+  }).observe(log);
   q('.enc-opts:not(.enc-extra)').addEventListener('scroll', (ev) => {
     const el = ev.currentTarget as HTMLElement;
     el.classList.toggle('more', el.scrollTop + el.clientHeight < el.scrollHeight - 4);
@@ -252,7 +267,8 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       markOld();
       // The newest turn from its first line (not its last, cut off at the top).
       log.scrollTop = log.scrollHeight;
-      if (!root.classList.contains('log-open') && turnStart) log.scrollTop += turnStart.getBoundingClientRect().top - log.getBoundingClientRect().top - 2;
+      pinTurn();
+      logMore();
 
       q('.enc-title').textContent =
         e.stage === 'over' ? RESULT[e.result ?? 'left'] : e.stage === 'combat' && e.them.out ? STAGE_TITLE.helpless : e.stage === 'combat' && e.them.yielded ? STAGE_TITLE.yielded : STAGE_TITLE[e.stage];

@@ -161,6 +161,14 @@ export class Game {
     this.shopEl = view.querySelector('#shop') as HTMLElement;
     this.shopEl.addEventListener('scroll', () => this.shopEl.classList.toggle('more', this.shopEl.scrollTop + this.shopEl.clientHeight < this.shopEl.scrollHeight - 6), { signal: this.listeners.signal, passive: true });
     this.sheetEl = view.querySelector('#sheet') as HTMLElement;
+    // A sheet with more below than shows: a fade at the bottom edge.
+    {
+      const mark = () => {
+        for (const b of this.sheetEl.querySelectorAll<HTMLElement>('.sheet-body')) b.classList.toggle('more', b.scrollTop + b.clientHeight < b.scrollHeight - 4);
+      };
+      this.sheetEl.addEventListener('scroll', mark, true);
+      new MutationObserver(() => requestAnimationFrame(mark)).observe(this.sheetEl, { childList: true, subtree: true });
+    }
     this.goBtn.onclick = () => this.openSheet('places');
     this.bagBtn.onclick = () => this.openSheet('pockets');
     this.youBtn.onclick = () => this.openSheet('stats');
@@ -2760,7 +2768,7 @@ export class Game {
       body += `</ul>`;
     }
     const html =
-      `<div class="shop-head"><h2>${info.name}</h2><p>${info.blurb}${info.hours ? ` <em>${hoursText(info.hours)}.</em>` : ''}</p></div>` +
+      `<div class="shop-head"><h2>${info.name}</h2><p>${info.blurb}</p>${info.hours ? `<p class="shop-hours">${hoursText(info.hours)}.</p>` : ''}</div>` +
       this.noteHtml(this.shopNote, 'shop-note') +
       `<p class="pocket-purse">${this.purseHtml()}</p>` +
       `<div class="shop-body">${body}</div>`;
@@ -2933,7 +2941,7 @@ export class Game {
                 if (x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card') acts += act('burn', 'Burn', this.burnBlocked());
                 if (x.secret && x.secret !== 'cocaine' && x.secret !== 'empty') {
                   if (!x.known && inv.items.some((y) => y.med === 'testkit')) acts += act('test', 'Test');
-                  acts += act('inject', x.known ? 'Inject' : 'Inject?', this.injectBlocked());
+                  acts += act('inject', 'Inject', this.injectBlocked());
                 } else if (x.secret && !x.known) {
                   acts += act('taste', 'Taste');
                   if (inv.items.some((y) => y.med === 'testkit')) acts += act('test', 'Test');
@@ -3095,25 +3103,27 @@ export class Game {
     // (Marks and scars aren't dangerous: they're shown apart, further down.)
     const hurts = all.filter((i) => !i.status && !i.mark);
     // The states you're in (stress, drink, drugs, caffeine, cold), each with its meter.
-    let html = states.length
+    let status = states.length
       ? `<section class="stat-card injuries status"><h3><span>Status</span><b>${states.length}</b></h3>` +
         states
           .map(
             (i) =>
               `<div class="injury"><h4>${i.name}</h4>` +
-              (i.meter ? `<div class="spot-bar status-bar"><i style="width:${Math.round(i.meter.k * 100)}%"></i><span>${i.meter.text}</span></div>` : '') +
+              (i.meter ? `<div class="spot-bar status-bar${/withdraw|hooked|craving|panick|stressed|blackout|drunk/i.test(i.name) ? ' harm' : ''}"><i style="width:${Math.round(i.meter.k * 100)}%"></i><span>${i.meter.text}</span></div>` : '') +
               `<ul>${i.effects.map((x) => `<li>${x}</li>`).join('')}</ul><p class="stat-how">${i.heals}</p></div>`,
           )
           .join('') +
         `</section>`
       : '';
-    html += hurts.length
+    // What's hurting you first (bleeding, breaks), then the states you're in.
+    let html = hurts.length
       ? `<section class="stat-card injuries"><h3><span>Condition</span><b>${hurts.length}</b></h3>` +
         hurts
           .map((i) => `<div class="injury"><h4>${i.name}</h4><ul>${i.effects.map((x) => `<li>${x}</li>`).join('')}</ul><p class="stat-how">${i.heals}</p></div>`)
           .join('') +
         `</section>`
       : '';
+    html += status;
     html += (Object.keys(STAT_NAMES) as StatName[])
       .map((k) => {
         const { level, xp } = st[k];

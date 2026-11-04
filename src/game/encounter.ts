@@ -515,7 +515,7 @@ export function options(e: Encounter): Option[] {
   const out = rawOptions(e).map((o): Option => {
     if (o.cat === 'move') return { ...o, cat: undefined };
     if (o.cat === 'attack' || o.cat === 'stomp' || o.cat === 'torture' || o.cat === 'violence') {
-      const group = o.cat === 'torture' ? 'Torture' : o.cat === 'violence' ? 'Ambush' : o.id.startsWith('wpn:') ? 'Weapons' : o.cat === 'stomp' || o.id === 'choke' || o.id === 'locked:choke' ? 'On the ground' : 'Strikes';
+      const group = o.cat === 'torture' ? 'Torture' : o.cat === 'violence' ? 'Ambush' : /^(wpn|draw|stow|reload|whip|smash):/.test(o.id) ? 'Weapons' : o.cat === 'stomp' || o.id === 'choke' || o.id === 'locked:choke' ? 'On the ground' : 'Strikes';
       return { ...o, cat: 'violence', group };
     }
     return o;

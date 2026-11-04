@@ -4617,3 +4617,120 @@ body[data-drug='withdrawal'] #drug .d-glow {
 body[data-drug='withdrawal'] #game {
   animation: d-tremor 0.09s steps(2) infinite;
 }
+
+
+/* ================= Polish round 6 ================= */
+/* Fight options never squash into each other when a label wraps. */
+.enc-opts:not(.enc-extra) {
+  grid-auto-rows: max-content;
+}
+.enc-opts button {
+  flex-shrink: 0;
+}
+/* The log: a fade when there's more below. */
+.enc-log.more {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+}
+/* The fold caret: clear of the numbers. */
+#enc[data-stage='combat'] .enc-status,
+#enc[data-stage='over'] .enc-status {
+  padding-right: 18px;
+}
+/* Before a fight: the caret at the end of the name row, not alone under it. */
+#enc:not([data-stage='combat']):not([data-stage='over']) .enc-who {
+  position: relative;
+  padding-right: 16px;
+}
+#enc:not([data-stage='combat']):not([data-stage='over']) .enc-who::after {
+  position: absolute;
+  right: 0;
+  top: 0;
+  margin: 0;
+}
+.enc-kind {
+  white-space: nowrap;
+}
+/* Short phones: the tabs say what screen it is; the room goes to the log and options. */
+@media (max-height: 600px) {
+  #enc .enc-title {
+    display: none;
+  }
+  #enc .enc-log {
+    min-height: 3.9em;
+  }
+}
+/* A choice you can't make looks like one. */
+.sheet-card .place:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* Opening hours: their own line, never cut off with the blurb. */
+.shop-head p.shop-hours {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+/* Narrow phones: the status chips stay clear of the clock. */
+@media (max-width: 360px) {
+  #you-status {
+    width: calc(100% - 175px);
+  }
+}
+/* Drop is a real button, not a greyed-out one. */
+.pocket-list button.drop {
+  color: var(--ink-dim);
+}
+/* Pocket headings: the name, then the size and how well it hides, tidily. */
+.spot h3 {
+  flex-wrap: wrap;
+  letter-spacing: 0.1em;
+}
+.spot h3 em {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.stat-now dt {
+  flex: 1 1 auto;
+  min-width: 5.5em;
+}
+/* Meters for things doing you harm: amber, not calm green. */
+.status-bar.harm i {
+  background: #b5763a;
+}
+/* Knocked out: the prompt you have to find in the dark. */
+#ko-hint {
+  font-size: 15px;
+  color: var(--ink);
+  animation: ko-pulse 2.4s ease-in-out infinite;
+}
+@keyframes ko-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+/* Sheets: a fade at the bottom when there's more to scroll. */
+.sheet-body.more {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent);
+}
+/* Settings, on a phone: every picker on its own line, full width, equal segments. */
+@media (max-width: 420px) {
+  .row:has(> .seg) {
+    flex-wrap: wrap;
+  }
+  .row > .seg {
+    flex: 1 1 100%;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+  }
+  .row > .seg button {
+    padding: 0 6px;
+  }
+}

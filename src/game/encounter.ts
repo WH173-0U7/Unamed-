@@ -363,7 +363,7 @@ function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolea
         ]
       : [
       w.spray
-        ? { id: `wpn:${w.i}`, label: 'Pepper spray them', hint: full ? 'Your hands are full' : `${w.doses ?? 0} left · blinds them`, disabled: full, cat }
+        ? { id: `wpn:${w.i}`, label: 'Pepper spray them', hint: full ? 'Your hands are full' : (w.doses ?? 3) <= 0 ? 'Empty' : `${w.doses ?? 3} left · blinds them`, disabled: full || (w.doses ?? 3) <= 0, cat }
         : { id: `wpn:${w.i}`, label: /^bottle$/i.test(w.name) ? 'Swing the bottle' : /syringe/i.test(w.name) ? (w.loaded ? `Stab with the syringe (${w.known ? w.loaded : 'loaded'})` : 'Stab with the empty syringe') : `${w.cuts ? (knifeOf(w.name)?.style === 'stab' ? 'Stab' : 'Slash') : 'Hit'} them with the ${lc(w.name)}`, hint: full ? 'Your hands are full' : tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0} damage${w.cuts && !/^bottle$/i.test(w.name) ? ', cuts' : ''}${w.loaded ? ', may inject them' : ''}`, disabled: full || tired(COST.weapon), cat },
       // A whole bottle can be broken for an edge (it doesn't always break).
       ...(/^bottle$/i.test(w.name) ? [{ id: `smash:${w.i}`, label: 'Smash the bottle', hint: full ? 'Your hands are full' : tired(COST.punch) ? 'Too tired' : 'For a jagged edge: it cuts', disabled: full || tired(COST.punch), cat }] : []),
@@ -697,7 +697,7 @@ function rawOptions(e: Encounter): Option[] {
           { id: 'slam', label: 'Slam them into the wall', hint: 'Head first', level: SLAM_AMBUSH_LEVEL },
           { id: 'rear-choke', label: 'Choke from behind', hint: e.distance < 2 ? 'Get right behind them first' : 'Out cold, no blood', level: CHOKE_AMBUSH_LEVEL, disabled: e.distance < 2 },
         ], 'violence'),
-        ...((e.weapons ?? []).some((w) => w.spray) ? [{ id: 'spray-ambush', label: 'Pepper spray them', hint: 'Blind them first', cat: 'violence' as Category }] : []),
+        ...((e.weapons ?? []).some((w) => w.spray && (w.doses ?? 3) > 0) ? [{ id: 'spray-ambush', label: 'Pepper spray them', hint: 'Blind them first', cat: 'violence' as Category }] : []),
         { id: 'mug', label: 'Mug them', hint: oddsHint(yieldChance(e, mugSurprise(e))), cat: 'violence' },
         { id: 'leave', label: 'Leave them' },
       ];
@@ -1019,12 +1019,23 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
 
   // ---------- Violence: pepper spray in the face, then the fight ----------
   if (e.stage === 'violence' && id === 'spray-ambush') {
-    const can = inv?.items.findIndex((x) => x.spray);
-    if (can == null || can < 0) return impacts;
+    if (!inv) return impacts;
+    // (One that's to hand first; one in a bag takes digging for.)
+    const cans = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.spray && (x.doses ?? 3) > 0);
+    const near = cans.find(({ i }) => !(e.bagged ?? []).includes(i) && !(e.ankle ?? []).includes(i)) ?? cans[0];
+    if (!near) return impacts;
+    if (!near.x.hand && !freeHand(inv)) {
+      say('info', 'Your hands are full. Put something away first.');
+      return impacts;
+    }
     if (e.distance === 0) say('you', oneOf(['You cross the street toward them.', 'You step off the curb and close in.', 'You cross over, straight at them.']));
     e.stage = 'combat';
     e.facedYou = true;
-    spray(can, inv!);
+    if ((e.bagged ?? []).includes(near.i) || (e.ankle ?? []).includes(near.i)) {
+      // They see you coming while you dig for it.
+      (e.drawn ??= []).push(near.i);
+      say('you', `You dig the ${lc(near.x.name)} out of your bag. They see it.`);
+    } else spray(near.i, inv);
     say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
     theirTurn();
     endOfRound();
@@ -1703,7 +1714,7 @@ function reloadGun(inv: Inventory, i: number) {
   if (!box || n <= 0) return;
   it.doses = (it.doses ?? 0) + n;
   box.doses = (box.doses ?? 0) - n;
-  if (box.doses <= 0) inv.items.splice(inv.items.indexOf(box), 1);
+  if (box.doses <= 0) dropItem(inv, inv.items.indexOf(box));
   say('you', g.holds > 6 && g.power < 1.5 ? 'You drop the magazine and thumb rounds into it, fumbling.' : 'You feed rounds in one by one, fumbling.');
 }
 
@@ -2279,7 +2290,7 @@ function theirTurn() {
     return;
   }
   // Pepper spray, once.
-  const spray = p.carrying.find((i) => i.spray);
+  const spray = p.carrying.find((i) => i.spray && ((i as { doses?: number }).doses ?? 3) > 0);
   if (spray && !T.sprayed && !e.emptied && Math.random() < 0.6) {
     T.sprayed = true;
     (spray as { doses?: number }).doses = Math.max(0, ((spray as { doses?: number }).doses ?? 3) - 1);
@@ -2293,7 +2304,7 @@ function theirTurn() {
     const at = invNow.items.findIndex((x) => x.kind === 'weapon' && x.hand && x.name === held.name);
     const it = invNow.items[at];
     if (it) {
-      invNow.items.splice(at, 1);
+      dropItem(invNow, at);
       p.carrying.push({ name: it.name, weapon: it.weapon, cuts: it.cuts });
       T.weaponOut = it.name;
       say('them', `They grab your wrist and twist until the ${lc(it.name)} drops. They snatch it up off the sidewalk.`);
@@ -2632,16 +2643,30 @@ function choke() {
   scare(15);
 }
 
+/** Takes something out of your inventory mid-fight (the lists of what's where move up with it). */
+function dropItem(inv: Inventory, i: number) {
+  if (i < 0) return;
+  inv.items.splice(i, 1);
+  const shift = (xs?: number[]) => xs?.filter((x) => x !== i).map((x) => (x > i ? x - 1 : x));
+  enc.drawn = shift(enc.drawn);
+  enc.bagged = shift(enc.bagged);
+  enc.ankle = shift(enc.ankle);
+}
+
 /** Pepper spray in their face: they can barely see to hit you for the rest of the fight. */
 function spray(i: number, inv: Inventory) {
   const it = inv.items[i];
   if (!it?.spray) return;
+  if ((it.doses ?? 3) <= 0) {
+    say('you', 'You press the button. The can hisses, and nothing comes out. It\'s empty.');
+    return;
+  }
   it.doses = Math.max(0, (it.doses ?? 3) - 1);
   spend('you', 4);
   enc.them.blinded = 99;
   say('you', enc.them.down ? 'You pepper spray them full in the face. They curl up on the ground, eyes streaming and screwed shut.' : 'You pepper spray them full in the face. They stagger back, eyes streaming and screwed shut, swinging blind.');
   if (it.doses === 0) {
-    inv.items.splice(i, 1);
+    dropItem(inv, i);
     say('info', 'The can sputters out. You drop it.');
   }
   scare(8);

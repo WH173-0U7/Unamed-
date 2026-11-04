@@ -1406,7 +1406,8 @@ export class Game {
     if (doubt) train(this.stats, 'speech', 1);
     if (doubt) {
       // It isn't you, and they can tell.
-      const line = place === 'pawn' ? `He looks at the ${lc(id.name)}, then at you, then at it again. "That's not you." He slides it back. "Get out of my shop."` : `The clerk looks at the photo, then at you. "Nice try." They keep the bottle.`;
+      const line = place === 'pawn' ? `He looks at the ${lc(id.name)}, then at you, then at it again. "That's not you." He slides it back. "Get out of my shop."` : `The clerk looks at the photo, then at you. "Nice try." They keep the bottle, and the ID goes in a drawer under the counter.`;
+      if (place === 'liquor') inv.items.splice(inv.items.indexOf(id), 1);
       if (place === 'pawn') {
         this.save.state.pawnBan = now() + 30 * 60_000;
         this.goTo('street');
@@ -1827,7 +1828,7 @@ export class Game {
     if (h.drunk >= 90) {
       lines.push('The street tips over. You sit down hard, and then you are somewhere else entirely.');
       // Hours go by, as with resting: whoever you were watching is long gone.
-      if (this.encounter?.stage === 'seen') this.encounter = null;
+      if (this.encounter?.stage === 'seen' || this.encounter?.stage === 'over') this.encounter = null;
       this.wipeBlood();
       lines.push(...passHours(h, 3));
       if (h.dead) return this.die(lines);
@@ -1932,7 +1933,7 @@ export class Game {
       { kind: 'cash', name: 'Cash in the glovebox', cash: Math.round(5 + r() * 55), where: 'glovebox' },
       { kind: 'misc', name: 'Laptop', detail: 'In a bag on the back seat', where: 'back seat' },
       { kind: 'misc', name: 'Phone charger', where: 'console' },
-      { kind: 'misc', name: 'Cigarettes', detail: 'A half-empty pack', doses: 6 + Math.floor(r() * 10), where: 'door pocket' },
+      { kind: 'misc', name: 'Cigarettes', doses: 6 + Math.floor(r() * 10), where: 'door pocket' },
       { kind: 'misc', name: 'Painkillers', med: 'painkillers', where: 'glovebox' },
       { kind: 'weapon', name: 'Pocket knife', weapon: 4, cuts: true, where: 'glovebox' },
       { kind: 'misc', name: 'Parking tickets', detail: 'A wad of them, unpaid', where: 'sun visor' },
@@ -2634,6 +2635,8 @@ export class Game {
         return true;
       }
       lines.push('Your breathing slows to almost nothing, and the world goes out.');
+      // (Hours out: whoever was lying here is long gone.)
+      if (this.encounter?.stage === 'seen' || this.encounter?.stage === 'over') this.encounter = null;
       lines.push(...passHours(h, 4));
       if (h.dead) {
         this.die(lines);
@@ -2667,6 +2670,8 @@ export class Game {
       h.stress = Math.min(100, (h.stress ?? 0) + 15);
     } else {
       lines.push("A heavy, sick drowsiness pulls you down before you can get the needle out. You're out where you sit.");
+      // (Hours out: whoever was lying here is long gone.)
+      if (this.encounter?.stage === 'seen' || this.encounter?.stage === 'over') this.encounter = null;
       lines.push(...passHours(h, 4));
       if (h.dead) return this.die(lines);
       lines.push('You wake hours later, your skin crawling, with no idea how long you were gone.');

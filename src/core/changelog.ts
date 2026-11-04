@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.90',
+    date: 'Nov 4',
+    items: [
+      'Pepper spray: opening with it needs a free hand, and a can in your bag takes a moment to dig out (they see it coming). An empty can just hisses, for you and for them.',
+      'Losing a knife or emptying a can mid-fight no longer mixes up which of your other things are out and which are still in the bag.',
+      'The liquor store keeps a stolen ID they catch you with. The fence won’t pay for a card that’s been stopped, and now buys folding knives, switchblades, razors and daggers too.',
+      'Passing out for hours (drink, a needle) with someone lying there: they’re gone when you come to.',
+      'Small text fixes: cigarettes found in a car, a single loose cigarette, and names in the “Gone:” list after you’re robbed.',
+    ],
+  },
+  {
     v: '0.89',
     date: 'Nov 4',
     items: [

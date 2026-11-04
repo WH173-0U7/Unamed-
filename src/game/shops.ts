@@ -129,7 +129,7 @@ export const COIN_MACHINE_FEE = 0.1;
 
 // ---------- What things are worth (to someone who'd buy them new) ----------
 
-export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'known' | 'doses'>): number {
+export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'known' | 'doses'> & { drained?: boolean }): number {
   const n = x.name.toLowerCase();
   // Not knowing what it is, nobody can tell you what it's worth (or give it away).
   if (x.secret && !x.known) return x.secret === 'cocaine' ? 40 : 20;
@@ -141,8 +141,9 @@ export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'kno
   if (/phone charger/i.test(n)) return 5;
   if (x.kind === 'car keys') return 80;
   if (x.kind === 'id') return /expired/.test(n) ? 10 : 60;
-  if (x.kind === 'credit card') return 80;
-  if (x.kind === 'debit card') return 40;
+  // (A stopped card is a piece of plastic.)
+  if (x.kind === 'credit card') return x.drained ? 0 : 80;
+  if (x.kind === 'debit card') return x.drained ? 0 : 40;
   if (/headphones/.test(n)) return 50;
   if (/charger/.test(n)) return 12;
   if (/groceries/.test(n)) return 15;
@@ -152,7 +153,7 @@ export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'kno
   if (/^beer$/.test(n)) return 3;
   if (/energy drink/.test(n)) return 3;
   if (/vodka|whiskey|wine/.test(n)) return 2 * (x.doses ?? 0);
-  if (x.kind === 'weapon') return /knife/.test(n) ? 18 : /box cutter/.test(n) ? 6 : /pepper spray/.test(n) ? 12 : 0;
+  if (x.kind === 'weapon') return /knife|folder|switchblade|karambit|razor|dagger|stiletto/.test(n) ? 18 : /box cutter/.test(n) ? 6 : /pepper spray/.test(n) ? 12 : 0;
   return 0;
 }
 

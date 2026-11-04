@@ -271,7 +271,7 @@ export function take(inv: Inventory, l: Loot): { ok: boolean; text: string } {
     const have = inv.items.find((x) => /^loose cigarettes$/i.test(x.name));
     if (have) {
       have.doses = (have.doses ?? 0) + (l.doses ?? 1);
-      return { ok: true, text: `You pocket ${l.doses === 1 ? 'the loose cigarette' : `the ${l.doses} loose cigarettes`} with the others.${once}` };
+      return { ok: true, text: `You pocket ${(l.doses ?? 1) === 1 ? 'the loose cigarette' : `the ${l.doses} loose cigarettes`} with the others.${once}` };
     }
   }
   const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained, weapon: l.weapon, cuts: l.cuts, spray: l.spray, drink: l.drink, ...(l.kind === 'car keys' ? { takenAt: l.takenAt ?? Date.now(), car: l.car, carSearched: l.carSearched } : {}) });

@@ -4431,3 +4431,111 @@ body[data-buttons] #enc .enc-extra button {
   font-size: 12px;
   color: var(--ink-faint);
 }
+
+/* ================= What a tap did ================= */
+/* It worked: the row glows and settles. */
+.shop-list li.did-ok,
+.pocket-list li.did-ok {
+  animation: did-ok 0.9s ease-out;
+}
+@keyframes did-ok {
+  0% {
+    background: rgba(143, 179, 160, 0.32);
+    box-shadow: 0 0 0 1px rgba(143, 179, 160, 0.7) inset;
+  }
+  100% {
+    background: var(--glass);
+    box-shadow: 0 0 0 0 transparent inset;
+  }
+}
+/* It didn't: a short shake. */
+.did-no {
+  animation: did-no 0.36s ease-in-out;
+}
+@keyframes did-no {
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+/* A label floats up from the button: what you got, what it cost, where it went. */
+.float-label {
+  position: fixed;
+  z-index: 60;
+  transform: translate(-50%, -100%);
+  max-width: min(80vw, 320px);
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(14, 14, 16, 0.92);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink);
+  pointer-events: none;
+  animation: float-up 1.25s ease-out forwards;
+}
+.float-label.cost {
+  color: #d99b8a;
+}
+.float-label.gain {
+  color: #a9d4b8;
+}
+@keyframes float-up {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -60%);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -110%);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -260%);
+  }
+}
+/* Something new in your pockets: the tab bounces. */
+.edge-tab.bump {
+  animation: tab-bump 0.6s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+@keyframes tab-bump {
+  30% {
+    scale: 1.18;
+    color: #a9d4b8;
+    border-color: #a9d4b8;
+  }
+}
+/* Your cash changed. */
+.you-cash.pulse,
+.pocket-cash b.pulse {
+  animation: cash-pulse 0.7s ease-out;
+}
+@keyframes cash-pulse {
+  30% {
+    scale: 1.18;
+    color: #e8dcc0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .did-no,
+  .float-label,
+  .edge-tab.bump,
+  .you-cash.pulse,
+  .pocket-cash b.pulse {
+    animation-duration: 0.01s;
+  }
+}

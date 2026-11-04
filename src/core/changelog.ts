@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.69',
+    date: 'Nov 4',
+    items: [
+      'Tapping a button in a shop or in Pockets now shows what it did: the row glows, and a label floats up from the button (“+ Cigarettes −$9”, “→ Inside pocket”, “+$20 in the bank”, “Dropped”). The Pockets tab bounces when you’ve got something new, and your cash pulses when it changes.',
+      'If a tap did nothing (no room, can’t be done), the button gives a short shake instead, and the note says why.',
+    ],
+  },
+  {
     v: '0.68',
     date: 'Nov 4',
     items: [

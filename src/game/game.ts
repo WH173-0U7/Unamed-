@@ -169,13 +169,7 @@ export class Game {
     this.shopEl.onclick = (ev) => {
       const b = (ev.target as HTMLElement).closest('button');
       if (!b || b.disabled) return;
-      if (b.dataset.buy) this.buy(b.dataset.buy as MedId);
-      else if (b.dataset.sell) this.sell(Number(b.dataset.sell));
-      else if (b.dataset.stock) this.buyStock(b.dataset.stock);
-      else if (b.dataset.bank) this.bank(b.dataset.bank);
-      else if (b.dataset.atm) this.atm(Number(b.dataset.atm));
-      else if (b.dataset.records) this.getId();
-      else if (b.dataset.er) this.er(b.dataset.er as ErCare);
+      this.withFeedback(b, () => this.shopAction(b));
     };
     this.restBtn.hidden = true;
     this.hitUi = createHitUi(view);
@@ -184,6 +178,96 @@ export class Game {
     this.lurkBtn.onclick = () => this.lurk();
     this.lurkBtn.hidden = true;
     this.refresh();
+  }
+
+  /** A shop button: what it does. */
+  private shopAction(b: HTMLButtonElement) {
+      if (b.dataset.buy) this.buy(b.dataset.buy as MedId);
+      else if (b.dataset.sell) this.sell(Number(b.dataset.sell));
+      else if (b.dataset.stock) this.buyStock(b.dataset.stock);
+      else if (b.dataset.bank) this.bank(b.dataset.bank);
+      else if (b.dataset.atm) this.atm(Number(b.dataset.atm));
+      else if (b.dataset.records) this.getId();
+      else if (b.dataset.er) this.er(b.dataset.er as ErCare);
+  }
+
+  /** What you're carrying and holding, to see whether a tap did anything. */
+  private snapshot() {
+    const inv = this.inventory;
+    return {
+      cents: Math.round(cashOf(inv) * 100),
+      bank: (this.account?.cents ?? 0),
+      items: inv.items.length,
+      key: JSON.stringify([inv.items.map((x) => [x.name, x.spot, x.doses ?? null]), inv.clothes, inv.gear ?? [], wearing(inv), this.health.bleeding, this.health.broken, this.health.splinted ?? [], Math.round(this.health.blood)]),
+    };
+  }
+
+  /**
+   * A tap's result, shown where you tapped: if it did something, the row
+   * flashes and a label floats up from the button (what you got, what it
+   * cost, where it went), and the Pockets tab bounces when you gain
+   * something; if it did nothing, the button gives a short shake.
+   */
+  private withFeedback(b: HTMLButtonElement, run: () => void) {
+    const before = this.snapshot();
+    const rect = b.getBoundingClientRect();
+    const attr = Object.keys(b.dataset)[0];
+    const sel = attr ? `[data-${attr.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)}="${CSS.escape(b.dataset[attr] ?? '')}"]` : '';
+    const label = b.closest('li')?.querySelector('b')?.textContent ?? '';
+    run();
+    const after = this.snapshot();
+    const now = (sel && (this.shopEl.querySelector(sel) ?? this.sheetEl.querySelector(sel))) as HTMLElement | null;
+    if (before.key === after.key && before.cents === after.cents && before.bank === after.bank) {
+      // Nothing happened (the note says why).
+      const el = now ?? b;
+      el.classList.remove('did-no');
+      void el.offsetWidth;
+      el.classList.add('did-no');
+      return;
+    }
+    const row = (now ?? b).closest('li');
+    if (row) {
+      row.classList.remove('did-ok');
+      void (row as HTMLElement).offsetWidth;
+      row.classList.add('did-ok');
+    }
+    // What changed, in a word or two.
+    const bits: string[] = [];
+    const dc = after.cents - before.cents;
+    const db = after.bank - before.bank;
+    if (after.items > before.items && label) bits.push(`+ ${label}`);
+    else if (attr === 'move') {
+      const it = this.inventory.items[Number(b.dataset.move)];
+      const sp = it && this.inventory.spots.find((x) => x.id === it.spot);
+      if (sp) bits.push(`→ ${sp.name}`);
+    } else if (attr === 'load') bits.push('Loaded');
+    else if (attr === 'drop' || after.items < before.items) bits.push(attr === 'drop' ? 'Dropped' : attr === 'use' ? 'Used' : '');
+    if (db) bits.push(`${db > 0 ? '+' : '−'}${money(Math.abs(db))} in the bank`);
+    else if (dc) bits.push(`${dc > 0 ? '+' : '−'}${money(Math.abs(dc))}`);
+    const text = bits.filter(Boolean).join('  ');
+    if (text) {
+      const f = document.createElement('div');
+      f.className = `float-label${dc < 0 ? ' cost' : dc > 0 || db < 0 ? ' gain' : ''}`;
+      f.textContent = text;
+      f.style.left = `${Math.min(innerWidth - 12, Math.max(12, rect.left + rect.width / 2))}px`;
+      f.style.top = `${rect.top}px`;
+      document.body.append(f);
+      window.setTimeout(() => f.remove(), 1300);
+    }
+    // Something new on you: the Pockets tab bounces.
+    if (after.items > before.items) {
+      this.bagBtn.classList.remove('bump');
+      void this.bagBtn.offsetWidth;
+      this.bagBtn.classList.add('bump');
+    }
+    // The cash on you changed: it pulses.
+    if (dc) {
+      for (const el of document.querySelectorAll<HTMLElement>('.you-cash, .pocket-cash b')) {
+        el.classList.remove('pulse');
+        void el.offsetWidth;
+        el.classList.add('pulse');
+      }
+    }
   }
 
   private get tvState(): TvState {
@@ -887,6 +971,16 @@ export class Game {
     if (t === this.sheetEl) return this.closeSheet(); // tapped outside the card
     const b = t.closest('button');
     if (!b) return;
+    // (Pockets: a tap that does something shows it.)
+    if (this.sheet === 'pockets' && !b.disabled && b.dataset.close === undefined) {
+      this.withFeedback(b, () => this.sheetAction(b));
+      return;
+    }
+    this.sheetAction(b);
+  }
+
+  /** A sheet button: what it does. */
+  private sheetAction(b: HTMLButtonElement) {
     if (b.dataset.close !== undefined) this.closeSheet();
     else if (b.dataset.place) this.goTo(b.dataset.place as Place);
     else if (b.dataset.use) this.useMed(Number(b.dataset.use));

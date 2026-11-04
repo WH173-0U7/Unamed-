@@ -165,7 +165,7 @@ export interface Stock {
   price: number;
   desc: string;
   /** Something to wear: which slot it goes in. */
-  slot?: 'top' | 'bottom' | 'bag' | 'head' | 'face' | 'eyes';
+  slot?: 'top' | 'bottom' | 'bag' | 'head' | 'face' | 'eyes' | 'gear';
   /** Medicine (goes in your pockets as that). */
   med?: import('./inventory').MedId;
   /** Uses (a pack of 20, a book of matches, a full lighter). */
@@ -219,6 +219,9 @@ export const PAWN_STOCK: Stock[] = [
   { id: 'k-lockback', name: 'Lockback folder', price: 22, desc: 'Locks open; one thumb, with practice.', knife: 'Lockback folder' },
   { id: 'k-assisted', name: 'Assisted-opening knife', price: 30, desc: 'Flips open on a spring.', knife: 'Assisted-opening knife' },
   { id: 'k-hunting', name: 'Hunting knife', price: 35, desc: 'A fixed blade in a leather sheath.', knife: 'Hunting knife' },
+  // For carrying a blade out of sight.
+  { id: 'beltsheath', name: 'Belt sheath', price: 18, desc: 'Holds a knife (up to a hunting knife) on your belt, ready to hand. Hidden under a jacket, coat or hoodie; on show under a T-shirt.', slot: 'gear' },
+  { id: 'anklesheath', name: 'Ankle sheath', price: 28, desc: 'A small knife strapped above your ankle, under your trouser leg. Nobody sees it; getting it out in a fight takes a turn.', slot: 'gear' },
   { id: 'cap', name: 'Baseball cap', price: 12, desc: 'Second-hand. Shades your eyes from cameras.', slot: 'head' },
   { id: 'beanie', name: 'Beanie', price: 10, desc: 'Second-hand. Covers your hair.', slot: 'head' },
   { id: 'shades', name: 'Sunglasses', price: 25, desc: 'A decent used pair from the case. Hides your eyes. At night, a bit odd.', slot: 'eyes' },

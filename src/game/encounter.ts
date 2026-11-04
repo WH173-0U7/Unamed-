@@ -218,6 +218,8 @@ export interface Encounter {
   bagged?: number[];
   /** ...and the ones you've got out this fight. */
   drawn?: number[];
+  /** (Of the slow ones, the ones strapped at your ankle.) */
+  ankle?: number[];
   /** How they were when this began (blood, broken bones), to tell what's new. */
   start?: { blood: number; broken: Part[] };
   /** It came to blows (a round of a fight was fought). */
@@ -974,7 +976,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           const wi = Number(id.slice(4));
           if ((e.bagged ?? []).includes(wi) && !(e.drawn ?? []).includes(wi)) {
             (e.drawn ??= []).push(wi);
-            say('you', `You dig the ${lc(it.name)} out of your bag.`);
+            say('you', (e.ankle ?? []).includes(wi) ? `You crouch and pull the ${lc(it.name)} from the sheath at your ankle.` : `You dig the ${lc(it.name)} out of your bag.`);
             break;
           }
           if (it.spray) spray(Number(id.slice(4)), inv);

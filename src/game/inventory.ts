@@ -1,4 +1,5 @@
 import { addCaffeine, caffeineNow } from './health';
+import { knifeOf } from './knives';
 import type { Loot, LootKind } from './person';
 import type { Health } from './health';
 import { addTo, cents, emptyPurse, fewest, kgOf, money, purseText, type Purse } from './money';
@@ -61,6 +62,8 @@ export interface Inventory {
   items: InvItem[];
   /** What you're wearing, and any bag. */
   clothes: string[];
+  /** Things worn for carrying a blade: a belt sheath, an ankle sheath. */
+  gear?: string[];
   /** Caps, masks, sunglasses, and whether the mask and hood are up (see look.ts). */
   wearing?: import('./look').Wearing;
   spots: Spot[];
@@ -80,6 +83,8 @@ const BAGS: [string | null, number][] = [
 
 /** The pockets on a garment: [name, biggest size, kg]. */
 function pocketsOf(g: string): [string, Size, number][] {
+  if (/belt sheath/i.test(g)) return [['On your belt', 'medium', 0.35]];
+  if (/ankle sheath/i.test(g)) return [['At your ankle', 'small', 0.2]];
   if (/backpack/i.test(g)) return [['Main compartment', 'large', 12], ['Front pocket', 'small', 1]];
   if (/shoulder bag|tote/i.test(g)) return [['Inside', 'medium', 5]];
   if (/fanny/i.test(g)) return [['Zip pouch', 'small', 1.2]];
@@ -93,8 +98,16 @@ function pocketsOf(g: string): [string, Size, number][] {
   return [];
 }
 
-export const spotsFor = (clothes: string[]): Spot[] =>
-  clothes.flatMap((g, gi) => pocketsOf(g).map(([name, fits, maxKg], pi) => ({ id: `${gi}.${pi}`, name, on: g, fits, maxKg })));
+export const spotsFor = (clothes: string[], gear: string[] = []): Spot[] => [
+  ...clothes.flatMap((g, gi) => pocketsOf(g).map(([name, fits, maxKg], pi) => ({ id: `${gi}.${pi}`, name, on: g, fits, maxKg }))),
+  // (Gear keeps its own ids, whatever you change into.)
+  ...gear.flatMap((g, gi) => pocketsOf(g).map(([name, fits, maxKg], pi) => ({ id: `g${gi}.${pi}`, name, on: g, fits, maxKg }))),
+];
+
+/** A sheath takes a blade, and nothing else. */
+const bladeOnly = (sp: Spot) => /sheath/i.test(sp.on);
+const isBladeItem = (x?: { kind: string; name: string; cuts?: boolean }) => !!x && x.kind === 'weapon' && !!x.cuts && !/bottle|syringe/i.test(x.name);
+export const fitsIn = (sp: Spot, x?: { kind: string; name: string; cuts?: boolean }) => !bladeOnly(sp) || isBladeItem(x);
 
 const pickW = <T>(xs: [T, number][]) => {
   let n = Math.random() * xs.reduce((s, [, w]) => s + w, 0);
@@ -167,9 +180,9 @@ export function measure(x: { kind: string; name: string; med?: MedId }): { size:
 export const usedKg = (inv: Inventory, spot: string) => inv.items.filter((i) => i.spot === spot).reduce((s, i) => s + i.kg, 0);
 
 /** Where something would go: the smallest place it fits that has room. */
-export function findRoom(inv: Inventory, size: Size, kg: number): Spot | null {
+export function findRoom(inv: Inventory, size: Size, kg: number, x?: { kind: string; name: string; cuts?: boolean }): Spot | null {
   const ok = inv.spots
-    .filter((s) => SIZE_RANK[s.fits] >= SIZE_RANK[size] && usedKg(inv, s.id) + kg <= s.maxKg + 1e-9)
+    .filter((s) => fitsIn(s, x) && SIZE_RANK[s.fits] >= SIZE_RANK[size] && usedKg(inv, s.id) + kg <= s.maxKg + 1e-9)
     .sort((a, b) => SIZE_RANK[a.fits] - SIZE_RANK[b.fits] || a.maxKg - b.maxKg);
   return ok[0] ?? null;
 }
@@ -188,7 +201,7 @@ export function stow(inv: Inventory, it: Omit<InvItem, 'spot' | 'size' | 'kg'> &
   const size = it.size ?? m.size;
   const kg = it.kg ?? m.kg;
   // A weapon goes where it's best hidden; anything else, the snuggest fit.
-  const spot = it.kind === 'weapon' ? hidingSpot(inv, size, kg) : findRoom(inv, size, kg);
+  const spot = it.kind === 'weapon' ? hidingSpot(inv, size, kg, it) : findRoom(inv, size, kg, it);
   if (!spot) return null;
   const item: InvItem = { ...it, size, kg, spot: spot.id };
   inv.items.push(item);
@@ -206,12 +219,12 @@ export function wear(inv: Inventory, slot: 'top' | 'bottom' | 'bag', name: strin
   const at = slot === 'top' ? 0 : slot === 'bottom' ? 1 : 3;
   const old = clothes[at] ?? null;
   clothes[at] = name;
-  const spots = spotsFor(clothes);
+  const spots = spotsFor(clothes, inv.gear);
   // Pack it all again, biggest things first.
   const trial: Inventory = { purse: inv.purse, items: [], clothes, spots };
   const order = [...inv.items].sort((a, b) => SIZE_RANK[b.size] - SIZE_RANK[a.size] || b.kg - a.kg);
   for (const it of order) {
-    const spot = findRoom(trial, it.size, it.kg);
+    const spot = it.kind === 'weapon' ? hidingSpot(trial, it.size, it.kg, it) : findRoom(trial, it.size, it.kg, it);
     if (!spot) return { ok: false, why: `You'd have nowhere to put the ${it.name.toLowerCase()}.` };
     trial.items.push({ ...it, spot: spot.id });
   }
@@ -378,9 +391,12 @@ export const medById = (id: MedId) => MEDS.find((m) => m.id === id)!;
  * hoodie's pouch sags and swings; thin trackie pockets show every outline;
  * a clip on a jeans pocket shows.
  */
-export function concealOf(sp: Pick<Spot, 'on' | 'name'>): number {
+export function concealOf(sp: Pick<Spot, 'on' | 'name'>, top?: string): number {
   const g = sp.on.toLowerCase();
   const p = sp.name.toLowerCase();
+  // On your belt: hidden if something hangs over it; on show if not.
+  if (/belt sheath/.test(g)) return top && /coat|jacket|hoodie|parka|windbreaker|flannel/i.test(top) ? 0.82 : 0.12;
+  if (/ankle sheath/.test(g)) return 0.95;
   if (/backpack/.test(g)) return p.startsWith('main') ? 1 : 0.92;
   if (/shoulder bag|tote/.test(g)) return 0.95;
   if (/fanny/.test(g)) return 0.85;
@@ -413,13 +429,26 @@ export function bulkOf(x: { kind: string; name: string }): number {
 /** How much of this weapon shows, where it is (0 hidden .. 1 out in the open). */
 export function showing(inv: Inventory, x: InvItem): number {
   const sp = inv.spots.find((s) => s.id === x.spot);
-  return bulkOf(x) * (1 - (sp ? concealOf(sp) : 0));
+  return bulkOf(x) * (1 - (sp ? concealOf(sp, inv.clothes[0]) : 0));
 }
 
 /** How obviously you're carrying (0 nothing shows .. 1 bristling): more weapons, more to see. */
 export function exposure(inv: Inventory): number {
-  return 1 - inv.items.reduce((k, x) => k * (1 - showing(inv, x)), 1);
+  // What shows, weighted by how alarming it is (a folder's clip barely counts; a shiv does).
+  return 1 - inv.items.reduce((k, x) => k * (1 - Math.min(1, showing(inv, x) * (0.4 + alarmOf(x) * 0.9))), 1);
 }
+
+/** How alarming a weapon is if it's seen, 0..1. */
+export function alarmOf(x: { kind: string; name: string }): number {
+  if (x.kind !== 'weapon') return 0;
+  const k = knifeOf(x.name);
+  if (k) return k.alarm;
+  const n = x.name.toLowerCase();
+  return /broken bottle/.test(n) ? 1 : /^bottle$/.test(n) ? 0.25 : /spray/.test(n) ? 0.15 : /box cutter/.test(n) ? 0.3 : /syringe/.test(n) ? 0.6 : /^knife$/.test(n) ? 0.6 : 0.5;
+}
+/** A weapon's two numbers, in words. */
+export const hideStat = (b: number) => (b < 0.2 ? 'Easy to hide' : b < 0.35 ? 'Fairly easy to hide' : b < 0.7 ? 'Hard to hide' : 'Very hard to hide');
+export const alarmStat = (a: number) => (a < 0.35 ? 'draws little attention' : a < 0.7 ? 'draws attention' : 'alarming if seen');
 
 /** A word for how much shows. */
 export const showWord = (v: number) => (v < 0.06 ? 'Hidden' : v < 0.16 ? 'A slight bulge' : v < 0.35 ? 'You can see the shape of it' : 'Plain to see');
@@ -428,7 +457,7 @@ export const showWord = (v: number) => (v < 0.06 ? 'Hidden' : v < 0.16 ? 'A slig
 export function hidesWord(garment: string): string {
   const ps = pocketsOf(garment);
   if (!ps.length) return 'Nowhere to hide one';
-  const best = Math.max(...ps.map(([name]) => concealOf({ on: garment, name })));
+  const best = Math.max(...ps.map(([name]) => concealOf({ on: garment, name }, 'Coat')));
   return best >= 0.9 ? 'Hides a weapon well' : best >= 0.7 ? 'Hides a small one' : best >= 0.45 ? 'Hides a weapon poorly' : 'Shows the outline of anything';
 }
 
@@ -436,18 +465,19 @@ export function hidesWord(garment: string): string {
  * Where a weapon is best hidden, out of the places it fits (a bag's main
  * compartment, a coat's inside pocket...).
  */
-export function hidingSpot(inv: Inventory, size: Size, kg: number): Spot | null {
-  const ok = inv.spots.filter((s) => SIZE_RANK[s.fits] >= SIZE_RANK[size] && usedKg(inv, s.id) + kg <= s.maxKg + 1e-9);
-  return ok.sort((a, b) => concealOf(b) - concealOf(a))[0] ?? null;
+export function hidingSpot(inv: Inventory, size: Size, kg: number, x?: { kind: string; name: string; cuts?: boolean }): Spot | null {
+  const ok = inv.spots.filter((s) => fitsIn(s, x) && SIZE_RANK[s.fits] >= SIZE_RANK[size] && usedKg(inv, s.id) + kg <= s.maxKg + 1e-9);
+  // (Best hidden first; between equals, not the slow ankle.)
+  return ok.sort((a, b) => concealOf(b, inv.clothes[0]) - concealOf(a, inv.clothes[0]) - (/ankle/i.test(b.on) ? 0.1 : 0) + (/ankle/i.test(a.on) ? 0.1 : 0))[0] ?? null;
 }
 
 /** The next place it fits (for moving it about), after where it is now; null if nowhere else. */
 export function nextSpot(inv: Inventory, x: InvItem): Spot | null {
-  const ok = inv.spots.filter((s) => s.id === x.spot || (SIZE_RANK[s.fits] >= SIZE_RANK[x.size] && usedKg(inv, s.id) + x.kg <= s.maxKg + 1e-9));
+  const ok = inv.spots.filter((s) => s.id === x.spot || (fitsIn(s, x) && SIZE_RANK[s.fits] >= SIZE_RANK[x.size] && usedKg(inv, s.id) + x.kg <= s.maxKg + 1e-9));
   if (ok.length < 2) return null;
   const i = ok.findIndex((s) => s.id === x.spot);
   return ok[(i + 1) % ok.length];
 }
 
 /** Is this spot in a bag (it takes a moment to get something out)? */
-export const inBag = (inv: Inventory, spotId: string) => /backpack|shoulder bag|tote|fanny/i.test(inv.spots.find((s) => s.id === spotId)?.on ?? '');
+export const inBag = (inv: Inventory, spotId: string) => /backpack|shoulder bag|tote|fanny|ankle/i.test(inv.spots.find((s) => s.id === spotId)?.on ?? '');

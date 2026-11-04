@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.58',
+    date: 'Nov 4',
+    items: [
+      'Every weapon now has two stats of its own, shown in Pockets and at the pawn shop: how easy it is to hide, and how much attention it draws if someone sees it. A pocket knife or pepper spray barely registers; a kitchen knife, a push dagger or a shiv is alarming even half seen.',
+      'What people and the police make of you depends on both: what shows, and how frightening what shows is.',
+      'New at the pawn shop: a belt sheath ($18), which keeps a knife up to a hunting knife ready on your belt, hidden under a jacket, coat or hoodie but on show under a T-shirt; and an ankle sheath ($28) for a small blade, which nobody sees, but which takes a turn to get out in a fight.',
+    ],
+  },
+  {
     v: '0.57',
     date: 'Nov 3',
     items: [

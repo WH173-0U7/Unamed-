@@ -21,7 +21,7 @@ import { knifeOf } from './knives';
 import { HEAT_NAMES, applyTo, comeBack, heal, fade, heatLevel, historyText, injuriesText, meet, newInfamy, recognises, remember, repName, type Infamy, type Known } from './people';
 import { anonymity, conspicuous, describe, hasHood, lookClothes, wearing } from './look';
 import { marksText } from './encounter';
-import { MEDS, concealOf, exposure, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
+import { MEDS, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
 
 /**
  * What's left of your humanity. Killing someone takes a lot of it; stamping
@@ -1022,6 +1022,15 @@ export class Game {
         return;
       }
       line = `He unlocks the case and slides the ${lc(k.name)} across. ${k.desc}`;
+    } else if (s.slot === 'gear') {
+      // Worn under your clothes, for a blade.
+      if ((inv.gear ?? []).includes(s.name)) {
+        this.note([`You've already got ${withA(lc(s.name))}.`]);
+        return;
+      }
+      (inv.gear ??= []).push(s.name);
+      inv.spots = spotsFor(inv.clothes, inv.gear);
+      line = `You buy the ${lc(s.name)} and strap it on${s.id === 'anklesheath' ? ', under your trouser leg' : ''}. Move a knife into it from Pockets.`;
     } else if (s.slot === 'head' || s.slot === 'face' || s.slot === 'eyes') {
       // Something for your face: worn (a mask starts pulled down; pull it up in Pockets).
       const w = wearing(inv);
@@ -2001,7 +2010,7 @@ export class Game {
           .map(({ x, i, o }) => li(x.name, 'cents' in o ? `${x.detail ? `${x.detail} · ` : ''}He'll give you ${money(o.cents)}` : o.why, 'cents' in o ? btn('sell', i, `Sell ${money(o.cents)}`) : ''));
         body = `<h3>Sell</h3>` + (sell.length ? `<ul class="shop-list">${sell.join('')}</ul>` : `<p class="shop-broke">You've got nothing to sell.</p>`);
         if (place === 'pawn') {
-          body += `<h3>For sale</h3><ul class="shop-list">${PAWN_STOCK.map((s) => li(s.name, s.slot === 'top' || s.slot === 'bottom' || s.slot === 'bag' ? `${s.desc} ${hidesWord(s.name)}.` : s.desc, btn('stock', s.id, money(s.price * 100), c < s.price * 100 && 'Not enough cash'))).join('')}</ul>`;
+          body += `<h3>For sale</h3><ul class="shop-list">${PAWN_STOCK.map((s) => li(s.name, s.slot === 'top' || s.slot === 'bottom' || s.slot === 'bag' ? `${s.desc} ${hidesWord(s.name)}.` : s.knife ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.knife }))}, ${alarmStat(alarmOf({ kind: 'weapon', name: s.knife }))}.` : s.desc, btn('stock', s.id, money(s.price * 100), c < s.price * 100 && 'Not enough cash'))).join('')}</ul>`;
         }
       }
     } else if (place === 'bank') {
@@ -2101,7 +2110,7 @@ export class Game {
     let body =
       `<div class="pocket-cash"><span>Cash</span><b>${money(Math.round(cashOf(inv) * 100))}</b></div>` +
       `<p class="pocket-purse">${this.purseHtml()}</p>` +
-      `<p class="pocket-wear">Wearing ${inv.clothes.map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total + purseKg(inv))}.</p>` +
+      `<p class="pocket-wear">Wearing ${[...inv.clothes, ...(inv.gear ?? [])].map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total + purseKg(inv))}.</p>` +
       // What anyone looking at you can see you're carrying.
       (inv.items.some((x) => x.kind === 'weapon')
         ? ((seen) => `<p class="pocket-shows${seen.length ? ' seen' : ''}">${seen.length ? `Anyone looking can see you're carrying: ${seen.map((x) => lc(x.name)).join(', ')}. People notice you sooner, scare easier, and so do the police.` : 'Your weapons are out of sight.'}</p>`)(inv.items.filter((x) => x.kind === 'weapon' && showing(inv, x) >= 0.16))
@@ -2130,7 +2139,7 @@ export class Game {
       const used = usedKg(inv, sp.id);
       const fill = Math.min(100, (100 * used) / sp.maxKg);
       body +=
-        `<div class="spot"><h3><span>${sp.on} · ${sp.name}</span><em>${sp.fits} · ${hideWord(concealOf(sp))}</em></h3>` +
+        `<div class="spot"><h3><span>${sp.on} · ${sp.name}</span><em>${sp.fits} · ${hideWord(concealOf(sp, inv.clothes[0]))}</em></h3>` +
         `<div class="spot-bar"><i style="width:${fill}%"></i><span>${kgLabel(used)} / ${sp.maxKg} kg</span></div>` +
         (xs.length
           ? `<ul class="pocket-list">${xs
@@ -2188,7 +2197,7 @@ export class Game {
                 // Into another pocket (to hide it better, or have it to hand).
                 acts += act('move', 'Move', nextSpot(inv, x) ? null : 'Nowhere else');
                 return (
-                  `<li><div><b>${x.name}</b><small>${small ? `${small} · ` : ''}${kgLabel(x.kg)}${x.kind === 'weapon' ? ` · <span class="shows${showing(inv, x) >= 0.16 ? ' seen' : ''}">${showWord(showing(inv, x))}${inBag(inv, x.spot) ? ' (a moment to get out)' : ''}</span>` : ''}</small></div>` +
+                  `<li><div><b>${x.name}</b><small>${small ? `${small} · ` : ''}${kgLabel(x.kg)}${x.kind === 'weapon' ? ` · ${hideStat(bulkOf(x))}, ${alarmStat(alarmOf(x))} · <span class="shows${showing(inv, x) >= 0.16 ? ' seen' : ''}">${showWord(showing(inv, x))}${inBag(inv, x.spot) ? ' (a moment to get out)' : ''}</span>` : ''}</small></div>` +
                   `<span class="acts">${acts}<button type="button" class="drop" data-drop="${i}" aria-label="Drop ${x.name}">Drop</button></span></li>`
                 );
               })
@@ -2199,7 +2208,7 @@ export class Game {
     if (empty.length) {
       body +=
         `<h3>Empty</h3><ul class="spot-empty">` +
-        empty.map((sp) => `<li><span>${sp.on} · ${sp.name}</span><em>${sp.fits}, ${sp.maxKg} kg · ${hideWord(concealOf(sp))}</em></li>`).join('') +
+        empty.map((sp) => `<li><span>${sp.on} · ${sp.name}</span><em>${sp.fits}, ${sp.maxKg} kg · ${hideWord(concealOf(sp, inv.clothes[0]))}</em></li>`).join('') +
         `</ul>`;
     }
     if (!inv.spots.length) body += `<p class="pocket-empty">Nothing you're wearing has pockets.</p>`;
@@ -2222,6 +2231,7 @@ export class Game {
     // How much of what you're carrying shows (a handle out of a pocket, the shape of a blade).
     e.exposed = exposure(inv);
     e.bagged = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'weapon' && inBag(inv, x.spot)).map(({ i }) => i);
+    e.ankle = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'weapon' && /ankle/i.test(inv.spots.find((sp) => sp.id === x.spot)?.on ?? '')).map(({ i }) => i);
   }
 
   /** Redraws the person button and the encounter screen from the saved state. */

@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.66',
+    date: 'Nov 4',
+    items: [
+      'Wiping blood smears it properly now: more of it is pushed along with your finger (it piles up where the wipe ends), it leaves a rusty film with the streaks of your fingertips in it, and it takes a few passes to get clean.',
+      'Smears look more like the real thing: see-through and rust-coloured where thin, dark crimson where thick, with a darker tide line where the edges dry.',
+    ],
+  },
+  {
     v: '0.65',
     date: 'Nov 4',
     items: ['Hitting someone who’s out cold no longer has them gasping, spitting, coughing, clutching, curling up or covering up. Their body reacts (blood at the lips, vomit running from the mouth, a tooth falling from a slack jaw); they don’t.'],

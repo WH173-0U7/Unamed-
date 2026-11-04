@@ -146,24 +146,25 @@ export function createGlass(opts: GlassOptions = {}) {
         if (w <= 0.0) { gl_FragColor = s; return; }
         // Skin ridges and uneven pressure leave streaks along the stroke.
         float across = dot(p - uA, vec2(-dir.y, dir.x));
-        float streak = 0.62 + 0.38 * vnoise(vec2(across * 0.32, 0.5), uSeed);
-        streak *= 0.88 + 0.12 * vnoise(vec2(across * 1.7, 0.5), uSeed + 3.0);
+        // (Finger ridges, and the uneven pressure of a fingertip: strong streaks.)
+        float streak = 0.5 + 0.5 * vnoise(vec2(across * 0.32, 0.5), uSeed);
+        streak *= 0.78 + 0.22 * vnoise(vec2(across * 1.7, 0.5), uSeed + 3.0);
         // Wet blood is pushed along with the finger.
-        vec4 b = texture2D(tState, toUv(p - dir * min(L, uR * 0.55)));
+        vec4 b = texture2D(tState, toUv(p - dir * min(L * 1.4, uR * 0.85)));
         float wetB = clamp(b.g / max(b.r, 0.02), 0.0, 1.0);
         w *= uPower;
         // (More of it goes along with the finger than comes off: it smears.)
-        float drag = w * 0.5 * wetB;
+        float drag = w * 0.68 * wetB;
         float r = mix(s.r, b.r, drag);
         float g = mix(s.g, b.g, drag);
         // Some is lifted off; dry blood hardly comes away.
         float wet = clamp(g / max(r, 0.02), 0.0, 1.0);
-        float lift = w * streak * mix(0.46, 0.78, wet);
+        float lift = w * streak * mix(0.38, 0.7, wet);
         float r2 = r * (1.0 - lift);
         float g2 = g * (1.0 - lift);
         // What came off spreads as a thin smear; the smear wipes away slowly.
         float gone = max(s.r - r2, 0.0);
-        float smear = s.b * (1.0 - w * streak * 0.45) + gone * mix(0.22, 0.38, wet) * streak;
+        float smear = s.b * (1.0 - w * streak * 0.26) + gone * mix(0.42, 0.66, wet) * streak;
         // Dust is moved about; skin leaves a little grease, most at the edges.
         float edge = smoothstep(0.55, 0.95, d / uR);
         float grime = s.a * (1.0 - w * 0.1 * streak) + w * ((1.0 - streak) * 0.01 + edge * 0.012);
@@ -283,9 +284,16 @@ export function createGlass(opts: GlassOptions = {}) {
         }
 
         // ---- Smear: a thin, streaky film of blood left by wiping.
-        float sm = smoothstep(0.0, 0.5, s.b);
-        float smA = sm * (0.42 + 0.22 * blotch);
-        vec3 smCol = mix(vec3(0.5, 0.07, 0.045), vec3(0.24, 0.04, 0.03), sm);
+        float sm = smoothstep(0.0, 0.32, s.b);
+        // Thin, it's a see-through rusty film; thicker, a dark crimson.
+        float smA = sm * (0.5 + 0.3 * blotch);
+        vec3 smCol = mix(vec3(0.55, 0.13, 0.07), vec3(0.3, 0.03, 0.03), smoothstep(0.1, 0.7, s.b));
+        // Where a smear ends it dries darker: a faint tide line along its edges.
+        float sgx = S(uv + dx * 2.0).b - S(uv - dx * 2.0).b;
+        float sgy = S(uv + dy * 2.0).b - S(uv - dy * 2.0).b;
+        float tide = smoothstep(0.04, 0.16, length(vec2(sgx, sgy))) * smoothstep(0.02, 0.12, s.b);
+        smCol *= 1.0 - tide * 0.45;
+        smA = min(0.85, smA + tide * 0.18);
         rgb = smCol * smA + rgb * (1.0 - smA);
         a = smA + a * (1.0 - smA);
 

@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.76',
+    date: 'Nov 4',
+    items: [
+      'Arrested between midnight and 4 AM, your court date was sometimes the same afternoon. It’s always at least a day away now.',
+      'Arrested while bleeding, the police take you to the ER first and get it closed, instead of a stranger finding you in the cell.',
+      'A closed shop is just a locked door: you don’t go in, warm up, put your knife away or stub out your cigarette.',
+      'After an arrest, the bail and jail buttons stay on screen under the text, so you don’t have to scroll to find them.',
+    ],
+  },
+  {
     v: '0.75',
     date: 'Nov 4',
     items: [
@@ -27,7 +37,7 @@ export const CHANGES: Release[] = [
       'Getting charged means a court case now. After the night in the cell, bail is set by the charges and your record: pay it (cash, then your bank) and walk out with a court date, or wait in County for the hearing.',
       'New place: the County Courthouse, weekdays 9 to 4. Turn up and the judge decides: dropped, a fine, probation, or days in jail. Your record counts against you; Speech counts for you. Turn up and you get your bail back.',
       'Miss your date and there’s a warrant: your bail is gone, the police are hotter on you, and any stop ends in cuffs. Turn yourself in at the courthouse to clear it.',
-      'On probation, any arrest is no bail and straight to County. Your case, court date and warrant show under Criminal record in You.',
+      'On probation, any new charge means no bail: you’re held in County. Your case, court date and warrant show under Criminal record in You.',
     ],
   },
   {

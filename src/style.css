@@ -4411,6 +4411,13 @@ body[data-buttons] #enc .enc-extra button {
   box-shadow: 0 6px 6px -2px rgb(16, 16, 16);
 }
 
+/* The choice after an arrest: always in view, under the text (which scrolls). */
+.police-choice {
+  flex-shrink: 0;
+  display: grid;
+  gap: 8px;
+}
+
 /* The criminal record, on the You sheet. */
 .record-list {
   margin: 6px 0 0;

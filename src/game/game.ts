@@ -316,12 +316,12 @@ export class Game {
 
   /** How hard it's raining where you are (0 indoors), for the rain. */
   get rainAmount(): number {
-    if (!this.tvState.on || placeInfo(this.place).indoors) return 0;
+    if (!this.tvState.on || this.inside) return 0;
     return RAIN_AMOUNT[this.weather.now];
   }
   /** How hard it's snowing where you are (0 indoors), for the snow. */
   get snowAmount(): number {
-    if (!this.tvState.on || placeInfo(this.place).indoors) return 0;
+    if (!this.tvState.on || this.inside) return 0;
     return SNOW_AMOUNT[this.weather.now];
   }
 
@@ -1051,8 +1051,9 @@ export class Game {
     this.refresh();
     uiGlitch(p === 'street' ? this.view : this.shopEl, 0.55);
     const info = placeInfo(p);
+    const inside = this.inside;
     const lines = [
-      {
+      !inside && info.indoors ? `You get to the ${info.name}. The doors are locked.` : {
         street: 'You head back out into the street.',
         pharmacy: 'You walk to the all-night pharmacy.',
         gas: 'You walk over to the gas station. The door chimes as you go in.',
@@ -1069,21 +1070,21 @@ export class Game {
     const h = this.health;
     this.exposure = 0;
     const w = wearing(this.inventory);
-    if (info.indoors && w.masked) {
+    if (inside && w.masked) {
       w.masked = false;
       lines.push(`You pull the ${w.face!.toLowerCase()} down before you go in.`);
     }
-    if (info.indoors && h.cold) lines.push("It's warm in here. Stay a while and you'll thaw out.");
+    if (inside && h.cold) lines.push("It's warm in here. Stay a while and you'll thaw out.");
     const inHand = this.inventory.items.filter((x) => x.hand);
-    if (info.indoors && inHand.length) {
+    if (inside && inHand.length) {
       for (const x of inHand) delete x.hand;
       lines.push(`You put the ${inHand.map((x) => lc(x.name)).join(' and the ')} away before you go in.`);
     }
-    if (info.indoors && this.smoking) {
+    if (inside && this.smoking) {
       delete h.smokingUntil;
       lines.push('You stub the cigarette out on the wall before you go in.');
     }
-    if (!info.indoors && WET_AMOUNT[this.weather.now] > 0) lines.push(`It's still ${isSnow(this.weather.now) ? 'snowing' : 'raining'} (${WEATHER_NAME[this.weather.now].toLowerCase()}).`);
+    if (!inside && WET_AMOUNT[this.weather.now] > 0) lines.push(`It's still ${isSnow(this.weather.now) ? 'snowing' : 'raining'} (${WEATHER_NAME[this.weather.now].toLowerCase()}).`);
     this.note(lines);
     buzz(10);
   }
@@ -1564,7 +1565,7 @@ export class Game {
    */
   private useFlame(fire: InvItem, use: 'light' | 'burn' | 'fire'): string | null {
     const inv = this.inventory;
-    const wet = WET_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors;
+    const wet = WET_AMOUNT[this.weather.now] > 0 && !this.inside;
     const matches = /matches/i.test(fire.name);
     const left = flameLeft(fire);
     if (matches) {
@@ -1594,7 +1595,7 @@ export class Game {
     // A cigarette takes about six minutes to smoke, for real.
     h.smokingUntil = now() + SMOKE_MS;
     const lines = [
-      WET_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors
+      WET_AMOUNT[this.weather.now] > 0 && !this.inside
         ? 'You hunch over a cigarette, cupping it from the rain, and get it lit on the third try.'
         : ['You light a cigarette and pull the smoke deep. Your hands stop shaking.', 'You light up and lean back, watching the street.', 'The first drag burns. The second one helps.'][Math.floor(Math.random() * 3)],
     ];
@@ -1862,7 +1863,7 @@ export class Game {
     const inv = this.inventory;
     const it = inv.items[i];
     if (!it || it.kind !== 'weapon' || inv.items.some((y) => y.hand === hand)) return;
-    if (placeInfo(this.place).indoors) {
+    if (this.inside) {
       this.note(['Not in here.']);
       return;
     }
@@ -1909,7 +1910,7 @@ export class Game {
   /** Why you can't light a cigarette now, or null. */
   private smokeBlocked(): string | null {
     if (!this.flame()) return 'Nothing to light it';
-    if (placeInfo(this.place).indoors) return 'No smoking in here';
+    if (this.inside) return 'No smoking in here';
     if (this.smoking) return `Still smoking (${Math.ceil(((this.health.smokingUntil ?? 0) - now()) / 60000)} min left)`;
     if (!this.canOpenSheet) return 'Not now';
     return null;
@@ -1933,7 +1934,7 @@ export class Game {
     if (this.place === 'street' || !this.tvState.on) return;
     if ((this.exposure += dt) < 120) return;
     this.exposure = 0;
-    if (info.indoors && h.cold) {
+    if (this.inside && h.cold) {
       h.cold--;
       this.note([h.cold ? 'The warmth is getting into you. You thaw out a little.' : "You've warmed up. You stop shivering."]);
       this.refresh();
@@ -2100,7 +2101,10 @@ export class Game {
       rec.arrests++;
       for (const c of charges) rec.charges[c] = (rec.charges[c] ?? 0) + 1;
       rec.last = now();
-      lines.push(`You're arrested.${took ? ` They keep ${took === 1 ? 'the evidence' : `${took === 2 ? 'both' : `all ${took}`} things they took off you`}.` : ''} You spend the night in a holding cell that smells of bleach and piss.`);
+      lines.push(`You're arrested.${took ? ` They keep ${took === 1 ? 'the evidence' : `${took === 2 ? 'both' : `all ${took}`} things they took off you`}.` : ''}`);
+      lines.push(...custodyCare(h));
+      lines.push('You spend the night in a holding cell that smells of bleach and piss.', ...passHours(h, 8, true));
+      if (h.dead) return this.die(lines);
       if (charges.length) {
         // A case against you: bail, and a court date.
         const c = this.case ?? { charges: [], bail: 0, courtAt: 0 };
@@ -2126,8 +2130,6 @@ export class Game {
           this.save.state.bailOffer = 'bail';
         }
       } else lines.push('In the morning they let you go: not enough to charge you. This time.');
-      lines.push(...passHours(h, 8, true));
-      if (h.dead) return this.die(lines);
       f.heat = Math.max(0, f.heat - 45);
       f.rep += 5;
       h.stress = Math.min(100, (h.stress ?? 0) + 15);
@@ -2139,6 +2141,11 @@ export class Game {
     buzz(arrested ? [80, 60, 120] : 12);
   }
 
+  /** Actually indoors: in a place that's open (outside a locked door, you're on the street). */
+  private get inside(): boolean {
+    const info = placeInfo(this.place);
+    return info.indoors && (!info.hours || isOpen(info.hours));
+  }
   /** A case against you: the charges, bail, and when your court date is. */
   private get case(): { charges: string[]; bail: number; courtAt: number; warrant?: boolean; bailPaid?: number } | undefined {
     return this.save.state.case as { charges: string[]; bail: number; courtAt: number; warrant?: boolean; bailPaid?: number } | undefined;
@@ -2175,7 +2182,7 @@ export class Game {
     if (!c) return;
     const h = this.health;
     delete this.save.state.bailOffer;
-    const lines = ['A day and a half in County: a bunk, a toilet with no seat, grey food and the noise that never stops.', ...passHours(h, 36, true)];
+    const lines = [...custodyCare(h), 'A day and a half in County: a bunk, a toilet with no seat, grey food and the noise that never stops.', ...passHours(h, 36, true)];
     if (h.dead) return this.die(lines);
     h.stress = Math.min(100, (h.stress ?? 0) + 20);
     lines.push(...this.verdict(true));
@@ -2232,7 +2239,7 @@ export class Game {
     }
     if (sev <= 6) {
       this.save.state.probationUntil = now() + 3 * 24 * 3_600_000;
-      lines.push('Guilty. Three days\' probation: get arrested for anything before then and you go straight to jail, no bail.');
+      lines.push('Guilty. Three days\' probation: get charged with anything before then and you\'re held with no bail.');
       f.heat = Math.max(0, f.heat - 30);
       return lines;
     }
@@ -2309,7 +2316,7 @@ export class Game {
     return (
       `<section class="stat-card record"><h3><span>Criminal record</span><b>${r.arrests ? `${r.arrests} arrest${r.arrests > 1 ? 's' : ''}` : 'Clean'}</b></h3>` +
       (this.case ? `<p class="record-case${this.case.warrant ? ' warrant' : ''}">${this.case.warrant ? 'WARRANT out for you: missed court. Any stop is an arrest. Turn yourself in at the County Courthouse to end it.' : `Court date: ${dateText(this.case.courtAt)}, County Courthouse (weekdays 9 to 4). Charges: ${this.case.charges.map((x) => x.toLowerCase()).join(', ')}.${this.case.bailPaid ? ` Bail paid: ${money(this.case.bailPaid)} (back when you turn up).` : ''}`}</p>` : '') +
-      (now() < ((this.save.state.probationUntil as number) ?? 0) ? `<p class="record-case">On probation until ${dateText(this.save.state.probationUntil as number)} ${clockText(this.save.state.probationUntil as number)}: any arrest is jail.</p>` : '') +
+      (now() < ((this.save.state.probationUntil as number) ?? 0) ? `<p class="record-case">On probation until ${dateText(this.save.state.probationUntil as number)} ${clockText(this.save.state.probationUntil as number)}: get charged with anything and you're held, no bail.</p>` : '') +
       (r.arrests
         ? (rows.length ? `<ul class="record-list">${rows.map(([c, n]) => `<li><span>${c}</span><b>×${n}</b></li>`).join('')}</ul>` : '') +
           `<p class="record-note">${rows.length ? 'Each charge means a court date.' : 'Held, and let go without charge.'}${r.last ? ` Last arrested ${dateText(r.last)}.` : ''}</p>`
@@ -2323,7 +2330,7 @@ export class Game {
     const inv = this.inventory;
     const w = wearing(inv);
     if (what === 'mask' && w.face) {
-      if (!w.masked && placeInfo(this.place).indoors) {
+      if (!w.masked && this.inside) {
         this.note([`Not in here. You'd be thrown out, or worse.`]);
         return;
       }
@@ -2342,7 +2349,7 @@ export class Game {
   /** Why you can't burn something right now, or null. */
   private burnBlocked(): string | null {
     if (!this.flame()) return 'Nothing to light it';
-    if (placeInfo(this.place).indoors) return 'Not in here';
+    if (this.inside) return 'Not in here';
     return null;
   }
 
@@ -2734,6 +2741,7 @@ export class Game {
       card.innerHTML =
         `<div class="sheet-head"><h2>Police</h2></div><div class="sheet-body police">` +
         res.map((l) => `<p>${l}</p>`).join('') +
+        `</div><div class="police-choice">` +
         (this.save.state.bailOffer === 'bail'
           ? ((have) =>
               `<button type="button" class="place" data-police="bail" ${have < (this.case?.bail ?? 0) * 100 ? 'disabled' : ''}><b>Pay bail: ${money((this.case?.bail ?? 0) * 100)}</b><small>${have < (this.case?.bail ?? 0) * 100 ? `You've only got ${money(have)}, cash and bank together` : 'Cash first, then your bank account. You get it back if you show up to court.'}</small></button>` +
@@ -2927,7 +2935,7 @@ export class Game {
       : [];
     e.canAsk = this.world.thieves.length > 0 && !e.person.thief;
     e.weapons = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'weapon').map(({ x, i }) => ({ i, name: x.name, weapon: x.weapon, cuts: x.cuts, spray: x.spray, doses: x.doses, loaded: x.secret && x.secret !== 'empty' && x.secret !== 'cocaine' ? x.secret : undefined, known: x.known, hand: x.hand, ...(gunOf(x.name) ? { gun: true, ammo: inv.items.filter((y) => y.name === gunOf(x.name)!.ammo).reduce((n, y) => n + (y.doses ?? 0), 0) } : {}) }));
-    e.wet = WET_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors;
+    e.wet = WET_AMOUNT[this.weather.now] > 0 && !this.inside;
     // How much of what you're carrying shows (a handle out of a pocket, the shape of a blade).
     e.exposed = exposure(inv);
     e.bagged = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'weapon' && inBag(inv, x.spot)).map(({ i }) => i);
@@ -3379,7 +3387,7 @@ export class Game {
         if (this.running) this.note(['You missed your court date. There\'s a warrant out for you now, and your bail is gone.']);
       }
       const was = this.weather.now;
-      if (updateWeather(this.weather) && this.running && this.tvState.on && this.weather.now !== was && !placeInfo(this.place).indoors) {
+      if (updateWeather(this.weather) && this.running && this.tvState.on && this.weather.now !== was && !this.inside) {
         this.note([weatherLine(this.weather.now, was)]);
       }
     }
@@ -3524,6 +3532,7 @@ function isBlade(x: { kind: string; name: string }): boolean {
 /** A court date: a weekday afternoon, at least a day off (real time). */
 function courtDate(t = Date.now()): number {
   const d = new Date(t + 20 * 3_600_000);
+  if (d.getHours() >= 16) d.setDate(d.getDate() + 1);
   while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
   d.setHours(16, 0, 0, 0);
   return d.getTime();
@@ -3539,4 +3548,16 @@ function wearOff(h: Health) {
   delete h.drunk;
   delete h.drunkAt;
   delete h.smokingUntil;
+}
+
+/**
+ * In their hands and bleeding: they don't let you bleed out in a cell. The
+ * ER first, cuffed to a gurney, and the wound closed.
+ */
+function custodyCare(h: Health): string[] {
+  if (!h.bleeding && h.blood > h.maxBlood * 0.55) return [];
+  const was = h.bleeding;
+  h.bleeding = 0;
+  h.blood = Math.max(h.blood, Math.round(h.maxBlood * 0.6));
+  return [was ? 'They see the blood and take you to the ER first, cuffed to a gurney. A nurse closes the wound without a word to you.' : "You're grey and shaking. They take you to the ER first, cuffed to a gurney, and someone hangs a bag of fluids."];
 }

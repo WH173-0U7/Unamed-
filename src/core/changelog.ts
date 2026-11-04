@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.75',
+    date: 'Nov 4',
+    items: [
+      'Bug fixes for police and court: arrested again while out on bail, the bail is revoked and you’re held; paying bail always gives you a fresh court date; a warrant still counts if you run and get caught; turning yourself in goes on your record.',
+      'When the police don’t look in your bag, they really don’t. Caught asleep in a stolen car, you’re arrested. The courthouse metal detector turns you away with a weapon on you.',
+      'Fights: a disarm always takes what’s actually in your hand, and only from someone able to; a folding knife opens when you take it out; no more “take out” with both hands full; a smashed bottle stays in your hand; “Act natural” works again.',
+      'Fight text: no stepping and feinting while you’re on the floor, no screams from someone out cold, and a missed knife swing no longer reads as a missed punch. Knocked out by a drug isn’t a concussion.',
+    ],
+  },
+  {
     v: '0.74',
     date: 'Nov 4',
     items: [

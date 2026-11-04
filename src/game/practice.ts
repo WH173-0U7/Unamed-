@@ -259,5 +259,5 @@ export function missText(t: Tier, kind: 'punch' | 'kick' | 'weapon' | 'stomp' | 
     return kind === 'stomp'
       ? ['You stamp down; they roll just clear.']
       : ['It was a good one; they were just a little faster.', 'They read it, barely.', 'They slip it by an inch.'];
-  return kind === 'kick' ? ['You miss the kick.'] : kind === 'stomp' ? ['You stomp down, but they roll away from it.'] : ['They slip the punch.', 'You miss.', 'Your punch glances off.'];
+  return kind === 'kick' ? ['You miss the kick.'] : kind === 'stomp' ? ['You stomp down, but they roll away from it.'] : kind === 'weapon' ? ['You swing and miss.', 'They jerk back out of reach.'] : ['They slip the punch.', 'You miss.', 'Your punch glances off.'];
 }

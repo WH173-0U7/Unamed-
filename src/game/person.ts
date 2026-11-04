@@ -181,6 +181,10 @@ export interface Loot {
   drained?: boolean;
   /** Something to drink (uses in `doses`). */
   drink?: 'beer' | 'liquor' | 'energy';
+  /** Car keys: the car's state, carried over if they're taken off you and found again. */
+  car?: 'found' | 'gone';
+  carSearched?: boolean;
+  takenAt?: number;
   /** Something to hurt people with (see Item): extra damage, a blade, pepper spray. */
   weapon?: number;
   cuts?: boolean;

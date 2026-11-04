@@ -47,7 +47,7 @@ export function robBody(w: World, inv: Inventory, e: Encounter | null): boolean 
   const loot: Loot[] = [];
   const c = cents(inv.purse);
   if (c > 0) loot.push({ kind: 'cash', name: 'Your cash', cash: c / 100, purse: { ...inv.purse }, where: 'stuffed in a pocket', yours: true });
-  for (const it of inv.items) loot.push({ kind: it.kind, name: it.name, detail: it.detail, med: it.med, secret: it.secret, known: it.known, doses: it.doses, pin: it.pin, pinOk: it.pinOk, drained: it.drained, weapon: it.weapon, cuts: it.cuts, spray: it.spray, drink: it.drink, where: 'stuffed in a pocket', yours: true });
+  for (const it of inv.items) loot.push({ kind: it.kind, name: it.name, detail: it.detail, med: it.med, secret: it.secret, known: it.known, doses: it.doses, pin: it.pin, pinOk: it.pinOk, drained: it.drained, weapon: it.weapon, cuts: it.cuts, spray: it.spray, drink: it.drink, car: it.car, carSearched: it.carSearched, takenAt: it.takenAt, where: 'stuffed in a pocket', yours: true });
   if (!loot.length) return false;
 
   let thief: Thief | undefined;
@@ -127,7 +127,7 @@ export function robKnockedOut(w: World, inv: Inventory, e: Encounter, brute: boo
   if (!took.length && c <= 0) return 'When you come round, your pockets have been turned out. There was nothing worth taking.';
   const loot: Loot[] = [];
   if (c > 0) loot.push({ kind: 'cash', name: 'Your cash', cash: c / 100, purse: { ...inv.purse }, where: 'stuffed in a pocket', yours: true });
-  for (const it of took) loot.push({ kind: it.kind, name: it.name, detail: it.detail, med: it.med, secret: it.secret, known: it.known, doses: it.doses, pin: it.pin, pinOk: it.pinOk, drained: it.drained, weapon: it.weapon, cuts: it.cuts, spray: it.spray, drink: it.drink, where: 'stuffed in a pocket', yours: true });
+  for (const it of took) loot.push({ kind: it.kind, name: it.name, detail: it.detail, med: it.med, secret: it.secret, known: it.known, doses: it.doses, pin: it.pin, pinOk: it.pinOk, drained: it.drained, weapon: it.weapon, cuts: it.cuts, spray: it.spray, drink: it.drink, car: it.car, carSearched: it.carSearched, takenAt: it.takenAt, where: 'stuffed in a pocket', yours: true });
   inv.purse = {};
   inv.items = inv.items.filter((x) => !took.includes(x));
   let thief = p.thief ? w.thieves.find((t) => t.id === p.thief) : undefined;

@@ -200,8 +200,17 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
   h.stress = b.stress ?? h.stress;
   // Stuck with a needle in the fight: it lasts.
   if (b.high && !(h.high === b.high && (h.highUntil ?? 0) > Date.now())) {
-    h.high = b.high;
-    h.highUntil = Date.now() + HIGH_HOURS[b.high] * 3_600_000;
+    const d = b.high;
+    useHabit(h, d === 'meth' ? 'stimulants' : d === 'tranq' ? 'sedatives' : 'opioids', d === 'fentanyl' ? 20 : d === 'heroin' ? 15 : d === 'meth' ? 12 : 10);
+    if (d === 'meth') {
+      h.wired = true;
+      h.wiredBy = 'meth';
+      h.wiredUntil = Date.now() + HIGH_HOURS.meth * 3_600_000;
+      if (h.high === 'meth') delete h.high;
+    } else {
+      h.high = d;
+      h.highUntil = Date.now() + HIGH_HOURS[d] * 3_600_000;
+    }
   }
   // New marks start healing (teeth and scars never do).
   const was = h.marks ?? {};
@@ -240,6 +249,9 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
   }
   if (result === 'lost') {
     // Knocked out by a blow: a minute or two, and you come round, concussed.
+    if (b.drugOut && h.blood > h.maxBlood * (PASS_OUT + 0.01)) {
+      return ['You come to on the pavement, sick and slow, with no idea how long you were gone.', ...(h.bleeding ? ["You're still bleeding."] : []), ...lines];
+    }
     if (h.blood > h.maxBlood * (PASS_OUT + 0.01)) {
       h.concussion = Math.max(h.concussion, CONCUSSION_HOURS);
       return ['You come to on the pavement a minute or two later, your head ringing. You\'re concussed.', ...(h.bleeding ? ["You're still bleeding."] : []), ...lines];
@@ -425,7 +437,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
       effects,
       heals: h.bleeding
         ? 'Comes back once the bleeding stops.'
-        : `Back to full in about ${hrs((h.maxBlood - h.blood) / regen)}. Iron tablets give 0.4 L.`,
+        : `Back to full in about ${hrs((h.maxBlood - h.blood) / regen)}.`,
     });
   }
   for (const p of h.broken) {

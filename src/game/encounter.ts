@@ -88,6 +88,8 @@ export interface Body {
    * down, and at 0 you're knocked out. Below 0 is how deep under you are; a
    * beating that drives it to -100 kills (a brain can only take so much).
    */
+  /** Put out by a drug, not a blow (no concussion). */
+  drugOut?: boolean;
   awake: number;
   /** Blood (ml): only cuts and bleeding lose it. Passes out at or below 55% of `maxBlood`. */
   blood: number;
@@ -289,7 +291,7 @@ export const CATEGORY_NAMES: Record<Category, string> = {
   torture: 'Torture',
   move: 'Move',
 };
-const SURVEIL_IDS = ['follow', 'build', 'carrying', 'awareness', 'sex', 'read'];
+const SURVEIL_IDS = ['follow', 'build', 'carrying', 'awareness', 'sex', 'read', 'bluff'];
 const VIOLENCE_IDS = ['bumrush', 'sucker', 'shove', 'mug', 'kneecap', 'slam', 'rear-choke', 'spray-ambush'];
 
 // ---------- Fear ----------
@@ -331,6 +333,8 @@ function searchOptions(e: Encounter): Option[] {
   return out.length ? out : [{ id: 'nothing', label: 'Nothing left on them', disabled: true, cat: 'search' }];
 }
 
+/** Something in each hand already. */
+const handsFull = (e: Encounter) => (e.weapons ?? []).filter((w) => w.hand).length >= 2;
 /** Your weapons, as attacks (pepper spray, while it lasts). */
 function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolean): Option[] {
   const seen = new Set<string>();
@@ -338,7 +342,7 @@ function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolea
     .filter((w) => { const key = `${w.name}|${w.loaded ?? ''}`; return !seen.has(key) && !!seen.add(key); })
     .flatMap((w) => [
       // Take it out (a turn), or put it away (a turn).
-      ...(w.hand ? [{ id: `stow:${w.i}`, label: `Put the ${lc(w.name)} away`, hint: `In your ${w.hand} hand · takes a turn`, cat }] : !w.spray ? [{ id: `draw:${w.i}`, label: `Take out the ${lc(w.name)}`, hint: 'Into your hand: it shows, and it scares', cat }] : []),
+      ...(w.hand ? [{ id: `stow:${w.i}`, label: `Put the ${lc(w.name)} away`, hint: `In your ${w.hand} hand · takes a turn`, cat }] : !w.spray ? [{ id: `draw:${w.i}`, label: `Take out the ${lc(w.name)}`, hint: handsFull(e) ? 'Your hands are full' : 'Into your hand: it shows, and it scares', disabled: handsFull(e), cat }] : []),
       ...(w.gun
       ? [
           { id: `wpn:${w.i}`, label: 'Shoot them', hint: w.doses ? `${w.doses} in the gun · loud: it gets called in` : 'Empty', disabled: !w.doses, cat },
@@ -586,7 +590,7 @@ function rawOptions(e: Encounter): Option[] {
         return [...stomps(), ...ground(), ...weaponOptions(e, 'stomp', tired).filter((o) => !/spray/i.test(o.label)), ...searchOptions(e), ...wake, breathe, { id: 'walk', label: 'Walk away', cat: 'move' }];
       }
       if (e.them.yielded) return yieldedOptions(e);
-      const demand: Option = { id: 'demand', label: heldBlade(e) ? '"Give it up" (the knife)' : '"Give it up"', hint: oddsHint(yieldChance(e, heldBlade(e) ? KNIFE_EDGE : 0)), cat: 'threaten' };
+      const demand: Option = { id: 'demand', label: heldBlade(e) ? `"Give it up" (the ${lc(heldBlade(e)!.name)})` : '"Give it up"', hint: oddsHint(yieldChance(e, heldBlade(e) ? KNIFE_EDGE : 0)), cat: 'threaten' };
       if (e.them.down) return [...stomps(legHint), ...ground(), ...weaponOptions(e, 'stomp', tired).filter((o) => !/spray/i.test(o.label)), ...learned(e, [{ id: 'choke', label: 'Headlock', hint: tired(14) ? 'Too tired' : armHint ?? 'Squeeze till they go out', level: CHOKE_LEVEL, disabled: tired(14) }], 'attack'), demand, run, breathe];
       return [
         { id: 'punch', label: 'Punch', hint: armHint, cat: 'attack' },
@@ -620,7 +624,8 @@ let you: { stats: Stats; gain: (name: StatName, xp: number) => void };
 /** What you're carrying, during the move being played out (for things that change it). */
 let invNow: Inventory | undefined;
 /** A knife (or other blade) in your hand right now. */
-const heldBlade = (e: Encounter) => (e.weapons ?? []).find((w) => w.hand && w.cuts && !/^bottle$|syringe/i.test(w.name));
+const heldBlade = (e: Encounter) =>
+  (e.weapons ?? []).find((w) => w.hand && w.cuts && !/^bottle$|syringe/i.test(w.name) && (!knifeOf(w.name) || knifeOf(w.name)!.open === 'fixed' || (e.opened ?? []).includes(knifeOf(w.name)!.name)));
 /** How much more likely they are to hand it over with a knife in your hand. */
 const KNIFE_EDGE = 0.12;
 /** How many times you've tried each move (yours, kept between fights). */
@@ -1029,7 +1034,11 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
               return impacts;
             }
             it.hand = hnd;
-            say('you', `You take out the ${lc(it.name)}${hnd === 'left' ? ' in your left hand' : ''}.`);
+            const bagged = (e.bagged ?? []).includes(Number(id.slice(5)));
+            say('you', bagged ? `You dig the ${lc(it.name)} out of your bag${hnd === 'left' ? ' with your left hand' : ''}.` : `You take out the ${lc(it.name)}${hnd === 'left' ? ' in your left hand' : ''}.`);
+            // A folding knife: open it on the way out.
+            const kn = knifeOf(it.name);
+            if (kn && !bagged) openKnife(kn);
             scare(10);
           }
         } else if (id.startsWith('reload:') && inv) {
@@ -1046,8 +1055,12 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           if (!it || it.kind !== 'weapon') return impacts;
           // In your bag: getting it out takes the turn.
           const wi = Number(id.slice(4));
-          if ((e.bagged ?? []).includes(wi) && !(e.drawn ?? []).includes(wi)) {
-            (e.drawn ??= []).push(wi);
+          if (!it.hand && !it.spray && !freeHand(inv)) {
+            say('info', `Your hands are full. Put something away first.`);
+            return impacts;
+          }
+          if (!it.hand && (e.bagged ?? []).includes(wi)) {
+            it.hand = freeHand(inv) ?? undefined;
             say('you', (e.ankle ?? []).includes(wi) ? `You crouch and pull the ${lc(it.name)} from the sheath at your ankle.` : `You dig the ${lc(it.name)} out of your bag.`);
             break;
           }
@@ -1161,7 +1174,9 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   cutStyle = kn ? kn.style : 'both';
   // How practiced you are at this one (it reads that way).
   const wkind = weapon ? (/^bottle$/i.test(weapon.name) ? 'bottle' : /broken bottle/i.test(weapon.name) ? 'broken' : /syringe/i.test(weapon.name) ? 'needle' : weapon.cuts ? 'blade' : 'blunt') : null;
-  const t: Tier = a !== 'you' ? 1 : tech ? practise(tech.id) : wkind ? practise(`wpn:${wkind}`, 'weapons') : practise(kind);
+  const practised: Tier = a !== 'you' ? 1 : tech ? practise(tech.id) : wkind ? practise(`wpn:${wkind}`, 'weapons') : practise(kind);
+  // (From the floor there's no footwork to show: it reads plain.)
+  const t: Tier = A.down ? 1 : practised;
   spend(a, tech ? tech.cost : kind === 'kick' || kind === 'stomp' ? COST.kick : kind === 'weapon' ? COST.weapon : COST.punch);
 
   // Will it land?
@@ -1204,7 +1219,11 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   // Someone out cold (or dead) can't roll away, duck or block: it lands.
   const helpless = D.out || D.dead;
   if (!helpless && Math.random() >= clamp(hit, 0.05, 0.95)) {
-    if (a === 'you' && t !== 1 && kind !== 'kick') {
+    if (a === 'you' && A.down && kind !== 'stomp') {
+      say(a, oneOf(['From the floor, you miss.', 'You lash out from the floor and catch nothing.']));
+    } else if (d === 'you' && D.down && kind !== 'stomp') {
+      say(a, oneOf([`${N.S} swing down at you and miss.`, 'You roll, and it misses.']));
+    } else if (a === 'you' && t !== 1 && kind !== 'kick') {
       say(a, vary(missText(t, tech ? 'tech' : kind)));
     } else if (tech) {
       say(a, oneOf(['They see it coming and twist away.', 'They jerk back, and it misses.', 'You miss.']));
@@ -1219,6 +1238,8 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
       }
     } else if (d === 'you') {
       say(a, oneOf(['They swing and miss.', 'You duck their swing.', 'They lunge. You step aside.']));
+    } else if (kind === 'weapon') {
+      say(a, oneOf(['You swing and miss.', 'They jerk back out of reach.', 'It catches nothing but air.']));
     } else {
       say(a, oneOf(['Your punch glances off.', 'They slip the punch.', 'You miss.']));
     }
@@ -1299,6 +1320,11 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
     text = vary(weaponText(t, wkind, lc(weapon!.name), where, into, cutStyle));
   } else if (a === 'you' && stomp) {
     text = vary(stompText(t, loc === 'head' ? 'head' : loc === 'stomach' ? 'stomach' : 'body'));
+  } else if (a === 'you' && A.down && (kind === 'kick' || kind === 'punch')) {
+    // On your back: no footwork, just whatever you can reach.
+    text = kind === 'kick'
+      ? vary([`From the floor, you kick out and catch them ${where}.`, `You drive a heel up from the ground; it lands ${where}.`])
+      : vary([`From the floor, you punch up and catch them ${where}.`, `You lash out from the ground and hit them ${where}.`]);
   } else if (a === 'you' && kind === 'kick') {
     text = vary(kickText(t, where, into));
   } else if (a === 'you' && (loc !== 'arm' || D.out)) {
@@ -1488,6 +1514,8 @@ function asUnconscious(text: string, d: Side): string {
     [/They gasp and clutch their stomach\.\s?/g, ''],
     [/They curl up[^.]*\.\s?/g, ''],
     [/Their eyes water\.\s?/g, ''],
+    [/It lands flush, and their eyes go blank for a moment\./g, 'It lands flush. Their head rocks with it.'],
+    [/They taste copper\.\s?/g, ''],
     [/They (?:howl|scream|groan|moan|whimper|sob|wince|flinch)[^.]*\.\s?/g, ''],
     [/(?:It knocks the wind out of them|The wind's knocked out of them)\.\s?/g, 'The air goes out of them.'],
   ];
@@ -1552,6 +1580,12 @@ function openKnife(k: Knife): boolean {
 function smashBottle(inv: Inventory, i: number) {
   const it = inv.items[i];
   if (!it || it.kind !== 'weapon' || !/^bottle$/i.test(it.name)) return;
+  if (!it.hand) {
+    const hnd = freeHand(inv);
+    if (!hnd) return say('info', 'Your hands are full. Put something away first.');
+    it.hand = hnd;
+    if ((enc.bagged ?? []).includes(i)) return say('you', 'You dig the bottle out of your bag.');
+  }
   spend('you', COST.punch);
   if (Math.random() < 0.5 + (you.stats.strength?.level ?? 1) * 0.004) {
     const booze = (it.doses ?? 0) > 0;
@@ -1624,6 +1658,7 @@ function doseNow(drug: Exclude<import('./person').Drug, 'empty'>) {
     y.high = 'fentanyl';
     if (Math.random() < 0.2) {
       y.out = true;
+      y.drugOut = true;
       say('info', 'Your breathing slows. Slower. The street tips sideways and goes dark.');
     } else say('info', 'It hits like a wall. Your eyelids drag down and every breath is an effort.');
   } else if (drug === 'meth') {
@@ -1634,6 +1669,8 @@ function doseNow(drug: Exclude<import('./person').Drug, 'empty'>) {
   } else {
     if (Math.random() < 0.45) {
       y.out = true;
+      y.drugOut = true;
+      y.high = 'tranq';
       say('info', "Your legs go first. You're on the pavement before you know it, and then you're nowhere.");
     } else {
       y.dazed = 3;
@@ -2028,10 +2065,11 @@ function theirTurn() {
   }
   // A hard case goes for the knife in your hand: grab the wrist and twist.
   const held = heldBlade(e);
-  if (held && invNow && !T.down && (P.fight > 0.15) && !e.you.down && Math.random() < 0.06) {
-    const it = invNow.items[held.i];
+  if (held && invNow && !T.down && !T.out && T.blinded <= 0 && !T.dazed && arms(T) < 2 && P.fight > 0.15 && !e.you.down && Math.random() < 0.06) {
+    const at = invNow.items.findIndex((x) => x.kind === 'weapon' && x.hand && x.name === held.name);
+    const it = invNow.items[at];
     if (it) {
-      invNow.items.splice(held.i, 1);
+      invNow.items.splice(at, 1);
       p.carrying.push({ name: it.name, weapon: it.weapon, cuts: it.cuts });
       T.weaponOut = it.name;
       say('them', `They grab your wrist and twist until the ${lc(it.name)} drops. They snatch it up off the pavement.`);
@@ -2315,7 +2353,7 @@ function techEffect(t: Technique) {
       const arm = (['left arm', 'right arm'] as Part[]).find((x) => !T.broken.includes(x));
       if (arm && Math.random() < 0.35 + ((enc.unarmedLevel ?? 1) - 45) * 0.005) {
         T.broken.push(arm);
-        say('you', `There's a crack, and their ${arm} bends the wrong way. They scream.`);
+        say('you', T.out ? `There's a crack, and their ${arm} bends the wrong way. They don't even stir.` : `There's a crack, and their ${arm} bends the wrong way. They scream.`);
         impacts.push({ target: 'them', ml: 0, severe: true, loc: 'arm', spill: 'none' });
         scare(15);
       }
@@ -2386,7 +2424,8 @@ function mug() {
   e.stage = 'combat';
   e.facedYou = true;
   spend('you', COST.ambush);
-  const blade = (e.weapons ?? []).find((w) => w.cuts && !/^bottle$|syringe/i.test(w.name));
+  // A blade already in your hand, or one you can get to (not at the bottom of a bag), with a hand free.
+  const blade = heldBlade(e) ?? (e.weapons ?? []).find((w) => w.cuts && !w.hand && !/^bottle$|syringe/i.test(w.name) && !(e.bagged ?? []).includes(w.i) && !handsFull(e));
   const gun = (e.weapons ?? []).find((w) => w.gun);
   if (gun) {
     say('you', `You let them see the gun.`);
@@ -2394,11 +2433,14 @@ function mug() {
   } else if (blade) {
     // Out in your hand, where they can see it.
     const it = invNow?.items[blade.i];
+    const wasHeld = !!blade.hand;
     if (it && !it.hand) {
       it.hand = freeHand(invNow!) ?? undefined;
       blade.hand = it.hand;
     }
-    say('you', `You take out the ${lc(blade.name)} and let them see it.`);
+    const kn = knifeOf(blade.name);
+    if (kn && !(e.opened ?? []).includes(kn.name) && kn.open !== 'fixed') (e.opened ??= []).push(kn.name);
+    say('you', wasHeld ? `You let them see the ${lc(blade.name)}.` : `You take out the ${lc(blade.name)}${kn && kn.open !== 'fixed' ? ', open it,' : ''} and let them see it.`);
     scare(18);
   }
   say(

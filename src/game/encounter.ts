@@ -1426,7 +1426,8 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
     } else if (d === 'you' && D.down && kind !== 'stomp') {
       say(a, oneOf([`${N.S} swing down at you and miss.`, 'You roll, and it misses.']));
     } else if (a === 'you' && t !== 1 && kind !== 'kick') {
-      say(a, vary(missText(t, tech ? 'tech' : kind)));
+      const ms = missText(t, tech ? 'tech' : kind);
+      say(a, vary(D.down ? ms.filter((x) => !/step back|slip (it|the punch)|read it/.test(x)).concat(['You miss.']) : ms));
     } else if (tech) {
       say(a, oneOf(['They see it coming and twist away.', 'They jerk back, and it misses.', 'You miss.']));
     } else if (kind === 'stomp') {
@@ -1519,7 +1520,10 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   if (a === 'you' && tech) {
     text = t === 1 || !TECH_TEXT[tech.id] ? tech.text : vary(TECH_TEXT[tech.id][t === 0 ? 0 : 1]);
   } else if (a === 'you' && wkind) {
-    text = vary(weaponText(t, wkind, lc(weapon!.name), where, into, cutStyle));
+    // (Someone on the ground can't be stepped around or met coming in.)
+    const lines = weaponText(t, wkind, lc(weapon!.name), where, into, cutStyle);
+    const lying = D.down ? lines.filter((x) => !/step off the line|let them come|back out of reach|A feint/.test(x)) : lines;
+    text = vary(lying.length ? lying : lines);
   } else if (a === 'you' && stomp) {
     text = vary(stompText(t, loc === 'head' ? 'head' : loc === 'stomach' ? 'stomach' : 'body'));
   } else if (a === 'you' && !A.down && D.down && !D.out && kind === 'punch' && !tech) {
@@ -2632,7 +2636,7 @@ function spray(i: number, inv: Inventory) {
   it.doses = Math.max(0, (it.doses ?? 3) - 1);
   spend('you', 4);
   enc.them.blinded = 99;
-  say('you', 'You pepper spray them full in the face. They stagger back, eyes streaming and screwed shut, swinging blind.');
+  say('you', enc.them.down ? 'You pepper spray them full in the face. They curl up on the ground, eyes streaming and screwed shut.' : 'You pepper spray them full in the face. They stagger back, eyes streaming and screwed shut, swinging blind.');
   if (it.doses === 0) {
     inv.items.splice(i, 1);
     say('info', 'The can sputters out. You drop it.');

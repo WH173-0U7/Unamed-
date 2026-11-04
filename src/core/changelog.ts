@@ -11,6 +11,13 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.88',
+    date: 'Nov 4',
+    items: [
+      'Fight text: knife work and misses against someone on the ground no longer read as if they’re standing (“you step off the line”, “they step back”). Pepper spraying someone on the ground, they curl up instead of staggering back.',
+    ],
+  },
+  {
     v: '0.87',
     date: 'Nov 4',
     items: [

@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.61',
+    date: 'Nov 4',
+    items: [
+      'New place: Ironside Firearms (10 to 7, Sundays 12 to 5). A compact 9mm pistol ($480), a .38 revolver ($420), a pump shotgun ($350), ammunition, and a holster ($35) that keeps a handgun hidden under a jacket, coat or hoodie.',
+      'Like a real gun shop: your own ID only (a stolen one gets you shown the door), and a background check for every gun. If you’ve ever been charged, it comes back denied.',
+      'Guns come unloaded: load them from a box of rounds in Pockets. In a fight you can shoot, reload (it takes a turn) or hit someone with it. People still miss up close; a hit bleeds badly, can break bones or puncture a lung, and to the head is usually the end.',
+      'Every shot is loud and gets called in: the police heat climbs fast. A gun found on you is serious, and guns are hard to hide and alarming if seen.',
+    ],
+  },
+  {
     v: '0.60',
     date: 'Nov 4',
     items: [

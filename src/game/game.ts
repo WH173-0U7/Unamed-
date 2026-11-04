@@ -18,6 +18,7 @@ import { COLD_NAMES } from './health';
 import { maybeThief, newWorld, robBody, robKnockedOut, settle, type World } from './legacy';
 import { isBrute } from './voices';
 import { knifeOf } from './knives';
+import { gunOf } from './guns';
 import { HEAT_NAMES, applyTo, comeBack, heal, fade, heatLevel, historyText, injuriesText, meet, newInfamy, recognises, remember, repName, type Infamy, type Known } from './people';
 import { anonymity, conspicuous, describe, hasHood, lookClothes, wearing } from './look';
 import { marksText } from './encounter';
@@ -61,7 +62,7 @@ const STOMP_HELPLESS_COST = 1;
 const TORTURE_COST = 3;
 const MUG_COST = 0.5;
 
-import { COIN_MACHINE_FEE, ER_PRICES, GAS_STOCK, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place } from './shops';
+import { COIN_MACHINE_FEE, ER_PRICES, GAS_STOCK, GUN_STOCK, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place } from './shops';
 import { BILLS, COINS, addTo, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
 import { hoursText, isOpen } from './clock';
 import { createHitUi } from '../fx/hitUi';
@@ -465,7 +466,10 @@ export class Game {
     const tortured = e.tortured ?? 0;
     const mugged = !!e.mugged;
     const levelsBefore = Object.values(this.stats).reduce((n, x) => n + x.level, 0);
+    const shotsBefore = e.shots ?? 0;
     const impacts = act(e, id, this.stats, this.inventory, (this.save.state.moves ??= {}) as Record<string, number>);
+    // Gunshots get called in.
+    if ((e.shots ?? 0) > shotsBefore) this.infamy.heat = Math.min(100, this.infamy.heat + 18 * ((e.shots ?? 0) - shotsBefore));
     if (Object.values(this.stats).reduce((n, x) => n + x.level, 0) > levelsBefore) sound.levelUp();
     // Knocked out of your mouth (or you're out cold): the cigarette's gone.
     if (!wasOver && this.smoking && e.you && (e.you.smoking === false || e.you.out || e.result === 'lost')) {
@@ -720,7 +724,7 @@ export class Game {
     const robbed = this.place === 'hospital' ? false : robBody(w, this.inventory, e);
     // A new you: nothing carried over but the world.
     // (Your name, your ID and your bank account were that character's.)
-    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines']) delete this.save.state[k];
+    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record']) delete this.save.state[k];
     // Nobody knows this face. The people the old you hurt are still out there
     // (and your things on some of them), but they'd be looking for someone else.
     this.world.infamy = newInfamy();
@@ -889,6 +893,7 @@ export class Game {
     else if (b.dataset.inject) this.inject(Number(b.dataset.inject));
     else if (b.dataset.pack) this.packLoose(Number(b.dataset.pack));
     else if (b.dataset.move) this.moveItem(Number(b.dataset.move));
+    else if (b.dataset.load) this.loadGun(Number(b.dataset.load));
     else if (b.dataset.drink) this.drink(Number(b.dataset.drink));
   }
 
@@ -924,6 +929,7 @@ export class Game {
         liquor: 'You walk into the liquor store. A bell jangles over the door.',
         records: 'You push through the doors of the City Records Office and take a ticket.',
         hospital: 'The ER doors hiss open. You give a name at the desk and they tell you to sit.',
+        guns: 'A buzzer sounds as you push the door. The man behind the counter looks up, and keeps looking.',
       }[p],
     ];
     const h = this.health;
@@ -997,15 +1003,31 @@ export class Game {
   /** Buy something at the pawn shop or the gas station (and put it on, if it's clothes). */
   private buyStock(id: string) {
     const place = this.place;
-    const s = (place === 'gas' ? GAS_STOCK : place === 'liquor' ? LIQUOR_STOCK : PAWN_STOCK).find((x) => x.id === id);
+    const s = (place === 'gas' ? GAS_STOCK : place === 'liquor' ? LIQUOR_STOCK : place === 'guns' ? GUN_STOCK : PAWN_STOCK).find((x) => x.id === id);
     const inv = this.inventory;
-    if (!s || (place !== 'pawn' && place !== 'gas' && place !== 'liquor') || (place !== 'gas' && !isOpen(placeInfo(place).hours!)) || cashOf(inv) < s.price) return;
+    if (!s || (place !== 'pawn' && place !== 'gas' && place !== 'liquor' && place !== 'guns') || (place !== 'gas' && !isOpen(placeInfo(place).hours!)) || cashOf(inv) < s.price) return;
     // The pawn shop and the liquor store want to see ID first.
     let idLine = '';
     if (place === 'pawn' || place === 'liquor') {
       const check = this.showId(place);
       if (!check) return;
       idLine = check;
+    }
+    // A gun: your own ID, a form, and a background check (ammunition and a holster just want ID).
+    if (place === 'guns') {
+      const mine = this.ownId();
+      if (!mine) {
+        this.note([inv.items.some((x) => x.kind === 'id') ? 'He looks at the ID, then at you. "That\'s not you." He slides it back and doesn\'t take his eyes off you until you\'re out the door.' : '"ID first. Your own. Everybody gets the background check."']);
+        if (inv.items.some((x) => x.kind === 'id')) this.goTo('street');
+        return;
+      }
+      if (s.gun) {
+        if (this.save.state.record) {
+          this.note(['You fill in the form, and he phones it through. It doesn\'t take long. "Denied." He doesn\'t say why; he doesn\'t need to: you\'ve been charged with something.']);
+          return;
+        }
+        idLine = `You fill in the federal form and he phones your ${lc(mine.name)} through for the background check. Twenty minutes of waiting, then: "Proceed."`;
+      } else idLine = `He checks your ${lc(mine.name)}.`;
     }
     let line: string;
     if (s.drink) {
@@ -1023,6 +1045,20 @@ export class Game {
         return;
       }
       line = `You buy ${withA(m.name)} from behind the counter.`;
+    } else if (s.gun && gunOf(s.gun)) {
+      const gn = gunOf(s.gun)!;
+      // (Sold unloaded.)
+      if (!stow(inv, { kind: 'weapon', name: gn.name, weapon: gn.club, doses: 0 })) {
+        this.note([`Nowhere to carry it. ${noRoomWhy(inv, measure({ kind: 'weapon', name: gn.name }).size)}`]);
+        return;
+      }
+      line = `He hands it over across the counter, unloaded, in a cardboard box. ${gn.desc}`;
+    } else if (s.ammo) {
+      if (!stow(inv, { kind: 'misc', name: s.name, doses: s.ammo })) {
+        this.note([`Nowhere to put it. ${noRoomWhy(inv, measure({ kind: 'misc', name: s.name }).size)}`]);
+        return;
+      }
+      line = `A box of ${s.ammo} ${s.name.replace(/ rounds$/, ' rounds').toLowerCase()}, heavier than it looks.`;
     } else if (s.knife && knifeOf(s.knife)) {
       const k = knifeOf(s.knife)!;
       if (!stow(inv, { kind: 'weapon', name: k.name, weapon: k.dmg, cuts: true })) {
@@ -1038,7 +1074,7 @@ export class Game {
       }
       (inv.gear ??= []).push(s.name);
       inv.spots = spotsFor(inv.clothes, inv.gear);
-      line = `You buy the ${lc(s.name)} and strap it on${s.id === 'anklesheath' ? ', under your trouser leg' : ''}. Move a knife into it from Pockets.`;
+      line = `You buy the ${lc(s.name)} and strap it on${s.id === 'anklesheath' ? ', under your trouser leg' : ''}. Move ${s.id === 'holster' ? 'a handgun' : 'a knife'} into it from Pockets.`;
     } else if (s.slot === 'head' || s.slot === 'face' || s.slot === 'eyes') {
       // Something for your face: worn (a mask starts pulled down; pull it up in Pockets).
       const w = wearing(inv);
@@ -1527,6 +1563,23 @@ export class Game {
     buzz(6);
   }
 
+  /** Loads a gun from a box of its rounds. */
+  private loadGun(i: number) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    const gn = gunOf(it?.name);
+    if (!it || !gn) return;
+    const box = inv.items.find((y) => y.name === gn.ammo && (y.doses ?? 0) > 0);
+    const n = Math.min(gn.holds - (it.doses ?? 0), box?.doses ?? 0);
+    if (!box || n <= 0) return;
+    it.doses = (it.doses ?? 0) + n;
+    box.doses = (box.doses ?? 0) - n;
+    if (box.doses <= 0) inv.items.splice(inv.items.indexOf(box), 1);
+    this.refresh();
+    this.note([`You load ${n} round${n > 1 ? 's' : ''} into the ${lc(gn.name)}. ${it.doses} in it now.`]);
+    buzz(6);
+  }
+
   /** Into the next pocket or bag it fits (to hide it, or have it to hand). */
   private moveItem(i: number) {
     const inv = this.inventory;
@@ -1671,6 +1724,11 @@ export class Game {
         inv.items = inv.items.filter((x) => !blades.includes(x));
         f.heat = Math.min(100, f.heat + 6);
         lines.push(`They find ${list2(blades.map((x) => `the ${lc(x.name)}`))} and take ${blades.length > 1 ? 'them' : 'it'}. "What's this for, then?"`);
+        // A gun on you: that's serious.
+        if (blades.some((x) => gunOf(x.name))) {
+          f.heat = Math.min(100, f.heat + 15);
+          lines.push('The gun changes everything: one of them keeps a hand on his holster the whole time.');
+        }
       }
       const evidence = inv.items.filter((x) => (x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card' || (x.secret && x.secret !== 'empty'));
       if (evidence.length) {
@@ -1689,6 +1747,8 @@ export class Game {
       const before = inv.items.length;
       inv.items = inv.items.filter((x) => !((x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card' || x.kind === 'weapon' || (x.secret && x.secret !== 'empty')));
       const took = before - inv.items.length;
+      // Charged: it's on your record (the gun store's background check will see it).
+      if (took) this.save.state.record = true;
       lines.push(`You're arrested.${took ? ` They keep ${took === 1 ? 'the evidence' : `all ${took} things that weren't yours`}.` : ''} You spend the night in a holding cell that smells of bleach and piss.${took ? ' In the morning they charge you and let you go with a court date and a sheet of paper you lose by noon.' : ' In the morning they let you go: not enough to charge you. This time.'}`);
       lines.push(...passHours(h, 8, true));
       if (h.dead) return this.die(lines);
@@ -1988,6 +2048,11 @@ export class Game {
       body =
         `<ul class="shop-list">${SOLD_MEDS().map((m) => li(m.name, `${m.desc}${have(m.id) ? ` · You have ${have(m.id)}` : ''}`, btn('buy', m.id, money(m.price * 100), c < m.price * 100 && 'Not enough cash'))).join('')}</ul>` +
         (c < Math.min(...SOLD_MEDS().map((m) => m.price)) * 100 ? `<p class="shop-broke">You can't afford anything. Cash only.</p>` : '');
+    } else if (place === 'guns') {
+      body = open
+        ? `<ul class="shop-list">${GUN_STOCK.map((s) => li(s.name, s.gun ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.gun }))}, ${alarmStat(1)}.` : s.desc, btn('stock', s.id, money(s.price * 100), c < s.price * 100 && 'Not enough cash'))).join('')}</ul>` +
+          `<p class="shop-broke">${this.ownId() ? (this.save.state.record ? 'With a charge against you, the background check will come back denied.' : 'Your own ID, a form and a background check, and it’s yours.') : 'Nothing without your own ID: they run a background check on every buyer.'} Firing a gun is loud: someone always calls it in.</p>`
+        : `<p class="shop-closed">The shutters are down and the alarm light blinks.</p>`;
     } else if (place === 'hospital') {
       const need = this.erNeeds();
       const row = (care: ErCare, name: string, what: string, needed: boolean, n = 1) =>
@@ -2173,6 +2238,10 @@ export class Game {
                         : x.drink === 'beer'
                         ? 'A can of beer'
                         : `${x.kind === 'weapon' ? 'A weapon too · ' : ''}${x.doses ? `${x.doses} swig${x.doses === 1 ? '' : 's'} left` : 'Empty'}`
+                    : x.kind === 'weapon' && gunOf(x.name)
+                      ? `${gunOf(x.name)!.desc} ${x.doses ?? 0} of ${gunOf(x.name)!.holds} loaded.`
+                    : /^(9mm rounds|\.38 rounds|12-gauge shells)$/.test(x.name)
+                      ? `${x.doses ?? 0} left`
                     : x.kind === 'weapon' && knifeOf(x.name)
                       ? `${knifeOf(x.name)!.desc} +${knifeOf(x.name)!.dmg} damage.`
                     : x.kind === 'weapon' && /syringe/i.test(x.name)
@@ -2211,6 +2280,8 @@ export class Game {
                   if (inv.items.some((y) => y.med === 'testkit')) acts += act('test', 'Test');
                 }
                 if (x.secret === 'cocaine' && x.known) acts += act('bump', 'Bump', h.wired ? 'Already wired' : null);
+                // A gun: load it from a box of its rounds.
+                if (gunOf(x.name)) acts += act('load', 'Load', (x.doses ?? 0) >= gunOf(x.name)!.holds ? 'Full' : inv.items.some((y) => y.name === gunOf(x.name)!.ammo && (y.doses ?? 0) > 0) ? null : 'No ammunition');
                 // Into another pocket (to hide it better, or have it to hand).
                 acts += act('move', 'Move', nextSpot(inv, x) ? null : 'Nowhere else');
                 return (
@@ -2243,7 +2314,7 @@ export class Game {
       ? inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind) && x.detail === e.holder && !x.pin).map(({ x, i }) => ({ i, name: x.name }))
       : [];
     e.canAsk = this.world.thieves.length > 0 && !e.person.thief;
-    e.weapons = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'weapon').map(({ x, i }) => ({ i, name: x.name, weapon: x.weapon, cuts: x.cuts, spray: x.spray, doses: x.doses, loaded: x.secret && x.secret !== 'empty' && x.secret !== 'cocaine' ? x.secret : undefined, known: x.known }));
+    e.weapons = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'weapon').map(({ x, i }) => ({ i, name: x.name, weapon: x.weapon, cuts: x.cuts, spray: x.spray, doses: x.doses, loaded: x.secret && x.secret !== 'empty' && x.secret !== 'cocaine' ? x.secret : undefined, known: x.known, ...(gunOf(x.name) ? { gun: true, ammo: inv.items.filter((y) => y.name === gunOf(x.name)!.ammo).reduce((n, y) => n + (y.doses ?? 0), 0) } : {}) }));
     e.wet = RAIN_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors;
     // How much of what you're carrying shows (a handle out of a pocket, the shape of a blade).
     e.exposed = exposure(inv);

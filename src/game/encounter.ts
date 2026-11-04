@@ -5,6 +5,7 @@ import { isBrute, voice, type Moment } from './voices';
 import { caffeineEdge } from './health';
 import { partOfDay } from './clock';
 import { knifeOf, type Knife } from './knives';
+import { gunOf } from './guns';
 import { lootLabel, take, type Inventory } from './inventory';
 import {
   STAT_NAMES,
@@ -244,7 +245,9 @@ export interface Encounter {
   cardsHeld?: { i: number; name: string }[];
   canAsk?: boolean;
   /** Your weapons (index in your items), set by the game as it draws. */
-  weapons?: { i: number; name: string; weapon?: number; cuts?: boolean; spray?: boolean; doses?: number; loaded?: string; known?: boolean }[];
+  weapons?: { i: number; name: string; weapon?: number; cuts?: boolean; spray?: boolean; doses?: number; loaded?: string; known?: boolean; gun?: boolean; ammo?: number }[];
+  /** Shots you've fired this fight (each one gets called in). */
+  shots?: number;
   /** Out in the rain (a lighter burns more fuel). */
   wet?: boolean;
   /** Your folding knives opened in this fight. */
@@ -327,7 +330,13 @@ function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolea
   const seen = new Set<string>();
   return (e.weapons ?? [])
     .filter((w) => { const key = `${w.name}|${w.loaded ?? ''}`; return !seen.has(key) && !!seen.add(key); })
-    .flatMap((w) => [
+    .flatMap((w) => w.gun
+      ? [
+          { id: `wpn:${w.i}`, label: 'Shoot them', hint: w.doses ? `${w.doses} in the gun · loud: it gets called in` : 'Empty', disabled: !w.doses, cat },
+          ...(w.ammo && (w.doses ?? 0) < (gunOf(w.name)?.holds ?? 0) ? [{ id: `reload:${w.i}`, label: 'Reload', hint: `${w.ammo} rounds left · takes a turn`, cat }] : []),
+          { id: `whip:${w.i}`, label: `Hit them with the ${lc(w.name)}`, hint: tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0} damage`, disabled: tired(COST.weapon), cat },
+        ]
+      : [
       w.spray
         ? { id: `wpn:${w.i}`, label: 'Pepper spray them', hint: `${w.doses ?? 0} left · blinds them`, cat }
         : { id: `wpn:${w.i}`, label: /^bottle$/i.test(w.name) ? 'Swing the bottle' : /syringe/i.test(w.name) ? (w.loaded ? `Stab with the syringe (${w.known ? w.loaded : 'loaded'})` : 'Stab with the empty syringe') : `${w.cuts ? 'Slash' : 'Hit'} with the ${lc(w.name)}`, hint: tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0} damage${w.cuts && !/^bottle$/i.test(w.name) ? ', cuts' : ''}${w.loaded ? ', may inject them' : ''}`, disabled: tired(COST.weapon), cat },
@@ -939,7 +948,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
       return impacts;
     }
     if (e.stage !== 'combat') return impacts;
-    if (e.them.yielded && (id === 'punch' || id === 'kick' || id.startsWith('stomp') || id.startsWith('wpn:') || id.startsWith('tech:'))) {
+    if (e.them.yielded && (id === 'punch' || id === 'kick' || id.startsWith('stomp') || id.startsWith('wpn:') || id.startsWith('whip:') || id.startsWith('tech:'))) {
       // Hitting them anyway: it's a fight again (they didn't see it coming).
       e.them.yielded = false;
       e.them.offBalance = true;
@@ -966,6 +975,12 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         if (tech) {
           if (e.them.down && tech.effect === 'sweep') return impacts;
           strike('you', tech.kind, undefined, tech);
+        } else if (id.startsWith('reload:') && inv) {
+          reloadGun(inv, Number(id.slice(7)));
+        } else if (id.startsWith('whip:') && inv) {
+          const it = inv.items[Number(id.slice(5))];
+          if (!it || !gunOf(it.name)) return impacts;
+          strike('you', 'weapon', undefined, undefined, { name: it.name, weapon: it.weapon, cuts: false });
         } else if (id.startsWith('smash:') && inv) {
           smashBottle(inv, Number(id.slice(6)));
         } else if (id.startsWith('wpn:') && inv) {
@@ -979,7 +994,8 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
             say('you', (e.ankle ?? []).includes(wi) ? `You crouch and pull the ${lc(it.name)} from the sheath at your ankle.` : `You dig the ${lc(it.name)} out of your bag.`);
             break;
           }
-          if (it.spray) spray(Number(id.slice(4)), inv);
+          if (gunOf(it.name)) shoot(it);
+          else if (it.spray) spray(Number(id.slice(4)), inv);
           else if (strike('you', 'weapon', undefined, undefined, it) && it.secret && it.secret !== 'cocaine' && it.secret !== 'empty' && Math.random() < 0.5) {
             doseThem(it.secret);
             it.secret = 'empty';
@@ -1283,6 +1299,108 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
     }
   }
   return true;
+}
+
+/**
+ * Firing the gun. Close up, under stress, people still miss. A hit is a
+ * gunshot wound: heavy, fast bleeding, shock, sometimes a broken bone, and
+ * to the head, usually the end. Every shot is loud.
+ */
+function shoot(it: { name: string; doses?: number }) {
+  const g = gunOf(it.name)!;
+  const T = enc.them;
+  const y = enc.you;
+  landed = null;
+  if (!it.doses) {
+    say('you', 'You pull the trigger. Click. It’s empty.');
+    return;
+  }
+  it.doses--;
+  const first = !enc.shots;
+  enc.shots = (enc.shots ?? 0) + 1;
+  addStress(y, 10);
+  scare(45);
+  you.gain('weapons', 4);
+  const bang = g.power > 1.5 ? 'The shotgun goes off with a boom that rolls down the street.' : first ? 'The gun goes off, deafening between the buildings.' : 'Another shot cracks off the walls.';
+  const hit = T.out || T.dead ? 0.97 : clamp(g.acc + weaponAccuracy(you.stats) - stressPenalty(y) - (y.dazed ? 0.2 : 0) - (y.blinded > 0 ? 0.35 : 0) - (y.drunk ?? 0) / 300 + (T.down ? 0.1 : 0), 0.08, 0.95);
+  if (Math.random() >= hit) {
+    say('you', `${bang} ${oneOf(['The shot goes wide. Somewhere glass breaks.', 'You miss. The bullet whines off the wall behind them.', 'It goes past them. Your ears are ringing.'])}`);
+    return;
+  }
+  const loc = pick<Loc>(g.power > 1.5 ? [['body', 5], ['stomach', 2], ['arm', 2], ['leg', 2], ['head', 1.5]] : [['body', 4.5], ['stomach', 2], ['arm', 1.5], ['leg', 1.2], ['head', 0.8]]);
+  const where = { head: 'in the head', body: 'in the chest', stomach: 'in the stomach', arm: 'in the arm', leg: 'in the leg' }[loc];
+  landed = 'them';
+  const pw = g.power;
+  let text = `${bang} It hits them ${where}.`;
+  let ml = 0;
+  if (loc === 'head') {
+    if (Math.random() < (pw > 1.5 ? 0.92 : 0.7)) {
+      ml = Math.round(T.blood * 0.25);
+      T.blood = Math.max(0, T.blood - ml);
+      T.dead = true;
+      T.out = true;
+      T.down = true;
+      T.bleeding = 0;
+      say('you', `${text} They drop where they stand and don't move again. There's a lot of blood. They're dead.`);
+      impacts.push({ target: 'them', ml, severe: true, loc, spill: 'splash' });
+      end('killed');
+      return;
+    }
+    T.bleeding = 4;
+    T.out = true;
+    T.down = true;
+    T.awake = -80;
+    ml = Math.round(T.maxBlood * 0.12);
+    text += ' It glances off their skull. They drop, out cold, and the blood comes fast.';
+  } else if (loc === 'body' || loc === 'stomach') {
+    ml = Math.round(T.maxBlood * (0.1 + Math.random() * 0.1) * pw);
+    T.bleeding = Math.min(4, Math.max(T.bleeding, pw > 1.5 ? 4 : 3));
+    T.awake = Math.max(-40, T.awake - 45 * pw);
+    if (loc === 'body' && !T.lung && Math.random() < 0.4) {
+      T.lung = true;
+      text += ' They make a wet, sucking sound with every breath: it’s gone into a lung.';
+    } else text += loc === 'stomach' ? ' They fold over it, and blood comes through their fingers.' : ' Blood spreads through their shirt.';
+    if (!T.down && Math.random() < 0.7) {
+      T.down = true;
+      text += " They go down. They're on the floor.";
+    }
+  } else {
+    ml = Math.round(T.maxBlood * (0.05 + Math.random() * 0.05) * pw);
+    T.bleeding = Math.min(4, Math.max(T.bleeding, pw > 1.5 ? 3 : 2));
+    T.awake = Math.max(-20, T.awake - 20 * pw);
+    const part = `${Math.random() < 0.5 ? 'left' : 'right'} ${loc}` as Part;
+    if (!T.broken.includes(part) && Math.random() < 0.4 * pw) {
+      T.broken.push(part);
+      text += ` The bone goes: their ${part} is broken.`;
+    }
+    text += ' The blood comes in spurts.';
+    if (loc === 'leg' && !T.down) {
+      T.down = true;
+      text += " Their leg goes out from under them. They're on the floor.";
+    }
+  }
+  T.blood = Math.max(0, T.blood - ml);
+  if (!T.out && T.awake <= 0) {
+    T.out = true;
+    T.down = true;
+    text += " They're out.";
+  }
+  say('you', `${text} (−${ml}\u00a0ml)`);
+  impacts.push({ target: 'them', ml, severe: true, loc, spill: 'spray' });
+}
+
+/** Reloading mid-fight: hands shaking, it takes the turn. */
+function reloadGun(inv: Inventory, i: number) {
+  const it = inv.items[i];
+  const g = gunOf(it?.name);
+  if (!it || !g) return;
+  const box = inv.items.find((y) => y.name === g.ammo && (y.doses ?? 0) > 0);
+  const n = Math.min(g.holds - (it.doses ?? 0), box?.doses ?? 0);
+  if (!box || n <= 0) return;
+  it.doses = (it.doses ?? 0) + n;
+  box.doses = (box.doses ?? 0) - n;
+  if (box.doses <= 0) inv.items.splice(inv.items.indexOf(box), 1);
+  say('you', g.holds > 6 && g.power < 1.5 ? 'You drop the empty magazine and thumb rounds into it, fumbling.' : 'You feed rounds in one by one, fumbling.');
 }
 
 /** The blade in the blow being struck: how it bleeds them, and stab or slash. */
@@ -2162,7 +2280,11 @@ function mug() {
   e.facedYou = true;
   spend('you', COST.ambush);
   const blade = (e.weapons ?? []).find((w) => w.cuts && !/^bottle$|syringe/i.test(w.name));
-  if (blade) {
+  const gun = (e.weapons ?? []).find((w) => w.gun);
+  if (gun) {
+    say('you', `You let them see the gun.`);
+    scare(35);
+  } else if (blade) {
     say('you', `You let them see the ${lc(blade.name)}.`);
     scare(10);
   }

@@ -20,7 +20,7 @@ import type { InvItem } from './inventory';
  *   and breaks big ones down. After hours, the coin machine in the lobby
  *   still turns coins into bills, for a cut.
  */
-export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records' | 'hospital';
+export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records' | 'hospital' | 'guns';
 
 export interface PlaceInfo {
   id: Place;
@@ -85,6 +85,14 @@ export const PLACES: PlaceInfo[] = [
     desc: 'Stitches, casts, blood. Self-pay, and a long wait.',
     hours: null,
     blurb: 'Bright lights, a smell of bleach, rows of bolted chairs. A man holding a towel to his head; a woman asleep sitting up. Triage looks at you without much interest.',
+    indoors: true,
+  },
+  {
+    id: 'guns',
+    name: 'Ironside Firearms',
+    desc: 'Handguns, a shotgun, ammunition. Your own ID and a background check.',
+    hours: [[12, 17], [10, 19], [10, 19], [10, 19], [10, 19], [10, 19], [10, 19]],
+    blurb: 'Rifles racked behind the counter, glass cases of handguns, a camera over the door and a man with a holstered pistol who watches your hands.',
     indoors: true,
   },
   {
@@ -176,6 +184,9 @@ export interface Stock {
   drinkType?: 'beer' | 'liquor' | 'energy';
   /** A knife (by name, see knives.ts). */
   knife?: string;
+  /** A gun (by name, see guns.ts), or a box of ammunition (how many rounds). */
+  gun?: string;
+  ammo?: number;
 }
 
 /** The liquor store (they check ID): every drink's swigs in `doses`. */
@@ -231,3 +242,14 @@ export const PAWN_STOCK: Stock[] = [
 /** What the ER does, and what it costs you with no insurance (dollars). */
 export const ER_PRICES = { stitches: 80, nose: 60, cast: 150, lung: 250, blood: 200 } as const;
 export type ErCare = keyof typeof ER_PRICES;
+
+// ---------- The gun store (your own ID, and a background check) ----------
+export const GUN_STOCK: Stock[] = [
+  { id: 'g-9mm', name: 'Compact 9mm pistol', price: 480, desc: 'Fifteen rounds. Light enough for a holster or a cargo pocket.', gun: 'Compact 9mm pistol' },
+  { id: 'g-38', name: '.38 revolver', price: 420, desc: 'Five rounds. Never jams; kicks hard.', gun: '.38 revolver' },
+  { id: 'g-shotgun', name: 'Pump shotgun', price: 350, desc: 'Five shells. Devastating up close; impossible to hide.', gun: 'Pump shotgun' },
+  { id: 'a-9mm', name: '9mm rounds', price: 28, desc: 'A box of 50.', ammo: 50 },
+  { id: 'a-38', name: '.38 rounds', price: 32, desc: 'A box of 50.', ammo: 50 },
+  { id: 'a-12', name: '12-gauge shells', price: 25, desc: 'A box of 25.', ammo: 25 },
+  { id: 'holster', name: 'Holster', price: 35, desc: 'Inside the waistband, for a handgun: ready to draw. Hidden under a jacket, coat or hoodie; on show under a T-shirt.', slot: 'gear' },
+];

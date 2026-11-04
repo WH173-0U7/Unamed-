@@ -85,6 +85,7 @@ const BAGS: [string | null, number][] = [
 function pocketsOf(g: string): [string, Size, number][] {
   if (/belt sheath/i.test(g)) return [['On your belt', 'medium', 0.35]];
   if (/ankle sheath/i.test(g)) return [['At your ankle', 'small', 0.2]];
+  if (/holster/i.test(g)) return [['On your hip', 'small', 1]];
   if (/backpack/i.test(g)) return [['Main compartment', 'large', 12], ['Front pocket', 'small', 1]];
   if (/shoulder bag|tote/i.test(g)) return [['Inside', 'medium', 5]];
   if (/fanny/i.test(g)) return [['Zip pouch', 'small', 1.2]];
@@ -106,8 +107,11 @@ export const spotsFor = (clothes: string[], gear: string[] = []): Spot[] => [
 
 /** A sheath takes a blade, and nothing else. */
 const bladeOnly = (sp: Spot) => /sheath/i.test(sp.on);
+/** ...and a holster a handgun. */
+const gunOnly = (sp: Spot) => /holster/i.test(sp.on);
+const isHandgun = (x?: { kind: string; name: string }) => !!x && x.kind === 'weapon' && /pistol|revolver/i.test(x.name);
 const isBladeItem = (x?: { kind: string; name: string; cuts?: boolean }) => !!x && x.kind === 'weapon' && !!x.cuts && !/bottle|syringe/i.test(x.name);
-export const fitsIn = (sp: Spot, x?: { kind: string; name: string; cuts?: boolean }) => !bladeOnly(sp) || isBladeItem(x);
+export const fitsIn = (sp: Spot, x?: { kind: string; name: string; cuts?: boolean }) => (bladeOnly(sp) ? isBladeItem(x) : gunOnly(sp) ? isHandgun(x) : true);
 
 const pickW = <T>(xs: [T, number][]) => {
   let n = Math.random() * xs.reduce((s, [, w]) => s + w, 0);
@@ -151,6 +155,9 @@ export function measure(x: { kind: string; name: string; med?: MedId }): { size:
   if (x.med) return { size: x.med === 'splint' ? 'medium' : 'small', kg: { bandages: 0.05, gauze: 0.1, painkillers: 0.03, splint: 0.35, iron: 0.08, testkit: 0.03, caffeine: 0.02 }[x.med] };
   const n = x.name.toLowerCase();
   if (x.kind === 'weapon') {
+    if (/shotgun/.test(n)) return { size: 'large', kg: 3.3 };
+    if (/revolver/.test(n)) return { size: 'medium', kg: 0.8 };
+    if (/pistol/.test(n)) return { size: 'small', kg: 0.65 };
     if (/bottle/.test(n)) return { size: 'medium', kg: 0.45 };
     // An eight-inch kitchen or combat knife won't go in a small pocket.
     if (/kitchen|combat|hunting/.test(n)) return { size: 'medium', kg: 0.22 };
@@ -158,6 +165,8 @@ export function measure(x: { kind: string; name: string; med?: MedId }): { size:
     if (/spray/.test(n)) return { size: 'small', kg: 0.06 };
     return { size: 'small', kg: 0.05 }; // box cutter, syringe
   }
+  if (/^(9mm|\.38) rounds$/i.test(n)) return { size: 'small', kg: 0.55 };
+  if (/12-gauge shells/i.test(n)) return { size: 'medium', kg: 1 };
   if (/^beer$/i.test(n)) return { size: 'medium', kg: 0.37 };
   if (/vodka|whiskey|wine/i.test(n)) return { size: 'medium', kg: /wine/i.test(n) ? 1.2 : 0.55 };
   if (x.kind === 'phone') return { size: 'small', kg: 0.2 };
@@ -394,8 +403,8 @@ export const medById = (id: MedId) => MEDS.find((m) => m.id === id)!;
 export function concealOf(sp: Pick<Spot, 'on' | 'name'>, top?: string): number {
   const g = sp.on.toLowerCase();
   const p = sp.name.toLowerCase();
-  // On your belt: hidden if something hangs over it; on show if not.
-  if (/belt sheath/.test(g)) return top && /coat|jacket|hoodie|parka|windbreaker|flannel/i.test(top) ? 0.82 : 0.12;
+  // On your belt (a sheath, a holster): hidden if something hangs over it; on show if not.
+  if (/belt sheath|holster/.test(g)) return top && /coat|jacket|hoodie|parka|windbreaker|flannel/i.test(top) ? 0.82 : 0.12;
   if (/ankle sheath/.test(g)) return 0.95;
   if (/backpack/.test(g)) return p.startsWith('main') ? 1 : 0.92;
   if (/shoulder bag|tote/.test(g)) return 0.95;
@@ -416,6 +425,9 @@ export function concealOf(sp: Pick<Spot, 'on' | 'name'>, top?: string): number {
 export function bulkOf(x: { kind: string; name: string }): number {
   if (x.kind !== 'weapon') return 0;
   const n = x.name.toLowerCase();
+  if (/shotgun/.test(n)) return 1;
+  if (/revolver/.test(n)) return 0.6;
+  if (/pistol/.test(n)) return 0.5;
   if (/broken bottle/.test(n)) return 0.95;
   if (/kitchen|combat/.test(n)) return 0.85;
   if (/^bottle$/.test(n)) return 0.7;
@@ -429,7 +441,9 @@ export function bulkOf(x: { kind: string; name: string }): number {
 /** How much of this weapon shows, where it is (0 hidden .. 1 out in the open). */
 export function showing(inv: Inventory, x: InvItem): number {
   const sp = inv.spots.find((s) => s.id === x.spot);
-  return bulkOf(x) * (1 - (sp ? concealOf(sp, inv.clothes[0]) : 0));
+  // (A shotgun sticks out of anything.)
+  const v = bulkOf(x) * (1 - (sp ? concealOf(sp, inv.clothes[0]) : 0));
+  return /shotgun/i.test(x.name) ? Math.max(v, 0.8) : v;
 }
 
 /** How obviously you're carrying (0 nothing shows .. 1 bristling): more weapons, more to see. */
@@ -444,10 +458,10 @@ export function alarmOf(x: { kind: string; name: string }): number {
   const k = knifeOf(x.name);
   if (k) return k.alarm;
   const n = x.name.toLowerCase();
-  return /broken bottle/.test(n) ? 1 : /^bottle$/.test(n) ? 0.25 : /spray/.test(n) ? 0.15 : /box cutter/.test(n) ? 0.3 : /syringe/.test(n) ? 0.6 : /^knife$/.test(n) ? 0.6 : 0.5;
+  return /pistol|revolver|shotgun/.test(n) ? 1 : /broken bottle/.test(n) ? 1 : /^bottle$/.test(n) ? 0.25 : /spray/.test(n) ? 0.15 : /box cutter/.test(n) ? 0.3 : /syringe/.test(n) ? 0.6 : /^knife$/.test(n) ? 0.6 : 0.5;
 }
 /** A weapon's two numbers, in words. */
-export const hideStat = (b: number) => (b < 0.2 ? 'Easy to hide' : b < 0.35 ? 'Fairly easy to hide' : b < 0.7 ? 'Hard to hide' : 'Very hard to hide');
+export const hideStat = (b: number) => (b < 0.2 ? 'Easy to hide' : b < 0.35 ? 'Fairly easy to hide' : b < 0.7 ? 'Hard to hide' : b < 1 ? 'Very hard to hide' : 'Impossible to hide');
 export const alarmStat = (a: number) => (a < 0.35 ? 'draws little attention' : a < 0.7 ? 'draws attention' : 'alarming if seen');
 
 /** A word for how much shows. */

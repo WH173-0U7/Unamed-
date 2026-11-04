@@ -23,6 +23,8 @@ export interface Memory {
   worst: string;
   /** They know your face. */
   sawFace: boolean;
+  /** What's remembered was done by an earlier you (this you doesn't know it). */
+  otherLife?: boolean;
   /** What they'd describe ("someone in a ski mask, a coat"). */
   looked: string;
   /** The clothes they'd know you by. */
@@ -102,7 +104,7 @@ function worstOf(e: Encounter, robbed: boolean, stomped: boolean, mugged = false
   const newBreaks = T.broken.filter((p) => !start.broken.includes(p));
   let worst = 'came at them';
   let grudge = 15;
-  if (e.result === 'lost') return { worst: 'fought you, and won', grudge: 5 };
+  if (e.result === 'lost' && !e.chaseOut) return { worst: 'fought you, and won', grudge: 5 };
   if (e.result === 'they-fled') {
     worst = 'came at them, and they got away';
     grudge = 20;
@@ -179,6 +181,8 @@ export function remember(
     k.person.known = k.id;
   }
   const t = now();
+  // (This you has met them now.)
+  delete k.memory.otherLife;
   k.at = t;
   k.healedAt = t;
   k.blood = T.blood;
@@ -210,7 +214,7 @@ export function remember(
   const w = worstOf(e, did.robbed, did.stomped, did.mugged, did.tortured ?? 0);
   // How scared of you they are now (torture stays with them).
   mem.fear = Math.max(mem.fear ?? 0, Math.round((T.fear ?? 0) * (did.tortured ? 1 : 0.7)));
-  mem.beatYou = e.result === 'lost';
+  mem.beatYou = e.result === 'lost' && !e.chaseOut;
   // Beating you takes the fear out of them.
   if (mem.beatYou) mem.fear = Math.round((mem.fear ?? 0) * 0.3);
   // Keep the worst thing you've done to them.

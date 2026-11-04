@@ -136,8 +136,10 @@ export function robKnockedOut(w: World, inv: Inventory, e: Encounter, brute: boo
     w.thieves.push(thief);
   }
   p.thief = thief.id;
-  thief.person.clothes[0].loot.push(...loot);
-  for (const g of thief.person.clothes) g.searched = false;
+  // (On the person you met: when you're done with them, settle() keeps what they have now.)
+  p.clothes[0].loot.push(...loot);
+  thief.person = p;
+  for (const g of p.clothes) g.searched = false;
   while (w.thieves.length > MAX_THIEVES) w.thieves.shift();
   const names = [...(c > 0 ? ['your cash'] : []), ...took.map((x) => x.name.toLowerCase())];
   return `When you come to, your pockets have been turned out. Gone: ${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]}.`;

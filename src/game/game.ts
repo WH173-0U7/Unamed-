@@ -435,16 +435,20 @@ export class Game {
     if (!lines.length) return;
     // Mid-fight, it goes in the fight's log (not over the top of it).
     const fight = this.encounter;
-    if (fight && fight.stage !== 'seen' && fight.stage !== 'over' && !this.sheet && this.tvState.on) {
+    if (fight && fight.stage !== 'seen' && fight.stage !== 'over' && this.tvState.on) {
       for (const text of lines) fight.log.push({ by: 'info', text });
       this.refresh();
       return;
     }
     // In a shop, or with a sheet open, what happened shows right there (the
     // street's note would be behind it).
-    if (this.sheet) {
+    if (this.sheet === 'stats' || this.sheet === 'pockets') {
       this.sheetNote = lines;
       this.renderSheet();
+    } else if (this.sheet) {
+      // (Places and the police have no room for it: it waits until they close.)
+      this.heldNote = [...this.heldNote, ...lines];
+      return;
     }
     if (this.place !== 'street' && this.tvState.on && !this.encounter) {
       this.shopNote = lines;
@@ -670,7 +674,7 @@ export class Game {
       // last blows should still be there); what happens to you afterwards is
       // added, and is what the closing note says.
       // Walked away before anything happened: nothing carries over (no nerve, the coke still in you).
-      const nothing = !e.fought && (e.result === 'left' || e.result === 'lost-them');
+      const nothing = !e.fought && !e.chased && (e.result === 'left' || e.result === 'lost-them');
       after = nothing ? [] : afterFight(this.health, e.you, e.result!);
       // How it sits with you: what you did to them, and who they were.
       if (e.result !== 'lost' && e.result !== 'killed') {
@@ -706,8 +710,8 @@ export class Game {
     if (!wasOver && e.stage === 'over' && e.result !== 'killed') {
       const ko = e.result === 'lost';
       // They got away (or walked off): say how, and why, not just that they're gone.
-      const how = e.result === 'lost-them' || e.result === 'they-fled' ? e.log.slice(logFrom, fightTo).filter((l) => l.by !== 'you').map((l) => l.text).slice(-2) : [];
-      const lines = ko ? [RESULT.lost, ...remember, ...after] : [RESULT[e.result ?? 'left'], ...how, ...after];
+      const how = e.result === 'lost-them' || e.result === 'they-fled' ? [...e.log.slice(logFrom, fightTo).filter((l) => l.by !== 'you' && !/ went up to \d+\.$/.test(l.text)).map((l) => l.text).slice(-2), ...(e.whyRan ? [e.whyRan] : [])].filter((x, i, a) => a.indexOf(x) === i) : [];
+      const lines = ko && e.chaseOut ? ['You collapsed.', ...after] : ko ? [RESULT.lost, ...remember, ...after] : [RESULT[e.result ?? 'left'], ...how, ...after];
       // (Saved now: a reload in the beat still ends it properly.)
       if (ko) this.save.state.koLines = lines;
       else this.save.state.endLines = lines;
@@ -748,9 +752,11 @@ export class Game {
    * shake the phone; then the power button, and you come to.
    */
   private knockedOut(lines: string[]) {
+    this.closeSheet();
+    this.heldNote = [];
     // While you lay there, they may have gone through your pockets.
     const beaten = this.encounter;
-    if (beaten) {
+    if (beaten && !beaten.chaseOut) {
       const robbed = robKnockedOut(this.world, this.inventory, beaten, isBrute(beaten.person.personality));
       if (robbed) lines = [...lines, robbed];
     }
@@ -917,13 +923,14 @@ export class Game {
     const robbed = this.place === 'hospital' ? false : robBody(w, this.inventory, e);
     // A new you: nothing carried over but the world.
     // (Your name, your ID and your bank account were that character's.)
-    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines']) delete this.save.state[k];
+    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines']) delete this.save.state[k];
     // Nobody knows this face. The people the old you hurt are still out there
     // (and your things on some of them), but they'd be looking for someone else.
     this.world.infamy = newInfamy();
     for (const k of this.people) {
       k.memory.sawFace = false;
       k.memory.clothes = [];
+      k.memory.otherLife = true;
     }
     w.lives++;
     w.lifeStart = this.lurkState.times;
@@ -1042,7 +1049,7 @@ export class Game {
     // Stopped by the police: nothing else opens over that.
     if (this.sheet === 'police' && kind !== 'police') return;
     // Your stats can be looked at any time, even mid-fight; the police don't ask.
-    if (kind === 'stats' || kind === 'police' ? !this.tvState.on || this.dead : !this.canOpenSheet) return;
+    if (kind === 'stats' || kind === 'police' ? !this.tvState.on || this.dead || this.ending : !this.canOpenSheet) return;
     this.sheet = kind;
     this.renderSheet();
     // Where to go comes in from the left, pockets from the right.
@@ -1055,11 +1062,16 @@ export class Game {
     buzz(6);
   }
 
+  /** What happened while Places or the police were open, shown when they close. */
+  private heldNote: string[] = [];
   private closeSheet() {
     this.sheetNote = [];
     if (this.sheet) uiGlitch(null, 0.25);
     this.sheet = null;
     this.sheetEl.hidden = true;
+    const held = this.heldNote;
+    this.heldNote = [];
+    if (held.length && !this.closed && this.tvState.on) requestAnimationFrame(() => !this.closed && this.note(held));
   }
 
   private sheetClick(ev: MouseEvent) {
@@ -1121,6 +1133,7 @@ export class Game {
     this.shopNote = [];
     this.closeSheet();
     if (p === this.place || HIDDEN_PLACES.has(p)) return;
+    this.shopAt = '';
     // A new trip to the ER is a new wait.
     this.erSeen = false;
     // Thrown out of the pawn shop: he won't let you back in for a while.
@@ -1694,7 +1707,7 @@ export class Game {
     h.smokingUntil = now() + SMOKE_MS;
     const lines = [
       WET_AMOUNT[this.weather.now] > 0 && !this.inside
-        ? 'You hunch over a cigarette, cupping it from the rain, and get it lit on the third try.'
+        ? `You hunch over a cigarette, cupping it from the ${isSnow(this.weather.now) ? 'snow' : 'rain'}, and get it lit on the third try.`
         : ['You light a cigarette and pull the smoke deep. Your hands stop shaking.', 'You light up and lean back, watching the street.', 'The first drag burns. The second one helps.'][Math.floor(Math.random() * 3)],
     ];
     if (h.lung) {
@@ -1772,6 +1785,10 @@ export class Game {
     const it = inv.items[i];
     const h = this.health;
     if (!it?.drink || (it.doses ?? 0) <= 0 || !this.canOpenSheet) return;
+    if (this.inside && it.drink !== 'energy') {
+      this.note(['Not in here. Someone behind the counter is already watching you.']);
+      return;
+    }
     if (it.drink === 'energy') {
       // Caffeine, not alcohol: nothing now, sharper in half an hour, for hours.
       inv.items.splice(i, 1);
@@ -2473,7 +2490,7 @@ export class Game {
     const lines: string[] = [];
     const tries = { clear: 0, drizzle: 0.15, rain: 0.35, downpour: 0.6, flurries: 0.1, snow: 0.25, heavysnow: 0.45 }[this.weather.now];
     if (Math.random() < tries) {
-      lines.push(`You crouch in a doorway and try to burn the ${lc(it.name)}, but the rain keeps killing the flame.`);
+      lines.push(`You crouch in a doorway and try to burn the ${lc(it.name)}, but the ${isSnow(this.weather.now) ? 'snow' : 'rain'} keeps killing the flame.`);
     } else {
       inv.items.splice(i, 1);
       const whose = it.detail ? it.detail.split(',')[0] : null;
@@ -2521,7 +2538,7 @@ export class Game {
     }
     const catches = { clear: 1, drizzle: 0.7, rain: 0.35, downpour: 0, flurries: 0.8, snow: 0.5, heavysnow: 0 }[this.weather.now];
     if (Math.random() >= catches) {
-      lines.push(`You try to light the ${kindling}, cupping it from the rain. It hisses and goes out.`);
+      lines.push(`You try to light the ${kindling}, cupping it from the ${isSnow(this.weather.now) ? 'snow' : 'rain'}. It hisses and goes out.`);
     } else {
       const h = this.health;
       lines.push(`You get a fire going in an old oil drum, with the ${kindling} for kindling. You hold your hands over it until the feeling comes back.`);
@@ -2577,6 +2594,7 @@ export class Game {
   /** Why you can't inject right now, or null. */
   private injectBlocked(): string | null {
     if (!this.canOpenSheet) return 'Not now';
+    if (this.inside) return 'Not in here';
     const h = this.health;
     if (h.high && (h.highUntil ?? 0) > now()) return 'Still high';
     return null;
@@ -3352,7 +3370,8 @@ export class Game {
           }
           e.recognised = recognises(known, anon, lookClothes(inv));
           e.grudge = known.memory.grudge;
-          e.history = historyText(known);
+          // (What an earlier you did to them, this you doesn't know.)
+          e.history = known.memory.otherLife ? undefined : historyText(known);
           e.looks = [...injuriesText(known), ...marksText(known.marks)];
           e.dread = known.memory.fear ?? 0;
         } else if (Math.random() < Math.min(0.5, this.infamy.rep / 200) * (1 - anon)) {
@@ -3446,8 +3465,9 @@ export class Game {
     const woke = this.koLines;
     this.koLines = null;
     delete this.save.state.koLines;
+    if (woke) this.save.state.wokeLines = woke;
     this.view.classList.remove('ko-out');
-    if (woke) this.timers.push(window.setTimeout(() => this.running && this.note(woke), 2900));
+    if (woke) this.timers.push(window.setTimeout(() => this.showWoke(), 2900));
     // (Kept in timers, so quitting straight after can't touch the next game.)
     this.timers.push(window.setTimeout(() => {
       this.powerBtn.hidden = true;
@@ -3478,6 +3498,14 @@ export class Game {
 
   resume() {
     this.running = true;
+    // (Paused, or reloaded, before what happened while you were out was shown.)
+    if (this.tvState.on && !this.koLines) this.showWoke();
+  }
+  private showWoke() {
+    const woke = this.save.state.wokeLines;
+    if (!this.running || this.closed || !Array.isArray(woke)) return;
+    delete this.save.state.wokeLines;
+    this.note(woke as string[]);
   }
 
   /** Closes the game view (back to the menu). */
@@ -3618,7 +3646,7 @@ export class Game {
           !inside
             ? ['Closing time. They show you out and lock up behind you.']
             : armed
-              ? [`${name} opens. The deputy waves you through the metal detector, and it shrieks.`]
+              ? [`${name} opens. The deputy waves you through the metal detector, and it shrieks.`, ...this.goingIn()]
               : [`${name} opens. You go in.`, ...this.goingIn()],
         );
       }

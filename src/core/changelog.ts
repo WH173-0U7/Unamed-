@@ -11,6 +11,20 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.87',
+    date: 'Nov 4',
+    items: [
+      'Chases: someone who breaks away mid-fight gets a proper head start and can lose you in traffic or a doorway. Bleeding, they slow down, but not to a crawl. Run out of breath and you have to stop. Getting up off the ground to give chase can fail.',
+      'If they pass out while running, the chase ends with them down on the sidewalk. If you collapse while chasing, nobody “beat” you and nobody robs you. Blood you lose and drugs that kick in during a chase now stay with you afterwards.',
+      'Someone with a broken leg limps away, and you can catch them. They don’t sprint off.',
+      'When someone spots you following and gets away, the closing note says why they noticed you. Stopping a chase says you let them go.',
+      'Patting someone down lists the weapons they’re carrying, too.',
+      'Fixed: things robbed off you by someone already carrying your old things could vanish for good. Now they’re on that person.',
+      'Messages that come in while Where to? or a police stop is open now show when it closes, not never. Mid-fight they go in the fight log. What happened while you were knocked out isn’t lost if you pause right as you come to.',
+      'No more opening You during the moment after a knockout. No drinking alcohol or injecting inside shops. A new character no longer “knows” what an earlier one did to someone. Shops open at the top each time you walk in. Snow, not rain, when you try to light something in the snow.',
+    ],
+  },
+  {
     v: '0.86',
     date: 'Nov 4',
     items: [

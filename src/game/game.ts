@@ -1987,7 +1987,7 @@ export class Game {
     } else if (place === 'records') {
       const mine = this.ownId();
       body = open
-        ? `<ul class="shop-list">${li('State ID', mine ? `You have one: ${mine.detail}.` : `Your name, your photo, your address (more or less). ${money(ID_FEE * 100)}.`, btn('records', 'id', money(ID_FEE * 100), (mine && 'You have one') || (c < ID_FEE * 100 && 'Not enough cash')))}</ul>` +
+        ? `<ul class="shop-list">${li('State ID', mine ? `You have one: ${mine.detail}.` : 'Your name, your photo, your address (more or less).', btn('records', 'id', money(ID_FEE * 100), (mine && 'You have one') || (c < ID_FEE * 100 && 'Not enough cash')))}</ul>` +
           `<p class="shop-broke">With your own ID you can open a bank account, sell to and buy from the pawn shop, and buy drink, without anyone looking at you twice.</p>`
         : `<p class="shop-closed">The doors are locked. Open weekdays, 9 to 4.</p>`;
     } else if (place === 'liquor') {
@@ -2032,8 +2032,8 @@ export class Game {
           (!acct
             ? li('Open an account', mine ? 'Free. Keep your money where nobody can take it off you.' : 'You need your own ID: the City Records Office makes them.', btn('bank', 'open', 'Open', !mine && 'Need your own ID'))
             : li(`Balance: ${money(acct.cents)}`, 'Deposit what you carry; take some out when you need it.', btn('bank', 'deposit', 'Deposit all', (!c && 'No cash on you') || (!mine && 'Need your own ID'))) +
-              `<li class="bank-amt"><div><b>An amount</b><small>Type it in, then deposit it or take it out.</small></div><span class="li-btns"><label class="amt"><span>$</span><input id="bank-amt" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" aria-label="Amount in dollars"></label>${btn('bank', 'd:amt', 'Deposit', (!c && 'No cash on you') || (!mine && 'Need your ID'))}${btn('bank', 'w:amt', 'Withdraw', (!acct.cents && 'Empty') || (!mine && 'Need your ID'))}</span></li>` +
-              li('Withdraw', '$20, $100, or everything.', [2000, 10000].map((v) => btn('bank', `w:${v}`, money(v), (acct.cents < v && 'Not that much') || (!mine && 'Need your ID'))).join('') + btn('bank', 'w:all', 'All', (!acct.cents && 'Empty') || (!mine && 'Need your ID')))) +
+              `<li class="bank-amt"><div><b>An amount</b><small>Type it in, then deposit it or take it out.</small></div><span class="li-btns"><label class="amt"><span>$</span><input id="bank-amt" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" aria-label="Amount in dollars"></label>${btn('bank', 'd:amt', 'Deposit', (!c && 'No cash on you') || (!mine && 'Need your ID'))}${btn('bank', 'w:amt', 'Withdraw', (!acct.cents && 'Nothing in the account') || (!mine && 'Need your ID'))}</span></li>` +
+              li('Withdraw', '$20, $100, or everything.', [2000, 10000].map((v) => btn('bank', `w:${v}`, money(v), (acct.cents < v && 'Balance too low') || (!mine && 'Need your ID'))).join('') + btn('bank', 'w:all', 'All', (!acct.cents && 'Nothing in the account') || (!mine && 'Need your ID')))) +
           `</ul>`;
       } else body = `<p class="shop-closed">The teller windows are dark.</p>`;
       body += `<h3>Lobby</h3><ul class="shop-list">${li('Coin machine', `Turns coins into bills, any hour. Keeps ${COIN_MACHINE_FEE * 100}%.`, btn('bank', 'machine', 'Use', !coins && 'No coins'))}`;
@@ -2099,7 +2099,7 @@ export class Game {
         `<div class="sheet-head"><h2>Where to?</h2>${close}</div><div class="sheet-body places">` +
         PLACES.map(
           (p) =>
-            `<button type="button" class="place ${p.id === this.place ? 'here' : ''}" data-place="${p.id}"><b>${p.name}</b><small>${p.id === this.place ? "You're here" : p.desc}${p.hours && p.id !== this.place ? `<i class="${isOpen(p.hours) ? 'open' : 'shut'}">${hoursText(p.hours)}</i>` : ''}</small></button>`,
+            `<button type="button" class="place ${p.id === this.place ? 'here' : ''}" data-place="${p.id}"><b>${p.name}</b><small>${p.id === this.place ? "You're here" : p.desc}${p.id !== this.place && p.id !== 'street' ? (p.hours ? `<i class="${isOpen(p.hours) ? 'open' : 'shut'}">${hoursText(p.hours)}</i>` : '<i class="open">Open all hours</i>') : ''}</small></button>`,
         ).join('') +
         `</div>`;
       return;
@@ -2276,7 +2276,7 @@ export class Game {
     const now: Record<StatName, [string, string][]> = {
       sneak: [
         ['Ambushes land', sign(ambushBonus(st))],
-        ['Noticed while following', `${pct(noticeRate(st))} as quickly`],
+        ['How fast you’re noticed', noticeRate(st) >= 0.995 ? 'normal' : `−${pct(1 - noticeRate(st))}`],
       ],
       strength: [
         ['Damage from your blows', `+${pct(strengthDamage(st))}`],
@@ -2438,6 +2438,9 @@ export class Game {
       `<div class="enc-conds">${((cs) => (cs.length > 4 ? [...cs.slice(0, 3), `+${cs.length - 3} more`] : cs))(healthConditions(h)).map((c) => `<span class="${/^\+\d+ more$/.test(c) ? 'more' : ''}">${c}</span>`).join('')}</div>` +
       `<div class="you-cash">${money(Math.round(cashOf(this.inventory) * 100))}</div>` +
       this.humanityLine();
+    // Where your status ends, so a shop card starts below it (lots of injuries make it tall).
+    const bottom = this.youEl.hidden ? 0 : Math.round(this.youEl.getBoundingClientRect().bottom - this.view.getBoundingClientRect().top);
+    this.view.style.setProperty('--you-bottom', `${bottom}px`);
   }
 
   /** How far gone you are, once you've started. */

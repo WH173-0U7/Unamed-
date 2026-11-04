@@ -7,7 +7,7 @@ const STAGE_TITLE: Record<string, string> = {
   surveil: 'What now?',
   violence: 'What now?',
   combat: 'Fight',
-  helpless: 'Unconscious',
+  helpless: 'They’re out cold',
   yielded: 'They gave up',
 };
 
@@ -249,9 +249,10 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         tabsKey = key;
         // Someone out cold: nothing's open until you choose (violence, or
         // going through their pockets, or leaving).
-        tab = e.stage === 'surveil' || e.stage === 'violence' ? e.stage : e.stage === 'combat' && e.them.out ? null : (cats[0] ?? null);
+        // Out cold: going through their pockets is what most people do next.
+        tab = e.stage === 'surveil' || e.stage === 'violence' ? e.stage : e.stage === 'combat' && e.them.out ? (cats.includes('search') ? 'search' : null) : (cats[0] ?? null);
       }
-      if (tab && !cats.includes(tab)) tab = e.stage === 'combat' && e.them.out ? null : (cats[0] ?? null);
+      if (tab && !cats.includes(tab)) tab = e.stage === 'combat' && e.them.out ? (cats.includes('search') ? 'search' : null) : (cats[0] ?? null);
       drawOptions();
     },
   };

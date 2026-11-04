@@ -42,7 +42,7 @@ export const PLACES: PlaceInfo[] = [
   {
     id: 'pharmacy',
     name: 'Pharmacy',
-    desc: 'Open all night. Bandages, painkillers, splints.',
+    desc: 'Bandages, painkillers, splints.',
     hours: null,
     blurb: 'Open all night. A fluorescent hum, and a bored clerk behind the plexiglass.',
     indoors: true,
@@ -50,7 +50,7 @@ export const PLACES: PlaceInfo[] = [
   {
     id: 'gas',
     name: 'Nite Owl Gas',
-    desc: 'Open 24/7. Smokes, lighters, first aid, hot coffee.',
+    desc: 'Smokes, lighters, first aid, hot coffee, masks and shades.',
     hours: null,
     blurb: 'Two pumps, one working. Hot dogs turning under a lamp, and a clerk behind scratched glass who has seen it all.',
     indoors: true,
@@ -66,7 +66,7 @@ export const PLACES: PlaceInfo[] = [
   {
     id: 'fence',
     name: 'The alley',
-    desc: 'Someone back there buys anything. Night only.',
+    desc: 'Someone back there buys anything stolen.',
     hours: EVERY(20, 4),
     blurb: 'Behind the laundromat, in the steam from the vents. He keeps his hands in his pockets and his eyes on the street.',
     indoors: false,
@@ -82,7 +82,7 @@ export const PLACES: PlaceInfo[] = [
   {
     id: 'hospital',
     name: 'County General ER',
-    desc: 'Open all hours. Stitches, casts, blood. Self-pay, and a long wait.',
+    desc: 'Stitches, casts, blood. Self-pay, and a long wait.',
     hours: null,
     blurb: 'Bright lights, a smell of bleach, rows of bolted chairs. A man holding a towel to his head; a woman asleep sitting up. Triage looks at you without much interest.',
     indoors: true,
@@ -90,7 +90,7 @@ export const PLACES: PlaceInfo[] = [
   {
     id: 'records',
     name: 'City Records Office',
-    desc: 'Get your State ID made. Weekdays.',
+    desc: 'Get your State ID made.',
     hours: WEEKDAYS(9, 16),
     blurb: 'A long room of plastic chairs and a ticket machine. Everyone looks like they have been waiting forever.',
     indoors: true,
@@ -98,7 +98,7 @@ export const PLACES: PlaceInfo[] = [
   {
     id: 'bank',
     name: 'First Civic Bank',
-    desc: 'Change money, and keep it in an account (with ID). Office hours; a coin machine in the lobby.',
+    desc: 'Change money, and keep it in an account (with ID). A coin machine in the lobby, any hour.',
     hours: WEEKDAYS(9, 17, [9, 13]),
     blurb: 'Marble and quiet. A guard by the door watches you come in.',
     indoors: true,

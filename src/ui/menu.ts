@@ -166,10 +166,13 @@ export function createMenu(handlers: MenuHandlers) {
   /** Fill the What's new screen: everything since `since` (or the latest few). */
   const fillNews = (since: string | null) => {
     const idx = since ? CHANGES.findIndex((r) => r.v === since) : -1;
-    const list = idx > 0 ? CHANGES.slice(0, idx) : CHANGES.slice(0, since ? CHANGES.length : 3);
-    $('news').innerHTML = list
-      .map((r) => `<section><h3>v${r.v} <em>${r.date}</em></h3><ul>${r.items.map((i) => `<li>${i}</li>`).join('')}</ul></section>`)
-      .join('');
+    const all = idx > 0 ? CHANGES.slice(0, idx) : CHANGES.slice(0, since ? CHANGES.length : 3);
+    // A long time away: the latest few, and a count of the rest (not thirty screens of it).
+    const list = all.slice(0, 5);
+    const more = all.length - list.length;
+    $('news').innerHTML =
+      list.map((r) => `<section><h3>v${r.v} <em>${r.date}</em></h3><ul>${r.items.map((i) => `<li>${i}</li>`).join('')}</ul></section>`).join('') +
+      (more > 0 ? `<p class="news-more">…and ${more} older update${more > 1 ? 's' : ''} before that.</p>` : '');
   };
   fillNews(null);
   root.querySelectorAll<HTMLElement>('[data-go="news"]').forEach((b) => b.addEventListener('click', () => fillNews(null)));

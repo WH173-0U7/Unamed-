@@ -2649,7 +2649,11 @@ body.paused #smoke {
    stay clear of the edge tabs. */
 #shop {
   bottom: calc(var(--pad-bot) + 12px);
-  width: min(calc(100% - 64px), 520px);
+}
+@media (orientation: portrait) {
+  #shop {
+    width: min(calc(100% - 64px), 520px);
+  }
 }
 @media (orientation: landscape) and (max-height: 560px) {
   #shop {
@@ -3005,7 +3009,7 @@ body[data-buttons='lines'] .spot-bar {
 @media (max-height: 700px) {
   .shop-head p {
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
     font-size: 12px;
@@ -4301,4 +4305,106 @@ body[data-buttons] #enc .enc-extra button {
   margin: 6px 0 2px;
   font-size: 12px;
   color: var(--ink-faint);
+}
+
+/* Opening the card or the status never pushes your options off the screen:
+   they're capped (and scroll inside), and the options keep their room. */
+#enc.facts-open .enc-card,
+#enc.status-open .enc-status {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+#enc.facts-open .enc-card {
+  max-height: 30vh;
+}
+#enc.status-open .enc-status {
+  max-height: 26vh;
+}
+#enc.facts-open.status-open .enc-card {
+  max-height: 22vh;
+}
+#enc.facts-open.status-open .enc-status {
+  max-height: 20vh;
+}
+@media (orientation: portrait) {
+  #enc .enc-card,
+  #enc .enc-status {
+    flex: 0 1 auto;
+    min-height: 0;
+  }
+  #enc .enc-log,
+  #enc:not(.log-open) .enc-log {
+    min-height: 44px;
+  }
+  #enc .enc-actions,
+  #enc:not(.log-open) .enc-actions,
+  #enc.log-open .enc-actions {
+    flex: none;
+    min-height: min(200px, 36vh);
+  }
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  /* (The card shares the left column with the options.) */
+  #enc.facts-open .enc-card {
+    max-height: 24vh;
+  }
+  #enc.facts-open .enc-facts {
+    max-height: none;
+  }
+  /* (Room for the options under it: the "Fight" heading can go.) */
+  #enc.facts-open .enc-title {
+    display: none;
+  }
+  #enc .enc-opts:not(.enc-extra) {
+    min-height: 60px;
+  }
+}
+
+/* Portrait: a shop card starts under your status, however tall it's grown. */
+@media (orientation: portrait) {
+  #game.in-shop #shop {
+    top: max(calc(var(--pad-top) + 108px), calc(var(--you-bottom, 0px) + 10px));
+  }
+}
+/* Landscape: the shop card keeps to the right of your status (injuries, cash). */
+@media (orientation: landscape) and (max-height: 560px) {
+  #shop,
+  #game.in-shop #shop {
+    left: calc(var(--pad-x-l) + 312px);
+    right: 64px;
+    width: auto;
+    transform: none;
+  }
+}
+
+/* What's new: a fade says there's more below; OK is a button. */
+.news {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  padding-bottom: 24px;
+}
+.news-more {
+  margin: 14px 0 0;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-faint);
+}
+.news-ok {
+  min-height: 44px;
+  min-width: 120px;
+  padding: 8px 22px;
+  border: 1px solid var(--ink-dim);
+  border-radius: 10px;
+}
+/* The knockout hint: readable over the cracks. */
+#ko-hint {
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  color: var(--ink-dim);
+  text-shadow: 0 0 6px #000, 0 0 2px #000;
+}
+/* The log's "earlier lines" count covers a line cut off under it. */
+.enc-log .log-more {
+  background: rgb(16, 16, 16);
+  box-shadow: 0 6px 6px -2px rgb(16, 16, 16);
 }

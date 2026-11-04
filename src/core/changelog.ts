@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.59',
+    date: 'Nov 4',
+    items: [
+      'Fight screen on small phones and in landscape: opening the card or your status no longer pushes your options off the screen (they scroll inside instead).',
+      'Shops no longer cover your injuries and cash when you have a lot of them (the ER especially), in portrait or landscape.',
+      'When they’re out cold, the fight says so (“They’re out cold”, not “Unconscious”) and opens on searching them.',
+      'What’s new after a long time away shows the latest five updates, not thirty screens. The knockout hint is easier to read, the log no longer shows a half-cut line under its header, and opening hours read the same way for every place.',
+      'Clearer bank messages (“Balance too low”, “Nothing in the account”).',
+    ],
+  },
+  {
     v: '0.58',
     date: 'Nov 4',
     items: [

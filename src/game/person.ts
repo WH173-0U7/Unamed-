@@ -103,7 +103,7 @@ export interface PersonalityInfo {
 
 export const PERSONALITIES: Record<Personality, PersonalityInfo> = {
   timid: { name: 'Timid', desc: 'Shoulders hunched, eyes down. Scares easily.', fear: 20, cowed: 1.2, maxYield: 0.95, yield: 0.12, flee: 1.4, fight: -0.15, truth: 1.2, holdBack: 0.5, carry: { 'Pepper spray': 0.15 } },
-  jumpy: { name: 'Jumpy', desc: 'Twitchy, always looking round. More likely to run than fight.', fear: 10, cowed: 1.1, maxYield: 0.9, yield: 0.05, flee: 1.8, fight: -0.05, truth: 0.9, holdBack: 0.9, carry: { 'Pepper spray': 0.1 } },
+  jumpy: { name: 'Jumpy', desc: 'Twitchy, always looking around. More likely to run than fight.', fear: 10, cowed: 1.1, maxYield: 0.9, yield: 0.05, flee: 1.8, fight: -0.05, truth: 0.9, holdBack: 0.9, carry: { 'Pepper spray': 0.1 } },
   calm: { name: 'Calm', desc: 'Unhurried. Hard to read.', fear: 0, cowed: 1, maxYield: 0.9, yield: 0, flee: 1, fight: 0, truth: 1, holdBack: 1 },
   sly: { name: 'Sly', desc: 'Watchful, a little smile. Will say whatever gets them out of it.', fear: 0, cowed: 0.9, maxYield: 0.9, yield: 0.05, flee: 1.2, fight: -0.05, truth: 0.4, holdBack: 1.8 },
   proud: { name: 'Proud', desc: 'Chin up, takes up the sidewalk. Hates to lose face.', fear: -10, cowed: 0.75, maxYield: 0.8, yield: -0.1, flee: 0.6, fight: 0.1, truth: 1, holdBack: 1.3 },
@@ -218,7 +218,7 @@ export const RACE_CHANCES: [Race, number][] = [
 ];
 
 export const NAMES: Record<Kind, string> = {
-  civilian: 'Passer-by',
+  civilian: 'Passerby',
   drunk: 'Drunk',
   homeless: 'Homeless',
   junkie: 'Junkie',
@@ -400,17 +400,17 @@ const LAST = ['Lopez', 'Smith', 'Chen', 'Johnson', 'Haddad', 'Nguyen', 'Williams
 const STORES = ['Corner Mart', 'Gas & Go', "Lucky's Liquor", 'Dollar Barn', 'Pho 88', 'QuickWash Laundromat', 'Night Owl Diner', 'Rite Way Pharmacy', 'Metro Transit'];
 const NOTES = [
   'A note: "Call Dee back. Don\'t tell Mom."',
-  'A folded note with a phone number and one word: "tonight".',
+  'A folded note with a phone number and one word: "tonight."',
   'A shopping list: milk, bread, eggs, insulin.',
   'A pawn slip for a gold ring.',
   'A bus transfer, already expired.',
   'A photo of a kid, worn soft at the corners.',
-  'A note: "Rent is late again. Last warning." It\'s signed by a landlord.',
+  'A note: "Rent is late again. Last warning." It\'s signed by the landlord.',
   'An appointment card for a clinic, next Tuesday at 9:15.',
-  'A note with an address on it, and "back door, after 2".',
+  'A note with an address on it, and "back door, after 2."',
   'A lottery ticket. Not a winner.',
 ];
-const PHONES = ['Cracked screen', 'Locked with a passcode', 'An old flip phone', 'Battery nearly dead', 'In a glitter case', 'A wallpaper of a dog'];
+const PHONES = ['Cracked screen', 'Locked with a passcode', 'An old flip phone', 'Battery nearly dead', 'In a glitter case', 'A dog on the lock screen'];
 const CARS = ['Toyota', 'Honda', 'Ford', 'Chevy', 'Nissan', 'Hyundai', 'Dodge'];
 
 const r = Math.random;
@@ -488,7 +488,7 @@ function dress(kind: Kind, carrying: Item[]): Garment[] {
   }
   if (has('Grocery bag')) {
     const bag = clothes.find((g) => g.name === 'Grocery bag')!;
-    put({ kind: 'misc', name: 'Groceries', detail: any(['Bread and a carton of eggs', 'Canned soup and crackers', 'Frozen dinners', 'A bottle of wine and limes']) }, bag);
+    put({ kind: 'misc', name: 'Groceries', detail: any(['Bread and a carton of eggs', 'Canned soup and crackers', 'Frozen dinners', 'A bottle of wine and some limes']) }, bag);
     put(receipt(), bag, 'in the bag');
   }
   if (r() < 0.5) put(receipt());

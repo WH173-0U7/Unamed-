@@ -126,7 +126,7 @@ function worstOf(e: Encounter, robbed: boolean, stomped: boolean, mugged = false
     grudge = Math.max(grudge, 55);
   }
   if (stomped) {
-    worst += ', and stamped on them while they were down';
+    worst += ', and stomped on them while they were down';
     grudge += 20;
   }
   if (robbed && !mugged) {

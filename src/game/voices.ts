@@ -51,7 +51,7 @@ function life(e: Encounter) {
     name: e.holder?.split(' ')[0],
     sawName: seen.some((l) => l.kind === 'id' || /card/.test(l.kind)),
     // What the name was on (a license, an expired state ID, a debit card).
-    nameOn: seen.find((l) => l.kind === 'id' || /card/.test(l.kind))?.name.toLowerCase().replace(/^state id/, 'state ID').replace(/^driver's/, "driver's"),
+    nameOn: seen.find((l) => l.kind === 'id' || /card/.test(l.kind))?.name.toLowerCase().replace(/^state id(, expired)?/, (_, x) => (x ? 'expired state ID' : 'state ID')).replace(/^driver's/, "driver's"),
     kid: shown.some((l) => /photo of a kid/i.test(l.detail ?? '')),
     sawKid: seen.some((l) => /photo of a kid/i.test(l.detail ?? '')),
     wallet: shown.some((l) => l.where === 'wallet'),
@@ -94,7 +94,7 @@ const KIND: Record<Kind, { beg: string[]; emptied: string[]; letGo: string[]; gi
     ],
     emptied: ['"That\'s all of it. That\'s everything I have."', 'They lay it out on the sidewalk: a few coins, the scraps of a life.'],
     letGo: ['They gather their things and shuffle away without a word.', "They sit down where they are, against the wall, and don't move."],
-    giveUp: ['"Take it. Take it. I don\'t care any more."', '"Okay. Okay. Just don\'t hurt me."'],
+    giveUp: ['"Take it. Take it. I don\'t care anymore."', '"Okay. Okay. Just don\'t hurt me."'],
   },
   junkie: {
     beg: [
@@ -104,7 +104,7 @@ const KIND: Record<Kind, { beg: string[]; emptied: string[]; letGo: string[]; gi
     ],
     emptied: ["\"That's it, that's it, I swear, I got nothin' else.\"", 'Their hands shake so badly they can barely hold it out.'],
     letGo: ['They scramble away, scratching at their arms, and vanish into an alley.', 'They run, and you hear them retching somewhere in the dark.'],
-    giveUp: ['"Okay, okay, okay! Take it! Just don\'t!"', '"Alright man, alright, it\'s yours."'],
+    giveUp: ['"Okay, okay, okay! Take it! Just don\'t!"', '"Alright, man, alright, it\'s yours."'],
   },
 };
 
@@ -127,10 +127,10 @@ const BRUTE: Record<'hothead' | 'proud' | 'hard', Partial<Record<Moment, string[
   proud: {
     refuse: ['"No."', '"From you? Never."', '"Get away from me."'],
     refuseMug: ['"I don\'t think so." They square up, offended more than afraid.', '"Out of my way." They shove past you, and then they turn.'],
-    hitYou: ['"Pathetic."', '"Is this how you make your living? Hitting people?"'],
+    hitYou: ['"Pathetic."', '"You do this for a living?"'],
     youMiss: ['"Embarrassing."', "They don't even flinch."],
     youDown: ['"Stay there. It suits you."', '"Stay the fuck down."', 'They look down at you like something on their shoe.'],
-    hitByYou: ["They touch their face and look at the blood like it's an insult.", 'They touch their face and stare at you, furious.'],
+    hitByYou: ["They touch their face and look at the blood like it's an insult.", 'They wipe their mouth and stare at you, furious.'],
     giveUp: ['They look at the ground. It costs them. "...Fine. Take it."', 'Their jaw works. "Fine," they spit. "Take it."'],
     emptied: ["They hand it over without looking at you, as if you don't exist.", '"I hope it\'s worth it to you."'],
     beg: ["They won't look at you. They won't give you that.", '"Get it over with."'],
@@ -146,7 +146,7 @@ const BRUTE: Record<'hothead' | 'proud' | 'hard', Partial<Record<Moment, string[
     youMiss: ['"Slow."', "They step aside like they've done it a thousand times."],
     youDown: ['"Stay down."', '"Get up."', 'They roll their neck. "Get up. We\'re not done."', 'They stand over you, breathing hard, waiting to see if you get up.'],
     hitByYou: ['They take it and keep coming.', 'They nod, like you\'ve told them something. "Okay."'],
-    giveUp: ['They look at you for a long moment. "You win this one." It doesn\'t sound like a surrender.', 'They spit blood, and nod once. "Take it."'],
+    giveUp: ['They look at you for a long moment. "You win this one." It doesn\'t sound like a surrender.', 'They spit blood and nod once. "Take it."'],
     emptied: ['"Spend it quick."', "They hand it over like they're paying a bill."],
     beg: ['They say nothing. They just watch you.', '"You\'ll remember my face. I\'ll remember yours."'],
     letGo: ["They walk away without hurrying. That's worse.", '"See you around."'],
@@ -158,7 +158,7 @@ const BRUTE: Record<'hothead' | 'proud' | 'hard', Partial<Record<Moment, string[
 
 const SLY: Partial<Record<Moment, string[]>> = {
   refuse: ['"No. Walk away."', 'They laugh. "You\'ll have to do better than that."', '"Let\'s not do anything we\'ll both regret."'],
-  giveUp: ['They put their hands up, and smile like it\'s nothing. "Sure, friend. Let\'s be reasonable."', '"Hey. Hey. No need for any of that. We can work something out."'],
+  giveUp: ['They put their hands up and smile like it\'s nothing. "Sure, friend. Let\'s be reasonable."', '"Hey. Hey. No need for any of that. We can work something out."'],
   emptied: ['"There. All yours. No hard feelings, right?"', 'They hand it over a little too smoothly.'],
   beg: ['"You don\'t want this kind of heat. Trust me."', '"I\'ve got money at home. I can get you more."', '"We can both walk away from this."'],
   caught: ['"Worth a try, right?" They shrug, but their smile is gone.', '"Oh, that. I forgot about that."'],
@@ -174,7 +174,7 @@ const SLY: Partial<Record<Moment, string[]>> = {
 const VICTIM: Partial<Record<Moment, string[]>> = {
   giveUpDown: [
     'They curl up on the ground with their arms over their head. "Stop! Please! Take it, take whatever you want!"',
-    '"Okay! Okay!" they sob from the floor. "I give up. Just take it."',
+    '"Okay! Okay!" they sob from the ground. "I give up. Just take it."',
     'They hold up a shaking hand from the sidewalk. "Please. Please. Enough."',
   ],
   refuse: ['"N-no. No. Leave me alone!" Their voice cracks, but they don\'t give it up.', 'They clutch their pockets and shake their head, over and over.', '"Get away from me!"'],
@@ -224,7 +224,7 @@ export function voice(e: Encounter, m: Moment): string[] {
           ? ['They start crying before you\'ve finished. "Take it. Take it all."']
           : p === 'jumpy'
             ? ['"Alright, alright, alright!" Their hands fly up. Their eyes go everywhere.']
-            : ['They breathe out, and nod. "Alright. You win. Take it."']),
+            : ['They breathe out and nod. "Alright. You win. Take it."']),
       ];
     case 'beg': {
       const extra: string[] = [];

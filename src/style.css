@@ -4408,3 +4408,26 @@ body[data-buttons] #enc .enc-extra button {
   background: rgb(16, 16, 16);
   box-shadow: 0 6px 6px -2px rgb(16, 16, 16);
 }
+
+/* The criminal record, on the You sheet. */
+.record-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.record-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+.record-list b {
+  color: #c98a6a;
+}
+.record-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--ink-faint);
+}

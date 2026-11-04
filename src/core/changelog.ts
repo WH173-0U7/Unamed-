@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.63',
+    date: 'Nov 4',
+    items: [
+      'A criminal record, on the You sheet: how many times you’ve been arrested, and every charge (×how many). It belongs to this character: a new one starts clean.',
+      'Real charges now: possession of stolen property, possession of a controlled substance, carrying an illegal weapon (a switchblade, a butterfly knife or a push dagger is an arrest on its own), resisting arrest if they catch you running, and assault if you’re wanted badly enough that someone picks you out.',
+      'When the police stop you, what happens stays on the screen until you tap “Go on”, instead of vanishing after a few seconds.',
+    ],
+  },
+  {
     v: '0.62',
     date: 'Nov 4',
     items: ['The gun store is closed for now: it’s off the map until guns are ready to come into the game.'],

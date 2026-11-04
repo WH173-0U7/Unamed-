@@ -726,7 +726,7 @@ export class Game {
     const robbed = this.place === 'hospital' ? false : robBody(w, this.inventory, e);
     // A new you: nothing carried over but the world.
     // (Your name, your ID and your bank account were that character's.)
-    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record']) delete this.save.state[k];
+    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult']) delete this.save.state[k];
     // Nobody knows this face. The people the old you hurt are still out there
     // (and your things on some of them), but they'd be looking for someone else.
     this.world.infamy = newInfamy();
@@ -874,7 +874,12 @@ export class Game {
     if (this.sheet === 'police') {
       // No walking away from this one: you answer.
       const b = t.closest('button');
-      if (b?.dataset.police) this.police(b.dataset.police as 'run' | 'stay');
+      if (b?.dataset.police === 'done') {
+        delete this.save.state.policeResult;
+        this.sheet = null;
+        this.sheetEl.hidden = true;
+        this.refresh();
+      } else if (b?.dataset.police && !this.save.state.policeResult) this.police(b.dataset.police as 'run' | 'stay');
       return;
     }
     if (t === this.sheetEl) return this.closeSheet(); // tapped outside the card
@@ -1024,7 +1029,7 @@ export class Game {
         return;
       }
       if (s.gun) {
-        if (this.save.state.record) {
+        if (this.charged) {
           this.note(['You fill in the form, and he phones it through. It doesn\'t take long. "Denied." He doesn\'t say why; he doesn\'t need to: you\'ve been charged with something.']);
           return;
         }
@@ -1691,11 +1696,11 @@ export class Game {
     const h = this.health;
     const f = this.infamy;
     const w = wearing(inv);
-    this.sheet = null;
-    this.sheetEl.hidden = true;
     delete this.save.state.policeStop;
     const lines: string[] = [];
     let arrested = false;
+    /** What they charge you with, if it comes to that. */
+    const charges: string[] = [];
     if (choice === 'run') {
       const legs = h.broken.filter((p) => p.endsWith('leg')).length;
       const odds = 0.35 + accuracyBonus(this.stats) - legs * 0.3 - (h.cold ?? 0) * 0.05 - (h.stress ?? 0) * 0.002 - (h.blood < h.maxBlood * 0.75 ? 0.15 : 0);
@@ -1708,6 +1713,7 @@ export class Game {
         h.stress = Math.min(100, (h.stress ?? 0) + 25);
         this.fx.impact(true, 350, true, 'spatter');
         arrested = true;
+        charges.push('Resisting arrest');
       }
     } else {
       if (w.masked) {
@@ -1722,6 +1728,12 @@ export class Game {
       const bagSearched = looks || f.heat > 40 || Math.random() < 0.35;
       if (!bagSearched && inv.items.some((x) => x.kind === 'weapon' && inBag(inv, x.spot))) lines.push("They don't look in your bag.");
       const blades = inv.items.filter((x) => x.kind === 'weapon' && !(x.secret && x.secret !== 'empty') && (bagSearched || !inBag(inv, x.spot)));
+      // A switchblade, a butterfly knife, a push dagger: illegal to carry, and that's an arrest.
+      const banned = blades.filter((x) => /switchblade|butterfly|push dagger/i.test(x.name));
+      if (banned.length) {
+        arrested = true;
+        charges.push('Carrying an illegal weapon');
+      }
       if (blades.length) {
         inv.items = inv.items.filter((x) => !blades.includes(x));
         f.heat = Math.min(100, f.heat + 6);
@@ -1736,10 +1748,15 @@ export class Game {
       if (evidence.length) {
         lines.push(`They find ${evidence.length === 1 ? `the ${lc(evidence[0].name)}` : `${evidence.length} things that aren't yours`}. "Whose is this?"`);
         arrested = true;
-      } else if (looks) {
+        if (evidence.some((x) => x.kind !== 'misc' && !(x.secret && x.secret !== 'empty'))) charges.push('Possession of stolen property');
+        if (evidence.some((x) => x.secret && x.secret !== 'empty')) charges.push('Possession of a controlled substance');
+      }
+      if (looks) {
         lines.push('One of them looks at you a long time, then at his phone. "That\'s the one." The cuffs go on.');
         arrested = true;
-      } else {
+        // Wanted badly enough, someone picks you out of a line-up.
+        if (f.heat > 60) charges.push('Assault');
+      } else if (!evidence.length && !banned.length) {
         lines.push('They find nothing. "Stay out of trouble." They get back in the car and roll away.');
         f.heat = Math.max(0, f.heat - 5);
       }
@@ -1749,18 +1766,50 @@ export class Game {
       const before = inv.items.length;
       inv.items = inv.items.filter((x) => !((x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card' || x.kind === 'weapon' || (x.secret && x.secret !== 'empty')));
       const took = before - inv.items.length;
-      // Charged: it's on your record (the gun store's background check will see it).
-      if (took) this.save.state.record = true;
-      lines.push(`You're arrested.${took ? ` They keep ${took === 1 ? 'the evidence' : `all ${took} things that weren't yours`}.` : ''} You spend the night in a holding cell that smells of bleach and piss.${took ? ' In the morning they charge you and let you go with a court date and a sheet of paper you lose by noon.' : ' In the morning they let you go: not enough to charge you. This time.'}`);
+      // It goes on your record: every arrest, and every charge.
+      const rec = this.record;
+      rec.arrests++;
+      for (const c of charges) rec.charges[c] = (rec.charges[c] ?? 0) + 1;
+      rec.last = now();
+      lines.push(`You're arrested.${took ? ` They keep ${took === 1 ? 'the evidence' : `all ${took} things they took off you`}.` : ''} You spend the night in a holding cell that smells of bleach and piss.`);
+      lines.push(charges.length ? `In the morning you're charged: ${charges.map((c) => c.toLowerCase()).join(', ')}. They let you go with a court date and a sheet of paper you lose by noon.` : 'In the morning they let you go: not enough to charge you. This time.');
       lines.push(...passHours(h, 8, true));
       if (h.dead) return this.die(lines);
       f.heat = Math.max(0, f.heat - 45);
       f.rep += 5;
       h.stress = Math.min(100, (h.stress ?? 0) + 15);
     }
+    // What happened stays on the screen until you've read it.
+    this.save.state.policeResult = lines;
     this.refresh();
-    this.note(lines);
+    this.renderSheet();
     buzz(arrested ? [80, 60, 120] : 12);
+  }
+
+  /** Your criminal record (this character's): arrests, and what for. */
+  private get record(): { arrests: number; charges: Record<string, number>; last?: number } {
+    const r = this.save.state.record;
+    // (Older saves: just "charged once".)
+    if (r === true) this.save.state.record = { arrests: 1, charges: { 'Possession of stolen property': 1 } };
+    else if (!r || typeof r !== 'object') this.save.state.record = { arrests: 0, charges: {} };
+    return this.save.state.record as { arrests: number; charges: Record<string, number>; last?: number };
+  }
+  /** Ever been charged with anything (the gun store's background check sees it). */
+  private get charged(): boolean {
+    return Object.values(this.record.charges).some((n) => n > 0);
+  }
+  /** The record, for the You sheet. */
+  private recordHtml(): string {
+    const r = this.record;
+    const rows = Object.entries(r.charges).filter(([, n]) => n > 0);
+    return (
+      `<section class="stat-card record"><h3><span>Criminal record</span><b>${r.arrests ? `${r.arrests} arrest${r.arrests > 1 ? 's' : ''}` : 'Clean'}</b></h3>` +
+      (r.arrests
+        ? (rows.length ? `<ul class="record-list">${rows.map(([c, n]) => `<li><span>${c}</span><b>×${n}</b></li>`).join('')}</ul>` : '') +
+          `<p class="record-note">${rows.length ? 'Each charge means a court date.' : 'Held, and let go without charge.'}${r.last ? ` Last arrested ${dateText(r.last)}.` : ''}</p>`
+        : `<p class="record-note">No arrests. The police have nothing on this face.</p>`) +
+      `</section>`
+    );
   }
 
   /** Pull your mask or hood up or down. */
@@ -2053,7 +2102,7 @@ export class Game {
     } else if (place === 'guns') {
       body = open
         ? `<ul class="shop-list">${GUN_STOCK.map((s) => li(s.name, s.gun ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.gun }))}, ${alarmStat(1)}.` : s.desc, btn('stock', s.id, money(s.price * 100), c < s.price * 100 && 'Not enough cash'))).join('')}</ul>` +
-          `<p class="shop-broke">${this.ownId() ? (this.save.state.record ? 'With a charge against you, the background check will come back denied.' : 'Your own ID, a form and a background check, and it’s yours.') : 'Nothing without your own ID: they run a background check on every buyer.'} Firing a gun is loud: someone always calls it in.</p>`
+          `<p class="shop-broke">${this.ownId() ? (this.charged ? 'With a charge against you, the background check will come back denied.' : 'Your own ID, a form and a background check, and it’s yours.') : 'Nothing without your own ID: they run a background check on every buyer.'} Firing a gun is loud: someone always calls it in.</p>`
         : `<p class="shop-closed">The shutters are down and the alarm light blinks.</p>`;
     } else if (place === 'hospital') {
       const need = this.erNeeds();
@@ -2161,6 +2210,15 @@ export class Game {
   private renderSheet() {
     const card = this.sheetEl.firstElementChild as HTMLElement;
     const close = `<button type="button" class="sheet-x" data-close aria-label="Close"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" /></svg></button>`;
+    if (this.sheet === 'police' && Array.isArray(this.save.state.policeResult)) {
+      const res = this.save.state.policeResult as string[];
+      card.innerHTML =
+        `<div class="sheet-head"><h2>Police</h2></div><div class="sheet-body police">` +
+        res.map((l) => `<p>${l}</p>`).join('') +
+        `<button type="button" class="place" data-police="done"><b>Go on</b><small>${this.record.arrests ? 'It’s on your record (You: Criminal record).' : 'Back to the street.'}</small></button>` +
+        `</div>`;
+      return;
+    }
     if (this.sheet === 'police') {
       const masked = wearing(this.inventory).masked;
       card.innerHTML =
@@ -2175,7 +2233,7 @@ export class Game {
     if (this.sheet === 'stats') {
       const h = this.health;
       const summary = `<p class="you-summary"><span>Blood <b>${(h.blood / 1000).toFixed(1)} L</b></span><span>Cash <b>${money(Math.round(cashOf(this.inventory) * 100))}</b></span><span>Character <b>#${this.world.lives}</b></span></p>`;
-      card.innerHTML = `<div class="sheet-head"><h2>You</h2>${close}</div><div class="sheet-body">${this.noteHtml(this.sheetNote, 'sheet-note')}${summary}${this.statsHtml()}</div>`;
+      card.innerHTML = `<div class="sheet-head"><h2>You</h2>${close}</div><div class="sheet-body">${this.noteHtml(this.sheetNote, 'sheet-note')}${summary}${this.statsHtml()}${this.recordHtml()}</div>`;
       return;
     }
     if (this.sheet === 'places') {
@@ -2640,7 +2698,7 @@ export class Game {
     }
     this.refresh();
     // Stopped by the police when the game was saved: they're still there.
-    if (this.save.state.policeStop && this.tvState.on) this.openSheet('police');
+    if ((this.save.state.policeStop || this.save.state.policeResult) && this.tvState.on) this.openSheet('police');
   }
 
   turnOn() {

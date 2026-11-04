@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.81',
+    date: 'Nov 4',
+    items: [
+      'Following someone: they give clear signs before they run (a look back, then speeding up and checking behind them: “any more and they’ll run”). The Noticed bar is what fills up.',
+      'When they spot you and get away, the message says so and why (you were right on their heels, your clothes stand out, they could see what you’re carrying, they were watching for it), and it stays up long enough to read.',
+      'Someone who recognises you and runs as you approach: the message says they remember you from before.',
+    ],
+  },
+  {
     v: '0.80',
     date: 'Nov 4',
     items: [

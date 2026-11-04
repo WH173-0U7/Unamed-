@@ -607,6 +607,7 @@ export class Game {
     const levelsBefore = Object.values(this.stats).reduce((n, x) => n + x.level, 0);
     const shotsBefore = e.shots ?? 0;
     const downBefore = !!e.you?.down;
+    const logFrom = e.log.length;
     const impacts = act(e, id, this.stats, this.inventory, (this.save.state.moves ??= {}) as Record<string, number>);
     // Down on the sidewalk: dirt on the glass.
     if (!downBefore && e.you?.down) this.fx.dirt(e.you.out ? 0.9 : 0.6);
@@ -693,7 +694,9 @@ export class Game {
     // (A beat first, so the blow that ended it lands, and you can read it.)
     if (!wasOver && e.stage === 'over' && e.result !== 'killed') {
       const ko = e.result === 'lost';
-      const lines = ko ? [RESULT.lost, ...remember, ...after] : [RESULT[e.result ?? 'left'], ...after];
+      // They got away (or walked off): say how, and why, not just that they're gone.
+      const how = e.result === 'lost-them' || e.result === 'they-fled' ? e.log.slice(logFrom).filter((l) => l.by !== 'you').map((l) => l.text).slice(-2) : [];
+      const lines = ko ? [RESULT.lost, ...remember, ...after] : [RESULT[e.result ?? 'left'], ...how, ...after];
       // (Saved now: a reload in the beat still wakes you up.)
       if (ko) this.save.state.koLines = lines;
       this.ending = true;
@@ -703,7 +706,7 @@ export class Game {
         if (this.encounter !== e) return;
         if (ko) this.knockedOut(lines);
         else this.closeEncounter(lines);
-      }, impacts.length ? 1100 : 700);
+      }, impacts.length ? 1100 : e.result === 'left' || e.result === 'walked' ? 700 : 1800);
       return;
     }
     this.refresh();

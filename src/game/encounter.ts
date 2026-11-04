@@ -203,6 +203,8 @@ export interface Encounter {
   distance: number;
   /** How close they are to noticing you (0..100). */
   suspicion: number;
+  /** How far they've been warned off already (signs they've noticed you: 1, then 2). */
+  warned?: number;
   /** What you've made out about them (race and sex take a proper look; face to face, you see). */
   known: { build: boolean; carrying: boolean; awareness: boolean; sex: boolean; race?: boolean; personality?: boolean };
   you: Body;
@@ -538,7 +540,7 @@ function rawOptions(e: Encounter): Option[] {
       // Before anything has happened: watch them, or go for them. Switching
       // between the two is free; it's only a tab.
       return [
-        { id: 'follow', label: e.distance < 2 ? 'Follow' : 'Keep following', hint: e.distance < 2 ? 'Get closer' : undefined, cat: 'surveil' },
+        { id: 'follow', label: e.distance < 2 ? 'Follow' : 'Keep following', hint: e.suspicion >= 45 ? 'They\'re onto you: they may run' : e.distance < 2 ? 'Closer: easier to see, easier to notice you' : 'Each step risks being noticed', cat: 'surveil' },
         { id: 'build', label: 'Size up their build', disabled: e.known.build, cat: 'surveil' },
         { id: 'carrying', label: 'What are they carrying?', disabled: e.known.carrying, hint: e.distance < 1 ? 'Need to be closer' : undefined, cat: 'surveil' },
         { id: 'awareness', label: 'How aware are they?', disabled: e.known.awareness, cat: 'surveil' },
@@ -737,6 +739,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           e.distance = 1;
         } else {
           say('them', oneOf([`The ${who} sees you, and knows you. They hurry away, looking back over their shoulder.`, `The ${who} catches sight of you and freezes, then runs.`]));
+          say('info', 'They remember you from before.');
           end('lost-them');
         }
       } else say('info', `${p.kind === 'homeless' ? 'Someone homeless' : `A ${who}`}, ${DISTANCE[0].toLowerCase()}. They haven't seen you.`);
@@ -853,11 +856,17 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         break;
       }
     }
-    // Getting noticed.
+    // Getting noticed: clear signs first, then they act on it.
     if (e.suspicion >= 100) {
       spotted();
-    } else if (e.suspicion >= 60 && Math.random() < 0.6) {
-      say('them', oneOf(['They glance back over their shoulder.', 'They slow down. Listening.', 'They look around, then keep walking.']));
+    } else if (e.suspicion >= 75 && (e.warned ?? 0) < 2) {
+      e.warned = 2;
+      say('them', oneOf(['They stop and turn, and look straight back down the street at you. They know someone\'s there.', 'They speed up, and keep checking behind them. Any more and they\'ll run.']));
+    } else if (e.suspicion >= 45 && (e.warned ?? 0) < 1) {
+      e.warned = 1;
+      say('them', oneOf(['They glance back over their shoulder.', 'They slow down. Listening.', 'They look around, then keep walking, a little faster.']));
+    } else if (e.suspicion >= 60 && Math.random() < 0.3) {
+      say('them', oneOf(['They glance back again.', 'Their head turns, just slightly.']));
     }
     return impacts;
   }
@@ -2239,6 +2248,17 @@ function checkEnd(): boolean {
   return false;
 }
 
+/** Why they noticed you following (the biggest reasons, plainly). */
+function spottedWhy(): string {
+  const e = enc;
+  const why: string[] = [];
+  if (e.conspicuous) why.push('what you\'re wearing stands out');
+  if ((e.exposed ?? 0) > 0.15) why.push('they could see what you\'re carrying');
+  if (e.distance >= 2) why.push('you were right on their heels');
+  if (e.person.awareness === 'Paranoid' || e.person.awareness === 'Alert') why.push(`they were ${e.person.awareness.toLowerCase()}, watching for it`);
+  return why.length ? `They noticed you: ${why.slice(0, 2).join(', and ')}.` : 'They noticed you following them.';
+}
+
 /** They noticed you following them: they run, or come at you. */
 function spotted() {
   const p = enc.person;
@@ -2263,6 +2283,7 @@ function spotted() {
   } else {
     enc.facedYou = true;
     say('them', oneOf(['They spot you and bolt. Gone.', 'They see you. They run, and you lose them.']));
+    say('info', spottedWhy());
     end('lost-them');
   }
 }

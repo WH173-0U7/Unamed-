@@ -11,11 +11,22 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.77',
+    date: 'Nov 4',
+    items: [
+      'More realistic injuries: a knife cuts but doesn’t break bones or concuss; legs only break from a kick or a stomp; a punch to the body winds and drops someone instead of knocking them out; a needle barely bleeds; breaking a finger or stomping a hand doesn’t cost blood.',
+      '“What are they carrying?” only tells you what you can actually see. Wallets, baggies and folded knives are in their pockets.',
+      'Court reads like court: you plead guilty through your lawyer, or the prosecutor drops it; probation lasts as long as the You sheet says.',
+      'American English throughout (sidewalk, come to, pant leg), smoother fight text (no doubled words or spaces, one bleeding line per blow, more variety in the lines you see most), and hard cases only tell you to get up when you’re down.',
+      'Knife buttons say Stab or Slash depending on the blade. Status cards read “Stress: on edge” and “Caffeine: …”.',
+    ],
+  },
+  {
     v: '0.76',
     date: 'Nov 4',
     items: [
       'Arrested between midnight and 4 AM, your court date was sometimes the same afternoon. It’s always at least a day away now.',
-      'Arrested while bleeding, the police take you to the ER first and get it closed, instead of a stranger finding you in the cell.',
+      'Arrested while bleeding, the police take you to the ER first and get it closed, instead of leaving you to bleed in the cell.',
       'A closed shop is just a locked door: you don’t go in, warm up, put your knife away or stub out your cigarette.',
       'After an arrest, the bail and jail buttons stay on screen under the text, so you don’t have to scroll to find them.',
     ],
@@ -26,7 +37,7 @@ export const CHANGES: Release[] = [
     items: [
       'Bug fixes for police and court: arrested again while out on bail, the bail is revoked and you’re held; paying bail always gives you a fresh court date; a warrant still counts if you run and get caught; turning yourself in goes on your record.',
       'When the police don’t look in your bag, they really don’t. Caught asleep in a stolen car, you’re arrested. The courthouse metal detector turns you away with a weapon on you.',
-      'Fights: a disarm always takes what’s actually in your hand, and only from someone able to; a folding knife opens when you take it out; no more “take out” with both hands full; a smashed bottle stays in your hand; “Act natural” works again.',
+      'Fights: a disarm always takes what’s actually in your hand, and only from someone able to; a folding knife opens when you take it out; you can’t take out a weapon with both hands full; a smashed bottle stays in your hand; “Act natural” works again.',
       'Fight text: no stepping and feinting while you’re on the floor, no screams from someone out cold, and a missed knife swing no longer reads as a missed punch. Knocked out by a drug isn’t a concussion.',
     ],
   },
@@ -35,7 +46,7 @@ export const CHANGES: Release[] = [
     date: 'Nov 4',
     items: [
       'Getting charged means a court case now. After the night in the cell, bail is set by the charges and your record: pay it (cash, then your bank) and walk out with a court date, or wait in County for the hearing.',
-      'New place: the County Courthouse, weekdays 9 to 4. Turn up and the judge decides: dropped, a fine, probation, or days in jail. Your record counts against you; Speech counts for you. Turn up and you get your bail back.',
+      'New place: the County Courthouse, weekdays 9 to 4. Show up and the judge decides: dropped, a fine, probation, or days in jail. Your record counts against you; Speech counts for you. You get your bail back for showing up.',
       'Miss your date and there’s a warrant: your bail is gone, the police are hotter on you, and any stop ends in cuffs. Turn yourself in at the courthouse to clear it.',
       'On probation, any new charge means no bail: you’re held in County. Your case, court date and warrant show under Criminal record in You.',
     ],
@@ -53,7 +64,7 @@ export const CHANGES: Release[] = [
     v: '0.72',
     date: 'Nov 4',
     items: [
-      'Addiction. Cigarettes, drink, caffeine, heroin and fentanyl, meth and coke, and tranquillisers all build a habit as you use them (it fades slowly if you stay off). The You sheet shows how hooked you are on each.',
+      'Addiction. Cigarettes, drink, caffeine, heroin and fentanyl, meth and coke, and tranquilizers all build a habit as you use them (it fades slowly if you stay off). The You sheet shows how hooked you are on each.',
       'Hooked and without it, withdrawal comes on its own real clock: a couple of hours for nicotine, the best part of a day for meth or coke. Each is its own thing: irritable for a smoke, a headache off caffeine, the shakes off drink, dope sick off heroin (weak, aching, sick), the crash off stimulants. It makes you worse in a fight and keeps your stress from settling.',
       'Off drink or downers when you’re badly hooked, you can have a seizure on the street.',
       'Using again ends it at once and hooks you deeper; or ride it out over a day or a few. Withdrawal has its own look: the colour drains to a sick grey-green, a cold sweat at the edges of your sight, and a fine tremor.',
@@ -127,7 +138,7 @@ export const CHANGES: Release[] = [
     v: '0.63',
     date: 'Nov 4',
     items: [
-      'A criminal record, on the You sheet: how many times you’ve been arrested, and every charge (×how many). It belongs to this character: a new one starts clean.',
+      'A criminal record, on the You sheet: how many times you’ve been arrested, and every charge (and how many times). It belongs to this character: a new one starts clean.',
       'Real charges now: possession of stolen property, possession of a controlled substance, carrying an illegal weapon (a switchblade, a butterfly knife or a push dagger is an arrest on its own), resisting arrest if they catch you running, and assault if you’re wanted badly enough that someone picks you out.',
       'When the police stop you, what happens stays on the screen until you tap “Go on”, instead of vanishing after a few seconds.',
     ],
@@ -153,7 +164,7 @@ export const CHANGES: Release[] = [
     items: [
       'ER triage: lost a lot of blood, you’re taken straight in; bleeding at all, they move you up (an hour, not four). Waiting in the chair no longer counts as resting, and a cut still gets stitched (and paid for) even if it stopped bleeding while you waited.',
       'A broken nose can only be set once. Dying in the ER, nobody goes through your pockets.',
-      'Reloading while you’re knocked out no longer skips coming round: the screen stays off until you shake (or tap).',
+      'Reloading while you’re knocked out no longer skips coming to: the screen stays off until you shake (or tap).',
       'Fixes behind the scenes: the bank can’t be fed nonsense amounts; tapping Continue twice can’t start two games.',
     ],
   },
@@ -181,7 +192,7 @@ export const CHANGES: Release[] = [
     v: '0.57',
     date: 'Nov 3',
     items: [
-      'Carrying weapons shows. Every pocket and bag now has a hide rating (in Pockets, next to each one): a backpack or a coat’s inside pocket hides well, a jacket some, a hoodie pouch or cargo pocket shows a bulge, trackie pockets show everything. Big blades and bottles are harder to hide than a folder or a shiv.',
+      'Carrying weapons shows. Every pocket and bag now has a hide rating (in Pockets, next to each one): a backpack or a coat’s inside pocket hides well, a jacket some, a hoodie pouch or cargo pocket shows a bulge, track pants pockets show everything. Big blades and bottles are harder to hide than a folder or a shiv.',
       'Each weapon says how much of it shows (hidden, a slight bulge, the shape of it, plain to see), and Pockets tells you if anyone looking can see what you’re carrying.',
       'If they can: people notice you sooner while you watch them, they scare easier when you walk up, and a patrol might stop you even with no heat on you.',
       'A pat-down is your clothes: police only go through your bag if they’ve reason to. But a weapon in your bag takes a turn to dig out in a fight.',
@@ -211,7 +222,7 @@ export const CHANGES: Release[] = [
     items: [
       'Knocked out by a beating, you now always wake up concussed, and whoever did it may have gone through your pockets (a junkie nearly always will; most people only defending themselves won’t). What they took is on them, if you ever run into them again.',
       'A needle that hadn’t kicked in yet still does after the fight, even if you ran.',
-      'Coming round: if shaking doesn’t work, a tap does after a few seconds. Shakes are easier to pick up.',
+      'Coming to: if shaking doesn’t work, a tap does after a few seconds. Shakes are easier to pick up.',
       'ER: stitches on a cut brow or lip are paid once (and a stitched brow heals to a faint line); casts are priced for what’s still broken after the wait.',
       'Fixes: typing a big amount at the bank no longer freezes the game; you no longer learn someone’s race without seeing them; the Records Office wait really takes an hour.',
     ],
@@ -237,7 +248,7 @@ export const CHANGES: Release[] = [
     v: '0.51',
     date: 'Nov 3',
     items: [
-      'Knocked out, the screen switches off like an old TV (the picture squeezes to a line, then a dot) and the cracks stay on the glass. Shake your phone to bring the power button back and come round. (On a computer, or if your phone won’t share its motion, you can tap instead.)',
+      'Knocked out, the screen switches off like an old TV (the picture squeezes to a line, then a dot) and the cracks stay on the glass. Shake your phone to bring the power button back and come to. (On a computer, or if your phone won’t share its motion, you can tap instead.)',
       'Bleeding from the head in a fight, blood seeps in over the top of the screen and runs down, on the side the wound is on, like it’s running into your eyes. The worse the bleeding, the more of it.',
       'Blood on the glass is wetter: heavy splashes and fresh cuts can run, creeping down the screen and catching as they go.',
       'At the bank you can type in an exact amount to deposit or withdraw.',
@@ -256,7 +267,7 @@ export const CHANGES: Release[] = [
     v: '0.49',
     date: 'Nov 3',
     items: [
-      'Your screen cracks as you get knocked silly: a hairline or two when you’re rattled, a spreading web when you’re wobbly, and three breaks with the edges going dark when you’re about to go out. The cracks fade as you come round, and break differently every fight.',
+      'Your screen cracks as you get knocked silly: a hairline or two when you’re rattled, a spreading web when you’re wobbly, and three breaks with the edges going dark when you’re about to go out. The cracks fade as you come to, and break differently every fight.',
       'Wiping blood off now smears it: one pass leaves a streaky red film, and it takes another pass or two to get it properly clean.',
     ],
   },
@@ -266,7 +277,7 @@ export const CHANGES: Release[] = [
     items: [
       'New in fights: an Awake bar, for you and for them. Punches, kicks, stomps and clubs knock it down (blows to the head the most); when it runs out, you’re knocked out. It creeps back up between blows.',
       'Blood is only lost to real wounds now: knives, broken glass, needles, a broken nose, a split brow, a punctured lung, and whatever keeps bleeding. A punch to the ribs no longer costs you half a litre.',
-      'Out cold isn’t the end of it: choked out, people come round in seconds; punched out, within a minute or so. Keep beating someone who’s already out and it can kill them, wound or no wound.',
+      'Out cold isn’t the end of it: choked out, people come to in seconds; punched out, within a minute or so. Keep beating someone who’s already out and it can kill them, wound or no wound.',
     ],
   },
   {
@@ -281,7 +292,7 @@ export const CHANGES: Release[] = [
       'Realism pass. Pepper spray now blinds for the rest of the fight, not a couple of turns.',
       'Needles: almost every syringe people carry is already used and empty, and a loaded one takes a minute to kick in instead of dropping someone on the spot.',
       'A bottle is a club now, not a blade: it bruises, it doesn’t slice. Drunks carry them less.',
-      'Someone knocked out by a punch comes round on their own, usually within a minute. Knocked out yourself, you wake a minute or two later (bleeding out is still hours).',
+      'Someone knocked out by a punch comes to on their own, usually within a minute. Knocked out yourself, you wake a minute or two later (bleeding out is still hours).',
       'Painkillers ease pain and stress but no longer heal concussions. Iron tablets aren’t sold any more (they take weeks). A splint sets a break so it heals at the normal speed. Coke lasts about 40 minutes and doesn’t fix your head.',
       'Booze: a swig of whiskey or vodka hits harder than a beer, and drinking no longer warms you up (it only feels that way).',
       'Strangers can’t sense your past any more, only a little in your eyes; a blade scares them when you show it, not while it’s in your pocket.',

@@ -1093,7 +1093,7 @@ export function createGlass(opts: GlassOptions = {}) {
 
     /**
      * How awake you are (100 fine .. 0 knocked out): cracks spread across the
-     * glass as it falls, and close up again as you come round.
+     * glass as it falls, and close up again as you come to.
      */
     setAwake(v: number) {
       // Slow to start (a hairline or two), then it goes.
@@ -1237,7 +1237,7 @@ export function createGlass(opts: GlassOptions = {}) {
       }
 
       // Cracks: they spread fast when you're hit, and fade slowly as you
-      // come round. A new pattern for the next time it breaks.
+      // come to. A new pattern for the next time it breaks.
       if (crackTarget > 0 && crackStale && crack < 0.01 && w) {
         drawCracks(crackCanvas, w, h, crackScale, (Math.random() * 1e9) | 0);
         crackTex.dispose();

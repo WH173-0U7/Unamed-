@@ -248,17 +248,17 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
     }
   }
   if (result === 'lost') {
-    // Knocked out by a blow: a minute or two, and you come round, concussed.
+    // Knocked out by a blow: a minute or two, and you come to, concussed.
     if (b.drugOut && h.blood > h.maxBlood * (PASS_OUT + 0.01)) {
-      return ['You come to on the pavement, sick and slow, with no idea how long you were gone.', ...(h.bleeding ? ["You're still bleeding."] : []), ...lines];
+      return ['You come to on the sidewalk, sick and slow, with no idea how long you were gone.', ...(h.bleeding ? ["You're still bleeding."] : []), ...lines];
     }
     if (h.blood > h.maxBlood * (PASS_OUT + 0.01)) {
       h.concussion = Math.max(h.concussion, CONCUSSION_HOURS);
-      return ['You come to on the pavement a minute or two later, your head ringing. You\'re concussed.', ...(h.bleeding ? ["You're still bleeding."] : []), ...lines];
+      return ['You come to on the sidewalk a minute or two later, your head ringing. You\'re concussed.', ...(h.bleeding ? ["You're still bleeding."] : []), ...lines];
     }
     // Passed out from blood loss: out for hours, still bleeding. You may not wake up.
     const out = lieThere(h);
-    if (!h.dead) out.unshift('You come to on the pavement, hours later.');
+    if (!h.dead) out.unshift('You come to on the sidewalk, hours later.');
     return [...out, ...(h.dead ? [] : lines)];
   }
   return lines;
@@ -398,7 +398,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
     const sl = stress >= 75 ? 3 : stress >= 45 ? 2 : stress >= 20 ? 1 : 0;
     const p = Math.round(stress / 4);
     out.push({
-      name: `${['Calm enough', 'On edge', 'Stressed', 'Panicking'][sl]}: stress`,
+      name: `Stress: ${['calm enough', 'on edge', 'stressed', 'panicking'][sl]}`,
       status: true,
       meter: { k: Math.min(1, stress / 100), text: `${Math.round(stress)} / 100` },
       effects: [`Your blows land: −${p}%`, `Dodging their blows: −${p}%`, ...(sl >= 3 ? ['Your hands shake; the world narrows'] : [])],
@@ -465,7 +465,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
       effects,
       heals:
         `Heals in about ${hrs(left)}.` +
-        (p.endsWith('arm') || p.endsWith('leg') ? (splinted ? '' : ' Unset, it takes twice as long as it should: a splint sets it.') : ''),
+        (p.endsWith('arm') || p.endsWith('leg') ? (splinted ? '' : ' Left loose, it takes twice as long to heal: a splint holds it still.') : ''),
     });
   }
   if (h.lung) {
@@ -485,7 +485,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
   if (h.cold) {
     const effects = [`Fights start with ${h.cold * 10}% less stamina`, `Running from the police: −${h.cold * 5}%`];
     if (h.cold >= 2) effects.push(`Your body makes blood back ${h.cold >= 3 ? '40%' : '75%'} as fast`);
-    out.push({ name: COLD_NAMES[h.cold], status: true, meter: { k: h.cold / 3, text: `${h.cold} / 3` }, effects, heals: 'Get out of the rain: indoors, or by a fire.' });
+    out.push({ name: COLD_NAMES[h.cold], status: true, meter: { k: h.cold / 3, text: `${h.cold} / 3` }, effects, heals: 'Get out of the weather: indoors, or by a fire.' });
   }
   if (h.high && (h.highUntil ?? 0) > Date.now()) {
     const mins = Math.ceil(((h.highUntil ?? 0) - Date.now()) / 60000);
@@ -507,7 +507,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
     const edge = caffeineEdge(mg);
     const pct = `${edge >= 0 ? '+' : '−'}${Math.abs(Math.round(edge * 100))}%`;
     out.push({
-      name: `${CAFFEINE_NAMES[caffeineLevel(mg)]}: caffeine`,
+      name: `Caffeine: ${CAFFEINE_NAMES[caffeineLevel(mg)].toLowerCase()}`,
       status: true,
       meter: { k: Math.min(1, mg / 600), text: `${Math.round(mg)} mg (jittery at 400)` },
       effects: [`Your blows land: ${pct}`, `Their blows land: ${edge >= 0 ? '−' : '+'}${Math.abs(Math.round(edge * 100))}%`, ...(mg >= 400 ? ['Stress builds faster (your heart is pounding)'] : [])],
@@ -520,7 +520,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
     out.push({
       name: DRUNK_NAMES[drunkLevel(d)],
       status: true,
-      meter: { k: Math.min(1, d / 100), text: `${Math.round(d)} / 100 (blackout at 90)` },
+      meter: { k: Math.min(1, d / 100), text: `${Math.round(d)} / 100 (blackout at 80)` },
       effects: [`Your blows land: −${Math.round(d / 4)}%`, `Their blows land: +${Math.round(d / 5)}%`, `Your blows do ${Math.round(d / 10)}% more damage (you swing heavy)`, ...(d >= 80 ? ['Any more and you black out'] : [])],
       heals: `Sobers you up 20 a real hour: about ${Math.max(1, Math.ceil(d / 20))} hour${Math.ceil(d / 20) === 1 ? '' : 's'} to clear.`,
     });

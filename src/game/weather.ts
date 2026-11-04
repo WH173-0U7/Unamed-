@@ -84,6 +84,6 @@ export function weatherLine(w: Weather, was: Weather): string {
   if (isSnow(w) && !isSnow(was)) return w === 'heavysnow' ? 'Snow comes down thick and fast, and the street goes white.' : w === 'snow' ? 'It starts to snow.' : 'A few flakes drift down out of the dark.';
   if (isSnow(w)) return SNOW_AMOUNT[w] > SNOW_AMOUNT[was] ? (w === 'heavysnow' ? 'The snow thickens until you can barely see the end of the street.' : 'The snow comes down harder.') : 'The snow eases to a few drifting flakes.';
   if (was === 'clear') return w === 'downpour' ? 'The sky opens. Rain hammers down.' : w === 'rain' ? 'It starts to rain.' : 'A thin drizzle starts.';
-  if (w === 'downpour') return 'The rain gets heavier, a roar on the pavement.';
+  if (w === 'downpour') return 'The rain gets heavier, a roar on the sidewalk.';
   return RAIN_AMOUNT[w] > RAIN_AMOUNT[was] ? 'The rain picks up.' : 'The rain eases off.';
 }

@@ -352,7 +352,7 @@ function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolea
       : [
       w.spray
         ? { id: `wpn:${w.i}`, label: 'Pepper spray them', hint: `${w.doses ?? 0} left · blinds them`, cat }
-        : { id: `wpn:${w.i}`, label: /^bottle$/i.test(w.name) ? 'Swing the bottle' : /syringe/i.test(w.name) ? (w.loaded ? `Stab with the syringe (${w.known ? w.loaded : 'loaded'})` : 'Stab with the empty syringe') : `${w.cuts ? 'Slash' : 'Hit'} with the ${lc(w.name)}`, hint: tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0} damage${w.cuts && !/^bottle$/i.test(w.name) ? ', cuts' : ''}${w.loaded ? ', may inject them' : ''}`, disabled: tired(COST.weapon), cat },
+        : { id: `wpn:${w.i}`, label: /^bottle$/i.test(w.name) ? 'Swing the bottle' : /syringe/i.test(w.name) ? (w.loaded ? `Stab with the syringe (${w.known ? w.loaded : 'loaded'})` : 'Stab with the empty syringe') : `${w.cuts ? (knifeOf(w.name)?.style === 'stab' ? 'Stab' : 'Slash') : 'Hit'} them with the ${lc(w.name)}`, hint: tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0} damage${w.cuts && !/^bottle$/i.test(w.name) ? ', cuts' : ''}${w.loaded ? ', may inject them' : ''}`, disabled: tired(COST.weapon), cat },
       // A whole bottle can be broken for an edge (it doesn't always break).
       ...(/^bottle$/i.test(w.name) ? [{ id: `smash:${w.i}`, label: 'Smash the bottle', hint: tired(COST.punch) ? 'Too tired' : 'For a jagged edge: it cuts', disabled: tired(COST.punch), cat }] : []),
         ]),
@@ -591,7 +591,7 @@ function rawOptions(e: Encounter): Option[] {
       }
       if (e.them.yielded) return yieldedOptions(e);
       const demand: Option = { id: 'demand', label: heldBlade(e) ? `"Give it up" (the ${lc(heldBlade(e)!.name)})` : '"Give it up"', hint: oddsHint(yieldChance(e, heldBlade(e) ? KNIFE_EDGE : 0)), cat: 'threaten' };
-      if (e.them.down) return [...stomps(legHint), ...ground(), ...weaponOptions(e, 'stomp', tired).filter((o) => !/spray/i.test(o.label)), ...learned(e, [{ id: 'choke', label: 'Headlock', hint: tired(14) ? 'Too tired' : armHint ?? 'Squeeze till they go out', level: CHOKE_LEVEL, disabled: tired(14) }], 'attack'), demand, run, breathe];
+      if (e.them.down) return [...stomps(legHint), ...ground(), ...weaponOptions(e, 'stomp', tired).filter((o) => !/spray/i.test(o.label)), ...learned(e, [{ id: 'choke', label: 'Headlock', hint: tired(14) ? 'Too tired' : armHint ?? 'Squeeze until they pass out', level: CHOKE_LEVEL, disabled: tired(14) }], 'attack'), demand, run, breathe];
       return [
         { id: 'punch', label: 'Punch', hint: armHint, cat: 'attack' },
         { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : legHint, disabled: tired(COST.kick), cat: 'attack' },
@@ -651,6 +651,7 @@ let outBefore = false;
 /** Who the last blow landed on, for the next line said (see LogLine.hit). */
 let landed: Side | null = null;
 const say = (by: LogLine['by'], text: string) => {
+  text = text.replace(/ {2,}/g, ' ').trim();
   enc.log.push(landed ? { by, text, hit: landed } : { by, text });
   landed = null;
 };
@@ -705,7 +706,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
     e.stage = 'combat';
     e.facedYou = true;
     say('them', oneOf([`A hand grabs your shoulder and spins you round. It's the ${who} from before. "Remember me?"`, `Someone steps out of a doorway right in front of you: the ${who}. They've been waiting for you.`]));
-    say('info', 'The fight is on.');
+    say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
     theirTurn();
     endOfRound();
     return impacts;
@@ -727,7 +728,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         } else if ((e.grudge ?? 0) >= 50 && !lame && arms(e.them) < 2) {
           say('them', oneOf([`The ${who} looks up and sees you, and their face changes. They know you. They come straight at you.`, `"You." The ${who} knows you. They're already coming.`]));
           e.stage = 'combat';
-          say('info', 'The fight is on.');
+          say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
           theirTurn();
           endOfRound();
         } else if (lame) {
@@ -788,8 +789,12 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           return impacts;
         }
         e.known.carrying = true;
-        say('info', p.carrying.length ? `They're carrying: ${p.carrying.map((i) => i.name.toLowerCase()).join(', ')}.` : "They aren't carrying anything.");
-        const armed = p.carrying.find((i) => i.weapon || i.spray);
+        {
+          // Only what shows: a bag, a bottle, a bat. Wallets and folded knives are in pockets.
+          const shows = p.carrying.filter((i) => /bag|backpack|cart|blanket|bottle|\bbat\b|pipe|crowbar|umbrella|case|tote|stick|tire iron|machete|hammer/i.test(i.name));
+          say('info', shows.length ? `You can see: ${shows.map((i) => i.name.toLowerCase()).join(', ')}. Anything else is in their pockets.` : 'Nothing in their hands. Anything they have is in their pockets.');
+        }
+        const armed = p.carrying.find((i) => (i.weapon || i.spray) && /bottle|\bbat\b|pipe|crowbar|tire iron|machete|hammer|stick/i.test(i.name));
         if (armed) say('info', `The ${armed.name.toLowerCase()} could be trouble.`);
         watch(8);
         you.gain('sneak', 3);
@@ -861,11 +866,11 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
   if (e.stage === 'violence' && id === 'spray-ambush') {
     const can = inv?.items.findIndex((x) => x.spray);
     if (can == null || can < 0) return impacts;
-    if (e.distance === 0) say('you', 'You cross the street toward them.');
+    if (e.distance === 0) say('you', oneOf(['You cross the street toward them.', 'You step off the curb and close in.', 'You cross over, straight at them.']));
     e.stage = 'combat';
     e.facedYou = true;
     spray(can, inv!);
-    say('info', 'The fight is on.');
+    say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
     theirTurn();
     endOfRound();
     return impacts;
@@ -886,7 +891,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
     // closer you got first. Bum rush and shove are easier to land than a punch.
     const extra = id === 'shove' ? 0.12 : id === 'bumrush' ? 0.06 : id === 'kneecap' ? 0.04 : id === 'slam' ? -0.02 : id === 'rear-choke' ? -0.08 : 0;
     const chance = clamp([0.8, 0.65, 0.45, 0.3][aw] + e.distance * 0.06 + ambushBonus(stats) + extra - b.guard * 0.5, 0.05, 0.97);
-    if (e.distance === 0) say('you', 'You cross the street toward them.');
+    if (e.distance === 0) say('you', oneOf(['You cross the street toward them.', 'You step off the curb and close in.', 'You cross over, straight at them.']));
     e.stage = 'combat';
     spend('you', COST.ambush);
     you.gain('sneak', 4);
@@ -902,8 +907,12 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
       const str = damageMult(stats);
       if (id === 'kneecap') {
         const dmg = Math.round(roll(8, 13) * str);
-        say('you', `${amb('kneecap')} ${wound('them', 'leg', dmg, 'kick')}`);
-        if (!e.them.down && Math.random() < (b.solid ? 0.5 : 0.8)) {
+        const goes = Math.random() < (b.solid ? 0.5 : 0.8);
+        let w = wound('them', 'leg', dmg, 'kick');
+        // Going down: no limping a step first.
+        if (goes) w = w.replace(/[^.]*\b(?:limp|stumble|nearly gives out|hop back|knee buckles|leg folds)[^.]*\.\s?/gi, '').trim();
+        say('you', [amb('kneecap'), w].filter(Boolean).join(' '));
+        if (!e.them.down && goes) {
           e.them.down = true;
           say('them', "Their leg folds. They're on the floor.");
         }
@@ -937,7 +946,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         const dmg = Math.round(roll(10, 15) * str);
         if (!b.solid) {
           e.them.down = true;
-          say('you', `${amb('bumrush').replace(/\.$/, '')}, and slam them into the pavement. ${wound('them', 'body', dmg, 'fall')} They're on the floor.`);
+          say('you', `${amb('bumrush').replace(/\.$/, '')}, and slam them into the sidewalk. ${wound('them', 'body', dmg, 'fall')} They're on the floor.`);
         } else {
           say('you', `${amb('bumrush')} They're heavy and hold their ground. ${wound('them', 'body', dmg, 'fall')}`);
           if (Math.random() < 0.35) {
@@ -975,7 +984,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
       }
     }
     if (!checkEnd() && !e.them.out) {
-      say('info', 'The fight is on.');
+      say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
       if (theyGoFirst) theirTurn();
       endOfRound();
     }
@@ -1128,7 +1137,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
       case 'breathe':
         // (Broken ribs: you can't fill your lungs, whatever you do.)
         y.stamina = Math.min(staminaCap(y), y.stamina + 22);
-        say('you', y.down ? 'You stay down and catch your breath.' : 'You back off a step and catch your breath.');
+        say('you', y.down ? 'You stay down and catch your breath.' : oneOf(['You back off a step and catch your breath.', 'You step back and suck in air.', 'You give yourself a second to breathe.', 'You keep your distance and get your wind back.']));
         break;
     }
     if (checkEnd()) return impacts;
@@ -1342,7 +1351,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
       ? /syringe/i.test(weapon.name)
           ? vary([`${N.S} jab the syringe at ${N.o} and stick ${N.o} ${where}.`, `${N.S} stab the needle ${into}.`])
           : cutStyle === 'stab'
-            ? vary([`${N.S} stab at ${N.o} with the ${w} and it goes in ${where}.`, `${N.S} drive the ${w} ${into}.`, `${N.S} lunge with the ${w}, ${where}.`])
+            ? vary([`${N.S} stab at ${N.o} with the ${w} and it goes ${into}.`, `${N.S} drive the ${w} ${into}.`, `${N.S} lunge with the ${w}, ${where}.`])
             : vary([`${N.S} slash at ${N.o} with the ${w} and catch ${N.o} ${where}.`, `The ${w} flashes, and catches ${N.o} ${where}.`, `${N.S} cut at ${N.o} with the ${w}, ${where}.`, `${N.S} lunge with the ${w} and open ${N.o} up ${where}.`])
       : vary([`${N.S} hit ${N.o} with the ${w} ${where}.`, `${N.S} swing the ${w} ${into}.`]);
   } else if (stomp) {
@@ -1506,7 +1515,7 @@ function asUnconscious(text: string, d: Side): string {
   const swaps: [RegExp, string][] = [
     [/They gasp, and blood bubbles at their lips\./g, 'Blood bubbles at their lips with every shallow breath.'],
     [/They vomit, and there's blood in it: something inside is torn\./g, 'Vomit and blood run from the corner of their mouth: something inside is torn.'],
-    [/They vomit onto the pavement\./g, 'Vomit runs from the corner of their mouth onto the pavement.'],
+    [/They vomit onto the sidewalk\./g, 'Vomit runs from the corner of their mouth onto the sidewalk.'],
     [/They retch up bile and spit\./g, 'Bile trickles from the corner of their mouth.'],
     [/They cough, and it comes up pink\./g, 'Pink froth comes up with their next breath.'],
     [/A tooth comes loose; they spit it out\./g, 'A tooth comes loose and falls from their slack mouth.'],
@@ -1628,8 +1637,8 @@ function doseThemNow(drug: Exclude<import('./person').Drug, 'empty'>) {
   if (Math.random() < (drug === 'heroin' ? 0.25 : drug === 'fentanyl' ? 0.55 : 0.6)) {
     T.out = true;
     T.down = true;
-    T.awake = -70; // drugged under: they won't come round soon
-    say('them', drug === 'tranq' ? 'Their legs fold and they slump to the pavement, out.' : "Their eyes roll up. They sag to the pavement, breathing slow and shallow. They're out.");
+    T.awake = -70; // drugged under: they won't come to soon
+    say('them', drug === 'tranq' ? 'Their legs fold and they slump to the sidewalk, out.' : "Their eyes roll up. They sag to the sidewalk, breathing slow and shallow. They're out.");
   } else {
     T.dazed = 3;
     T.stamina = Math.max(0, T.stamina - 30);
@@ -1671,7 +1680,7 @@ function doseNow(drug: Exclude<import('./person').Drug, 'empty'>) {
       y.out = true;
       y.drugOut = true;
       y.high = 'tranq';
-      say('info', "Your legs go first. You're on the pavement before you know it, and then you're nowhere.");
+      say('info', "Your legs go first. You're on the sidewalk before you know it, and then you're nowhere.");
     } else {
       y.dazed = 3;
       y.stamina = Math.max(0, y.stamina - 30);
@@ -1710,9 +1719,10 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   // A blade or a needle costs blood; a blunt blow doesn't, it rattles you
   // (the head most of all) and puts you closer to going out.
   const sharp = how === 'cut' || how === 'jab';
-  if (sharp) D.blood = Math.max(0, D.blood - ml);
+  // (A needle barely bleeds: it's what's in it that counts.)
+  if (how === 'cut') D.blood = Math.max(0, D.blood - ml);
   D.awake = Math.max(-120, (D.awake ?? 100) - Math.round((dmg * AWAKE_HIT[loc] * (sharp ? 0.3 : how === 'fall' ? 0.6 : 1) * (d === 'you' ? 0.75 : 1) * 100) / D.toughness));
-  const out: string[] = [sharp ? `(−${ml}\u00a0ml)` : ''];
+  const out: string[] = [how === 'cut' ? `(−${ml}\u00a0ml)` : ''];
   const re = N.oRe;
   let severe = ml >= 450;
   const bledBefore = D.bleeding;
@@ -1733,11 +1743,12 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
     }
   };
   const breaks = (part: Part, chance: number) => {
-    if (D.broken.includes(part) || Math.random() >= chance) return false;
+    // A blade opens skin; it doesn't snap bone.
+    if (sharp || D.broken.includes(part) || Math.random() >= chance) return false;
     severe = true;
     D.broken.push(part);
     if (d === 'them') scare(12);
-    const open = part !== 'nose' && part !== 'ribs' && Math.random() < 0.3;
+    const open = part !== 'nose' && part !== 'ribs' && how === 'stomp' && Math.random() < 0.1;
     if (part === 'nose') spills('splash');
     if (open) spills('drip');
     // Bone through the skin bleeds.
@@ -1756,7 +1767,12 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
     const before = D.bleeding;
     D.bleeding = Math.min(4, D.bleeding + n);
     if (loc === 'head' && D.bleeding > before) D.headBleed = true;
-    if (D.bleeding > before) out.push(`${re} bleeding${before ? ' worse' : ''} (${BLEEDING[D.bleeding].toLowerCase()}).`);
+    if (D.bleeding > before) {
+      // One line for the blow, at the level it ends on.
+      const i = out.findIndex((x) => x.startsWith(`${re} bleeding`));
+      if (i >= 0) out.splice(i, 1);
+      out.push(`${re} bleeding${bledBefore ? ' worse' : ''} (${BLEEDING[D.bleeding].toLowerCase()}).`);
+    }
   };
   const fall = (chance: number) => {
     if (!D.down && Math.random() < chance) {
@@ -1765,7 +1781,7 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
     }
   };
 
-  if (loc === 'head') {
+  if (loc === 'head' && !sharp) {
     if (!D.out && Math.random() < Math.min(0.8, dmg * 0.035 * (D.concussed ? 1.5 : 1))) {
       D.dazed = 2;
       out.push(`${re} dazed.`);
@@ -1791,15 +1807,15 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
     if (D.out) out.push('Their body jerks. They make a low sound.');
     else {
       D.winded = true;
-      out.push(d === 'you' ? "The wind's knocked out of you." : 'It knocks the wind out of them. They curl up, gasping.');
+      out.push(d === 'you' ? "The wind's knocked out of you." : 'It knocks the wind out of them.');
     }
-    knockOut(D.down ? 0.02 + lost * 0.2 : 0);
+    if (!sharp) knockOut(D.down && lost > 0.35 ? lost * 0.2 : 0);
   } else if (loc === 'body') {
     if (D.broken.includes('ribs') && (how === 'stomp' || dmg >= 10)) {
       D.stamina = Math.max(0, D.stamina - 15);
-      out.push(`Something gives in ${N.oP} chest.`);
+      out.push('Something else gives.');
       // A broken rib driven into the lung.
-      if (!D.lung && Math.random() < (how === 'stomp' ? 0.45 : 0.2)) {
+      if (!D.lung && Math.random() < (how === 'stomp' ? 0.25 : 0.1)) {
         D.lung = true;
         severe = true;
         D.stamina = Math.min(D.stamina, staminaCap(D));
@@ -1807,7 +1823,8 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
         spills('cough');
         bleed(1);
       }
-      knockOut(0.06 + lost * 0.35);
+      // Winded and down, not out, unless they've already lost a lot of blood.
+      knockOut(lost > 0.35 ? lost * 0.35 : 0);
     } else if (breaks('ribs', (dmg - (how === 'stomp' ? 6 : 9)) * (how === 'stomp' ? 0.06 : 0.04))) {
       D.stamina = Math.min(D.stamina, staminaCap(D));
       out.push(`${d === 'you' ? 'Your' : 'Their'} breath goes short and ragged.`);
@@ -1817,7 +1834,8 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
     breaks(`${side} arm` as Part, (dmg - 9) * 0.05);
   } else {
     const side = Math.random() < 0.5 ? 'left' : 'right';
-    if (breaks(`${side} leg` as Part, (dmg - 9) * 0.045)) fall(1);
+    // A leg takes a kick or a stamp to the knee or shin to break, not a punch.
+    if ((how === 'kick' || how === 'stomp') && breaks(`${side} leg` as Part, (dmg - 9) * 0.03)) fall(1);
     else fall(dmg >= 10 ? 0.25 : 0.08);
   }
   if (openBreak) bleed(1);
@@ -1872,7 +1890,7 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
   const s = you ? 'you' : 'they';
   const tier = ml >= 420 ? 2 : ml >= 220 ? 1 : 0;
   const D = enc[d];
-  if (how === 'fall') return tier ? vary([`${S} hit the pavement hard.`, `The fall knocks the breath out of ${you ? 'you' : 'them'}.`]) : '';
+  if (how === 'fall') return tier ? vary([`${S} hit the sidewalk hard.`, `The fall knocks the breath out of ${you ? 'you' : 'them'}.`]) : '';
   const m = (D.marks ??= {});
   const teeth = m.teeth ?? 0;
   type Line = [string, (() => void)?];
@@ -1891,7 +1909,7 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
   const ribsBroken = D.broken.includes('ribs');
   if (how === 'cut') {
     // A blade always opens skin (the bleeding is applied with it).
-    const where = { head: 'cheek', body: 'ribs', stomach: 'belly', arm: 'forearm', leg: 'thigh' }[loc];
+    const where = { head: 'face', body: 'side', stomach: 'belly', arm: 'arm', leg: 'leg' }[loc];
     const cuts: Line[][] = [
       [
         [`The edge opens a shallow gash across ${P} ${where}. Blood beads along it.`, scar(where)],
@@ -1900,12 +1918,12 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
       ],
       [
         [`The cut is deep. Blood sheets down ${P} ${where}.`, scar(where)],
-        [`It opens ${P} ${where} like a zip.`, scar(where)],
+        [`It opens ${P} ${where} like a zipper.`, scar(where)],
         [`The edge drags through ${P} ${where}, and the blood comes fast.`, scar(where)],
       ],
       [
         [`It goes deep into ${P} ${where}. The blood comes in a rush.`, scar(where)],
-        [`Blood pumps from ${P} ${where} in thick spurts.`, scar(where)],
+        [`Blood wells up fast from ${P} ${where}.`, scar(where)],
         [`The wound in ${P} ${where} gapes, and won't stop.`, scar(where)],
       ],
     ];
@@ -1934,7 +1952,7 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
       [
         [`It lands flush, and ${P} eyes go blank for a moment.`, daze],
         ...(m.jaw ? ([] as Line[]) : ([[`There's a crack, and ${P} jaw hangs wrong: it's broken.`, () => ((m.jaw = true), fx.bleed(1))]] as Line[])),
-        ...(fx.wasDown ? ([[`${Pc} head bounces off the pavement.`, daze]] as Line[]) : []),
+        ...(fx.wasDown ? ([[`${Pc} head bounces off the sidewalk.`, daze]] as Line[]) : []),
         ...(teeth < 8 ? ([[`Teeth go. ${S} spit them out with a mouthful of blood.`, () => ((m.teeth = Math.min(12, teeth + 2 + Math.floor(Math.random() * 2))), fx.bleed(1))]] as Line[]) : []),
         ...(bleeding ? ([[`Blood runs freely down ${P} face now.`]] as Line[]) : []),
       ],
@@ -1951,7 +1969,7 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
     ],
     stomach: [
       [[`${S} double over, retching.`], [`${S} gasp and clutch ${P} stomach.`]],
-      [[`${S} retch up bile and spit.`], [`${S} vomit onto the pavement.`], [`${S} sag, arms wrapped round ${P} middle.`]],
+      [[`${S} retch up bile and spit.`], [`${S} vomit onto the sidewalk.`], [`${S} sag, arms wrapped round ${P} middle.`]],
       [
         [`${S} vomit, and there's blood in it: something inside is torn.`, () => fx.bleed(1)],
         [`${S} curl up around it, grey in the face, and can't get a breath.`, wind(15)],
@@ -1966,9 +1984,9 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
       ],
     ],
     leg: [
-      [[`${Pc} knee buckles.`], [`${S} hop back, favouring the leg.`], [`It stings ${P} thigh.`]],
+      [[`${Pc} knee buckles.`], [`${S} hop back, favoring the leg.`], [`It stings ${P} thigh.`]],
       [[`${Pc} leg nearly gives out.`], [`${S} limp a step.`]],
-      [...(brokeLeg ? ([[`The knee twists sideways with a sickening pop.`]] as Line[]) : ([[`${Pc} leg folds for a moment, and ${s} stumble.`]] as Line[]))],
+      [...(brokeLeg ? ([[`The knee twists sideways with a sickening pop, and the leg won't take ${P} weight.`]] as Line[]) : ([[`${Pc} leg folds for a moment, and ${s} stumble.`]] as Line[]))],
     ],
   };
   let pool = pools[loc]?.[tier];
@@ -1979,7 +1997,7 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
     pool = pool?.filter(([t]) => !standing.test(t));
     const lying: Line[] = fx.outAtStart
       ? [[`${Pc} body jerks with it.`], [`${S} don't react. ${S === 'You' ? "You're" : "They're"} out.`], [`${Pc} limp body rocks with the blow.`]]
-      : [...(loc === 'stomach' ? [] : ([[`${S} curl up on the pavement around it.`]] as Line[])), [`${S} writhe on the ground.`], [`${S} try to cover up, and can't.`]];
+      : [...(loc === 'stomach' ? [] : ([[`${S} curl up on the sidewalk around it.`]] as Line[])), [`${S} writhe on the ground.`], [`${S} try to cover up, and can't.`]];
     pool = [...(pool ?? []), ...lying];
   }
   // A light blow often needs no more said; a break already says plenty.
@@ -2039,7 +2057,7 @@ function theirTurn() {
     spend('them', COST.getUp);
     if (Math.random() < getUpChance(T)) {
       T.down = false;
-      say('them', legs(T) ? 'They drag themselves up on one good leg.' : 'They get back on their feet.');
+      say('them', legs(T) ? 'They drag themselves up on one good leg.' : oneOf(['They get back on their feet.', 'They scramble back up.', 'They push themselves up off the sidewalk.']));
     } else say('them', legs(T) ? 'They try to stand, but their leg gives way.' : 'They try to get up, and fall back down.');
     return;
   }
@@ -2072,7 +2090,7 @@ function theirTurn() {
       invNow.items.splice(at, 1);
       p.carrying.push({ name: it.name, weapon: it.weapon, cuts: it.cuts });
       T.weaponOut = it.name;
-      say('them', `They grab your wrist and twist until the ${lc(it.name)} drops. They snatch it up off the pavement.`);
+      say('them', `They grab your wrist and twist until the ${lc(it.name)} drops. They snatch it up off the sidewalk.`);
       return;
     }
   }
@@ -2113,7 +2131,7 @@ function theirTurn() {
   // Out of breath.
   if (T.stamina < COST.punch) {
     T.stamina = Math.min(T.maxStamina, T.stamina + 22);
-    say('them', 'They stop, gasping for breath.');
+    say('them', oneOf(['They stop, gasping for breath.', 'They bend over, hands on their knees, sucking air.']));
     return;
   }
   if (T.weaponOut && Math.random() < 0.7) strike('them', 'weapon');
@@ -2131,7 +2149,7 @@ function endOfRound() {
   // Every round of a fight: adrenaline, fear. And you get a little more used to it.
   addStress(enc.you, 1);
   enc.you.nerve = Math.min(100, (enc.you.nerve ?? 0) + 0.35);
-  // Knocked out by a blow, people come round on their own, usually in under a
+  // Knocked out by a blow, people come to on their own, usually in under a
   // minute (not if they've lost too much blood).
   const T0 = enc.them;
   for (const f of [enc.you, T0]) if (!f.dead) f.awake = f.out ? Math.min(-1, f.awake + 2) : Math.min(100, f.awake + 3);
@@ -2141,7 +2159,7 @@ function endOfRound() {
     T0.down = true;
     T0.dazed = 3;
     T0.awake = 25;
-    say('them', 'They groan, and their eyes open. They come round on the pavement, dazed, trying to work out where they are.');
+    say('them', oneOf(['They groan, and their eyes open. They come to on the sidewalk, dazed, trying to work out where they are.', 'Their eyes flutter open. They don\'t know where they are.', 'They groan and roll onto their side, blinking.']));
   }
   // A needle's dose, a few rounds after it went in.
   for (const side of ['you', 'them'] as Side[]) {
@@ -2181,7 +2199,7 @@ function checkEnd(): boolean {
   // doesn't: they're helpless, and it's up to you what happens next.
   if (out(enc.you)) {
     enc.you.down = true;
-    say('info', enc.you.out ? 'Everything goes black.' : enc.you.bleeding >= 3 ? 'Too much blood. Your legs give out, and everything goes dark.' : 'You hit the pavement. Everything goes dark.');
+    say('info', enc.you.out ? 'Everything goes black.' : enc.you.bleeding >= 3 ? 'Too much blood. Your legs give out, and everything goes dark.' : 'You hit the sidewalk. Everything goes dark.');
     end('lost');
     return true;
   }
@@ -2202,7 +2220,7 @@ function checkEnd(): boolean {
   if (T.out || T.dead) T.yielded = false;
   if (T.out && !T.outNoted) {
     T.outNoted = true;
-    say('info', "They're unconscious. They can't fight back.");
+    if (!/out cold/.test(enc.log[enc.log.length - 1]?.text ?? '')) say('info', "They're unconscious. They can't fight back.");
   }
   // Unconscious and still losing blood: they can bleed out.
   if (wasOut && (T.blood <= T.maxBlood * DEATH || T.awake <= -100)) {
@@ -2231,7 +2249,7 @@ function spotted() {
     say('them', oneOf(['They spin around. "The hell do you want?" They come at you.', "They spot you, and they don't run. They come straight for you."]));
     enc.stage = 'combat';
     enc.facedYou = true;
-    say('info', 'The fight is on.');
+    say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
     theirTurn();
     endOfRound();
   } else if (legs(enc.them) > 0) {
@@ -2239,7 +2257,7 @@ function spotted() {
     enc.facedYou = true;
     say('them', 'They see you and try to hobble away on their crutches. They get nowhere. They turn, cornered, and swing a crutch at you.');
     enc.stage = 'combat';
-    say('info', 'The fight is on.');
+    say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
     theirTurn();
     endOfRound();
   } else {
@@ -2290,7 +2308,7 @@ export const GROUND: Technique[] = [
 /** When you're the one on the floor (and they're standing). */
 export const FLOOR: Technique[] = [
   { id: 'floor:legs', name: 'Kick their legs', hint: 'Bring them down too', level: 18, kind: 'kick', aim: 'leg', hit: 0, dmg: 0.5, cost: 12, effect: 'sweep', text: 'From the floor, you kick hard at their ankles.' },
-  { id: 'floor:pull', name: 'Drag them down', hint: 'Down here with you', level: 36, kind: 'punch', aim: 'body', hit: 0.05, dmg: 0.3, cost: 12, effect: 'sweep', text: 'You grab their legs and haul them down onto the pavement with you.' },
+  { id: 'floor:pull', name: 'Drag them down', hint: 'Down here with you', level: 36, kind: 'punch', aim: 'body', hit: 0.05, dmg: 0.3, cost: 12, effect: 'sweep', text: 'You grab their legs and haul them down onto the sidewalk with you.' },
 ];
 /** Every learned move, wherever it's used. */
 const ALL_MOVES = () => [...TECHNIQUES, ...GROUND, ...FLOOR];
@@ -2360,10 +2378,9 @@ function techEffect(t: Technique) {
       break;
     }
     case 'headbutt': {
-      const ml = roll(40, 90);
-      enc.you.blood = Math.max(0, enc.you.blood - ml);
+      enc.you.awake = Math.max(0, (enc.you.awake ?? 100) - roll(6, 14));
       if (Math.random() < 0.2) enc.you.dazed = 1;
-      say('you', `Your own head rings with it. (−${ml}\u00a0ml)`);
+      say('you', 'Your own head rings with it.');
       if (!T.dazed && Math.random() < 0.6) {
         T.dazed = 2;
         say('them', "They're dazed.");
@@ -2470,12 +2487,12 @@ function mug() {
     }
     say('them', 'They try to run. You grab them by the collar and drag them back.');
     scare(6);
-    say('info', 'The fight is on.');
+    say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
     endOfRound();
     return;
   }
   say('them', speak('refuseMug'));
-  say('info', 'The fight is on.');
+  say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
   theirTurn();
   endOfRound();
 }
@@ -2666,7 +2683,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
   }
   if (id === 'ask-thief' && e.canAsk && !asked.includes('thief')) {
     asked.push('thief');
-    say('you', '"I lost some things. Someone round here has them. Who?"');
+    say('you', '"I lost some things. Someone around here has them. Who?"');
     if (fear >= 40 && Math.random() < 0.5) {
       e.tip = 'thief';
       say('them', '"There\'s someone... they\'ve been showing stuff around, selling it cheap. They hang around here, nights." You\'ll keep an eye out.');
@@ -2702,13 +2719,11 @@ function torture(how: string) {
       if ((T.marks?.fingers ?? 0) >= 10) return;
       text = oneOf(['You take one of their fingers and bend it back until it snaps. They scream into your hand.', "You grab their hand and bend a finger back, slowly. There's a wet crack. They howl."]);
       (T.marks ??= {}).fingers = (T.marks.fingers ?? 0) + 1;
-      ml = 40;
       break;
     case 'stamp':
       if (!T.down) return;
       text = T.marks?.hand ? 'You grind your heel into their broken hand. They scream.' : 'You put your heel on their hand and lean on it until the small bones crunch. Their hand is broken.';
       (T.marks ??= {}).hand = true;
-      ml = 90;
       break;
     case 'blade': {
       const b = heldBlade(e);
@@ -2727,8 +2742,7 @@ function torture(how: string) {
     }
     case 'twist':
       if (!arms(T)) return;
-      text = "You take their broken arm and twist. The bone ends grind. They make a sound you'll hear later, trying to sleep.";
-      ml = 60;
+      text = 'You take their broken arm and twist. The bone ends grind. They scream.';
       break;
     default:
       return;
@@ -2745,7 +2759,7 @@ function torture(how: string) {
   you.gain('intimidation', 5);
   // The pain can be too much.
   const lost = 1 - T.blood / T.maxBlood;
-  if (Math.random() < 0.06 + lost * 0.4) {
+  if (Math.random() < 0.03 + lost * 0.4) {
     T.out = true;
     T.down = true;
     T.awake = -10;
@@ -2861,7 +2875,7 @@ function difficultyLine(d: string) {
     Easy: "Wouldn't put up much of a fight.",
     Fair: 'Could go either way.',
     Hard: 'This one could hurt.',
-    Brutal: 'You would be taking a real risk.',
+    Brutal: "You'd be taking a real risk.",
   }[d];
 }
 

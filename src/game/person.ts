@@ -106,7 +106,7 @@ export const PERSONALITIES: Record<Personality, PersonalityInfo> = {
   jumpy: { name: 'Jumpy', desc: 'Twitchy, always looking round. More likely to run than fight.', fear: 10, cowed: 1.1, maxYield: 0.9, yield: 0.05, flee: 1.8, fight: -0.05, truth: 0.9, holdBack: 0.9, carry: { 'Pepper spray': 0.1 } },
   calm: { name: 'Calm', desc: 'Unhurried. Hard to read.', fear: 0, cowed: 1, maxYield: 0.9, yield: 0, flee: 1, fight: 0, truth: 1, holdBack: 1 },
   sly: { name: 'Sly', desc: 'Watchful, a little smile. Will say whatever gets them out of it.', fear: 0, cowed: 0.9, maxYield: 0.9, yield: 0.05, flee: 1.2, fight: -0.05, truth: 0.4, holdBack: 1.8 },
-  proud: { name: 'Proud', desc: 'Chin up, takes up the pavement. Hates to lose face.', fear: -10, cowed: 0.75, maxYield: 0.8, yield: -0.1, flee: 0.6, fight: 0.1, truth: 1, holdBack: 1.3 },
+  proud: { name: 'Proud', desc: 'Chin up, takes up the sidewalk. Hates to lose face.', fear: -10, cowed: 0.75, maxYield: 0.8, yield: -0.1, flee: 0.6, fight: 0.1, truth: 1, holdBack: 1.3 },
   hothead: { name: 'Hothead', desc: 'Already angry about something. Quick to swing.', fear: -15, cowed: 0.7, maxYield: 0.75, yield: -0.08, flee: 0.5, fight: 0.3, truth: 0.8, holdBack: 1, carry: { Knife: 0.12, 'Box cutter': 0.1, Bottle: 0.1 } },
   hard: { name: 'Hard', desc: "Seen worse than you. Won't scare, won't run.", fear: -22, cowed: 0.5, maxYield: 0.6, yield: -0.15, flee: 0.3, fight: 0.2, truth: 1, holdBack: 1.4, carry: { Knife: 0.1 } },
 };
@@ -218,7 +218,7 @@ export const RACE_CHANCES: [Race, number][] = [
 ];
 
 export const NAMES: Record<Kind, string> = {
-  civilian: 'Civilian',
+  civilian: 'Passer-by',
   drunk: 'Drunk',
   homeless: 'Homeless',
   junkie: 'Junkie',
@@ -460,7 +460,7 @@ function dress(kind: Kind, carrying: Item[]): Garment[] {
   }
   if (has('Cash')) put(cash(money(5, 80), 'wallet', 'Folded bills'));
   if (has('Loose change')) put(cash(money(0.25, 4.5), 'change', 'Loose change'));
-  if (kind === 'homeless' && r() < 0.3) put(cash(money(3, 30), 'small', 'Bills, folded small'), clothes[2], 'left shoe');
+  if (kind === 'homeless' && r() < 0.3) put(cash(money(3, 30), 'small', 'Folded bills'), clothes[2], 'left shoe');
   if (has('Phone')) put({ kind: 'phone', name: 'Cell phone', detail: any(PHONES) });
   if (has('Keys')) {
     if (kind === 'civilian' ? r() < 0.75 : r() < 0.35) put({ kind: 'car keys', name: 'Car keys', detail: `${any(CARS)} key fob` });

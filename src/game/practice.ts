@@ -66,7 +66,7 @@ export function punchText(t: Tier, where: string, into: string): string[] {
       `You throw a sloppy punch and it lands ${where}.`,
       `You flail at them and connect ${where}.`,
       `You throw everything into a clumsy swing; it lands ${where}.`,
-      `Your fist comes round in a big, slow arc and lands ${where}. Your knuckles sting.`,
+      `Your fist comes to in a big, slow arc and lands ${where}. Your knuckles sting.`,
       `You shut your eyes as you swing, and it lands ${where}.`,
     ];
   if (t === 1)
@@ -130,9 +130,9 @@ export function stompText(t: Tier, loc: 'head' | 'stomach' | 'body'): string[] {
 export function weaponText(t: Tier, kind: 'blade' | 'blunt' | 'bottle' | 'broken' | 'needle', w: string, where: string, into: string, style: 'stab' | 'slash' | 'both' = 'both'): string[] {
   if (kind === 'blade' && style === 'stab')
     return t === 0
-      ? [`You jab the ${w} at them, wild, and it goes in ${where}.`, `You stab at them with the ${w}, eyes half shut; it goes in ${where}.`]
+      ? [`You jab the ${w} at them, wild, and it goes ${into}.`, `You stab at them with the ${w}, eyes half shut; it goes ${into}.`]
       : t === 1
-        ? [`You stab the ${w} ${into}.`, `You drive the ${w} in ${where}.`, `You lunge with the ${w} and it goes in ${where}.`]
+        ? [`You stab the ${w} ${into}.`, `You drive the ${w} deep ${into}.`, `You lunge with the ${w} and it goes ${into}.`]
         : [`Short and quick: the ${w} goes in ${where} and comes out again.`, `You step in and put the ${w} ${into}, twice.`];
   if (kind === 'broken')
     return t === 0
@@ -166,7 +166,7 @@ export function weaponText(t: Tier, kind: 'blade' | 'blunt' | 'bottle' | 'broken
     ? [`You swing the ${w} wildly and it hits them ${where}.`, `You flail with the ${w}; it catches them ${where}.`]
     : t === 1
       ? [`You hit them with the ${w} ${where}.`, `You swing the ${w} ${into}.`]
-      : [`You choke up on the ${w} and drive it ${into}.`, `A short, tight swing of the ${w}, ${where}.`, `You let them come and meet them with the ${w}, ${where}.`];
+      : [`You grip the ${w} short and drive it ${into}.`, `A short, tight swing of the ${w}, ${where}.`, `You let them come and meet them with the ${w}, ${where}.`];
 }
 
 /** The learned moves: [clumsy, polished] (practiced uses the move's own line). */
@@ -253,7 +253,7 @@ export function missText(t: Tier, kind: 'punch' | 'kick' | 'weapon' | 'stomp' | 
     return kind === 'kick'
       ? ['You swing a leg at them and miss by a mile.']
       : kind === 'stomp'
-        ? ['You stamp down and hit the pavement. They rolled away.']
+        ? ['You stamp down and hit the sidewalk. They roll away.']
         : ['You swing and nearly fall over.', 'You miss, wildly.', 'You telegraph it from a mile away. They step back.'];
   if (t === 2)
     return kind === 'stomp'

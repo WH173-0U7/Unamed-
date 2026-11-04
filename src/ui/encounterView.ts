@@ -12,7 +12,7 @@ const STAGE_TITLE: Record<string, string> = {
 };
 
 export const RESULT: Record<string, string> = {
-  won: 'They are down.',
+  won: "They're down.",
   lost: 'You were beaten.',
   'they-fled': 'They got away.',
   'you-fled': 'You got away.',

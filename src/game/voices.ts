@@ -92,7 +92,7 @@ const KIND: Record<Kind, { beg: string[]; emptied: string[]; letGo: string[]; gi
       '"I don\'t have anything. Look at me. I don\'t have anything."',
       '"Please. It\'s cold. I need my coat."',
     ],
-    emptied: ['"That\'s all of it. That\'s everything I have."', 'They lay it out on the pavement: a few coins, the scraps of a life.'],
+    emptied: ['"That\'s all of it. That\'s everything I have."', 'They lay it out on the sidewalk: a few coins, the scraps of a life.'],
     letGo: ['They gather their things and shuffle away without a word.', "They sit down where they are, against the wall, and don't move."],
     giveUp: ['"Take it. Take it. I don\'t care any more."', '"Okay. Okay. Just don\'t hurt me."'],
   },
@@ -112,24 +112,24 @@ const BRUTE: Record<'hothead' | 'proud' | 'hard', Partial<Record<Moment, string[
   hothead: {
     refuse: ['"You want it? Come and take it, you little shit!"', '"Fuck off!"', 'They spit at your feet. "Try it."'],
     refuseMug: ['"WHAT did you say to me?" They come at you swinging.', '"Wrong guy, asshole." They\'re already swinging.'],
-    hitYou: ['"How\'d that feel, huh? HOW\'D THAT FEEL?"', '"Get up! I\'m not done with you!"', '"That\'s what you get!"', 'They laugh, breathing hard. "Come on!"'],
+    hitYou: ['"How\'d that feel, huh? HOW\'D THAT FEEL?"', '"That\'s what you get!"', 'They laugh, breathing hard. "Come on!"'],
     youMiss: ['They laugh at you, breathing hard.', '"You hit like you talk."', '"Is that it? Is that all you got?"'],
-    youDown: ['"Stay down, bitch! Stay down!"', 'They stand over you, laughing. "Look at you."', '"Who\'s the big man now?"'],
+    youDown: ['"Stay down, bitch! Stay down!"', '"Get up! I\'m not done with you!"', 'They stand over you, laughing. "Look at you."', '"Who\'s the big man now?"'],
     hitByYou: ['"Lucky. That was lucky."', 'They spit blood and grin. "Do it again."', '"That all you got?"'],
     giveUp: ['"Fine! FINE! Take it, you piece of shit!"', 'They\'re shaking with rage, not fear. Or not only fear. "Take it, then."'],
     emptied: ['"Choke on it."', 'They throw it at your feet. "There. Happy?"'],
     beg: ['"You\'re dead. You hear me? You\'re dead."', 'They glare at you, breathing through their teeth.'],
-    letGo: ['"I\'ll find you. I swear to God I\'ll find you."', 'They walk off slowly, looking back, memorising you.'],
+    letGo: ['"I\'ll find you. I swear to God I\'ll find you."', 'They walk off slowly, looking back, memorizing you.'],
     torture: ['They scream curses at you, then just scream.', '"I\'ll kill you! I\'LL KILL YOU!"'],
     menaced: ['"Yeah? Yeah? You and whose army?"', 'They laugh in your face, but their eyes say otherwise.'],
-    woken: ['They come round swinging, weak and wild.', '"Get off me! Get the fuck off me!"'],
+    woken: ['They come to swinging, weak and wild.', '"Get off me! Get the fuck off me!"'],
   },
   proud: {
     refuse: ['"No."', '"From you? Never."', '"Get away from me."'],
     refuseMug: ['"I don\'t think so." They square up, offended more than afraid.', '"Out of my way." They shove past you, and then they turn.'],
-    hitYou: ['"Pathetic."', '"Is this how you make your living? Hitting people?"', '"Stay the fuck down."'],
+    hitYou: ['"Pathetic."', '"Is this how you make your living? Hitting people?"'],
     youMiss: ['"Embarrassing."', "They don't even flinch."],
-    youDown: ['"Stay there. It suits you."', 'They look down at you like something on their shoe.'],
+    youDown: ['"Stay there. It suits you."', '"Stay the fuck down."', 'They look down at you like something on their shoe.'],
     hitByYou: ["They touch their face and look at the blood like it's an insult.", 'They touch their face and stare at you, furious.'],
     giveUp: ['They look at the ground. It costs them. "...Fine. Take it."', 'Their jaw works. "Fine," they spit. "Take it."'],
     emptied: ["They hand it over without looking at you, as if you don't exist.", '"I hope it\'s worth it to you."'],
@@ -137,14 +137,14 @@ const BRUTE: Record<'hothead' | 'proud' | 'hard', Partial<Record<Moment, string[
     letGo: ["They walk away straight-backed, and only start shaking when they think you can't see.", '"You\'ll regret this."'],
     torture: ["They bite down on it and won't scream, until they do.", '"Animal. You\'re an animal."'],
     menaced: ['"Spare me the speech."', 'They hold your eye and say nothing at all.'],
-    woken: ['They come round and stare at you with pure contempt.', '"Get your hands off me."'],
+    woken: ['They come to and stare at you with pure contempt.', '"Get your hands off me."'],
   },
   hard: {
     refuse: ['They don\'t even blink. "Make me."', 'They spit on the ground. "Come and take it."', '"I\'ve been hit by better than you."'],
     refuseMug: ['"You picked the wrong night." They\'re already moving.', 'They smile, slow. "Go on, then."'],
-    hitYou: ['"Get up."', 'They roll their neck. "Get up. We\'re not done."', '"You should\'ve stayed home."'],
+    hitYou: ['"You should\'ve stayed home."', '"That all you got?"'],
     youMiss: ['"Slow."', "They step aside like they've done it a thousand times."],
-    youDown: ['"Stay down."', 'They stand over you, breathing hard, waiting to see if you get up.'],
+    youDown: ['"Stay down."', '"Get up."', 'They roll their neck. "Get up. We\'re not done."', 'They stand over you, breathing hard, waiting to see if you get up.'],
     hitByYou: ['They take it and keep coming.', 'They nod, like you\'ve told them something. "Okay."'],
     giveUp: ['They look at you for a long moment. "You win this one." It doesn\'t sound like a surrender.', 'They spit blood, and nod once. "Take it."'],
     emptied: ['"Spend it quick."', "They hand it over like they're paying a bill."],
@@ -152,7 +152,7 @@ const BRUTE: Record<'hothead' | 'proud' | 'hard', Partial<Record<Moment, string[
     letGo: ["They walk away without hurrying. That's worse.", '"See you around."'],
     torture: ['They grunt through it, white-faced, eyes on yours the whole time.', '"That all?" Their voice cracks on it.'],
     menaced: ['"I\'ve heard that before."', 'Nothing. Not a flicker.'],
-    woken: ['Their eyes open and find yours at once, clear and cold.', 'They come round swinging, before they even know where they are.'],
+    woken: ['Their eyes open and find yours at once, clear and cold.', 'They come to swinging, before they even know where they are.'],
   },
 };
 
@@ -175,7 +175,7 @@ const VICTIM: Partial<Record<Moment, string[]>> = {
   giveUpDown: [
     'They curl up on the ground with their arms over their head. "Stop! Please! Take it, take whatever you want!"',
     '"Okay! Okay!" they sob from the floor. "I give up. Just take it."',
-    'They hold up a shaking hand from the pavement. "Please. Please. Enough."',
+    'They hold up a shaking hand from the sidewalk. "Please. Please. Enough."',
   ],
   refuse: ['"N-no. No. Leave me alone!" Their voice cracks, but they don\'t give it up.', 'They clutch their pockets and shake their head, over and over.', '"Get away from me!"'],
   refuseMug: ['"No. No!" They panic and lash out at you.', 'They freeze, then shove you and try to fight.'],
@@ -194,7 +194,7 @@ const VICTIM: Partial<Record<Moment, string[]>> = {
   ],
   hitByYou: ['"Stop! Please, stop!"', '"Why are you doing this?"', 'They cover their head with their arms.', '"Help! Somebody help!" Nobody comes.'],
   menaced: ['They nod, fast, over and over.', '"I won\'t. I won\'t. I promise."', "They flinch as if you'd hit them."],
-  woken: ["They come round, see you over them, and start to beg before they're even awake.", 'Their eyes open. They see you, and they start to cry.'],
+  woken: ["They come to, see you over them, and start to beg before their eyes are even focused.", 'Their eyes open. They see you, and they start to cry.'],
 };
 
 /** Candidate lines for a moment (empty: nothing to say). */
@@ -266,7 +266,7 @@ export function guilt(e: Encounter, what: 'mug' | 'beat' | 'torture', lost: numb
   const who = L.name && L.sawName ? `${L.name}. It said so on the ${L.nameOn ?? 'card'}.` : e.person.kind === 'homeless' ? 'Someone with nothing.' : 'A person. Just a person.';
   if (lost >= 80) {
     return {
-      lines: [what === 'torture' ? 'You replay their screaming on the walk back, and smile.' : 'You feel good. Better than you have in days.'],
+      lines: [what === 'torture' ? 'You replay their screaming as you walk away, and smile.' : 'You feel good. Better than you have in days.'],
       stress: -6,
     };
   }
@@ -298,10 +298,10 @@ export function guilt(e: Encounter, what: 'mug' | 'beat' | 'torture', lost: numb
   const fled = e.result === 'they-fled' || e.result === 'you-fled';
   const beatLines = fled
     ? ['You can still feel every blow in your knuckles.', 'You keep seeing their face as you hit it.']
-    : [...(bled ? ["You look at your knuckles. The blood on them isn't yours."] : []), "They were someone's son, someone's daughter. You left them lying there.", 'You keep seeing them lying there, not moving.'];
+    : [...(bled ? ["You look at your knuckles. The blood on them isn't yours."] : []), "They were someone's kid. You left them lying there.", 'You keep seeing them lying there, not moving.'];
   const lines =
     what === 'torture'
-      ? ["Your hands won't stop shaking. You can still feel it: the give, the sound they made.", `${who}`, 'You throw up in the gutter on the way back.']
+      ? ["Your hands won't stop shaking. You can still feel it: the give, the sound they made.", `${who}`, 'You throw up in the gutter as you walk away.']
       : what === 'mug'
         ? [
             oneOf(['Your hands are shaking. You stuff them in your pockets, around their money.', 'You can still see their face. The way they looked at you.']),

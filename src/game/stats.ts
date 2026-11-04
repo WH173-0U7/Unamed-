@@ -48,7 +48,7 @@ export const STAT_NAMES: Record<StatName, string> = {
   speech: 'Speech',
 };
 /** Shorter names for the stats along the top of a small screen. */
-export const STAT_SHORT: Record<StatName, string> = { sneak: 'Snk', strength: 'Str', unarmed: 'Unr', weapons: 'Wpn', agility: 'Agi', stamina: 'Stm', intimidation: 'Itm', speech: 'Spc' };
+export const STAT_SHORT: Record<StatName, string> = { sneak: 'Snk', strength: 'Str', unarmed: 'Fist', weapons: 'Wpn', agility: 'Agi', stamina: 'Stm', intimidation: 'Fear', speech: 'Talk' };
 
 /** Levels go to 100, and each one takes longer than the last. */
 export const MAX_LEVEL = 100;

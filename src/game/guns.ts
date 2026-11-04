@@ -31,7 +31,7 @@ export const GUNS: Gun[] = [
   },
   {
     name: '.38 revolver',
-    desc: 'A snub-nosed revolver, five rounds in the cylinder. It never jams, but it kicks.',
+    desc: 'A snub-nosed revolver, five rounds in the cylinder. It rarely jams, but it kicks.',
     holds: 5,
     ammo: '.38 rounds',
     acc: 0.56,

@@ -290,7 +290,7 @@ export const lootLabel = (l: { kind: string; name: string; cash?: number; doses?
   l.kind === 'cash'
     ? `${l.name}, ${dollars(l.cash ?? 0)}`
     : l.doses != null && /^lighter$/i.test(l.name)
-      ? `${l.name} (${l.doses}% fuel)`
+      ? `${l.name}, ${l.doses}% full`
       : l.doses != null && /^matches$/i.test(l.name)
         ? `${l.name} (${l.doses} left)`
         : l.name;
@@ -351,7 +351,7 @@ export const MEDS: Med[] = [
     id: 'splint',
     name: 'Splint',
     price: 22,
-    desc: 'Set a broken arm or leg so it can knit straight. Left unset, a break takes twice as long.',
+    desc: 'Holds a broken arm or leg still so it can knit straight. Left unset, a break takes twice as long.',
     blocked: (h) => (limbs(h).length ? null : h.splinted?.length ? 'Already splinted' : 'No broken arm or leg'),
     use(h) {
       // The limb that will take longest to heal.
@@ -394,7 +394,7 @@ MEDS.push({
   name: 'Drug test kit',
   price: 10,
   desc: 'A reagent vial: tells you what a powder is. One use.',
-  blocked: () => 'Test something with it',
+  blocked: () => 'Use it from the thing you want to test',
   use: () => '',
 });
 

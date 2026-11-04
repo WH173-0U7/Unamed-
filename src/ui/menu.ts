@@ -120,7 +120,7 @@ export function createMenu(handlers: MenuHandlers) {
   const STYLE_NOTES: Record<string, string> = {
     report: 'Courier, like a police report.',
     typewriter: 'Worn typewriter keys.',
-    terminal: 'The glow of an old CRT.',
+    terminal: 'The glow of an old computer screen.',
     clean: 'Plain and rounded (the old look).',
     lines: 'Just words, with a thin line under each.',
     ghost: 'No borders at all, until you touch one.',

@@ -76,13 +76,13 @@ export const PLACES: PlaceInfo[] = [
     name: 'Corner Liquors',
     desc: 'Beer, wine and spirits. They check ID.',
     hours: EVERY(10, 2),
-    blurb: 'Bars on the windows, bottles floor to ceiling, and a sign by the till: WE ID EVERYONE.',
+    blurb: 'Bars on the windows, bottles floor to ceiling, and a sign by the register: WE ID EVERYONE.',
     indoors: true,
   },
   {
     id: 'hospital',
     name: 'County General ER',
-    desc: 'Stitches, casts, blood. Self-pay, and a long wait.',
+    desc: 'Stitches, casts, transfusions. Self-pay, and a long wait.',
     hours: null,
     blurb: 'Bright lights, a smell of bleach, rows of bolted chairs. A man holding a towel to his head; a woman asleep sitting up. Triage looks at you without much interest.',
     indoors: true,
@@ -211,7 +211,7 @@ export interface Stock {
 
 /** The liquor store (they check ID): every drink's swigs in `doses`. */
 export const LIQUOR_STOCK: Stock[] = [
-  { id: 'beer', name: 'Beer', price: 3, desc: 'One cold can. Eases the nerves and the cold.', doses: 1, drinkType: 'beer' },
+  { id: 'beer', name: 'Beer', price: 3, desc: 'One cold can. Takes the edge off.', doses: 1, drinkType: 'beer' },
   { id: 'wine', name: 'Bottle of wine', price: 9, desc: 'Cheap red. Five swigs.', doses: 5, drinkType: 'liquor' },
   { id: 'whiskey', name: 'Pint of whiskey', price: 14, desc: 'Six swigs. Burns all the way down.', doses: 6, drinkType: 'liquor' },
   { id: 'vodka', name: 'Pint of vodka', price: 12, desc: 'Six swigs, in a paper bag.', doses: 6, drinkType: 'liquor' },
@@ -233,7 +233,7 @@ export const GAS_STOCK: Stock[] = [
   { id: 'surgical', name: 'Surgical mask', price: 2, desc: 'Hides a little. Nobody looks twice.', slot: 'face' },
   { id: 'cap', name: 'Baseball cap', price: 22, desc: 'Off the spinner. Shades your eyes from cameras.', slot: 'head' },
   { id: 'beanie', name: 'Beanie', price: 16, desc: 'Covers your hair.', slot: 'head' },
-  { id: 'shades', name: 'Sunglasses', price: 20, desc: 'Gas station shades. Hides your eyes.', slot: 'eyes' },
+  { id: 'shades', name: 'Sunglasses', price: 20, desc: 'Gas station shades. Hide your eyes.', slot: 'eyes' },
 ];
 
 export const PAWN_STOCK: Stock[] = [
@@ -245,17 +245,17 @@ export const PAWN_STOCK: Stock[] = [
   { id: 'hoodie', name: 'Hoodie', price: 25, desc: 'Second-hand. One big front pocket.', slot: 'top' },
   { id: 'cargo', name: 'Cargo pants', price: 30, desc: 'Two cargo pockets for medium things.', slot: 'bottom' },
   { id: 'lighter', name: 'Lighter', price: 2, desc: 'A cheap plastic one.' },
-  // Legal knives, in the case by the till (he still wants your ID).
+  // Legal knives, in the case by the register (he still wants your ID).
   { id: 'k-pocket', name: 'Pocket knife', price: 10, desc: 'A little slip joint. Two hands to open.', knife: 'Pocket knife' },
   { id: 'k-lockback', name: 'Lockback folder', price: 22, desc: 'Locks open; one thumb, with practice.', knife: 'Lockback folder' },
   { id: 'k-assisted', name: 'Assisted-opening knife', price: 30, desc: 'Flips open on a spring.', knife: 'Assisted-opening knife' },
   { id: 'k-hunting', name: 'Hunting knife', price: 35, desc: 'A fixed blade in a leather sheath.', knife: 'Hunting knife' },
   // For carrying a blade out of sight.
   { id: 'beltsheath', name: 'Belt sheath', price: 18, desc: 'Holds a knife (up to a hunting knife) on your belt, ready to hand. Hidden under a jacket, coat or hoodie; on show under a T-shirt.', slot: 'gear' },
-  { id: 'anklesheath', name: 'Ankle sheath', price: 28, desc: 'A small knife strapped above your ankle, under your trouser leg. Nobody sees it; getting it out in a fight takes a turn.', slot: 'gear' },
+  { id: 'anklesheath', name: 'Ankle sheath', price: 28, desc: 'A small knife strapped above your ankle, under your pant leg. Nobody sees it; getting it out in a fight takes a turn.', slot: 'gear' },
   { id: 'cap', name: 'Baseball cap', price: 12, desc: 'Second-hand. Shades your eyes from cameras.', slot: 'head' },
   { id: 'beanie', name: 'Beanie', price: 10, desc: 'Second-hand. Covers your hair.', slot: 'head' },
-  { id: 'shades', name: 'Sunglasses', price: 25, desc: 'A decent used pair from the case. Hides your eyes. At night, a bit odd.', slot: 'eyes' },
+  { id: 'shades', name: 'Sunglasses', price: 25, desc: 'A decent used pair from the case. Hide your eyes. At night, a bit odd.', slot: 'eyes' },
 ];
 
 // ---------- The ER (self-pay) ----------
@@ -266,7 +266,7 @@ export type ErCare = keyof typeof ER_PRICES;
 // ---------- The gun store (your own ID, and a background check) ----------
 export const GUN_STOCK: Stock[] = [
   { id: 'g-9mm', name: 'Compact 9mm pistol', price: 480, desc: 'Fifteen rounds. Light enough for a holster or a cargo pocket.', gun: 'Compact 9mm pistol' },
-  { id: 'g-38', name: '.38 revolver', price: 420, desc: 'Five rounds. Never jams; kicks hard.', gun: '.38 revolver' },
+  { id: 'g-38', name: '.38 revolver', price: 420, desc: 'Five rounds. Rarely jams; kicks hard.', gun: '.38 revolver' },
   { id: 'g-shotgun', name: 'Pump shotgun', price: 350, desc: 'Five shells. Devastating up close; impossible to hide.', gun: 'Pump shotgun' },
   { id: 'a-9mm', name: '9mm rounds', price: 28, desc: 'A box of 50.', ammo: 50 },
   { id: 'a-38', name: '.38 rounds', price: 32, desc: 'A box of 50.', ammo: 50 },

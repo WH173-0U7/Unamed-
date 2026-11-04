@@ -1,7 +1,7 @@
 import type * as THREE from 'three';
 import { writeSave, type SaveData } from '../core/save';
 import { createTv } from './tv';
-import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf, randomName } from './person';
+import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf, randomName, type Loot } from './person';
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
 import { STAT_NAMES, lieBonus, persuadeBonus, train, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
@@ -22,7 +22,7 @@ import { gunOf } from './guns';
 import { HEAT_NAMES, applyTo, comeBack, heal, fade, heatLevel, historyText, injuriesText, meet, newInfamy, recognises, remember, repName, type Infamy, type Known } from './people';
 import { anonymity, conspicuous, describe, hasHood, lookClothes, wearing } from './look';
 import { marksText } from './encounter';
-import { MEDS, freeHand, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
+import { MEDS, take, freeHand, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
 
 /**
  * What's left of your humanity. Killing someone takes a lot of it; stamping
@@ -1018,6 +1018,9 @@ export class Game {
     else if (b.dataset.pack) this.packLoose(Number(b.dataset.pack));
     else if (b.dataset.move) this.moveItem(Number(b.dataset.move));
     else if (b.dataset.combine) this.combinePack(Number(b.dataset.combine));
+    else if (b.dataset.findcar) this.findCar(Number(b.dataset.findcar));
+    else if (b.dataset.searchcar) this.searchCar(Number(b.dataset.searchcar));
+    else if (b.dataset.sleepcar) this.sleepInCar(Number(b.dataset.sleepcar));
     else if (b.dataset.holdR) this.hold(Number(b.dataset.holdR), 'right');
     else if (b.dataset.holdL) this.hold(Number(b.dataset.holdL), 'left');
     else if (b.dataset.putaway) this.putAway(Number(b.dataset.putaway));
@@ -1771,6 +1774,84 @@ export class Game {
     this.refresh();
     this.note([`You slide ${n === 1 ? 'the cigarette' : `${n} cigarettes`} into the pack. ${pack.doses} in it now.`]);
     buzz(5);
+  }
+
+  /** Car keys: walk the block pressing the fob, and see what chirps. */
+  private findCar(i: number) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    if (!it || it.kind !== 'car keys' || it.car || this.place !== 'street' || !this.canLurk) return;
+    const make = (it.detail ?? 'car').replace(/ key fob$/i, '');
+    const hours = (now() - (it.takenAt ?? 0)) / 3_600_000;
+    if (hours > 3) {
+      it.car = 'gone';
+      this.note([`You walk the block pressing the fob. Nothing. By now the ${make} has been reported, towed, or driven home on the spare key.`]);
+    } else if (Math.random() < 0.7) {
+      it.car = 'found';
+      this.note([`Somewhere down the block a ${make} chirps and flashes its lights. There it is.`, 'You can go through it, sleep in it, or the fence knows someone who buys cars.']);
+    } else {
+      it.car = 'gone';
+      this.note([`You walk three blocks pressing the fob. Nothing answers. Wherever the ${make} is parked, it isn't near here.`]);
+    }
+    this.refresh();
+    buzz(6);
+  }
+  /** Through the glovebox, the console, the back seat. The alarm might go. */
+  private searchCar(i: number) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    if (!it || it.car !== 'found' || it.carSearched || this.place !== 'street' || !this.canLurk) return;
+    it.carSearched = true;
+    const lines: string[] = ['You let yourself in and go through it: the glovebox, the console, under the seats.'];
+    if (Math.random() < 0.2) {
+      this.infamy.heat = Math.min(100, this.infamy.heat + 8);
+      lines.push('The alarm goes off, whooping down the street. Lights come on in a window. You grab what you can.');
+    }
+    const r = Math.random;
+    const table: Loot[] = [
+      { kind: 'cash', name: 'Change from the cup holder', cash: Math.round((1 + r() * 6) * 4) / 4, where: 'cup holder' },
+      { kind: 'cash', name: 'Cash in the glovebox', cash: Math.round(5 + r() * 55), where: 'glovebox' },
+      { kind: 'misc', name: 'Laptop', detail: 'In a bag on the back seat', where: 'back seat' },
+      { kind: 'misc', name: 'Phone charger', where: 'console' },
+      { kind: 'misc', name: 'Cigarettes', detail: 'A half-empty pack', doses: 6 + Math.floor(r() * 10), where: 'door pocket' },
+      { kind: 'misc', name: 'Painkillers', med: 'painkillers', where: 'glovebox' },
+      { kind: 'weapon', name: 'Pocket knife', weapon: 4, cuts: true, where: 'glovebox' },
+      { kind: 'misc', name: 'Parking tickets', detail: 'A wad of them, unpaid', where: 'sun visor' },
+    ];
+    const n = 1 + Math.floor(r() * 3);
+    const picks = [...table].sort(() => r() - 0.5).slice(0, n);
+    for (const l of picks) lines.push(take(inv, l).text);
+    this.refresh();
+    this.note(lines);
+    buzz(8);
+  }
+  /** A night in a car: warm, dry, out of sight (until the owner's reported it). */
+  private sleepInCar(i: number) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    const h = this.health;
+    if (!it || it.car !== 'found' || this.place !== 'street' || !this.canLurk) return;
+    this.encounter = null;
+    const lines = ['You climb into the back seat, lock the doors and curl up under your coat. The windows fog over.', ...passHours(h, REST_HOURS, true)];
+    if (h.dead) return this.die(lines);
+    h.cold = 0;
+    h.stress = Math.max(0, (h.stress ?? 0) - 15);
+    lines.push('You wake stiff and cold-footed, but dry.');
+    // Reported by now: someone's been looking for it.
+    const hours = (now() - (it.takenAt ?? 0)) / 3_600_000;
+    if (hours > 2 && Math.random() < 0.4) {
+      lines.push('A flashlight on the glass. Someone is tapping on the window with a baton.');
+      this.infamy.heat = Math.min(100, this.infamy.heat + 10);
+      it.car = 'gone';
+      this.refresh();
+      this.note(lines);
+      this.save.state.policeStop = true;
+      this.openSheet('police');
+      return;
+    }
+    this.refresh();
+    this.note(lines);
+    buzz(8);
   }
 
   /** A weapon into your hand: out, ready, and seen by everyone. */
@@ -2560,6 +2641,8 @@ export class Game {
                             ? x.spray
                               ? `${x.doses ?? 0} spray${x.doses === 1 ? '' : 's'} left · blinds them`
                               : `A weapon: +${x.weapon ?? 0} damage${x.cuts ? ', cuts' : ''}`
+                            : x.kind === 'car keys'
+                            ? `${x.detail ?? 'Car keys'} · ${x.car === 'found' ? `the car's parked nearby${x.carSearched ? ', searched' : ''} (the fence buys cars)` : x.car === 'gone' ? 'the car’s gone' : 'press it on the street to find the car'}`
                             : /^cigarettes$/i.test(x.name)
                             ? `${x.detail ? `${x.detail} · ` : ''}${x.doses ?? 0} of 20`
                             : /^loose cigarettes$/i.test(x.name)
@@ -2589,6 +2672,14 @@ export class Game {
                 if (x.secret === 'cocaine' && x.known) acts += act('bump', 'Bump', h.wired ? 'Already wired' : null);
                 // A gun: load it from a box of its rounds.
                 if (gunOf(x.name)) acts += act('load', 'Load', (x.doses ?? 0) >= gunOf(x.name)!.holds ? 'Full' : inv.items.some((y) => y.name === gunOf(x.name)!.ammo && (y.doses ?? 0) > 0) ? null : 'No ammunition');
+                // Car keys: find the car (on the street), then go through it, or sleep in it.
+                if (x.kind === 'car keys') {
+                  if (!x.car) acts += act('findcar', 'Find the car', this.place !== 'street' || !this.canLurk ? 'Out on the street' : null);
+                  else if (x.car === 'found') {
+                    acts += act('searchcar', 'Search it', x.carSearched ? 'Done' : this.place !== 'street' || !this.canLurk ? 'Out on the street' : null);
+                    acts += act('sleepcar', 'Sleep in it', this.place !== 'street' || !this.canLurk ? 'Out on the street' : null);
+                  }
+                }
                 // A weapon: in your hand (out, and seen), or put away.
                 if (x.kind === 'weapon' && !x.spray) {
                   if (x.hand) acts += act('putaway', 'Put away');

@@ -129,6 +129,8 @@ export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'kno
   if (x.secret && x.secret !== 'empty') return { heroin: 40, fentanyl: 50, meth: 35, tranq: 15 }[x.secret];
   if (x.med) return { bandages: 8, gauze: 15, painkillers: 6, splint: 22, iron: 12, testkit: 10, caffeine: 5 }[x.med];
   if (x.kind === 'phone') return 180;
+  if (/^laptop$/i.test(n)) return 300;
+  if (/phone charger/i.test(n)) return 5;
   if (x.kind === 'car keys') return 80;
   if (x.kind === 'id') return /expired/.test(n) ? 10 : 60;
   if (x.kind === 'credit card') return 80;
@@ -158,6 +160,14 @@ export function offer(place: 'pawn' | 'fence', x: InvItem): { cents: number } | 
     if (v <= 0) return { why: "He won't take it" };
     // Pawn shops pay a fraction, rounded down to the quarter.
     return { cents: Math.max(25, Math.floor((v * 0.2 * 100) / 25) * 25) };
+  }
+  // Car keys: worth something only with the car, and only while it isn't hot yet.
+  if (kind === 'car keys') {
+    const fresh = (x as InvItem).car === 'found' && Date.now() - ((x as InvItem).takenAt ?? 0) < 3 * 3_600_000;
+    if (!fresh) return { why: (x as InvItem).car === 'found' ? '"That car\'s been reported by now. Every cop in the city has the plate."' : '"Where\'s the car? Keys on their own are nothing to me."' };
+    // A chop shop pays a few hundred for a car, whatever it's worth.
+    const seed = [...(x.detail ?? '')].reduce((n, ch) => n + ch.charCodeAt(0), 0);
+    return { cents: (300 + (seed % 7) * 50) * 100 };
   }
   if (v <= 0 || /receipt|note|house keys|transfer|slip|photo/i.test(x.name)) return { why: '"What am I gonna do with that?"' };
   // Drugs, or a needle: that's a dealer's business, not his.

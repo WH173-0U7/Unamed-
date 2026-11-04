@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.73',
+    date: 'Nov 4',
+    items: [
+      'Car keys are good for something now. On the street, “Find the car” in Pockets: press the fob and, if it’s parked nearby, the car chirps and flashes.',
+      'Then you can go through it (the glovebox, the console, the back seat: loose change, cash, a laptop, a knife, smokes; sometimes the alarm goes off), sleep in it (warm, dry and out of sight), or sell it to the fence for a few hundred dollars.',
+      'But owners report a stolen car fast: after about three hours it’s gone or the plate is hot, the fence won’t touch it, and sleeping in a reported car can end with a baton tapping on the window.',
+    ],
+  },
+  {
     v: '0.72',
     date: 'Nov 4',
     items: [

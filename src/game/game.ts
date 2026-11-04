@@ -934,11 +934,8 @@ export class Game {
     }
     w.lives++;
     w.lifeStart = this.lurkState.times;
-    this.onDeath?.();
-    const el = document.createElement('div');
-    el.id = 'death';
     const p = (t: string) => `<p>${t}</p>`;
-    el.innerHTML =
+    const html =
       `<h2>${title}</h2>` +
       `<div class="death-lines">${lines.slice(-3).map(p).join('')}</div>` +
       `<dl class="death-sum">` +
@@ -953,9 +950,19 @@ export class Game {
           : 'There was nothing on you worth taking.'
       }</p>` +
       `<button type="button" class="death-btn">Go on as someone new</button>`;
+    // (Saved with it: closing the app on this screen still shows it next time.)
+    this.save.state.deathScreen = html;
+    this.onDeath?.();
+    this.showDeath(html);
+  }
+  private showDeath(html: string) {
+    document.getElementById('death')?.remove();
+    const el = document.createElement('div');
+    el.id = 'death';
+    el.innerHTML = html;
     // (Not before it's faded in: a tap meant for the fight mustn't skip this.)
     const shownAt = performance.now();
-    el.querySelector('button')!.addEventListener('click', () => performance.now() - shownAt > 2500 && this.rebirth());
+    el.querySelector('button')?.addEventListener('click', () => performance.now() - shownAt > 2500 && this.rebirth());
     // Above everything, the blood on the glass included, so it can be read.
     document.body.append(el);
   }
@@ -963,6 +970,7 @@ export class Game {
   /** Off the death screen: a new character, same streets. */
   private rebirth() {
     document.getElementById('death')?.remove();
+    delete this.save.state.deathScreen;
     this.dead = false;
     this.running = true;
     this.phase = 'idle';
@@ -3425,6 +3433,12 @@ export class Game {
   }
 
   private showSavedScene() {
+    // Closed on the death screen: it's still there.
+    if (typeof this.save.state.deathScreen === 'string') {
+      this.dead = true;
+      this.running = false;
+      this.showDeath(this.save.state.deathScreen);
+    }
     if (this.tvState.on) {
       // The set was already on at the save point: no warm-up.
       this.powerBtn.hidden = true;
@@ -3506,6 +3520,7 @@ export class Game {
   }
 
   resume() {
+    if (this.dead) return;
     this.running = true;
     // (Paused, or reloaded, before what happened while you were out was shown.)
     if (this.tvState.on && !this.koLines) this.showWoke();

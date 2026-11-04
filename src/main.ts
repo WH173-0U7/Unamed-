@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { pixelRatioFor } from './core/quality';
 import { enforceFullscreen } from './core/fullscreen';
 import { onSettingsChange } from './core/settings';
-import { deleteSave, formatAgo, formatPlayTime, hasSave, loadSave, newSave } from './core/save';
+import { deleteSave, formatAgo, formatPlayTime, hasSave, loadSave, newSave, loadBackup, staleWrite } from './core/save';
 import { createFilm } from './fx/film';
 import { createRain } from './fx/rain';
 import { createSnow } from './fx/snow';
@@ -200,7 +200,11 @@ function hideMenu() {
 function save(): boolean {
   if (!game) return false;
   const ok = game.saveNow();
-  if (!ok) menu.toast("Couldn't save: this browser is blocking storage");
+  if (!ok && staleWrite) {
+    openedElsewhere();
+    return false;
+  }
+  if (!ok) menu.toast("Couldn't save: storage is full or blocked");
   return ok;
 }
 
@@ -219,7 +223,23 @@ function startGame(fresh: boolean) {
   }
   // (Never two games at once: a double tap on Continue.)
   game?.close();
-  game = new Game(data, $('game'), renderer, glass);
+  try {
+    game = new Game(data, $('game'), renderer, glass);
+  } catch {
+    // The save won't run: the backup, if it will; otherwise say so.
+    game?.close();
+    game = null;
+    const backup = fresh ? null : loadBackup();
+    try {
+      if (!backup) throw new Error('no backup');
+      game = new Game(backup, $('game'), renderer, glass);
+      menu.toast('The save was damaged: loaded the one before it');
+    } catch {
+      game = null;
+      menu.toast('The saved game is damaged and can’t be loaded');
+      return;
+    }
+  }
   // Dying saves at once: that character is gone, and you go on as someone new.
   game.onDeath = () => save();
   game.setSize(innerWidth, innerHeight, pixelRatio);
@@ -261,7 +281,10 @@ function resume() {
 
 function quitToMenu() {
   if (!game) return;
-  // Already saved when the game paused; quitting changes nothing.
+  // Saved as it is now (whatever finished while paused stays finished: no
+  // quitting to roll it again).
+  if (!game.dead) save();
+  if (!game) return;
   game.close();
   game = null;
   state = 'menu';
@@ -269,6 +292,21 @@ function quitToMenu() {
   menu.setSaveInfo(loadSave());
   showMenu('main');
 }
+
+/** The same game was saved from another tab: this copy is out of date. */
+function openedElsewhere() {
+  if (!game) return;
+  game.close();
+  game = null;
+  state = 'menu';
+  document.body.classList.remove('in-game', 'paused');
+  menu.setSaveInfo(loadSave());
+  showMenu('main');
+  menu.toast('The game was played somewhere else. Continue to pick up from there.', 4500);
+}
+addEventListener('storage', (ev) => {
+  if (ev.key === 'darcvoyd.save' && game) openedElsewhere();
+});
 
 $('pause-btn').addEventListener('click', pause);
 addEventListener('keydown', (e) => {

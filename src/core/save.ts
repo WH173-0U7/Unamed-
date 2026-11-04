@@ -16,6 +16,11 @@ export interface SaveData {
   /** Total time played, in seconds. */
   playTime: number;
   /**
+   * How many times it's been written. A game open somewhere else (another
+   * tab) holding an older count can't write over a newer save.
+   */
+  rev?: number;
+  /**
    * The game's progress. Empty for now: each new game system stores its own
    * state under its own key here (e.g. state.player, state.world).
    */
@@ -29,7 +34,14 @@ const LEGACY_KEYS = ['unamed.save', 'unamed.save.backup', 'dreamscape.save', 'dr
 
 export function newSave(): SaveData {
   const now = Date.now();
-  return { version: SAVE_VERSION, createdAt: now, savedAt: now, playTime: 0, state: {} };
+  // (Counting on from whatever's stored: a new game replaces it.)
+  let rev = 0;
+  try {
+    rev = parse(localStorage.getItem(KEY))?.rev ?? 0;
+  } catch {
+    /* nothing stored */
+  }
+  return { version: SAVE_VERSION, createdAt: now, savedAt: now, playTime: 0, state: {}, rev };
 }
 
 function parse(raw: string | null): SaveData | null {
@@ -37,6 +49,9 @@ function parse(raw: string | null): SaveData | null {
   try {
     const data = JSON.parse(raw) as Partial<SaveData>;
     if (typeof data !== 'object' || data === null || typeof data.createdAt !== 'number') return null;
+    // (Damaged: not something a game could have written.)
+    if (data.state != null && (typeof data.state !== 'object' || Array.isArray(data.state))) return null;
+    if (data.playTime != null && !Number.isFinite(data.playTime)) return null;
     return migrate(data);
   } catch {
     return null;
@@ -52,6 +67,7 @@ function migrate(data: Partial<SaveData>): SaveData {
     savedAt: data.savedAt ?? data.createdAt ?? Date.now(),
     playTime: data.playTime ?? 0,
     state: data.state ?? {},
+    rev: typeof data.rev === 'number' ? data.rev : 0,
   };
 }
 
@@ -67,6 +83,18 @@ export function loadSave(): SaveData | null {
   }
 }
 
+/** The backup alone (when the main save loads but won't run). */
+export function loadBackup(): SaveData | null {
+  try {
+    return parse(localStorage.getItem(BACKUP_KEY));
+  } catch {
+    return null;
+  }
+}
+
+/** The last write was refused: a newer save was written somewhere else. */
+export let staleWrite = false;
+
 export function hasSave(): boolean {
   return loadSave() !== null;
 }
@@ -74,10 +102,20 @@ export function hasSave(): boolean {
 /** Returns false if the device refused to store it (e.g. private browsing). */
 export function writeSave(data: SaveData): boolean {
   try {
+    staleWrite = false;
+    const previous = localStorage.getItem(KEY);
+    const old = parse(previous);
+    // Written since by this game open somewhere else: don't undo that.
+    if (old && old.createdAt === data.createdAt && (old.rev ?? 0) > (data.rev ?? 0)) {
+      staleWrite = true;
+      return false;
+    }
     data.savedAt = Date.now();
+    data.rev = Math.max(data.rev ?? 0, old?.rev ?? 0) + 1;
     const write = () => {
-      const previous = localStorage.getItem(KEY);
-      if (previous) localStorage.setItem(BACKUP_KEY, previous);
+      // (Only a good save, of this same game, is worth keeping as the backup.)
+      if (old && old.createdAt === data.createdAt) localStorage.setItem(BACKUP_KEY, previous!);
+      else localStorage.removeItem(BACKUP_KEY);
       localStorage.setItem(KEY, JSON.stringify(data));
     };
     try {

@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.91',
+    date: 'Nov 4',
+    items: [
+      'Saves: the game open in a second tab can no longer write over a newer save, so it can’t undo a death or an arrest. That tab goes back to the menu, and Continue picks up from the newest save.',
+      'Quitting to the menu saves first, so whatever finished while you were paused stays finished. It can’t be rolled again by quitting.',
+      'Closing the app on the death screen: it’s still there next time, not skipped.',
+      'A damaged save no longer fails silently: the game tries the one before it, or tells you. The backup can’t be overwritten by a broken save, or by a different game.',
+    ],
+  },
+  {
     v: '0.90',
     date: 'Nov 4',
     items: [

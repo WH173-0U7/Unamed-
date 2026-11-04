@@ -385,6 +385,8 @@ export class Game {
   private get infamy(): Infamy {
     const f = (this.world.infamy ??= newInfamy());
     fade(f);
+    // (A warrant doesn't fade: your name's in the system until it's dealt with.)
+    if (this.case?.warrant) f.heat = Math.max(f.heat, 35);
     return f;
   }
 
@@ -395,13 +397,16 @@ export class Game {
   private rememberThem(e: Encounter) {
     const inv = this.inventory;
     const before = e.person.known ? this.people.find((k) => k.id === e.person.known)?.memory.sawFace : false;
-    const k = remember(this.people, e, { anon: anonymity(inv), looked: describe(inv), clothes: lookClothes(inv) }, { robbed: !!e.robbed, stomped: !!e.stomped, mugged: !!e.mugged, tortured: e.tortured ?? 0 });
+    const k = remember(this.people, e, e.seenAs ?? { anon: anonymity(inv), looked: describe(inv), clothes: lookClothes(inv) }, { robbed: !!e.robbed, stomped: !!e.stomped, mugged: !!e.mugged, tortured: e.tortured ?? 0 });
     if (!k || k.memory.beatYou) return;
     const f = this.infamy;
     if (k.memory.sawFace && !before) f.rep += k.memory.grudge / 8;
     // Who goes to the police: most civilians, few junkies.
     const reports = { civilian: 0.7, drunk: 0.4, homeless: 0.25, junkie: 0.15 }[k.person.kind];
-    if (Math.random() < reports) f.heat = Math.min(100, f.heat + (k.memory.grudge / 5) * (k.memory.sawFace ? 1 : 0.4));
+    if (Math.random() < reports) {
+      f.heat = Math.min(100, f.heat + (k.memory.grudge / 5) * (k.memory.sawFace ? 1 : 0.4));
+      if (k.memory.sawFace && e.fought) f.reports = (f.reports ?? 0) + 1;
+    }
   }
 
   private get humanity(): Humanity {
@@ -611,7 +616,15 @@ export class Game {
       const inv = this.inventory;
       e.conspicuous = conspicuous(inv);
       const k = e.person.known ? this.people.find((x) => x.id === e.person.known) : undefined;
-      if (k) e.recognised = recognises(k, anonymity(inv), lookClothes(inv));
+      const anon = anonymity(inv);
+      const clothes = lookClothes(inv).join('|');
+      const was = e.lookAt;
+      if (!was || was.anon !== anon || was.clothes !== clothes) {
+        if (k) e.recognised = recognises(k, anon, lookClothes(inv));
+        // (Known from what people say: more covered up now, less chance.)
+        else if (e.byRep && was && anon > was.anon) e.recognised = Math.random() < (1 - anon) / Math.max(0.05, 1 - was.anon);
+        e.lookAt = { anon, clothes };
+      }
     }
     if (e.stage === 'seen') e.them.fear = this.fearOf(e);
     this.prime(e);
@@ -666,6 +679,7 @@ export class Game {
           const f = this.infamy;
           f.rep += 15 * (1 - anon * 0.7);
           f.heat = Math.min(100, f.heat + 35 * (1 - anon * 0.6));
+          if (anon <= 0.6) f.killsSeen = (f.killsSeen ?? 0) + 1;
           worse.push(anon > 0.6 ? 'Someone saw that. A face in a window, then gone. At least your face was covered.' : 'Someone saw that. A face in a window, then gone. They saw yours.');
         }
         this.humanity.kills++;
@@ -2163,6 +2177,12 @@ export class Game {
         this.fx.dirt(0.8);
         arrested = true;
         charges.push('Resisting arrest');
+        // (What they stopped you for still stands.)
+        if (carStop) {
+          charges.push('Possession of stolen property');
+          inv.items = inv.items.filter((x) => !(x.kind === 'car keys' && x.car));
+        }
+        if (brandished) charges.push('Brandishing a weapon');
       }
     } else if (brandished || arrested) {
       // (Nothing to talk about.)
@@ -2207,8 +2227,14 @@ export class Game {
       if (looks) {
         lines.push('One of them looks at you a long time, then at his phone. "That\'s the one." The cuffs go on.');
         arrested = true;
-        // Wanted badly enough, someone picks you out of a line-up.
-        if (f.heat > 60) charges.push('Assault');
+        // Someone who saw your face went to them: picked out of a line-up.
+        if ((f.killsSeen ?? 0) > 0 && f.heat > 60) {
+          charges.push('Homicide');
+          f.killsSeen = 0;
+        } else if ((f.reports ?? 0) > 0 && f.heat > 60) {
+          charges.push('Assault');
+          f.reports = 0;
+        }
       } else if (!evidence.length && !banned.length) {
         lines.push('They find nothing. "Stay out of trouble." They get back in the car and roll away.');
         f.heat = Math.max(0, f.heat - 5);
@@ -2219,6 +2245,10 @@ export class Game {
       charges.push('Failure to appear');
     }
     if (arrested) {
+      // Booking: everything on you, bag and all. What's stolen or illegal is charged.
+      if (!charges.includes('Possession of stolen property') && inv.items.some((x) => (x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card')) charges.push('Possession of stolen property');
+      if (!charges.includes('Possession of a controlled substance') && inv.items.some((x) => x.secret && x.secret !== 'empty')) charges.push('Possession of a controlled substance');
+      if (!charges.includes('Carrying an illegal weapon') && inv.items.some((x) => x.kind === 'weapon' && /switchblade|butterfly|push dagger/i.test(x.name))) charges.push('Carrying an illegal weapon');
       // Whatever's stolen is taken; a night in a cell.
       const before = inv.items.length;
       inv.items = inv.items.filter((x) => !((x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card' || x.kind === 'weapon' || (x.secret && x.secret !== 'empty')));
@@ -2259,7 +2289,7 @@ export class Game {
           this.save.state.bailOffer = 'bail';
         }
       } else lines.push('In the morning they let you go: not enough to charge you. This time.');
-      f.heat = Math.max(0, f.heat - 45);
+      if (charges.length) f.heat = Math.max(0, f.heat - 45);
       f.rep += 5;
       h.stress = Math.min(100, (h.stress ?? 0) + 15);
     }
@@ -2331,7 +2361,9 @@ export class Game {
     const f = this.infamy;
     const rec = this.record;
     const priors = Math.max(0, rec.arrests - 1);
-    const sev = c.charges.reduce((n, x) => n + chargeOf(x).sev, 0);
+    // Convicted again while on probation: the old sentence comes back on top.
+    const onProbation = now() < ((this.save.state.probationUntil as number) ?? 0);
+    const sev = c.charges.reduce((n, x) => n + chargeOf(x).sev, 0) + (onProbation ? 4 : 0);
     const lines: string[] = [`Your case is called: ${c.charges.map((x) => x.toLowerCase()).join(', ')}. A public defender you've never met reads your file in the hallway.`];
     // Talking to the judge.
     const talk = lieBonus(this.stats);
@@ -2367,19 +2399,19 @@ export class Game {
       return [...lines, ...this.serve(days)];
     }
     if (sev <= 6) {
-      this.save.state.probationUntil = now() + 3 * 24 * 3_600_000;
+      this.save.state.probationUntil = now() + 30 * 24 * 3_600_000;
       lines.push('Your lawyer takes the deal: you plead guilty and get probation. Get charged with anything while you\'re on it and you\'re held with no bail.');
       f.heat = Math.max(0, f.heat - 30);
       return lines;
     }
     const days = Math.round(c.charges.reduce((n, x) => n + chargeOf(x).days, 0) * (1 + priors * 0.3));
-    lines.push(`Found guilty. ${days} days in County.`);
+    lines.push(days >= 365 ? `Found guilty. ${Math.round(days / 365)} years in state prison.` : `Found guilty. ${days} days in County.`);
     return [...lines, ...this.serve(days)];
   }
   /** Time inside: you heal, you get harder, and you come out with nothing new. */
   private serve(days: number): string[] {
     const h = this.health;
-    const lines = [`You serve your ${days} days. The food is grey, the nights are loud, and you learn who not to look at.`, ...passHours(h, Math.min(days * 24, 96), true)];
+    const lines = [`You serve ${days >= 365 ? `${Math.round(days / 365)} years` : `your ${days} days`}. The food is gray, the nights are loud, and you learn who not to look at.`, ...passHours(h, Math.min(days * 24, 96), true)];
     if (h.dead) return lines;
     h.stress = Math.min(100, (h.stress ?? 0) + 25);
     h.nerve = Math.min(100, (h.nerve ?? 0) + 5);
@@ -3099,6 +3131,11 @@ export class Game {
   /** What the encounter needs to know about you to offer its options (see Encounter.flame). */
   private prime(e: Encounter) {
     const inv = this.inventory;
+    // Face to face and awake, they see you as you are now (the least covered you've been is what sticks).
+    if (e.facedYou && e.stage !== 'seen' && !e.them.out && !e.them.dead && !e.chase) {
+      const anon = anonymity(inv);
+      if (!e.seenAs || anon < e.seenAs.anon) e.seenAs = { anon, looked: describe(inv), clothes: lookClothes(inv) };
+    }
     e.flame = !!this.flame();
     e.cardsHeld = e.holder
       ? inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind) && x.detail === e.holder && !x.pin).map(({ x, i }) => ({ i, name: x.name }))
@@ -3388,6 +3425,7 @@ export class Game {
             applyTo(known, e.them);
           }
           e.recognised = recognises(known, anon, lookClothes(inv));
+          e.lookAt = { anon, clothes: lookClothes(inv).join('|') };
           e.grudge = known.memory.grudge;
           // (What an earlier you did to them, this you doesn't know.)
           e.history = known.memory.otherLife ? undefined : historyText(known);
@@ -3396,6 +3434,8 @@ export class Game {
         } else if (Math.random() < Math.min(0.5, this.infamy.rep / 200) * (1 - anon)) {
           // A stranger who's heard about you, and knows your face.
           e.recognised = true;
+          e.byRep = true;
+          e.lookAt = { anon, clothes: lookClothes(inv).join('|') };
           e.grudge = 0;
           e.history = "You've never met. But they know your face: people talk.";
         }

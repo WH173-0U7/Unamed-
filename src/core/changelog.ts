@@ -11,6 +11,18 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.95',
+    date: 'Nov 4',
+    items: [
+      'What a victim remembers is how you looked while they could see you. Pulling a mask on after the fight doesn’t help, and taking it off after doesn’t hurt.',
+      'Whether someone knows you is decided when you see them, and only checked again if you change how you look before you walk up. Covering your face also works against strangers who know you by reputation.',
+      'A warrant doesn’t fade: the police keep looking until you deal with it.',
+      'Caught after running from a stop, you’re still charged with what they stopped you for (the stolen car, the weapon in your hand). At booking they go through everything, bag included, and what they find is charged.',
+      'Assault is only charged when someone who saw your face went to the police, not just because the police are after you. A killing someone saw, with your face showing, can get you charged with homicide, and that’s years.',
+      'Probation lasts a month, and being convicted again while you’re on it makes the sentence much worse. Being released without charge no longer cools the police off.',
+    ],
+  },
+  {
     v: '0.94',
     date: 'Nov 4',
     items: [

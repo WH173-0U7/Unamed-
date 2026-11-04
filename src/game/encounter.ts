@@ -225,6 +225,12 @@ export interface Encounter {
   whyRan?: string;
   /** You collapsed while chasing them: nobody beat you, nobody was there to rob you. */
   chaseOut?: boolean;
+  /** How you looked while they could see you (the least covered you were): what they'll remember. */
+  seenAs?: { anon: number; looked: string; clothes: string[] };
+  /** How you looked when you saw them (whether they know you is decided then, again only if it changes). */
+  lookAt?: { anon: number; clothes: string };
+  /** They know your face from what people say, not from meeting you. */
+  byRep?: boolean;
   /** How a chase ended on your side (out of breath, you stopped), for the closing note. */
   chaseEnd?: string;
   grudge?: number;

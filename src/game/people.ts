@@ -285,6 +285,10 @@ export interface Infamy {
   heat: number;
   /** When they were last brought up to date (they fade). */
   at: number;
+  /** Victims who went to the police having seen your face (what an assault charge rests on). */
+  reports?: number;
+  /** Killings someone saw, with your face showing. */
+  killsSeen?: number;
 }
 
 export const newInfamy = (): Infamy => ({ rep: 0, heat: 0, at: now() });

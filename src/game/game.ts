@@ -13,7 +13,7 @@ import { guilt } from './voices';
 import { sound } from '../fx/sound';
 import type { DrugLook } from '../fx/drugs';
 import { clockText, dateText, now, partOfDay } from './clock';
-import { RAIN_AMOUNT, WEATHER_NAME, newWeather, updateWeather, weatherLine, type WeatherState } from './weather';
+import { COLD_AMOUNT, RAIN_AMOUNT, SNOW_AMOUNT, WEATHER_NAME, WET_AMOUNT, isSnow, newWeather, updateWeather, weatherLine, type WeatherState } from './weather';
 import { COLD_NAMES } from './health';
 import { maybeThief, newWorld, robBody, robKnockedOut, settle, type World } from './legacy';
 import { isBrute } from './voices';
@@ -318,6 +318,11 @@ export class Game {
     if (!this.tvState.on || placeInfo(this.place).indoors) return 0;
     return RAIN_AMOUNT[this.weather.now];
   }
+  /** How hard it's snowing where you are (0 indoors), for the snow. */
+  get snowAmount(): number {
+    if (!this.tvState.on || placeInfo(this.place).indoors) return 0;
+    return SNOW_AMOUNT[this.weather.now];
+  }
 
   /**
    * Time out on the street: the rain soaks you and you get colder (a coat
@@ -327,14 +332,15 @@ export class Game {
   private chill(): string | null {
     const h = this.health;
     const cold = h.cold ?? 0;
-    const rain = RAIN_AMOUNT[this.weather.now];
+    const rain = COLD_AMOUNT[this.weather.now];
+    const snowing = isSnow(this.weather.now);
     const top = this.inventory.clothes[0] ?? '';
     const warm = /coat|parka|puffer|leather|layered/i.test(top) ? 0.5 : /t-shirt|shirt/i.test(top) ? 1.4 : 1;
     if (rain > 0 && cold < 3 && Math.random() < rain * 0.65 * warm) {
       h.cold = cold + 1;
       return [
         '',
-        `The rain soaks through your ${top.toLowerCase() || 'clothes'}. You're chilled.`,
+        snowing ? `Snow melts into your ${top.toLowerCase() || 'clothes'} and the cold gets in. You're chilled.` : `The rain soaks through your ${top.toLowerCase() || 'clothes'}. You're chilled.`,
         "You're soaked through and cold to the bone.",
         "You can't stop shivering. Your fingers won't work properly. You're freezing.",
       ][h.cold];
@@ -436,8 +442,8 @@ export class Game {
     }
     this.encounter = null;
     this.wipeBlood();
-    const raining = RAIN_AMOUNT[this.weather.now] > 0;
-    const lines = [raining ? 'You find a doorway out of the rain and rest for a few hours.' : 'You find somewhere quiet and rest for a few hours.', ...passHours(this.health, REST_HOURS, true)];
+    const raining = WET_AMOUNT[this.weather.now] > 0;
+    const lines = [raining ? `You find a doorway out of the ${isSnow(this.weather.now) ? 'snow' : 'rain'} and rest for a few hours.` : 'You find somewhere quiet and rest for a few hours.', ...passHours(this.health, REST_HOURS, true)];
     if (this.health.dead) return this.die(lines);
     const h = this.health;
     if (h.cold) {
@@ -555,7 +561,10 @@ export class Game {
     const mugged = !!e.mugged;
     const levelsBefore = Object.values(this.stats).reduce((n, x) => n + x.level, 0);
     const shotsBefore = e.shots ?? 0;
+    const downBefore = !!e.you?.down;
     const impacts = act(e, id, this.stats, this.inventory, (this.save.state.moves ??= {}) as Record<string, number>);
+    // Down on the pavement: dirt on the glass.
+    if (!downBefore && e.you?.down) this.fx.dirt(e.you.out ? 0.9 : 0.6);
     // Gunshots get called in.
     if ((e.shots ?? 0) > shotsBefore) this.infamy.heat = Math.min(100, this.infamy.heat + 18 * ((e.shots ?? 0) - shotsBefore));
     if (Object.values(this.stats).reduce((n, x) => n + x.level, 0) > levelsBefore) sound.levelUp();
@@ -996,6 +1005,7 @@ export class Game {
     else if (b.dataset.inject) this.inject(Number(b.dataset.inject));
     else if (b.dataset.pack) this.packLoose(Number(b.dataset.pack));
     else if (b.dataset.move) this.moveItem(Number(b.dataset.move));
+    else if (b.dataset.combine) this.combinePack(Number(b.dataset.combine));
     else if (b.dataset.load) this.loadGun(Number(b.dataset.load));
     else if (b.dataset.drink) this.drink(Number(b.dataset.drink));
   }
@@ -1047,7 +1057,7 @@ export class Game {
       delete h.smokingUntil;
       lines.push('You stub the cigarette out on the wall before you go in.');
     }
-    if (!info.indoors && RAIN_AMOUNT[this.weather.now] > 0) lines.push(`It's still raining (${WEATHER_NAME[this.weather.now].toLowerCase()}).`);
+    if (!info.indoors && WET_AMOUNT[this.weather.now] > 0) lines.push(`It's still ${isSnow(this.weather.now) ? 'snowing' : 'raining'} (${WEATHER_NAME[this.weather.now].toLowerCase()}).`);
     this.note(lines);
     buzz(10);
   }
@@ -1528,7 +1538,7 @@ export class Game {
    */
   private useFlame(fire: InvItem, use: 'light' | 'burn' | 'fire'): string | null {
     const inv = this.inventory;
-    const wet = RAIN_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors;
+    const wet = WET_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors;
     const matches = /matches/i.test(fire.name);
     const left = flameLeft(fire);
     if (matches) {
@@ -1557,7 +1567,7 @@ export class Game {
     // A cigarette takes about six minutes to smoke, for real.
     h.smokingUntil = now() + SMOKE_MS;
     const lines = [
-      RAIN_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors
+      WET_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors
         ? 'You hunch over a cigarette, cupping it from the rain, and get it lit on the third try.'
         : ['You light a cigarette and pull the smoke deep. Your hands stop shaking.', 'You light up and lean back, watching the street.', 'The first drag burns. The second one helps.'][Math.floor(Math.random() * 3)],
     ];
@@ -1738,6 +1748,21 @@ export class Game {
     buzz(5);
   }
 
+  /** Cigarettes from one pack into another (the fullest with room; a pack holds 20). */
+  private combinePack(i: number) {
+    const inv = this.inventory;
+    const from = inv.items[i];
+    if (!from || !/^cigarettes$/i.test(from.name) || (from.doses ?? 0) <= 0) return;
+    const to = inv.items.filter((y) => y !== from && /^cigarettes$/i.test(y.name) && (y.doses ?? 0) < 20).sort((a, b) => (b.doses ?? 0) - (a.doses ?? 0))[0];
+    if (!to) return;
+    const n = Math.min(from.doses ?? 0, 20 - (to.doses ?? 0));
+    to.doses = (to.doses ?? 0) + n;
+    from.doses = (from.doses ?? 0) - n;
+    this.refresh();
+    this.note([`You move ${n === 1 ? 'a cigarette' : `${n} cigarettes`} across. That pack has ${to.doses} now${from.doses ? `; ${from.doses} left in this one` : ', and this one’s empty'}.`]);
+    buzz(5);
+  }
+
   /** Smoking now (a cigarette that hasn't burned down yet). */
   get smoking(): boolean {
     const h = this.health;
@@ -1850,6 +1875,7 @@ export class Game {
         h.blood = Math.min(h.blood, Math.max(h.maxBlood * 0.6, h.blood - 350));
         h.stress = Math.min(100, (h.stress ?? 0) + 25);
         this.fx.impact(true, 350, true, 'spatter');
+        this.fx.dirt(0.8);
         arrested = true;
         charges.push('Resisting arrest');
       }
@@ -1938,6 +1964,17 @@ export class Game {
   private get charged(): boolean {
     return Object.values(this.record.charges).some((n) => n > 0);
   }
+  /** Marks on you (scars, teeth, bruises): nothing dangerous, so set apart and greyed. */
+  private marksHtml(): string {
+    const ms = injuryEffects(this.health).filter((i) => i.mark);
+    if (!ms.length) return '';
+    return (
+      `<section class="stat-card marks"><h3><span>Marks and scars</span><b>${ms.length}</b></h3>` +
+      ms.map((i) => `<div class="mark"><h4>${i.name}</h4><p class="stat-how">${i.effects.join(' ')} ${i.heals}</p></div>`).join('') +
+      `</section>`
+    );
+  }
+
   /** The record, for the You sheet. */
   private recordHtml(): string {
     const r = this.record;
@@ -1991,7 +2028,7 @@ export class Game {
     const fire = this.flame();
     if (!it || !fire || this.burnBlocked()) return;
     const lines: string[] = [];
-    const tries = { clear: 0, drizzle: 0.15, rain: 0.35, downpour: 0.6 }[this.weather.now];
+    const tries = { clear: 0, drizzle: 0.15, rain: 0.35, downpour: 0.6, flurries: 0.1, snow: 0.25, heavysnow: 0.45 }[this.weather.now];
     if (Math.random() < tries) {
       lines.push(`You crouch in a doorway and try to burn the ${lc(it.name)}, but the rain keeps killing the flame.`);
     } else {
@@ -2014,7 +2051,7 @@ export class Game {
   private fireBlocked(): string | null {
     if (this.place !== 'street') return 'Not in here';
     if (!this.canLurk) return 'Not now';
-    if (this.weather.now === 'downpour') return 'Too wet';
+    if (this.weather.now === 'downpour' || this.weather.now === 'heavysnow') return 'Too wet';
     return null;
   }
 
@@ -2039,7 +2076,7 @@ export class Game {
       this.note(["You've got nothing to burn, and there's nothing dry lying around. You need some paper."]);
       return;
     }
-    const catches = { clear: 1, drizzle: 0.7, rain: 0.35, downpour: 0 }[this.weather.now];
+    const catches = { clear: 1, drizzle: 0.7, rain: 0.35, downpour: 0, flurries: 0.8, snow: 0.5, heavysnow: 0 }[this.weather.now];
     if (Math.random() >= catches) {
       lines.push(`You try to light the ${kindling}, cupping it from the rain. It hisses and goes out.`);
     } else {
@@ -2374,7 +2411,7 @@ export class Game {
     if (this.sheet === 'stats') {
       const h = this.health;
       const summary = `<p class="you-summary"><span>Blood <b>${(h.blood / 1000).toFixed(1)} L</b></span><span>Cash <b>${money(Math.round(cashOf(this.inventory) * 100))}</b></span><span>Character <b>#${this.world.lives}</b></span></p>`;
-      card.innerHTML = `<div class="sheet-head"><h2>You</h2>${close}</div><div class="sheet-body">${this.noteHtml(this.sheetNote, 'sheet-note')}${summary}${this.statsHtml()}${this.recordHtml()}</div>`;
+      card.innerHTML = `<div class="sheet-head"><h2>You</h2>${close}</div><div class="sheet-body">${this.noteHtml(this.sheetNote, 'sheet-note')}${summary}${this.statsHtml()}${this.marksHtml()}${this.recordHtml()}</div>`;
       return;
     }
     if (this.sheet === 'places') {
@@ -2461,6 +2498,10 @@ export class Game {
                             ? x.spray
                               ? `${x.doses ?? 0} spray${x.doses === 1 ? '' : 's'} left · blinds them`
                               : `A weapon: +${x.weapon ?? 0} damage${x.cuts ? ', cuts' : ''}`
+                            : /^cigarettes$/i.test(x.name)
+                            ? `${x.detail ? `${x.detail} · ` : ''}${x.doses ?? 0} of 20`
+                            : /^loose cigarettes$/i.test(x.name)
+                            ? `${x.doses ?? 1} loose`
                             : /card/.test(x.kind) && (x.pin || x.drained)
                             ? `${x.detail ? `${x.detail} · ` : ''}${x.drained ? 'Stopped' : `PIN ${x.pin} (cash machine at the bank)`}`
                             : x.detail;
@@ -2472,6 +2513,9 @@ export class Game {
                 // Loose ones into a pack with room in it.
                 if (/^loose cigarettes$/i.test(x.name) && inv.items.some((y) => /^cigarettes$/i.test(y.name) && (y.doses ?? 0) < 20))
                   acts += act('pack', 'Put in pack');
+                // One pack into another (a pack holds 20).
+                if (/^cigarettes$/i.test(x.name) && (x.doses ?? 0) > 0 && inv.items.some((y) => y !== x && /^cigarettes$/i.test(y.name) && (y.doses ?? 0) < 20))
+                  acts += act('combine', 'Into another pack');
                 if (x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card') acts += act('burn', 'Burn', this.burnBlocked());
                 if (x.secret && x.secret !== 'cocaine' && x.secret !== 'empty') {
                   if (!x.known && inv.items.some((y) => y.med === 'testkit')) acts += act('test', 'Test');
@@ -2516,7 +2560,7 @@ export class Game {
       : [];
     e.canAsk = this.world.thieves.length > 0 && !e.person.thief;
     e.weapons = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'weapon').map(({ x, i }) => ({ i, name: x.name, weapon: x.weapon, cuts: x.cuts, spray: x.spray, doses: x.doses, loaded: x.secret && x.secret !== 'empty' && x.secret !== 'cocaine' ? x.secret : undefined, known: x.known, ...(gunOf(x.name) ? { gun: true, ammo: inv.items.filter((y) => y.name === gunOf(x.name)!.ammo).reduce((n, y) => n + (y.doses ?? 0), 0) } : {}) }));
-    e.wet = RAIN_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors;
+    e.wet = WET_AMOUNT[this.weather.now] > 0 && !placeInfo(this.place).indoors;
     // How much of what you're carrying shows (a handle out of a pocket, the shape of a blade).
     e.exposed = exposure(inv);
     e.bagged = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'weapon' && inBag(inv, x.spot)).map(({ i }) => i);
@@ -2617,7 +2661,8 @@ export class Game {
     // What's wrong with you comes first: each injury and what it's doing to you.
     const all = injuryEffects(this.health, this.stressNow);
     const states = all.filter((i) => i.status);
-    const hurts = all.filter((i) => !i.status);
+    // (Marks and scars aren't dangerous: they're shown apart, further down.)
+    const hurts = all.filter((i) => !i.status && !i.mark);
     // The states you're in (stress, drink, drugs, caffeine, cold), each with its meter.
     let html = states.length
       ? `<section class="stat-card injuries status"><h3><span>Status</span><b>${states.length}</b></h3>` +

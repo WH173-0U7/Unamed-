@@ -6,6 +6,7 @@ import { onSettingsChange } from './core/settings';
 import { deleteSave, formatAgo, formatPlayTime, hasSave, loadSave, newSave } from './core/save';
 import { createFilm } from './fx/film';
 import { createRain } from './fx/rain';
+import { createSnow } from './fx/snow';
 import { createSenses } from './fx/senses';
 import { createDrugs } from './fx/drugs';
 import { setMuted, sound } from './fx/sound';
@@ -38,6 +39,7 @@ const filmGame = createFilm(document.body, true);
 const glass = createGlass({ onHint: () => menu.toast('Rub the screen with your finger to wipe the blood off') });
 // Rain: falling over the picture, and running down the glass.
 const rain = createRain($('rainfall') as HTMLCanvasElement, glass);
+const snow = createSnow($('snowfall') as HTMLCanvasElement);
 // How you see: stress (tunnel vision) and a cigarette (smoke, brighter).
 const senses = createSenses();
 // What you're on: each drug has its own look.
@@ -121,6 +123,7 @@ function applySize() {
   filmGame.setSize(pixelRatio);
   glass.setSize(innerWidth, innerHeight, pixelRatio);
   rain.resize(innerWidth, innerHeight, pixelRatio);
+  snow.resize(innerWidth, innerHeight, pixelRatio);
   senses.resize(innerWidth, innerHeight);
   game?.setSize(innerWidth, innerHeight, pixelRatio);
 }
@@ -340,6 +343,8 @@ renderer.setAnimationLoop(() => {
   rain.setAmount(game?.rainAmount ?? 0);
   // Paused: the rain holds still under the menu (no need to draw it every frame).
   if (state !== 'paused') rain.update(dt);
+  snow.setAmount(game?.snowAmount ?? 0);
+  if (state !== 'paused') snow.update(dt);
   senses.setStress(game && !game.dead ? game.stressNow : 0);
   senses.setSmoking(!!game && !game.dead && game.smoking);
   senses.update(dt);

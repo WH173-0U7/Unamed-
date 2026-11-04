@@ -167,7 +167,8 @@ export function createGlass(opts: GlassOptions = {}) {
         float smear = s.b * (1.0 - w * streak * 0.26) + gone * mix(0.42, 0.66, wet) * streak;
         // Dust is moved about; skin leaves a little grease, most at the edges.
         float edge = smoothstep(0.55, 0.95, d / uR);
-        float grime = s.a * (1.0 - w * 0.1 * streak) + w * ((1.0 - streak) * 0.01 + edge * 0.012);
+        // Dirt comes off with a wipe or two (and a clean finger leaves nothing).
+        float grime = s.a * (1.0 - w * 0.45 * streak);
         gl_FragColor = vec4(r2, g2, min(smear, 0.9), min(grime, 1.0));
       }
     `,
@@ -430,7 +431,6 @@ export function createGlass(opts: GlassOptions = {}) {
   /** Seconds since fresh blood last landed (it's drying while this is small). */
   let sinceFresh = 1e9;
   let dryClock = 0;
-  let dustClock = 0;
   /** Changed since it was last stored on the device. */
   let unsaved = false;
   /** Only dried a bit since stored: kept when the app pauses or closes. */
@@ -740,43 +740,6 @@ export function createGlass(opts: GlassOptions = {}) {
     maybeHint();
   }
 
-  /** Dust settling: a few specks and faint blotches. */
-  function dust(n: number, keep = true) {
-    pctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < n; i++) {
-      const x = Math.random() * w;
-      const y = Math.random() * h;
-      if (Math.random() < 0.15) stamp(x, y, 30 + Math.random() * 90, 0.05, 1 + Math.random(), Math.random() * 3, true);
-      else stamp(x, y, 2 + Math.random() * 5, 0.1 + Math.random() * 0.2, 1, 0, true);
-    }
-    pctx.globalCompositeOperation = 'source-over';
-    if (keep) painted(false);
-    else pendingDirty = true;
-  }
-
-  /** A glass that's been around: dust, blotches and old finger streaks. */
-  function seedGrime() {
-    dust(260);
-    pctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 5; i++) {
-      // An old swipe: a curved band of grease streaks.
-      let x = Math.random() * w;
-      let y = Math.random() * h;
-      let a = Math.random() * Math.PI * 2;
-      const len = 120 + Math.random() * 260;
-      for (let t = 0; t < len; t += 6) {
-        a += (Math.random() - 0.5) * 0.08;
-        x += Math.cos(a) * 6;
-        y += Math.sin(a) * 6;
-        for (let j = -3; j <= 3; j++) {
-          const o = j * 7 + (Math.random() - 0.5) * 3;
-          stamp(x - Math.sin(a) * o, y + Math.cos(a) * o, 5, 0.03 + Math.random() * 0.03, 2.5, a, true);
-        }
-      }
-    }
-    pctx.globalCompositeOperation = 'source-over';
-  }
-
   function maybeHint() {
     if (hinted) return;
     hinted = true;
@@ -886,10 +849,15 @@ export function createGlass(opts: GlassOptions = {}) {
     } catch {
       stored = null;
     }
-    if (!stored) {
-      seedGrime();
-      painted(false);
-      return;
+    // (A clean glass to start: dirt only comes from hitting the ground.)
+    if (!stored) return;
+    // Saves from when dust settled on its own: that dirt goes, once.
+    let clearDirt = false;
+    try {
+      clearDirt = !localStorage.getItem('darcvoyd.cleanglass');
+      localStorage.setItem('darcvoyd.cleanglass', '1');
+    } catch {
+      /* no storage */
     }
     const im = new Image();
     im.onload = () => {
@@ -907,7 +875,7 @@ export function createGlass(opts: GlassOptions = {}) {
         px[o] = d[o];
         px[o + 1] = d[o + 1];
         px[o + 2] = d[o + 2];
-        px[o + 3] = d[(n + i) * 4];
+        px[o + 3] = clearDirt ? 0 : d[(n + i) * 4];
       }
       const tex = new THREE.DataTexture(px, pw, ph, THREE.RGBAFormat, THREE.UnsignedByteType);
       tex.minFilter = tex.magFilter = THREE.LinearFilter;
@@ -920,9 +888,7 @@ export function createGlass(opts: GlassOptions = {}) {
       redraw = true;
     };
     im.onerror = () => {
-      // Spoiled: start again with a dirty glass.
-      seedGrime();
-      painted(false);
+      // Spoiled: start again with a clean glass.
     };
     im.src = stored.png;
   }
@@ -1159,6 +1125,31 @@ export function createGlass(opts: GlassOptions = {}) {
       topX = -1;
     },
 
+    /**
+     * You hit the ground: grit and dirt on the glass, mostly low down and on
+     * the side you landed, a few smudges, a scatter of specks. `power` 0..1.
+     */
+    dirt(power = 0.6) {
+      if (!w) return;
+      const rnd = Math.random;
+      const side = rnd() < 0.5 ? 0.2 : 0.8;
+      pctx.globalCompositeOperation = 'lighter';
+      // Smudges where it pressed against the ground.
+      for (let i = 0; i < 2 + Math.round(power * 3); i++) {
+        const x = w * (side + (rnd() - 0.5) * 0.5);
+        const y = h * (0.62 + rnd() * 0.36);
+        stamp(x, y, 40 + rnd() * 70 * (0.6 + power), 0.22 + power * 0.18, 1.4 + rnd(), rnd() * 3, true);
+      }
+      // Grit: specks thrown up, thickest low down.
+      for (let i = 0; i < 60 + power * 160; i++) {
+        const x = w * (side + (rnd() - 0.5) * 0.9);
+        const y = h * (1 - Math.pow(rnd(), 1.6) * 0.75);
+        stamp(x, y, 2 + rnd() * 4, 0.6 + rnd() * 0.4, 1, 0, true);
+      }
+      pctx.globalCompositeOperation = 'source-over';
+      painted(false);
+    },
+
     /** How low your blood is (0 fine .. 1 about to pass out): a pulsing red border. */
     setLow(v: number) {
       low = v;
@@ -1210,11 +1201,6 @@ export function createGlass(opts: GlassOptions = {}) {
         painted(true);
       }
 
-      // Dust keeps settling, slowly.
-      if ((dustClock += dt) > 25) {
-        dustClock = 0;
-        dust(3, false);
-      }
 
       // Drying, a couple of times a second while there's wet blood.
       let dryF = 1;

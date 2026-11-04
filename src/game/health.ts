@@ -1,4 +1,4 @@
-import { BLEEDING, DEATH, PASS_OUT, STRESS_NAMES, marksText, stressLevel, type Body, type Marks, type Part, type Result } from './encounter';
+import { BLEEDING, DEATH, PASS_OUT, STRESS_NAMES, stressLevel, type Body, type Marks, type Part, type Result } from './encounter';
 
 /**
  * Your body between fights. Blood, bleeding, broken bones and concussion
@@ -147,7 +147,6 @@ export function healthConditions(h: Health): string[] {
   if (h.drunk && drunkLevel(h.drunk)) c.push(DRUNK_NAMES[drunkLevel(h.drunk)]);
   const cf = caffeineLevel(caffeineNow(h));
   if (cf) c.push(CAFFEINE_NAMES[cf]);
-  c.push(...marksText(h.marks));
   const sl = stressLevel(h.stress ?? 0);
   if (sl) c.push(STRESS_NAMES[sl]);
   return c;
@@ -359,6 +358,8 @@ export interface InjuryInfo {
   status?: boolean;
   /** How far along it is: 0..1, with words for the bar. */
   meter?: { k: number; text: string };
+  /** A mark on you (a black eye, a scar, missing teeth): not dangerous; shown apart, greyed. */
+  mark?: boolean;
 }
 
 const hrs = (n: number) => {
@@ -523,18 +524,18 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
     return left ? `Heals in about ${hrs(left)}.` : 'Heals with time.';
   };
   const looks = 'It shows on your face, nothing more: it doesn\'t slow you in a fight';
-  if (m.jaw) out.push({ name: 'Broken jaw', effects: [looks], heals: markLeft('jaw') });
-  if (m.eye) out.push({ name: 'Black eye', effects: [looks], heals: markLeft('eye') });
-  if (m.brow) out.push({ name: 'Cut over one eye', effects: [looks], heals: `${markLeft('brow')} ${h.stitched?.brow ? 'Stitched: it’ll leave a faint line.' : 'Unstitched, it will leave a scar.'}` });
-  if (m.lip) out.push({ name: 'Split lip', effects: [looks], heals: markLeft('lip') });
-  if (m.cheek) out.push({ name: 'Swollen face', effects: [looks], heals: markLeft('cheek') });
-  if (m.teeth) out.push({ name: m.teeth === 1 ? 'A tooth missing' : `${m.teeth} teeth missing`, effects: [looks], heals: 'They never grow back.' });
+  if (m.jaw) out.push({ mark: true, name: 'Broken jaw', effects: [looks], heals: markLeft('jaw') });
+  if (m.eye) out.push({ mark: true, name: 'Black eye', effects: [looks], heals: markLeft('eye') });
+  if (m.brow) out.push({ mark: true, name: 'Cut over one eye', effects: [looks], heals: `${markLeft('brow')} ${h.stitched?.brow ? 'Stitched: it’ll leave a faint line.' : 'Unstitched, it will leave a scar.'}` });
+  if (m.lip) out.push({ mark: true, name: 'Split lip', effects: [looks], heals: markLeft('lip') });
+  if (m.cheek) out.push({ mark: true, name: 'Swollen face', effects: [looks], heals: markLeft('cheek') });
+  if (m.teeth) out.push({ mark: true, name: m.teeth === 1 ? 'A tooth missing' : `${m.teeth} teeth missing`, effects: [looks], heals: 'They never grow back.' });
   if (m.scars?.length) {
     // Where each one actually is (a face scar shows; one on the forearm doesn't, much).
     const places = [...new Set(m.scars)];
     const face = places.filter((p) => /cheek|eyebrow|lip|jaw|face/.test(p));
     out.push({
-      name: `Scar${places.length > 1 ? 's' : ''}: ${places.join(', ')}`,
+      mark: true, name: `Scar${places.length > 1 ? 's' : ''}: ${places.join(', ')}`,
       effects: [face.length ? `On your face (${face.join(', ')}): people will remember it. It doesn't slow you in a fight.` : `On your ${places.join(' and ')}. It doesn't slow you in a fight.`],
       heals: 'For good.',
     });

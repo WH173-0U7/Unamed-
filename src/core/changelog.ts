@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.70',
+    date: 'Nov 4',
+    items: [
+      'Snow, in winter (on your device’s calendar: most likely December to February): flurries, snow and heavy snow. Flakes drift down over the street at different depths, now and then one lands on the glass as a little crystal and melts into a drop, and in heavy snow frost creeps in from the corners. Snow chills you faster than rain, and makes a fire harder to get going.',
+      'The screen starts clean: dust no longer settles on it by itself. Dirt and grit only land on it when you hit the ground (in a fight, or tackled by the police), and a wipe or two takes it off. The old dust is cleared once.',
+      'Scars, missing teeth and bruises aren’t warnings any more: they’ve moved to a quiet, greyed “Marks and scars” card on the You sheet, and off the red list under your blood bar.',
+      'Cigarettes can be moved from one pack into another (“Into another pack”), up to the 20 a pack really holds. Pockets shows each pack as “12 of 20”.',
+    ],
+  },
+  {
     v: '0.69',
     date: 'Nov 4',
     items: [

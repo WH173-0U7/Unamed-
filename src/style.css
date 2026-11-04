@@ -334,14 +334,16 @@ canvas {
 /* Hit effects: the blood layer over everything, fringed text, blood on panels. */
 /* The glass over everything (blood, smears, grime): above the game and the
    menus, under the toast. Taps go straight through it. */
-#rainfall {
+#rainfall,
+#snowfall {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   pointer-events: none;
 }
-#rain-glass {
+#rain-glass,
+#snow-glass {
   position: fixed;
   inset: 0;
   width: 100%;
@@ -4538,4 +4540,22 @@ body[data-buttons] #enc .enc-extra button {
   .pocket-cash b.pulse {
     animation-duration: 0.01s;
   }
+}
+
+/* Marks and scars: nothing dangerous, so quiet and grey. */
+.stat-card.marks {
+  opacity: 0.72;
+}
+.stat-card.marks h3 b,
+.stat-card.marks h4 {
+  color: var(--ink-dim);
+}
+.stat-card.marks .mark + .mark {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+.stat-card.marks h4 {
+  margin: 0 0 2px;
+  font-size: 13px;
 }

@@ -277,6 +277,7 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
  * you wake up just strong enough to stand.
  */
 function lieThere(h: Health): string[] {
+  skipClock(h, 3);
   for (let i = 0; i <= 3; i++) {
     if (i > 0) {
       if (!h.bleeding) break;
@@ -311,7 +312,7 @@ function lieThere(h: Health): string[] {
  */
 export function passHours(h: Health, hours: number, resting = false, clock = true): string[] {
   const lines: string[] = [];
-  if (clock) skipClock(h, hours);
+  if (clock) lines.push(...skipClock(h, hours));
   if (resting && h.bleeding) {
     if (Math.random() < [0, 0.85, 0.65, 0.4, 0.2][h.bleeding]) {
       h.bleeding--;
@@ -382,13 +383,15 @@ export function passHours(h: Health, hours: number, resting = false, clock = tru
  * a high, being wired, the drink, caffeine, a cigarette and the cravings all
  * move on by as much, so what you're told matches what's on the card.
  */
-export function skipClock(h: Health, hours: number) {
+export function skipClock(h: Health, hours: number): string[] {
   const ms = hours * 3_600_000;
   const t = Date.now();
+  const lines: string[] = [];
   clampClock(h, t);
   if (h.highUntil != null) {
     h.highUntil -= ms;
     if (h.highUntil <= t) {
+      if (h.high && h.high !== 'meth') lines.push(`The ${h.high === 'tranq' ? 'tranquilizer' : h.high} wears off while you're gone.`);
       delete h.high;
       delete h.highUntil;
     }
@@ -396,6 +399,7 @@ export function skipClock(h: Health, hours: number) {
   if (h.wiredUntil != null) {
     h.wiredUntil -= ms;
     if (h.wiredUntil <= t) {
+      if (h.wired) lines.push(h.wiredBy === 'meth' ? 'The meth wears off. Your skin crawls, and you feel hollow.' : 'The coke wears off. You feel hollow.');
       h.wired = false;
       delete h.wiredBy;
       delete h.wiredUntil;
@@ -413,6 +417,7 @@ export function skipClock(h: Health, hours: number) {
     s.last -= ms;
     s.at -= ms;
   }
+  return lines;
 }
 
 /** A clock set ahead and put right: nothing lasts longer than it can. */

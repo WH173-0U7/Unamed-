@@ -478,7 +478,7 @@ export function newEncounter(person: Person, yours: Body): Encounter {
     log: [],
     result: null,
     // The name on their cards (to ask for a PIN).
-    holder: person.clothes.flatMap((g) => g.loot).find((l) => l.kind === 'id' || /card/.test(l.kind))?.detail?.split(',')[0],
+    holder: person.clothes.flatMap((g) => g.loot).find((l) => !l.yours && (l.kind === 'id' || /card/.test(l.kind)))?.detail?.split(',')[0],
   };
 }
 
@@ -538,6 +538,7 @@ function speed(f: Body, side: Side): number {
     const p = enc.person;
     s = { homeless: 0.88, junkie: 0.95, drunk: 0.8, civilian: 1 }[p.kind] * ({ Frail: 0.85, Skinny: 1.04, Average: 1, Stocky: 0.95, Athletic: 1.12, Heavyset: 0.84, Muscular: 0.98 }[p.build] ?? 1);
   }
+  if (f.out || f.dead) return 0;
   // A broken leg: a hobble.
   if (legs(f)) s *= legs(f) > 1 ? 0.1 : 0.35;
   const blood = f.blood / f.maxBlood;
@@ -623,6 +624,7 @@ function chaseStep() {
     scare(10);
     you.gain('agility', 3);
     say('info', 'You caught them.');
+    delete e.whyRan;
     return;
   }
   if (c.gap >= 5 || slip) {
@@ -1044,7 +1046,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
     if ((e.bagged ?? []).includes(near.i) || (e.ankle ?? []).includes(near.i)) {
       // They see you coming while you dig for it.
       (e.drawn ??= []).push(near.i);
-      say('you', `You dig the ${lc(near.x.name)} out of your bag. They see it.`);
+      say('you', (e.ankle ?? []).includes(near.i) ? `You crouch for the ${lc(near.x.name)} at your ankle. They see it.` : `You dig the ${lc(near.x.name)} out of your bag. They see it.`);
     } else spray(near.i, inv);
     say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
     theirTurn();
@@ -1344,11 +1346,28 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           say('you', 'You get back on your feet.');
         } else say('you', legs(y) ? 'You try to stand, but your leg gives way.' : 'You try to get up, and fall back down.');
         break;
-      case 'walk':
+      case 'walk': {
         if (!e.them.out) break;
         say('you', y.down ? 'You drag yourself up and stagger away, leaving them where they lie.' : 'You leave them lying there and walk off into the dark.');
+        // Left lying there bleeding, nobody pressing on it: a few hours, unless it clots.
+        const T = e.them;
+        let blood = T.blood;
+        let bleed = T.bleeding;
+        for (let hr = 0; hr < 3 && bleed > 0; hr++) {
+          blood -= ([0, 60, 200, 600, 1200][bleed] * T.maxBlood) / 5000;
+          if (blood <= T.maxBlood * DEATH) {
+            T.dead = true;
+            break;
+          }
+          if (Math.random() < [0, 0.9, 0.7, 0.45, 0.25][bleed]) bleed--;
+        }
+        if (!T.dead) {
+          T.blood = Math.round(blood);
+          T.bleeding = bleed;
+        }
         end('walked');
         return impacts;
+      }
       case 'breathe':
         // (Broken ribs: you can't fill your lungs, whatever you do.)
         y.stamina = Math.min(staminaCap(y), y.stamina + 22);
@@ -2433,6 +2452,11 @@ function checkEnd(): boolean {
     return true;
   }
   const T = enc.them;
+  if (enc.chase && T.out) {
+    delete enc.chase;
+    T.down = true;
+    say('them', 'Ahead of you they stagger, and fold onto the sidewalk. They don\'t get up.');
+  }
   // Someone only bleeds out once they're already unconscious: a single blow
   // knocks them out, it doesn't kill them on the spot.
   // (Out before this move: knocked out by this very blow doesn't count.)
@@ -2897,14 +2921,18 @@ function threatAct(id: string, inv?: Inventory): boolean {
         }
     }
     const all = e.person.clothes.flatMap((g) => g.loot);
+    const arms_ = e.person.carrying.filter((it) => it.weapon || it.spray);
     say(
       'you',
       hid.length
         ? `You pat them down and find ${list(hid)} they were keeping from you.`
         : all.length
-          ? `You pat them down: ${list([...all.map((l) => lootWords(l)), ...e.person.carrying.filter((it) => it.weapon || it.spray).map((it) => a(lc(it.name)))])}. Nothing else.`
-          : 'You pat them down. Nothing on them at all.',
+          ? `You pat them down: ${list(all.map((l) => lootWords(l)))}. Nothing else.`
+          : arms_.length
+            ? 'You pat them down. No money, nothing in their pockets.'
+            : 'You pat them down. Nothing on them at all.',
     );
+    if (arms_.length) say('you', `You find ${list(arms_.map((it) => a(lc(it.name))))} on them, and make them drop ${arms_.length > 1 ? 'them' : 'it'}.`);
     if (hid.length) {
       scare(8);
       maybeSay('caught', 1);

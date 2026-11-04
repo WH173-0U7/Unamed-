@@ -396,6 +396,7 @@ export class Game {
    */
   private rememberThem(e: Encounter) {
     const inv = this.inventory;
+    if (e.them.dead && e.person.known) this.world.thieves = this.world.thieves.filter((t) => t.person.known !== e.person.known);
     const before = e.person.known ? this.people.find((k) => k.id === e.person.known)?.memory.sawFace : false;
     const k = remember(this.people, e, e.seenAs ?? { anon: anonymity(inv), looked: describe(inv), clothes: lookClothes(inv) }, { robbed: !!e.robbed, stomped: !!e.stomped, mugged: !!e.mugged, tortured: e.tortured ?? 0 });
     if (!k || k.memory.beatYou) return;
@@ -496,7 +497,7 @@ export class Game {
       h.cold = Math.max(0, h.cold - (raining ? 1 : 2));
       lines.push(h.cold ? `You're still ${COLD_NAMES[h.cold].toLowerCase()}, but less.` : 'You stop shivering.');
     }
-    if (h.wired) {
+    if (h.wired && h.wiredUntil == null) {
       h.wired = false;
       lines.push(h.wiredBy === 'meth' ? 'The meth wears off while you sit there. Your skin crawls, and you feel hollow.' : 'The coke wears off while you sit there. You feel hollow.');
       delete h.wiredBy;
@@ -670,8 +671,8 @@ export class Game {
       if (l) worse.push(l);
     }
     if (!wasOver && e.stage === 'over') {
-      if (e.result === 'killed') {
-        // Killing someone: the worst of it, unless you're long past caring.
+      if (e.result === 'killed' || (e.result === 'walked' && e.them.dead)) {
+        // Killing someone (or leaving them to bleed out): the worst of it, unless you're long past caring.
         addStress(e.you, 30);
         // Was anyone watching? A face in a window, a car going past.
         const anon = anonymity(this.inventory);
@@ -712,10 +713,10 @@ export class Game {
     // What finished you: the last thing they did.
     const lastHit = ([...e.log].reverse().find((l) => l.by === 'them' && l.hit === 'you') ?? [...e.log].reverse().find((l) => l.by === 'them'))?.text;
     const hitText = lastHit?.replace(/(\s*(You're out cold|You're concussed|You're bleeding[^.]*|You're winded|Something cracks[^.]*)\.)+\s*$/, '');
-    const remember = hitText && !e.you.drugOut ? [`The last thing you remember: ${hitText[0].toLowerCase()}${hitText.slice(1)}`] : [];
+    const remember = hitText && !e.you.drugOut && e.result === 'lost' ? [`The last thing you remember: ${hitText[0].toLowerCase()}${hitText.slice(1)}`] : [];
     if (this.health.dead) {
       if (impacts.length) this.feel(impacts);
-      return this.die(after.length ? [...remember, ...after] : e.log.map((l) => l.text));
+      return this.die(after.length ? [...remember, ...after] : e.log.map((l) => l.text), after.some((l) => /Then it stops, and nobody comes/.test(l)) ? 'You overdosed.' : undefined);
     }
     if (impacts.length) this.feel(impacts);
     else buzz(6);
@@ -935,8 +936,14 @@ export class Game {
     // The encounter you died in (its person may be the one who robs you).
     const e = this.encounter;
     if (e) settle(w, e);
+    if (e && e.stage !== 'seen' && !e.them.dead) this.rememberThem(e);
     // (Dying in the ER, nobody goes through your pockets.)
     const robbed = this.place === 'hospital' ? false : robBody(w, this.inventory, e);
+    // (Whoever has your things now: the record of them says so too.)
+    if (e?.person.thief && e.person.known) {
+      const k = this.people.find((x) => x.id === e.person.known);
+      if (k) k.person.thief = e.person.thief;
+    }
     // A new you: nothing carried over but the world.
     // (Your name, your ID and your bank account were that character's.)
     for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines']) delete this.save.state[k];
@@ -1856,7 +1863,8 @@ export class Game {
       this.wipeBlood();
       lines.push(...passHours(h, 3));
       if (h.dead) return this.die(lines);
-      if (h.wired) {
+      // (Old saves, with no end time on it.)
+      if (h.wired && h.wiredUntil == null) {
         h.wired = false;
         delete h.wiredBy;
         lines.push('Whatever you took wore off while you were gone.');
@@ -2666,9 +2674,10 @@ export class Game {
     it.detail = 'Empty. Used.';
     const lines: string[] = [knew ? `You find a vein and push the ${DRUG_TEST[drug].name} in.` : 'You find a vein and push the plunger, not knowing what goes in.'];
     useHabit(h, drug === 'meth' ? 'stimulants' : drug === 'tranq' ? 'sedatives' : 'opioids', drug === 'fentanyl' ? 20 : drug === 'heroin' ? 15 : drug === 'meth' ? 12 : 10);
+    const onTranq = h.high === 'tranq' && (h.highUntil ?? 0) > now();
     const od = (chance: number, deadly: number): boolean => {
       // Drink or a downer on top, and the odds get worse.
-      const mix = 1 + (h.drunk ?? 0) / 60 + (h.high === 'tranq' ? 0.6 : 0);
+      const mix = 1 + (h.drunk ?? 0) / 60 + (onTranq ? 0.6 : 0);
       if (Math.random() >= chance * mix) return false;
       deadly = Math.min(0.9, deadly * mix);
       if (Math.random() < deadly) {

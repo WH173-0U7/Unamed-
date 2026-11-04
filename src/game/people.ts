@@ -181,7 +181,13 @@ export function remember(
     k.person.known = k.id;
   }
   const t = now();
-  // (This you has met them now.)
+  // (This you has met them now: what the old you did isn't yours.)
+  if (k.memory.otherLife) {
+    k.memory.worst = '';
+    k.memory.times = 0;
+    delete k.memory.beatYou;
+    delete k.worstLevel;
+  }
   delete k.memory.otherLife;
   k.at = t;
   k.healedAt = t;
@@ -229,7 +235,10 @@ export function remember(
 }
 
 /** Chance a lurk turns up someone you've met (more likely the angrier they are). */
-export function comeBack(people: Known[]): Known | null {
+export function comeBack(all: Known[]): Known | null {
+  // (A while has to pass: longer if they ended up in the ER with a break.)
+  const t = Date.now();
+  const people = all.filter((k) => t - (k.at ?? 0) > (k.broken.length ? 18 : 6) * 3_600_000);
   if (!people.length) return null;
   const chance = Math.min(0.22, 0.05 + people.length * 0.015);
   if (Math.random() >= chance) return null;

@@ -57,7 +57,7 @@ export function hoursText(hours: Hours, t = now()): string {
     const o = hours[day];
     if (!o) continue;
     if (i === 0 && d.getHours() + d.getMinutes() / 60 >= o[0]) continue;
-    const name = i === 0 ? '' : i === 1 ? ' tomorrow' : ` ${new Date(t + i * 86400000).toLocaleDateString([], { weekday: 'long' })}`;
+    const name = i === 0 ? '' : i === 1 ? ' tomorrow' : ` ${new Date(d.getFullYear(), d.getMonth(), d.getDate() + i).toLocaleDateString([], { weekday: 'long' })}`;
     return `Closed. Opens${name} at ${hh(o[0])}`;
   }
   return 'Closed';

@@ -11,6 +11,19 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.96',
+    date: 'Nov 4',
+    items: [
+      'Someone you leave out cold and bleeding badly may not make it. Walk away and they can bleed out where they lie, and that’s on you.',
+      'People you hurt don’t turn up again within the hour: it takes a while, longer if they ended up in the ER with a break. Someone you killed can’t come back carrying your things.',
+      'When you die mid-fight, what you did to them stays on them for the next you. A new you meeting someone the old one hurt starts fresh with them.',
+      'Someone holding a card they took off you no longer gives the card owner’s name as their own.',
+      'Fixed: someone you drugged could keep running after passing out. The game loaded from a backup save couldn’t save. Coming back to the death screen left the pause menu half there.',
+      'An overdose death after a fight says you overdosed, not that you bled out. Hours out cold from blood loss move highs and the drink on like any other hours, and what wears off while you’re gone is said.',
+      'A pat-down finds their weapons and makes them drop them. Rain eases off more often than it gets heavier. “Opens Monday” names the right day across a clock change.',
+    ],
+  },
+  {
     v: '0.95',
     date: 'Nov 4',
     items: [

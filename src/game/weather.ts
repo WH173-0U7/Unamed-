@@ -51,9 +51,10 @@ function next(w: Weather): { now: Weather; mins: number } {
   if (r < 0.55) return { now: 'clear', mins: rand(60, 180) };
   if (w === 'drizzle') return { now: 'rain', mins: rand(10, 40) };
   if (w === 'flurries') return { now: 'snow', mins: rand(15, 45) };
-  if (w === 'snow') return r < 0.75 ? { now: 'flurries', mins: rand(10, 30) } : { now: 'heavysnow', mins: rand(10, 30) };
+  const r2 = Math.random();
+  if (w === 'snow') return r2 < 0.75 ? { now: 'flurries', mins: rand(10, 30) } : { now: 'heavysnow', mins: rand(10, 30) };
   if (w === 'heavysnow') return { now: 'snow', mins: rand(15, 40) };
-  if (w === 'rain') return r < 0.75 ? { now: 'drizzle', mins: rand(10, 30) } : { now: 'downpour', mins: rand(8, 25) };
+  if (w === 'rain') return r2 < 0.75 ? { now: 'drizzle', mins: rand(10, 30) } : { now: 'downpour', mins: rand(8, 25) };
   return { now: 'rain', mins: rand(10, 30) };
 }
 

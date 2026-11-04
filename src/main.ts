@@ -232,6 +232,8 @@ function startGame(fresh: boolean) {
     const backup = fresh ? null : loadBackup();
     try {
       if (!backup) throw new Error('no backup');
+      // (It takes over from the damaged one: its count goes on from there.)
+      backup.rev = Math.max(backup.rev ?? 0, data.rev ?? 0);
       game = new Game(backup, $('game'), renderer, glass);
       menu.toast('The save was damaged: loaded the one before it');
     } catch {
@@ -252,6 +254,12 @@ function startGame(fresh: boolean) {
     // Continue: back to the pause screen where the game was saved.
     state = 'paused';
     game.restorePaused();
+    if (game.dead) {
+      // (Closed on the death screen: it's still up, and that's where you are.)
+      state = 'playing';
+      hideMenu();
+      return;
+    }
     document.body.classList.add('paused');
     updatePauseInfo();
     showMenu('pause');

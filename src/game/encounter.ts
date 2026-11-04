@@ -110,6 +110,8 @@ export interface Body {
   headBleed?: boolean;
   /** Turns left half blind (pepper spray: it lasts the rest of the fight). */
   blinded: number;
+  /** Withdrawal: hands that won't keep still (off your chance to land a blow). */
+  shakes?: number;
   /** Something injected that hasn't hit yet (a needle takes a minute to work). */
   dosing?: { drug: Exclude<import('./person').Drug, 'empty'>; in: number };
   /** Knocked unconscious. */
@@ -1174,6 +1176,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   if (A.dazed) hit -= 0.2;
   if (A.concussed) hit -= 0.1;
   if (A.blinded > 0) hit -= 0.35;
+  if (A.shakes) hit -= A.shakes;
   // Shaking with fear, they swing wild.
   if (a === 'them') hit -= (A.fear ?? 0) / 400;
   // On heroin or fentanyl: slow to hit, slow to get out of the way.

@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.72',
+    date: 'Nov 4',
+    items: [
+      'Addiction. Cigarettes, drink, caffeine, heroin and fentanyl, meth and coke, and tranquillisers all build a habit as you use them (it fades slowly if you stay off). The You sheet shows how hooked you are on each.',
+      'Hooked and without it, withdrawal comes on its own real clock: a couple of hours for nicotine, the best part of a day for meth or coke. Each is its own thing: irritable for a smoke, a headache off caffeine, the shakes off drink, dope sick off heroin (weak, aching, sick), the crash off stimulants. It makes you worse in a fight and keeps your stress from settling.',
+      'Off drink or downers when you’re badly hooked, you can have a seizure on the street.',
+      'Using again ends it at once and hooks you deeper; or ride it out over a day or a few. Withdrawal has its own look: the colour drains to a sick grey-green, a cold sweat at the edges of your sight, and a fine tremor.',
+    ],
+  },
+  {
     v: '0.71',
     date: 'Nov 4',
     items: [

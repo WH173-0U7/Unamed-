@@ -5,7 +5,7 @@ import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf, random
 import { ENCOUNTER_VERSION, act, newEncounter, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
 import { STAT_NAMES, lieBonus, persuadeBonus, train, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
-import { HIGH_HOURS, LURK_HOURS, addCaffeine, caffeineNow, caffeineLevel, drunkLevel, soberUp, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
+import { cravingLine, useHabit, withdrawalEffects, HIGH_HOURS, LURK_HOURS, addCaffeine, caffeineNow, caffeineLevel, drunkLevel, soberUp, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
 import { ALL_TECHNIQUES, PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
 import { uiGlitch } from '../fx/uiGlitch';
@@ -504,6 +504,18 @@ export class Game {
     this.wipeBlood();
     // Time passes while you wait: wounds bleed, or heal; the rain soaks you.
     const lines = passHours(this.health, LURK_HOURS);
+    // Withdrawal: the craving, and (off drink or downers, badly) a seizure.
+    {
+      const wd = withdrawalEffects(this.health);
+      if (wd.worst && wd.worst.sev > 0.15 && Math.random() < 0.3) lines.push(cravingLine(wd.worst.k));
+      if (wd.seizure > 0 && Math.random() < wd.seizure) {
+        lines.push('Your jaw locks, your arms jerk, and the street tilts away. When you come round you are on the pavement, your tongue bitten, your whole body aching. A seizure.');
+        lines.push(...passHours(this.health, 1));
+        this.health.stress = Math.min(100, (this.health.stress ?? 0) + 25);
+        this.health.concussion = Math.max(this.health.concussion, 2);
+        this.fx.dirt(0.7);
+      }
+    }
     if (this.health.dead) return this.die(lines);
     const c = this.chill();
     if (c) lines.push(c);
@@ -1572,6 +1584,7 @@ export class Game {
     if (!it || !fire || this.smokeBlocked() || (it.doses ?? 1) <= 0) return;
     it.doses = (it.doses ?? 1) - 1;
     const h = this.health;
+    useHabit(h, 'nicotine', 4);
     // A cigarette takes about six minutes to smoke, for real.
     h.smokingUntil = now() + SMOKE_MS;
     const lines = [
@@ -1635,6 +1648,9 @@ export class Game {
     if (e && e.stage === 'combat' && (e.you.drunk ?? 0) >= 10) return { drug: 'drunk', k: Math.min(1, (e.you.drunk ?? 0) / 75) };
     soberUp(h);
     if ((h.drunk ?? 0) >= 10) return { drug: 'drunk', k: Math.min(1, (h.drunk ?? 0) / 75) };
+    // Withdrawal: sick and grey, a tremor.
+    const wdl = withdrawalEffects(h).worst;
+    if (wdl && wdl.sev > 0.15) return { drug: 'withdrawal', k: Math.min(1, wdl.sev) };
     // Caffeine: a clean clarity, which turns into a tremor when it's too much.
     const mg = e && e.stage === 'combat' ? (e.you.caffeine ?? 0) : caffeineNow(h);
     if (caffeineLevel(mg)) return mg >= 400 ? { drug: 'jitters', k: Math.min(1, (mg - 300) / 300) } : { drug: 'caffeine', k: Math.min(1, mg / 200) };
@@ -1669,6 +1685,7 @@ export class Game {
     soberUp(h);
     const was = drunkLevel(h.drunk ?? 0);
     const beer = it.drink === 'beer';
+    useHabit(h, 'alcohol', beer || /wine/i.test(it.name) ? 2 : 3);
     it.doses = (it.doses ?? 1) - 1;
     // About one standard drink in a can or a swig of wine; a swig of whiskey or
     // vodka from the bottle is nearer one and a half.
@@ -2203,6 +2220,7 @@ export class Game {
     it.name = 'Syringe';
     it.detail = 'Empty. Used.';
     const lines: string[] = [knew ? `You find a vein and push the ${DRUG_TEST[drug].name} in.` : 'You find a vein and push the plunger, not knowing what goes in.'];
+    useHabit(h, drug === 'meth' ? 'stimulants' : drug === 'tranq' ? 'sedatives' : 'opioids', drug === 'fentanyl' ? 20 : drug === 'heroin' ? 15 : drug === 'meth' ? 12 : 10);
     const od = (chance: number, deadly: number): boolean => {
       if (Math.random() >= chance) return false;
       if (Math.random() < deadly) {
@@ -2267,6 +2285,7 @@ export class Game {
     it.doses = (it.doses ?? 1) - 1;
     h.wired = true;
     h.wiredBy = 'coke';
+    useHabit(h, 'stimulants', 6);
     // A bump lasts about forty minutes.
     h.wiredUntil = now() + 40 * 60_000;
     const lines = ['You do a bump off the end of a key. Your heart kicks, your teeth buzz, and everything goes sharp and bright.'];
@@ -3048,6 +3067,9 @@ export class Game {
   update(dt: number) {
     if (this.running) {
       this.tickSmoke(dt);
+      // Withdrawal: stress that won't settle.
+      const floor = withdrawalEffects(this.health).floor;
+      if (floor > (this.health.stress ?? 0)) this.health.stress = Math.min(floor, (this.health.stress ?? 0) + dt * 0.4);
       this.tickExposure(dt);
     }
     if ((this.weatherTimer -= dt) <= 0) {

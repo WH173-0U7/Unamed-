@@ -20,10 +20,10 @@
  * Only opacity and transforms are animated (see #drug in style.css), so it's
  * cheap; the strength (`--k`) fades as a high wears off.
  */
-export type DrugLook = 'cocaine' | 'heroin' | 'fentanyl' | 'meth' | 'tranq' | 'drunk' | 'caffeine' | 'jitters';
+export type DrugLook = 'cocaine' | 'heroin' | 'fentanyl' | 'meth' | 'tranq' | 'drunk' | 'caffeine' | 'jitters' | 'withdrawal';
 
 /** How long each takes to come on (seconds to most of the way there). */
-const ONSET: Record<DrugLook, number> = { fentanyl: 12, cocaine: 15, meth: 18, heroin: 25, tranq: 30, drunk: 20, caffeine: 20, jitters: 20 };
+const ONSET: Record<DrugLook, number> = { fentanyl: 12, cocaine: 15, meth: 18, heroin: 25, tranq: 30, drunk: 20, caffeine: 20, jitters: 20, withdrawal: 40 };
 
 export function createDrugs() {
   const el = document.createElement('div');

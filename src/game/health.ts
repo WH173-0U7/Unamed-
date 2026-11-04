@@ -85,6 +85,7 @@ export function caffeineNow(h: Health, t = Date.now()): number {
 }
 export function addCaffeine(h: Health, mg: number, t = Date.now()) {
   (h.caffeine ??= []).push({ mg, at: t });
+  useHabit(h, 'caffeine', (mg / 100) * 3, t);
 }
 /** What it's doing to you, by how much is in you. */
 export const caffeineLevel = (mg: number) => (mg >= 600 ? 3 : mg >= 400 ? 2 : mg >= 40 ? 1 : 0);
@@ -162,7 +163,9 @@ export function bodyFrom(h: Health, stamina: number): Body {
     toughness: 100,
     // Broken ribs: you can't fill your lungs, so you start the fight short of breath.
     // Cold stiffens you; cocaine gives you more than you've got.
-    stamina: Math.round(stamina * (h.lung ? 0.3 : h.broken.includes('ribs') ? 0.5 : 1) * (1 - (h.cold ?? 0) * 0.1) * (h.wired ? 1.25 : 1)),
+    // (In withdrawal, you've less in you, and your hands shake.)
+    stamina: Math.round(stamina * (h.lung ? 0.3 : h.broken.includes('ribs') ? 0.5 : 1) * (1 - (h.cold ?? 0) * 0.1) * (h.wired ? 1.25 : 1) * (1 - withdrawalEffects(h).stamina)),
+    shakes: withdrawalEffects(h).hit,
     maxStamina: Math.round(stamina * (h.wired ? 1.25 : 1)),
     lung: h.lung,
     stress: h.stress ?? 0,
@@ -211,6 +214,7 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
   // Something they put in you that hadn't hit yet: it does now.
   if (b.dosing) {
     const d = b.dosing.drug;
+    useHabit(h, d === 'meth' ? 'stimulants' : d === 'tranq' ? 'sedatives' : 'opioids', d === 'fentanyl' ? 20 : d === 'heroin' ? 15 : d === 'meth' ? 12 : 10);
     if (d !== 'meth') {
       h.high = d;
       h.highUntil = Date.now() + HIGH_HOURS[d] * 3_600_000;
@@ -389,6 +393,8 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
       heals: `Eases about ${STRESS_EASE} an hour (faster resting), and quicker with a cigarette, a drink or painkillers.`,
     });
   }
+  // Hooked on something, and withdrawal.
+  out.push(...habitCards(h));
   // Smoking: a cigarette burning.
   if ((h.smokingUntil ?? 0) > Date.now()) {
     const left = ((h.smokingUntil ?? 0) - Date.now()) / 60000;
@@ -538,6 +544,162 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
       mark: true, name: `Scar${places.length > 1 ? 's' : ''}: ${places.join(', ')}`,
       effects: [face.length ? `On your face (${face.join(', ')}): people will remember it. It doesn't slow you in a fight.` : `On your ${places.join(' and ')}. It doesn't slow you in a fight.`],
       heals: 'For good.',
+    });
+  }
+  return out;
+}
+
+// ---------- Addiction and withdrawal ----------
+/**
+ * What you can get hooked on. Each use builds dependence (0..100); staying
+ * off it, dependence fades slowly. Hooked, and without it for long enough,
+ * withdrawal sets in on its own clock (real time, like everything else):
+ * it builds to a peak, stays there for a while, and eases off over days.
+ * Using again stops it at once, and hooks you a little deeper.
+ */
+export type Habit = 'nicotine' | 'alcohol' | 'caffeine' | 'opioids' | 'stimulants' | 'sedatives';
+export const HABIT_NAMES: Record<Habit, string> = { nicotine: 'nicotine', alcohol: 'alcohol', caffeine: 'caffeine', opioids: 'opioids', stimulants: 'stimulants', sedatives: 'sedatives' };
+interface HabitState {
+  dep: number;
+  /** Last use (ms). */
+  last: number;
+  /** When dependence was last brought up to date (ms). */
+  at: number;
+}
+const HR = 3_600_000;
+/** Hours after the last use before withdrawal starts; hours to build to its peak; hours at the peak before it eases (over as long again). */
+const WD_CLOCK: Record<Habit, [number, number, number]> = {
+  nicotine: [1.5, 3, 24],
+  caffeine: [12, 12, 24],
+  alcohol: [8, 18, 48],
+  opioids: [8, 24, 48],
+  stimulants: [18, 12, 48],
+  sedatives: [12, 24, 72],
+};
+/** Dependence lost per real hour off it. */
+const DECAY: Record<Habit, number> = { nicotine: 0.15, caffeine: 0.6, alcohol: 0.2, opioids: 0.12, stimulants: 0.15, sedatives: 0.1 };
+/** At the peak, fully hooked: blows land worse, less stamina, stress that won't settle below this, seizure risk an hour. */
+const WD_HIT: Record<Habit, { hit: number; stamina: number; floor: number; seizure: number }> = {
+  nicotine: { hit: 0.02, stamina: 0, floor: 30, seizure: 0 },
+  caffeine: { hit: 0.04, stamina: 0.1, floor: 12, seizure: 0 },
+  alcohol: { hit: 0.12, stamina: 0.15, floor: 45, seizure: 0.05 },
+  opioids: { hit: 0.12, stamina: 0.35, floor: 55, seizure: 0 },
+  stimulants: { hit: 0.06, stamina: 0.3, floor: 35, seizure: 0 },
+  sedatives: { hit: 0.1, stamina: 0.1, floor: 50, seizure: 0.06 },
+};
+const WD_NAME: Record<Habit, string> = {
+  nicotine: 'Craving a cigarette',
+  caffeine: 'Caffeine headache',
+  alcohol: 'The shakes',
+  opioids: 'Dope sick',
+  stimulants: 'The crash',
+  sedatives: 'Coming off the downers',
+};
+const WD_EFFECTS: Record<Habit, string> = {
+  nicotine: 'Irritable, restless, can’t think about anything else',
+  caffeine: 'A dull, pounding headache; slow and foggy',
+  alcohol: 'Shaking hands, sweats, a racing heart; badly hooked, a seizure can drop you',
+  opioids: 'Sweating, aching, cramps and runs; every bone hurts and you can’t get warm',
+  stimulants: 'Exhausted to the bone, flat and hopeless, starving and sleepy',
+  sedatives: 'Panic, tremors, can’t sleep; a seizure can drop you',
+};
+const WD_RELIEF: Record<Habit, string> = {
+  nicotine: 'a cigarette',
+  caffeine: 'coffee, an energy drink or a pill',
+  alcohol: 'a drink',
+  opioids: 'heroin or fentanyl',
+  stimulants: 'meth or coke',
+  sedatives: 'a tranquilliser',
+};
+
+const habitsOf = (h: Health) => ((h as Health & { habits?: Partial<Record<Habit, HabitState>> }).habits ??= {});
+
+/** Dependence, brought up to date (it fades while you're off it). */
+export function dependence(h: Health, k: Habit, t = Date.now()): number {
+  const s = habitsOf(h)[k];
+  if (!s) return 0;
+  s.dep = Math.max(0, s.dep - (Math.max(0, t - s.at) / HR) * DECAY[k]);
+  s.at = t;
+  return s.dep;
+}
+/** Using: dependence builds, and any withdrawal stops. */
+export function useHabit(h: Health, k: Habit, amount: number, t = Date.now()) {
+  const d = dependence(h, k, t);
+  habitsOf(h)[k] = { dep: Math.min(100, d + amount), last: t, at: t };
+}
+/** How bad withdrawal from this is right now, 0..1. */
+export function withdrawal(h: Health, k: Habit, t = Date.now()): number {
+  const s = habitsOf(h)[k];
+  const d = dependence(h, k, t);
+  if (!s || d < 15) return 0;
+  const [on, ramp, peak] = WD_CLOCK[k];
+  const since = (t - s.last) / HR;
+  if (since < on) return 0;
+  const x = since - on;
+  const curve = x < ramp ? x / ramp : x < ramp + peak ? 1 : Math.max(0, 1 - (x - ramp - peak) / peak);
+  return Math.min(1, (d / 100) * 1.25) * curve;
+}
+/** All of it together, for a fight and for your stress. */
+export function withdrawalEffects(h: Health, t = Date.now()) {
+  let hit = 0;
+  let stamina = 0;
+  let floor = 0;
+  let seizure = 0;
+  let worst: { k: Habit; sev: number } | null = null;
+  for (const k of Object.keys(WD_HIT) as Habit[]) {
+    const sev = withdrawal(h, k, t);
+    if (!sev) continue;
+    const e = WD_HIT[k];
+    hit += e.hit * sev;
+    stamina = Math.max(stamina, e.stamina * sev);
+    floor = Math.max(floor, e.floor * sev);
+    seizure = Math.max(seizure, e.seizure * sev);
+    if (!worst || sev > worst.sev) worst = { k, sev };
+  }
+  return { hit, stamina, floor, seizure, worst };
+}
+/** A craving, said now and then on the street. */
+export function cravingLine(k: Habit): string {
+  return {
+    nicotine: 'You pat your pockets for a cigarette before you remember.',
+    caffeine: 'Your head pounds. A coffee would fix it.',
+    alcohol: 'Your hands won’t keep still. One drink and they would.',
+    opioids: 'Your skin crawls, your gut cramps, and all you can think about is a fix.',
+    stimulants: 'You could sleep for a week, and you hate everything.',
+    sedatives: 'Your heart races at nothing. You need something to bring you down.',
+  }[k];
+}
+/** The status cards: how hooked you are, and withdrawal while it lasts. */
+export function habitCards(h: Health, t = Date.now()): InjuryInfo[] {
+  const out: InjuryInfo[] = [];
+  for (const k of Object.keys(WD_HIT) as Habit[]) {
+    const d = dependence(h, k, t);
+    if (d < 15) continue;
+    const sev = withdrawal(h, k, t);
+    if (sev > 0.04) {
+      const s = habitsOf(h)[k]!;
+      const [on, ramp, peak] = WD_CLOCK[k];
+      const left = Math.max(1, Math.round(on + ramp + 2 * peak - (t - s.last) / HR));
+      const e = WD_HIT[k];
+      out.push({
+        name: `Withdrawal: ${WD_NAME[k].toLowerCase()}`,
+        status: true,
+        meter: { k: sev, text: sev > 0.75 ? 'Bad' : sev > 0.4 ? 'Rough' : 'Mild' },
+        effects: [
+          WD_EFFECTS[k],
+          ...(e.hit * sev >= 0.01 ? [`Your blows land: −${Math.round(e.hit * sev * 100)}%`] : []),
+          ...(e.stamina * sev >= 0.01 ? [`Stamina in a fight: −${Math.round(e.stamina * sev * 100)}%`] : []),
+          ...(e.floor * sev >= 5 ? [`Stress won’t settle below ${Math.round(e.floor * sev)}`] : []),
+        ],
+        heals: `${WD_RELIEF[k][0].toUpperCase()}${WD_RELIEF[k].slice(1)} ends it at once (and hooks you deeper). Or ride it out: about ${left < 48 ? `${left} hours` : `${Math.round(left / 24)} days`}.`,
+      });
+    }
+    out.push({
+      name: `Hooked: ${HABIT_NAMES[k]}`,
+      status: true,
+      meter: { k: d / 100, text: d >= 70 ? 'Badly' : d >= 40 ? 'Hooked' : 'Getting a habit' },
+      effects: [`Go about ${WD_CLOCK[k][0]} hours without ${WD_RELIEF[k]} and withdrawal starts`],
+      heals: 'Fades slowly if you stay off it.',
     });
   }
   return out;

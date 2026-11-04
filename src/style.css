@@ -4559,3 +4559,19 @@ body[data-buttons] #enc .enc-extra button {
   margin: 0 0 2px;
   font-size: 13px;
 }
+
+/* Withdrawal: sick and grey, the colour drained out with a sour green tint,
+   a cold sweat at the edges, and a fine tremor. It comes on slowly. */
+body[data-drug='withdrawal'] #drug .d-tint {
+  opacity: calc(var(--k, 0) * 1);
+  background: rgba(140, 165, 120, 0.22);
+  mix-blend-mode: color;
+}
+body[data-drug='withdrawal'] #drug .d-glow {
+  opacity: calc(var(--k, 0) * 0.9);
+  background: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 45%, rgba(28, 40, 26, 0.68) 100%);
+  animation: d-pound 1.6s ease-in-out infinite;
+}
+body[data-drug='withdrawal'] #game {
+  animation: d-tremor 0.09s steps(2) infinite;
+}

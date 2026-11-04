@@ -4734,3 +4734,81 @@ body[data-drug='withdrawal'] #game {
     padding: 0 6px;
   }
 }
+
+/* ================= Landscape: use the whole screen ================= */
+@media (orientation: landscape) and (max-height: 560px) {
+  /* Shops: the full width under your status, in two columns: the place and
+     what's happened on the left, what's for sale (scrolling) on the right. */
+  #shop,
+  #game.in-shop #shop {
+    top: calc(var(--pad-top) + 88px);
+    bottom: calc(var(--pad-bot) + 34px);
+    left: calc(var(--pad-x-l) + 36px);
+    right: calc(var(--pad-x-r) + 40px);
+    width: auto;
+    transform: none;
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    column-gap: 18px;
+    row-gap: 8px;
+    align-content: start;
+    overflow: hidden;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  #shop > .shop-head {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  #shop > .shop-note {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: start;
+    max-height: 100%;
+    margin: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  #shop > .pocket-purse {
+    grid-column: 1;
+    grid-row: 3;
+    margin: 0;
+  }
+  #shop > .shop-body {
+    grid-column: 2;
+    grid-row: 1 / 4;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  #shop > .shop-body.more {
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent);
+  }
+  /* (There's room for the description again, and the clock.) */
+  #shop .shop-head p {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 12px;
+  }
+  #game.in-shop #clock {
+    display: flex;
+  }
+  /* A fight: up into the empty band at the top; the right-hand column stays
+     clear of the clock. */
+  #enc {
+    top: calc(var(--pad-top) + 8px);
+  }
+  #enc .enc-status {
+    margin-top: 30px;
+  }
+}
+/* Very short landscape: what's happened matters more than the place's description. */
+@media (orientation: landscape) and (max-height: 340px) {
+  #shop .shop-head p:not(.shop-hours) {
+    display: none;
+  }
+}

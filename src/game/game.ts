@@ -159,7 +159,7 @@ export class Game {
     this.bagBtn = view.querySelector('#bag-btn') as HTMLButtonElement;
     this.youBtn = view.querySelector('#you-btn') as HTMLButtonElement;
     this.shopEl = view.querySelector('#shop') as HTMLElement;
-    this.shopEl.addEventListener('scroll', () => this.shopEl.classList.toggle('more', this.shopEl.scrollTop + this.shopEl.clientHeight < this.shopEl.scrollHeight - 6), { signal: this.listeners.signal, passive: true });
+    this.shopEl.addEventListener('scroll', () => this.markShopMore(), { signal: this.listeners.signal, passive: true, capture: true });
     this.sheetEl = view.querySelector('#sheet') as HTMLElement;
     // A sheet with more below than shows: a fade at the bottom edge.
     {
@@ -2781,7 +2781,14 @@ export class Game {
       this.shopEl.scrollTop = scroll;
     }
     // More than fits: a fade at the bottom says scroll.
-    requestAnimationFrame(() => this.shopEl.classList.toggle('more', this.shopEl.scrollTop + this.shopEl.clientHeight < this.shopEl.scrollHeight - 6));
+    requestAnimationFrame(() => this.markShopMore());
+  }
+  /** A fade where there's more to scroll: the card (or, in landscape, its list column). */
+  private markShopMore() {
+    const more = (el: Element | null) => !!el && el.scrollTop + el.clientHeight < el.scrollHeight - 6;
+    this.shopEl.classList.toggle('more', more(this.shopEl));
+    const body = this.shopEl.querySelector('.shop-body');
+    body?.classList.toggle('more', more(body));
   }
   private shopHtml = '';
   /** The last thing that happened in this shop / sheet, shown inside it. */

@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.80',
+    date: 'Nov 4',
+    items: [
+      'Holding your phone sideways, shops use the whole screen: the place and what just happened on the left, what’s for sale on the right, so you can see twice as much at once. The clock stays visible too.',
+      'Sideways in a fight, the screen moves up into the empty space at the top, so more of your options fit.',
+    ],
+  },
+  {
     v: '0.79',
     date: 'Nov 4',
     items: [

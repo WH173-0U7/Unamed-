@@ -342,7 +342,7 @@ export const MEDS: Med[] = [
     id: 'painkillers',
     name: 'Painkillers',
     price: 6,
-    desc: 'Takes the edge off the pain, and so the stress. They don’t heal anything.',
+    desc: 'Takes the edge off the pain, and so the stress. Heals nothing.',
     blocked: (h) => (h.concussion > 0 || h.broken.length || h.bleeding || h.blood < h.maxBlood * 0.9 ? null : 'Nothing hurts enough'),
     use(h) {
       h.stress = Math.max(0, (h.stress ?? 0) - 12);
@@ -353,7 +353,7 @@ export const MEDS: Med[] = [
     id: 'splint',
     name: 'Splint',
     price: 22,
-    desc: 'Holds a broken arm or leg still so it can knit straight. Left unset, a break takes twice as long.',
+    desc: 'Holds a broken arm or leg still so it can knit straight. Left loose, a break takes twice as long.',
     blocked: (h) => (limbs(h).length ? null : h.splinted?.length ? 'Already splinted' : 'No broken arm or leg'),
     use(h) {
       // The limb that will take longest to heal.

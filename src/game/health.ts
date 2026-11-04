@@ -231,7 +231,7 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
     }
     lines.push(
       d === 'heroin'
-        ? 'Whatever was in that needle hits you now: warmth floods up your arm, and your arms go heavy.'
+        ? 'Whatever was in that needle hits you now: warmth floods up your arm, and your limbs go heavy.'
         : d === 'fentanyl'
           ? 'What was in the needle hits you like a wall. Every breath is an effort.'
           : d === 'tranq'
@@ -440,7 +440,7 @@ const hrs = (n: number) => {
   const h = Math.max(1, Math.ceil(n));
   return `${h} hour${h === 1 ? '' : 's'}`;
 };
-const litres = (ml: number) => `${(ml / 1000).toFixed(2).replace(/0$/, '')}\u00a0L`;
+const litres = (ml: number) => `${(ml / 1000).toFixed(2).replace(/\.?0+$/, '')}\u00a0L`;
 
 /**
  * Everything wrong with you and exactly what it does (the same numbers the
@@ -460,7 +460,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
       status: true,
       meter: { k: Math.min(1, stress / 100), text: `${Math.round(stress)} / 100` },
       effects: [`Your blows land: −${p}%`, `Dodging their blows: −${p}%`, ...(sl >= 3 ? ['Your hands shake; the world narrows'] : [])],
-      heals: `Eases about ${STRESS_EASE} an hour (faster resting), and quicker with a cigarette, a drink or painkillers.`,
+      heals: `Eases about ${STRESS_EASE} an hour (faster at rest), and quicker with a cigarette, a drink or painkillers.`,
     });
   }
   // Hooked on something, and withdrawal.
@@ -557,7 +557,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
           : h.high === 'tranq'
             ? ['Your blows land: −8%', 'Their blows land: +6% (groggy)']
             : ['Your blows land: −12%', 'Their blows land: +10% (you\'re slow to move)'],
-      heals: `Wears off in about ${mins < 90 ? `${mins} minutes` : `${Math.round(mins / 60)} hours`}.`,
+      heals: `Wears off in about ${mins < 90 ? `${mins} minute${mins === 1 ? '' : 's'}` : `${Math.round(mins / 60)} hours`}.`,
     });
   }
   const mg = caffeineNow(h);
@@ -569,7 +569,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
       status: true,
       meter: { k: Math.min(1, mg / 600), text: `${Math.round(mg)} mg (jittery at 400)` },
       effects: [`Your blows land: ${pct}`, `Their blows land: ${edge >= 0 ? '−' : '+'}${Math.abs(Math.round(edge * 100))}%`, ...(mg >= 400 ? ['Stress builds faster (your heart is pounding)'] : [])],
-      heals: `Half of it is gone every 5 hours (real time). Below 40 mg you won't feel it: about ${Math.max(1, Math.ceil(Math.log2(mg / 40) * 5))} hours from now.`,
+      heals: `Half of it is gone every 5 hours (real time). Below 40 mg you won't feel it: about ${hrs(Math.log2(mg / 40) * 5)} from now.`,
     });
   }
   soberUp(h);
@@ -580,7 +580,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
       status: true,
       meter: { k: Math.min(1, d / 100), text: `${Math.round(d)} / 100 (blackout at 90)` },
       effects: [`Your blows land: −${Math.round(d / 4)}%`, `Their blows land: +${Math.round(d / 5)}%`, `Your blows do ${Math.round(d / 10)}% more damage (you swing heavy)`, ...(d >= 80 ? ['Any more and you black out'] : [])],
-      heals: `Sobers you up 20 a real hour: about ${Math.max(1, Math.ceil(d / 20))} hour${Math.ceil(d / 20) === 1 ? '' : 's'} to clear.`,
+      heals: `Drops 20 an hour (real time): about ${Math.max(1, Math.ceil(d / 20))} hour${Math.ceil(d / 20) === 1 ? '' : 's'} to clear.`,
     });
   }
   if (h.wired) {
@@ -669,7 +669,7 @@ const WD_EFFECTS: Record<Habit, string> = {
   nicotine: 'Irritable, restless, can’t think about anything else',
   caffeine: 'A dull, pounding headache; slow and foggy',
   alcohol: 'Shaking hands, sweats, a racing heart; badly hooked, a seizure can drop you',
-  opioids: 'Sweating, aching, cramps and runs; every bone hurts and you can’t get warm',
+  opioids: 'Sweating, aching, cramps, the runs; every bone hurts and you can’t get warm',
   stimulants: 'Exhausted to the bone, flat and hopeless, starving and sleepy',
   sedatives: 'Panic, tremors, can’t sleep; a seizure can drop you',
 };
@@ -679,7 +679,7 @@ const WD_RELIEF: Record<Habit, string> = {
   alcohol: 'a drink',
   opioids: 'heroin or fentanyl',
   stimulants: 'meth or coke',
-  sedatives: 'a tranquilliser',
+  sedatives: 'a tranquilizer',
 };
 
 const habitsOf = (h: Health) => ((h as Health & { habits?: Partial<Record<Habit, HabitState>> }).habits ??= {});
@@ -761,7 +761,7 @@ export function habitCards(h: Health, t = Date.now()): InjuryInfo[] {
           ...(e.stamina * sev >= 0.01 ? [`Stamina in a fight: −${Math.round(e.stamina * sev * 100)}%`] : []),
           ...(e.floor * sev >= 5 ? [`Stress won’t settle below ${Math.round(e.floor * sev)}`] : []),
         ],
-        heals: `${WD_RELIEF[k][0].toUpperCase()}${WD_RELIEF[k].slice(1)} ends it at once (and hooks you deeper). Or ride it out: about ${left < 48 ? `${left} hours` : `${Math.round(left / 24)} days`}.`,
+        heals: `${WD_RELIEF[k][0].toUpperCase()}${WD_RELIEF[k].slice(1)} ends it at once (and hooks you deeper). Or ride it out: about ${left < 48 ? hrs(left) : `${Math.round(left / 24)} days`}.`,
       });
     }
     out.push({

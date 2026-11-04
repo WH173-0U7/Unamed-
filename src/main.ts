@@ -236,7 +236,7 @@ function startGame(fresh: boolean) {
       menu.toast('The save was damaged: loaded the one before it');
     } catch {
       game = null;
-      menu.toast('The saved game is damaged and can’t be loaded');
+      menu.toast("The saved game is damaged and can't be loaded");
       return;
     }
   }

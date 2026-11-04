@@ -55,7 +55,7 @@ export function tierUpLine(key: string, t: Tier): string {
   const plural = !/work|pound/.test(n);
   return t === 1
     ? `Your ${n} ${plural ? 'are' : 'is'} starting to come naturally.`
-    : `Your ${n} ${plural ? 'have' : 'has'} gotten sharp: you don't have to think about ${plural ? 'them' : 'it'} any more.`;
+    : `Your ${n} ${plural ? 'have' : 'has'} gotten sharp: you don't have to think about ${plural ? 'them' : 'it'} anymore.`;
 }
 
 /** Your punch, landing. `where` is "in the ribs"; `into` is "into their ribs". */
@@ -228,7 +228,7 @@ export const AMBUSH_TEXT: Record<string, [string[], string[], string[]]> = {
     ['You sucker punch them from behind, on the side of the head.'],
     ['Three quiet steps, and you put a short, perfect punch behind their ear.', 'You time it to their step, and your fist catches the side of their head from behind.'],
   ],
-  bumrush: [['You run at them, head down, and crash into them.'], ['You bum rush them.'], ['You close the gap fast and low, shoulder first, and drive right through them.']],
+  bumrush: [['You run at them, head down, and crash into them.'], ['You bum rush them.'], ['You close the gap fast and low and drive your shoulder into them.']],
   shove: [['You shove them, hard, with both hands.'], ['You shove them hard.'], ['You catch them mid-step and shove, right when their weight is wrong.']],
   kneecap: [
     ['You come up behind them and kick at the back of their knee as hard as you can.'],
@@ -238,12 +238,12 @@ export const AMBUSH_TEXT: Record<string, [string[], string[], string[]]> = {
   slam: [
     ['You grab them by the neck and shove their face at the wall.'],
     ['You grab them by the back of the neck and drive their face into the wall.'],
-    ['One hand on the back of their neck, and you bounce their face off the wall before they know you are there.'],
+    ['One hand on the back of their neck, and you bounce their face off the wall before they know you\'re there.'],
   ],
   'rear-choke': [
-    ['You come up behind them and get an arm round their throat, more or less.'],
-    ['You come up behind them and lock an arm round their throat.'],
-    ['You slide an arm round their throat from behind and lock it in, tight and patient.'],
+    ['You come up behind them and get an arm around their throat, more or less.'],
+    ['You come up behind them and lock an arm around their throat.'],
+    ['You slide an arm around their throat from behind and lock it in, tight and patient.'],
   ],
 };
 
@@ -258,6 +258,6 @@ export function missText(t: Tier, kind: 'punch' | 'kick' | 'weapon' | 'stomp' | 
   if (t === 2)
     return kind === 'stomp'
       ? ['You stamp down; they roll just clear.']
-      : ['It was a good one; they were just a little faster.', 'They read it, barely.', 'They slip it by an inch.'];
+      : ["It's a good one; they're just a little faster.", 'They read it, barely.', 'They slip it by an inch.'];
   return kind === 'kick' ? ['You miss the kick.'] : kind === 'stomp' ? ['You stomp down, but they roll away from it.'] : kind === 'weapon' ? ['You swing and miss.', 'They jerk back out of reach.'] : ['They slip the punch.', 'You miss.', 'Your punch glances off.'];
 }

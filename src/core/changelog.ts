@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '0.93',
+    date: 'Nov 4',
+    items: [
+      'Writing pass on fights, messages, shops, the police and court, status cards and menus. Lines that read wrong once a name or a body part was filled in are fixed (“light the some cardboard”, “A $800 fine”, “You drop a fist on them in the face”), along with clumsy joins, mixed tenses, plurals (“1 hours”) and US spelling.',
+      'Blood amounts drop the extra zero (“5 L”, not “5.0 L”). The weather no longer says “a few drifting flakes” while it’s still snowing hard.',
+      'With both hands full, “Pepper spray them” is greyed out and says why, instead of looking like it would work.',
+    ],
+  },
+  {
     v: '0.92',
     date: 'Nov 4',
     items: [

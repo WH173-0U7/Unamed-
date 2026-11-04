@@ -7,7 +7,7 @@ const STAGE_TITLE: Record<string, string> = {
   surveil: 'What now?',
   violence: 'What now?',
   combat: 'Fight',
-  helpless: 'They’re out cold',
+  helpless: "They're out cold",
   yielded: 'They gave up',
 };
 
@@ -18,7 +18,7 @@ export const RESULT: Record<string, string> = {
   'you-fled': 'You got away.',
   'lost-them': 'You lost them.',
   left: 'You let them go.',
-  walked: 'You walk away.',
+  walked: 'You walked away.',
   killed: "They're dead.",
   mugged: 'You mugged them.',
 };

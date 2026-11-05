@@ -89,6 +89,8 @@ interface HomeJob {
   /** You beat whoever it was; the cash you took out of the house (cents). */
   beat?: boolean;
   cash?: number;
+  /** Your cash when a fight in the house started. */
+  cashBefore?: number;
 }
 /** What the pharmacy sells (iron tablets aren't: they do nothing in a hurry). */
 const SOLD_MEDS = () => MEDS.filter((m) => m.id !== 'iron');
@@ -450,6 +452,16 @@ export class Game {
    * people.ts). If they saw your face they talk, and some go to the police.
    */
   private rememberThem(e: Encounter) {
+    // Someone from a house: dressed again, with their wallet and keys, before they're remembered.
+    const a = e.resident?.away;
+    if (a) {
+      const p = e.person;
+      if (a.top && p.clothes[0]?.name === 'T-shirt' && !p.clothes[0].loot.length) p.clothes[0] = a.top;
+      p.clothes.push(...a.garments);
+      p.carrying.push(...a.carrying);
+      if (a.loot.length) (p.clothes[1] ?? p.clothes[0])?.loot.push(...a.loot.map((l) => ({ ...l, where: 'pocket' })));
+      delete e.resident!.away;
+    }
     const inv = this.inventory;
     if (e.them.dead && e.person.known) this.world.thieves = this.world.thieves.filter((t) => t.person.known !== e.person.known);
     const before = e.person.known ? this.people.find((k) => k.id === e.person.known)?.memory.sawFace : false;
@@ -624,16 +636,6 @@ export class Game {
         if (h) h.household = 'alone';
       }
       if (old.enforcer && old.result !== 'lost' && this.debt) this.debt.strikes = (this.debt.strikes ?? 0) + 1;
-      // Someone from a house: dressed again, with their wallet and keys, before they're remembered.
-      const a = old.resident?.away;
-      if (a) {
-        const p = old.person;
-        if (a.top && p.clothes[0]?.name === 'T-shirt' && !p.clothes[0].loot.length) p.clothes[0] = a.top;
-        p.clothes.push(...a.garments);
-        p.carrying.push(...a.carrying);
-        if (a.loot.length) (p.clothes[1] ?? p.clothes[0])?.loot.push(...a.loot.map((l) => ({ ...l, where: 'pocket' })));
-        delete old.resident!.away;
-      }
       // (Remembered first: the thief record then knows who they are, and the two stay one person.)
       if (old.stage !== 'seen') this.rememberThem(old);
       settle(this.world, old);
@@ -3625,6 +3627,8 @@ export class Game {
       h.left[room] = roomLoot(h, room, this.carHere(h));
       h.looked[room] = now();
     }
+    // (A car you've already had: its spare isn't worth anything now.)
+    if (h.car == null && h.left[room]?.some((l) => l.kind === 'car keys' && l.carOf)) h.left[room] = h.left[room]!.filter((l) => !(l.kind === 'car keys' && l.carOf));
     const there = h.left[room] ?? [];
     if (!there.length) {
       lines.push(fresh ? `${ROOM_SEARCH[room]} Nothing worth taking.` : 'There’s nothing left in there.');
@@ -3755,6 +3759,14 @@ export class Game {
             l.homeInfo = h;
           } else if (/card/.test(l.kind)) l.detail = name;
           else if (l.opens) l.opens = h.id;
+          else if (l.kind === 'car keys') {
+            // (Theirs is the car out front, if any; someone else in the house drives something else.)
+            if (c.owner && h.car) {
+              l.detail = `${h.car} key fob`;
+              l.carOf = h.id;
+            } else if (c.owner) g.loot = g.loot.filter((x) => x !== l);
+            else delete l.carOf;
+          }
         }
     }
     // What they've put down somewhere in the house (not on them now): theirs again when they're next out.
@@ -3800,6 +3812,7 @@ export class Game {
     }
     e.start = { blood: e.them.blood, broken: [...e.them.broken] };
     e.resident = { owner: c.owner, how: c.how, phoned: !!j.phoned, away };
+    j.cashBefore = Math.round(cashOf(inv) * 100);
     if (c.owner) j.metOwner = true;
     else j.metOther = true;
     delete j.confront;
@@ -3815,7 +3828,11 @@ export class Game {
     const h = this.atHome;
     if (!j || !h) return;
     if (e.them.dead) j.killed = true;
-    else if (e.them.out || e.result === 'won' || e.result === 'walked' || e.them.broken.length > (e.start?.broken.length ?? 0)) j.beat = true;
+    else if (e.them.out || e.result === 'won' || e.result === 'walked' || e.them.broken.length > (e.start?.broken.length ?? 0) || e.them.blood < (e.start?.blood ?? e.them.blood) - 1) j.beat = true;
+    // Cash you took off them in there: from the house, as far as the police are concerned.
+    const got = Math.round(cashOf(this.inventory) * 100) - (j.cashBefore ?? Math.round(cashOf(this.inventory) * 100));
+    if (got > 0) j.cash = (j.cash ?? 0) + got;
+    delete j.cashBefore;
     // They ran out (to the neighbors, to a phone), or you let them go: the police are coming, fast.
     if (e.result === 'they-fled' || e.result === 'lost-them' || e.result === 'left') {
       j.policeIn = Math.min(j.policeIn ?? 2, 2);

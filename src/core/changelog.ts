@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.26',
+    date: 'Nov 5',
+    items: [
+      'One car per house, however you come at it: a spare left on the hook is worthless once you’ve had the car with their own keys.',
+      'Cut someone in their own home and they get away: that’s still assault when the police get you there. Cash you take off them goes in the evidence bag with the rest.',
+      'Die fighting someone in their house and they’re still remembered with their shoes, coat and wallet.',
+      'Someone who owns the house drives the car parked out front, not some other car.',
+    ],
+  },
+  {
     v: '1.25',
     date: 'Nov 5',
     items: [

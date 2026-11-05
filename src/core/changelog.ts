@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.22',
+    date: 'Nov 5',
+    items: [
+      'Caught in a house, they take the cash you took out of it, and someone else’s house keys count as evidence. Beat up whoever lives there and that’s assault on top.',
+      'After a break-in, the new camera or alarm goes in with the new locks, not the minute you leave.',
+      'A dog that barks when you knock isn’t followed by “not a sound from inside”. Someone woken barefoot doesn’t kick you with a boot.',
+      'What was said in the house stays in the house: no old fight note waiting for you on the street.',
+      'The pawn clerk who took your ID once today doesn’t suddenly doubt it on the next sale. “A year in state prison”, not “1 years”.',
+    ],
+  },
+  {
     v: '1.21',
     date: 'Nov 5',
     items: [

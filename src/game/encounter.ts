@@ -1662,7 +1662,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
           ? vary([`${N.S} stomp down on ${N.oP} stomach.`, `${N.S} drive ${N.p} heel into ${N.oP} gut.`])
           : vary([`${N.S} stomp down on ${N.oP} ribs.`, `${N.S} drop ${N.p} heel into ${N.oP} side.`, `${N.S} stomp on ${N.oP} chest.`]);
   } else if (kind === 'kick') {
-    text = vary([`${N.S} kick ${N.o} ${where}.`, `${N.S} drive a boot ${into}.`, `${N.S} plant a kick ${where}.`, `${N.S} catch ${N.o} with a kick ${where}.`]);
+    text = vary([`${N.S} kick ${N.o} ${where}.`, `${N.S} drive ${N.S === 'They' && enc.resident?.how === 'woke' ? 'a bare heel' : 'a boot'} ${into}.`, `${N.S} plant a kick ${where}.`, `${N.S} catch ${N.o} with a kick ${where}.`]);
   } else {
     text =
       loc === 'arm'

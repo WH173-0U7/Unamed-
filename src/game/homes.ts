@@ -163,6 +163,9 @@ export interface Home {
   knockedAt?: number;
   triedAt?: number;
   wokeAt?: number;
+  /** Put in after the break-in, once the locks are done (see fixedAt). */
+  addCam?: boolean;
+  addAlarm?: boolean;
   /** The police are there (after an alarm, a call, a body), until when. */
   scene?: { until: number; body?: boolean };
 }

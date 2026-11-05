@@ -113,17 +113,17 @@ export function stompText(t: Tier, loc: 'head' | 'stomach' | 'body'): string[] {
   const part = loc === 'head' ? 'head' : loc === 'stomach' ? 'stomach' : 'ribs';
   if (t === 0)
     return loc === 'head'
-      ? ['You stamp down on their head, half losing your balance.', 'You bring your foot down on their head, awkwardly.']
-      : [`You stomp down on their ${part}, nearly tripping over them.`, `You stamp at their ${part}; it lands, more or less.`];
+      ? ['You stomp down on their head, half losing your balance.', 'You bring your foot down on their head, awkwardly.']
+      : [`You stomp down on their ${part}, nearly tripping over them.`, `You stomp at their ${part}; it lands, more or less.`];
   if (t === 1)
     return loc === 'head'
-      ? ['You stomp on their head.', 'You bring your heel down on their head.', 'You stamp down on their face.']
+      ? ['You stomp on their head.', 'You bring your heel down on their head.', 'You stomp down on their face.']
       : loc === 'stomach'
         ? ['You stomp down on their stomach.', 'You drive your heel into their gut.']
-        : ['You stomp down on their ribs.', 'You drop your heel into their side.', 'You stamp on their chest.'];
+        : ['You stomp down on their ribs.', 'You drop your heel into their side.', 'You stomp on their chest.'];
   return loc === 'head'
-    ? ['You plant your feet and bring your heel down on their head, all your weight behind it.', 'One clean stamp, right on their head.']
-    : [`You set yourself and drive your heel straight down into their ${part}.`, `A heavy, measured stamp to the ${part}.`];
+    ? ['You plant your feet and bring your heel down on their head, all your weight behind it.', 'One clean stomp, right on their head.']
+    : [`You set yourself and drive your heel straight down into their ${part}.`, `A heavy, measured stomp to the ${part}.`];
 }
 
 /** Your weapon, landing. `w` is its name (lower case). */
@@ -233,7 +233,7 @@ export const AMBUSH_TEXT: Record<string, [string[], string[], string[]]> = {
   kneecap: [
     ['You come up behind them and kick at the back of their knee as hard as you can.'],
     ['You come up behind them and kick the back of their knee as hard as you can.'],
-    ['You stamp down through the back of their knee, quick and quiet.'],
+    ['You stomp down through the back of their knee, quick and quiet.'],
   ],
   slam: [
     ['You grab them by the neck and shove their face at the wall.'],
@@ -253,11 +253,11 @@ export function missText(t: Tier, kind: 'punch' | 'kick' | 'weapon' | 'stomp' | 
     return kind === 'kick'
       ? ['You swing a leg at them and miss by a mile.']
       : kind === 'stomp'
-        ? ['You stamp down and hit the sidewalk. They roll away.']
+        ? ['You stomp down and hit the sidewalk. They roll away.']
         : ['You swing and nearly fall over.', 'You miss, wildly.', 'You telegraph it from a mile away. They step back.'];
   if (t === 2)
     return kind === 'stomp'
-      ? ['You stamp down; they roll just clear.']
+      ? ['You stomp down; they roll just clear.']
       : ["It's a good one; they're just a little faster.", 'They read it, barely.', 'They slip it by an inch.'];
   return kind === 'kick' ? ['You miss the kick.'] : kind === 'stomp' ? ['You stomp down, but they roll away from it.'] : kind === 'weapon' ? ['You swing and miss.', 'They jerk back out of reach.'] : ['They slip the punch.', 'You miss.', 'Your punch glances off.'];
 }

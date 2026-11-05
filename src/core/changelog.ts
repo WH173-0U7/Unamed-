@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.09',
+    date: 'Nov 5',
+    items: ['“Stamp” is now “stomp” everywhere, the American way, matching the rest of the game: “Stomp on their hand”, and the stomps in the fight text.'],
+  },
+  {
     v: '1.08',
     date: 'Nov 5',
     items: [

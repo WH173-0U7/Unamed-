@@ -520,7 +520,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
     if (p === 'ribs') {
       effects.push(`Every move costs ${h.lung ? '2.4' : '1.8'}× the stamina`);
       effects.push(`Fights start with ${h.lung ? '30% of' : 'half'} your stamina, and you can't get back more than that`);
-      if (!h.lung) effects.push('A stamp or hard blow there can drive a rib into your lung');
+      if (!h.lung) effects.push('A stomp or hard blow there can drive a rib into your lung');
     }
     if (p === 'nose') effects.push('It hurts and it shows, but it doesn\'t slow you in a fight');
     const left = h.mending[p] ?? 0;

@@ -425,7 +425,7 @@ function yieldedOptions(e: Encounter): Option[] {
   const fingers = T.marks?.fingers ?? 0;
   out.push({ id: 't-finger', label: 'Bend a finger back', hint: fingers >= 10 ? 'None left to break' : 'Until it snaps', disabled: fingers >= 10, cat: 'torture' });
   // (Only someone on the floor has a hand under your heel.)
-  if (T.down) out.push({ id: 't-stamp', label: 'Stamp on their hand', cat: 'torture' });
+  if (T.down) out.push({ id: 't-stamp', label: 'Stomp on their hand', cat: 'torture' });
   // A knife in your hand.
   const blade = heldBlade(e);
   if (blade) {
@@ -1625,10 +1625,10 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   } else if (stomp) {
     text =
       loc === 'head'
-        ? vary([`${N.S} stomp on ${N.oP} head.`, `${N.S} bring ${N.p} heel down on ${N.oP} head.`, `${N.S} stamp down on ${N.oP} face.`])
+        ? vary([`${N.S} stomp on ${N.oP} head.`, `${N.S} bring ${N.p} heel down on ${N.oP} head.`, `${N.S} stomp down on ${N.oP} face.`])
         : loc === 'stomach'
           ? vary([`${N.S} stomp down on ${N.oP} stomach.`, `${N.S} drive ${N.p} heel into ${N.oP} gut.`])
-          : vary([`${N.S} stomp down on ${N.oP} ribs.`, `${N.S} drop ${N.p} heel into ${N.oP} side.`, `${N.S} stamp on ${N.oP} chest.`]);
+          : vary([`${N.S} stomp down on ${N.oP} ribs.`, `${N.S} drop ${N.p} heel into ${N.oP} side.`, `${N.S} stomp on ${N.oP} chest.`]);
   } else if (kind === 'kick') {
     text = vary([`${N.S} kick ${N.o} ${where}.`, `${N.S} drive a boot ${into}.`, `${N.S} plant a kick ${where}.`, `${N.S} catch ${N.o} with a kick ${where}.`]);
   } else {

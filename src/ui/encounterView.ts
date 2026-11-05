@@ -223,7 +223,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       root.dataset.stage = e.stage;
       root.classList.toggle('chasing', !!e.chase);
       const p = e.person;
-      q('.enc-kind').textContent = NAMES[p.kind];
+      q('.enc-kind').textContent = p.title ?? NAMES[p.kind];
       // Who they are only shows once you've had a look.
       q('.enc-race').textContent = e.known.race ? `${e.known.sex ? `${p.sex === 'Male' ? 'Man' : 'Woman'} · ` : ''}${p.race}` : e.known.sex ? (p.sex === 'Male' ? 'Man' : 'Woman') : '';
 

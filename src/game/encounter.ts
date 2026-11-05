@@ -886,7 +886,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
   if (e.stage === 'over') return impacts;
   const p = e.person;
   const aw = AWARENESS.indexOf(p.awareness);
-  const who = p.kind === 'homeless' ? 'homeless one' : NAMES[p.kind].toLowerCase();
+  const who = p.title ? 'big man' : p.kind === 'homeless' ? 'homeless one' : NAMES[p.kind].toLowerCase();
 
   // Someone you hurt, and they've been looking for you: they find you first.
   if (id === 'ambushed' && e.stage === 'seen') {

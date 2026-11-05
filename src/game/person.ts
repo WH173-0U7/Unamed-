@@ -133,6 +133,8 @@ const DRUG_CHANCES: [Drug, number][] = [
 
 export interface Person {
   kind: Kind;
+  /** What the card calls them, when it isn't their kind (Dez's man). */
+  title?: string;
   /** How they are, inside (see PERSONALITIES). */
   personality?: Personality;
   race: Race;

@@ -2692,14 +2692,14 @@ export class Game {
     const r = this.record;
     const rows = Object.entries(r.charges).filter(([, n]) => n > 0);
     return (
-      `<section class="stat-card record"><h3><span>Criminal record</span><b>${r.arrests ? `${r.arrests} arrest${r.arrests > 1 ? 's' : ''}` : 'Clean'}</b></h3>` +
+      `<section class="stat-card record"><h3><span>Criminal record</span><b>${r.arrests ? `${r.arrests} arrest${r.arrests > 1 ? 's' : ''}` : this.case?.warrant ? 'Wanted' : 'Clean'}</b></h3>` +
       (this.case ? `<p class="record-case${this.case.warrant ? ' warrant' : ''}">${this.case.warrant ? `WARRANT out for you: ${this.case.warrantFor === 'sting' ? 'the buy you ran from' : 'missed court'}. Any stop is an arrest. Turn yourself in at the County Courthouse to end it.` : `Court date: ${dateText(this.case.courtAt)}, County Courthouse (weekdays, 9 to 4). Charges: ${this.case.charges.map((x) => x.toLowerCase()).join(', ')}.${this.case.bailPaid ? ` Bail paid: ${money(this.case.bailPaid)} (back when you show up).` : ''}`}</p>` : '') +
       ((d) => (d ? `<p class="record-case${now() > d.due ? ' warrant' : ''}">You owe Dez ${money(d.owed)}${now() > d.due ? `. You're late (it was due ${dateText(d.due)}), it grows every day, and he's sending someone.` : `, due ${dateText(d.due)} ${clockText(d.due)}. In the alley, at night.`}</p>` : ''))(this.debt) +
       (now() < ((this.save.state.probationUntil as number) ?? 0) ? `<p class="record-case">On probation until ${dateText(this.save.state.probationUntil as number)} ${clockText(this.save.state.probationUntil as number)}: get charged with anything and you're held, no bail.</p>` : '') +
       (r.arrests
         ? (rows.length ? `<ul class="record-list">${rows.map(([c, n]) => `<li><span>${c}</span><b>×${n}</b></li>`).join('')}</ul>` : '') +
           `<p class="record-note">${rows.length ? 'Each charge means a court date.' : 'Held, and let go without charge.'}${r.last ? ` Last arrested ${dateText(r.last)}.` : ''}</p>`
-        : `<p class="record-note">No arrests. The police have nothing on this face.</p>`) +
+        : `<p class="record-note">${this.case?.warrant ? "No arrests yet. They're looking for you." : 'No arrests. The police have nothing on this face.'}</p>`) +
       `</section>`
     );
   }
@@ -3053,6 +3053,7 @@ export class Game {
   private enforcerFor(d: { strikes?: number }): import('./person').Person {
     const p = makePerson();
     p.kind = 'civilian';
+    p.title = "Dez's man";
     p.sex = 'Male';
     p.personality = 'hard';
     p.build = (d.strikes ?? 0) >= 1 ? 'Muscular' : 'Stocky';
@@ -3786,7 +3787,7 @@ export class Game {
       btn.dataset.kind = e.person.kind;
       const k = document.createElement('span');
       k.className = 'seen-kind';
-      k.textContent = NAMES[e.person.kind];
+      k.textContent = e.person.title ?? NAMES[e.person.kind];
       const r = document.createElement('span');
       r.className = 'seen-race';
       // From here you can't make out who they are, only what.

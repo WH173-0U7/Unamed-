@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.13',
+    date: 'Nov 5',
+    items: [
+      'A warrant for a sting you ran from is properly served when they catch you: you’re charged with selling, with bail and a court date, and it goes on your record. Turning yourself in for it puts it on your record too.',
+      'Once that warrant is dealt with, a later missed court date counts as a missed court date again.',
+      'An undercover buyer always pays with a marked twenty of their own. A break-in found as you pay your rent is mentioned.',
+    ],
+  },
+  {
     v: '1.12',
     date: 'Nov 5',
     items: [

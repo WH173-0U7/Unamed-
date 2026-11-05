@@ -2267,7 +2267,11 @@ export class Game {
     if (pending?.warrant && choice !== 'run') {
       lines.push('One of them runs your name on the radio. A pause. "There\'s a warrant out for you. Turn around."');
       arrested = true;
-      if (pending.warrantFor !== 'sting') charges.push('Failure to appear');
+      if (pending.warrantFor === 'sting') {
+        // (The charge on the warrant: charged now, at the station, like any other.)
+        pending.charges = pending.charges.filter((x) => x !== 'Selling a controlled substance');
+        charges.push('Selling a controlled substance');
+      } else charges.push('Failure to appear');
     }
     // A buy that was a setup: arrested, the marked money goes back in an evidence bag.
     const takeMarked = () => {
@@ -2406,6 +2410,11 @@ export class Game {
         f.heat = Math.max(0, f.heat - 5);
       }
     }
+    if (arrested && pending?.warrant && pending.warrantFor === 'sting' && !charges.includes('Selling a controlled substance')) {
+      lines.push('At the station they run your name. There\'s a warrant out for you: the buy you ran from.');
+      pending.charges = pending.charges.filter((x) => x !== 'Selling a controlled substance');
+      charges.push('Selling a controlled substance');
+    }
     if (arrested && pending?.warrant && pending.warrantFor !== 'sting' && !charges.includes('Failure to appear')) {
       lines.push('At the station they run your name. There\'s a warrant out for you, too.');
       charges.push('Failure to appear');
@@ -2447,6 +2456,7 @@ export class Game {
         c.bail = noBail ? 0 : Math.round(c.charges.reduce((n, x) => n + chargeOf(x).bail, 0) * (1 + priors * 0.5));
         c.courtAt = courtDate();
         c.warrant = false;
+        delete c.warrantFor;
         this.save.state.case = c;
         lines.push(`In the morning you're charged: ${charges.map((x) => x.toLowerCase()).join(', ')}.`);
         if (noBail) {
@@ -2607,6 +2617,7 @@ export class Game {
       const rec = this.record;
       rec.arrests++;
       if (fta) rec.charges['Failure to appear'] = (rec.charges['Failure to appear'] ?? 0) + 1;
+      else rec.charges['Selling a controlled substance'] = (rec.charges['Selling a controlled substance'] ?? 0) + 1;
       rec.last = now();
       lines.push(...this.passCell());
       if (this.health.dead) return this.die(lines);
@@ -2935,6 +2946,13 @@ export class Game {
       return;
     }
     // Their money, out of their pockets and into yours.
+    // (A cop pays with a marked twenty from the department, not their own pocket.)
+    if (d.kind === 'sting') {
+      addTo(inv.purse, fewest(d.price));
+      this.save.state.policeStop = 'sting';
+      this.save.state.stingCash = d.price;
+      return;
+    }
     let need = d.price;
     let got = 0;
     for (const g of e.person.clothes)
@@ -2951,11 +2969,6 @@ export class Game {
         } else g.loot.splice(g.loot.indexOf(l), 1);
       }
     addTo(inv.purse, fewest(got));
-    if (d.kind === 'sting') {
-      this.save.state.policeStop = 'sting';
-      this.save.state.stingCash = got;
-      return;
-    }
     // Word gets around: to buyers, and to the police.
     f.rep += 1;
     f.heat = Math.min(100, f.heat + 2);
@@ -3144,7 +3157,7 @@ export class Game {
         this.note(cleared);
         return;
       }
-      const paid = this.payLine(ROOM_RENT * 100);
+      const paid = [...cleared, this.payLine(ROOM_RENT * 100)].join(' ');
       const r = this.room;
       const t = now();
       if (r && t <= r.until + 2 * 86_400_000) r.until = Math.max(t, r.until) + 7 * 86_400_000;
@@ -4236,6 +4249,7 @@ export class Game {
       const cs = this.case;
       if (cs && !cs.warrant && !this.save.state.bailOffer && now() > cs.courtAt) {
         cs.warrant = true;
+        delete cs.warrantFor;
         cs.bailPaid = 0;
         this.infamy.heat = Math.min(100, this.infamy.heat + 40);
         if (this.running && this.tvState.on) this.note(['You missed your court date. There\'s a warrant out for you now, and your bail is gone.']);

@@ -1424,7 +1424,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         spend('you', COST.run);
         // (Someone on the floor can't chase you: only your own legs can stop you.)
         if ((e.them.down && !legs(y)) || Math.random() < fleeChance(y, e.them, accuracyBonus(stats))) {
-          say('you', legs(y) ? 'You limp away as fast as you can, and somehow lose them.' : e.resident ? oneOf(['You break away and run, out the door and down the street, and don\'t look back.', 'You run, out the back and over the fence. Nobody follows.']) : oneOf(['You break away and run, and don\'t look back until they\'re gone.', 'You run, and duck down a side street. They don\'t follow.', 'You break away and run. You lose them a block later.']));
+          say('you', legs(y) ? 'You limp away as fast as you can, and somehow lose them.' : e.them.down ? (e.resident ? 'You leave them on the floor and run, out the door and up the road.' : 'You leave them on the ground and run.') : e.resident ? oneOf(['You break away and run, out the door and up the road, and don\'t look back.', 'You run, out the back and over the fence. Nobody follows.']) : oneOf(['You break away and run, and don\'t look back until they\'re gone.', 'You run, and duck down a side street. They don\'t follow.', 'You break away and run. You lose them a block later.']));
           you.gain('agility', 2);
           end('you-fled');
           return impacts;

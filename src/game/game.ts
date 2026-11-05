@@ -2368,11 +2368,9 @@ export class Game {
     delete this.save.state.policeCuffed;
     if (cuffed) choice = 'stay';
     const upstairs = (this.atHome?.type === 'apartment' && this.atHome.floor > 1) || this.atHome?.type === 'room';
-    if (this.place === 'home') {
-      // (Got away past them: the break-in, and any body, are on file like any other.)
-      this.leaveHome(undefined, burglary && choice !== 'run');
-      this.place = 'street';
-    }
+    // (Out of the house either way; whether you got away is settled below.)
+    const atHouse = this.place === 'home';
+    if (atHouse) this.place = 'street';
     delete this.save.state.policeStop;
     delete this.save.state.policeWhy;
     const lines: string[] = [];
@@ -2575,6 +2573,11 @@ export class Game {
         f.heat = Math.max(0, f.heat - 5);
       }
     }
+    // Caught at the house, or got away past them (then the break-in, and any body, are on file like any other).
+    if (atHouse) this.leaveHome(undefined, burglary && arrested);
+    // Charged with it here and now: that's what the description was for.
+    if (charges.includes('Homicide') && (f.killsSeen ?? 0) > 0) f.killsSeen = f.killsSeen! - 1;
+    if (charges.includes('Burglary') && (f.burglaries ?? 0) > 0) f.burglaries = f.burglaries! - 1;
     if (arrested && pending?.stingPending) {
       if (pending.warrantFor === 'sting') lines.push('At the station they run your name. There\'s a warrant out for you: the buy you ran from.');
       serveStings();
@@ -3377,6 +3380,27 @@ export class Game {
       if (h.fixedAt != null) h.fixedAt -= ms;
       for (const k of ['triedAt', 'knockedAt', 'wokeAt', 'hitAt', 'deadAt'] as const) if (h[k] != null) h[k]! -= ms;
     }
+    // Car keys go cold (the car's long reported); rent runs out; Dez's money comes due; people heal.
+    const st = this.save.state;
+    const stash = st.stash as { items: InvItem[]; at: number } | undefined;
+    const room = st.room as { until: number; items: InvItem[]; at: number } | undefined;
+    for (const x of [...this.inventory.items, ...(stash?.items ?? []), ...(room?.items ?? [])]) if (x.takenAt != null) x.takenAt -= ms;
+    if (stash) stash.at -= ms;
+    if (room) {
+      room.until -= ms;
+      room.at -= ms;
+    }
+    const d = st.debt as { due: number; vigAt?: number } | undefined;
+    if (d) {
+      d.due -= ms;
+      if (d.vigAt != null) d.vigAt -= ms;
+    }
+    for (const k of this.people) {
+      k.at -= ms;
+      if (k.healedAt != null) k.healedAt -= ms;
+      for (const p of Object.keys(k.mends) as (keyof typeof k.mends)[]) k.mends[p]! -= ms;
+      for (const m of Object.keys(k.markEnds) as (keyof typeof k.markEnds)[]) k.markEnds[m]! -= ms;
+    }
   }
   /** After a break-in, once the new locks are in: the camera, the alarm they paid for. */
   private fixUp(h: Home) {
@@ -3923,12 +3947,17 @@ export class Game {
     if (j.in || j.took) {
       h.hits = (h.hits ?? 0) + 1;
       h.hitAt = now();
-      // New locks in a day or two; a camera, an alarm, sometimes.
-      const fix = now() + (18 + Math.random() * 30) * 3_600_000;
-      h.lockAt = Math.min(h.lockAt ?? fix, fix);
-      h.fixedAt = fix;
-      if (Math.random() < 0.4) h.addCam = true;
-      if (Math.random() < 0.25) h.addAlarm = true;
+      // New locks in a day or two; a camera, an alarm, sometimes. (Unless there's nobody left to do it.)
+      const ownerKilled = !!e?.resident?.owner && e.them.dead;
+      const nobody = h.household === 'alone' && (!!h.deadAt || ownerKilled);
+      if (nobody) h.lockAt = NEVER;
+      else if (h.lockAt !== NEVER || h.household !== 'alone') {
+        const fix = now() + (18 + Math.random() * 30) * 3_600_000;
+        h.lockAt = h.lockAt === NEVER ? fix : Math.min(h.lockAt ?? fix, fix);
+        h.fixedAt = fix;
+        if (Math.random() < 0.4) h.addCam = true;
+        if (Math.random() < 0.25) h.addAlarm = true;
+      }
       if (j.killed || j.siren || j.phoned || j.policeIn != null || caught) h.scene = { until: now() + (j.killed ? 6 * 3_600_000 : (45 + Math.random() * 45) * 60_000), body: !!j.killed };
       if (!caught) {
         const f = this.infamy;

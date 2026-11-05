@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.31',
+    date: 'Nov 5',
+    items: [
+      'Caught trying to run out of a house: charged once for it, not again later off the same description.',
+      'Nobody changes the locks on a dead man’s house when he lived alone.',
+      'Time inside counts for everything, not only houses: car keys go cold, the rent at the Marlow runs out, Dez’s money comes due, and the people you hurt heal.',
+      'Running from someone on the floor reads like it; running out of a house says “up the road”, once. Someone on a broken leg doesn’t back out of the room when you let them go.',
+    ],
+  },
+  {
     v: '1.30',
     date: 'Nov 5',
     items: [

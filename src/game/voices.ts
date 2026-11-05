@@ -234,7 +234,7 @@ export function voice(e: Encounter, m: Moment): string[] {
   }
   const legs = e.them.broken.filter((p) => p.endsWith('leg')).length;
   // (A broken leg: nobody runs off on it.)
-  const moves = /\b(run|runs|ran|scramble|scrambles|weave|weaves|stumble|stumbles|shuffle|shuffles|walk|walks|bolt|gone|vanish|back(s)? away)\b/i;
+  const moves = /\b(run|runs|ran|scramble|scrambles|weave|weaves|stumble|stumbles|shuffle|shuffles|walk|walks|bolt|gone|vanish|back(s)? (away|out))\b/i;
   if (m === 'letGo' && legs) {
     const ys = xs.filter((x) => !moves.test(x) && !(e.them.down && /sit down/i.test(x)));
     return ys.length ? ys : [legs >= 2 ? (e.them.down ? 'They stay where they are, on the ground, and watch you go.' : 'They lean on their crutches and don\'t move until you\'re gone.') : 'They limp away as fast as the leg will let them, looking back the whole way.'];

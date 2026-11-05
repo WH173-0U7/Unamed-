@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.12',
+    date: 'Nov 5',
+    items: [
+      'Running from a sting while out on bail costs you the bail. The warrant is for the buy you ran from, not a missed court date (no failure-to-appear charge), and the You sheet says so. The marked money is only taken if they actually take you.',
+      'Dez’s man is a man, and nobody says you’ve never met him. When he catches you, he takes everything in your pockets (and keeps what’s over the debt, for the trouble). Short, he takes your phone, weapons and drugs too. Dez’s people don’t go to the police.',
+      'Hurt a customer and they stop being one straight away. A new you isn’t the old one’s dealer.',
+    ],
+  },
+  {
     v: '1.11',
     date: 'Nov 5',
     items: [

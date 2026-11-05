@@ -189,6 +189,7 @@ export function remember(
     k.memory.worst = '';
     k.memory.times = 0;
     k.memory.grudge = 0;
+    delete k.memory.customer;
     delete k.memory.fear;
     delete k.memory.beatYou;
     delete k.worstLevel;
@@ -227,8 +228,7 @@ export function remember(
   mem.fear = Math.max(mem.fear ?? 0, Math.round((T.fear ?? 0) * (did.tortured ? 1 : 0.7)));
   mem.beatYou = e.result === 'lost' && !e.chaseOut;
   if (e.customer) mem.customer = true;
-  // (Hurt them, and you're not their dealer any more.)
-  if (mem.grudge >= 30) delete mem.customer;
+
   // Beating you takes the fear out of them.
   if (mem.beatYou) mem.fear = Math.round((mem.fear ?? 0) * 0.3);
   // Keep the worst thing you've done to them.
@@ -238,6 +238,8 @@ export function remember(
   }
   // A grudge grows when you hurt them again.
   mem.grudge = Math.min(100, Math.max(mem.grudge, w.grudge) + (mem.times > 1 && (hurt || did.robbed) ? 10 : 0));
+  // (Hurt them, and you're not their dealer any more.)
+  if (mem.grudge >= 30) delete mem.customer;
   // Full: forget whoever matters least (no grudge, longest ago), not the oldest enemy.
   while (people.length > MAX_PEOPLE) {
     let worst = 0;

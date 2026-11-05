@@ -418,7 +418,7 @@ export class Game {
     if (k.memory.sawFace && !before) f.rep += k.memory.grudge / 8;
     // Who goes to the police: most civilians, few junkies.
     const reports = { civilian: 0.7, drunk: 0.4, homeless: 0.25, junkie: 0.15 }[k.person.kind];
-    if (e.result !== 'sold' && Math.random() < reports) {
+    if (e.result !== 'sold' && !e.enforcer && Math.random() < reports) {
       f.heat = Math.min(100, f.heat + (k.memory.grudge / 5) * (k.memory.sawFace ? 1 : 0.4));
       if (k.memory.sawFace && e.fought) f.reports = (f.reports ?? 0) + 1;
     }
@@ -848,12 +848,22 @@ export class Game {
     const beaten = this.encounter;
     if (beaten?.enforcer) {
       const dz = this.debt;
-      const c = Math.round(cashOf(this.inventory) * 100);
+      const inv = this.inventory;
+      const c = Math.round(cashOf(inv) * 100);
+      const owed = dz?.owed ?? 0;
       if (dz && c) {
         dz.owed = Math.max(0, dz.owed - c);
-        this.inventory.purse = {};
+        inv.purse = {};
       }
-      lines = [...lines, c ? `When you come to, your pockets are empty: ${money(c)} gone to Dez. ${dz && dz.owed ? `You still owe ${money(dz.owed)}.` : "That's the debt paid."}` : `When you come to, they've been through your pockets and found nothing. You still owe Dez ${money(dz?.owed ?? 0)}.`];
+      // Short, and they take what's worth taking too (that's for the trouble).
+      const took = dz && dz.owed ? inv.items.filter((x) => x.kind === 'phone' || x.kind === 'weapon' || (x.secret && x.secret !== 'empty')) : [];
+      inv.items = inv.items.filter((x) => !took.includes(x));
+      const gone = [...(c ? [money(c)] : []), ...took.map((x) => lc(x.name))];
+      lines = [
+        ...lines,
+        gone.length ? `When you come to, your pockets are empty. Gone to Dez: ${gone.join(', ')}.` : 'When you come to, they\'ve been through your pockets and found nothing.',
+        dz && dz.owed ? `You still owe ${money(dz.owed)}.` : c > owed ? "That's the debt paid. Dez's man kept the rest, for the trouble." : "That's the debt paid.",
+      ];
       if (dz && !dz.owed) delete this.save.state.debt;
     } else if (beaten && !beaten.chaseOut && !beaten.them.out) {
       const robbed = robKnockedOut(this.world, this.inventory, beaten, isBrute(beaten.person.personality));
@@ -2257,15 +2267,16 @@ export class Game {
     if (pending?.warrant && choice !== 'run') {
       lines.push('One of them runs your name on the radio. A pause. "There\'s a warrant out for you. Turn around."');
       arrested = true;
-      charges.push('Failure to appear');
+      if (pending.warrantFor !== 'sting') charges.push('Failure to appear');
     }
-    // A buy that was a setup: the marked money goes back in an evidence bag, whatever happens.
-    if (sting) {
+    // A buy that was a setup: arrested, the marked money goes back in an evidence bag.
+    const takeMarked = () => {
       const marked = Math.min(Math.round(cashOf(inv) * 100), (this.save.state.stingCash as number) ?? 0);
       if (marked) pay(inv.purse, marked);
       delete this.save.state.stingCash;
-    }
+    };
     if (sting && choice !== 'run') {
+      takeMarked();
       lines.push('The cuffs go on. The twenty you took is marked; the bag is already in an evidence envelope.');
       arrested = true;
       charges.push('Selling a controlled substance');
@@ -2309,9 +2320,16 @@ export class Game {
           f.heat = Math.min(100, f.heat + 25);
           const c = this.case ?? { charges: [], bail: 0, courtAt: now() };
           if (!c.charges.includes('Selling a controlled substance')) c.charges = [...c.charges, 'Selling a controlled substance'];
+          // (Already wanted for missing court, that stays the reason; otherwise it's the buy.)
+          if (!c.warrant) c.warrantFor = 'sting';
           c.warrant = true;
-          this.save.state.case = c;
           lines.push("They've got the buy on camera. There'll be a warrant out for you by morning.");
+          if (c.bailPaid) {
+            lines.push(`You were out on bail. Not any more: the ${money(c.bailPaid)} is gone.`);
+            c.bailPaid = 0;
+          }
+          this.save.state.case = c;
+          delete this.save.state.stingCash;
         }
       } else {
         lines.push('You bolt, and get about ten yards. One of them takes your legs out and you hit the sidewalk face first. A knee in your back, your arms wrenched behind you.');
@@ -2327,7 +2345,10 @@ export class Game {
           inv.items = inv.items.filter((x) => !(x.kind === 'car keys' && x.car));
         }
         if (brandished) charges.push('Brandishing a weapon');
-        if (sting) charges.push('Selling a controlled substance');
+        if (sting) {
+          charges.push('Selling a controlled substance');
+          takeMarked();
+        }
       }
     } else if (brandished || arrested || sting) {
       // (Nothing to talk about.)
@@ -2385,7 +2406,7 @@ export class Game {
         f.heat = Math.max(0, f.heat - 5);
       }
     }
-    if (arrested && pending?.warrant && !charges.includes('Failure to appear')) {
+    if (arrested && pending?.warrant && pending.warrantFor !== 'sting' && !charges.includes('Failure to appear')) {
       lines.push('At the station they run your name. There\'s a warrant out for you, too.');
       charges.push('Failure to appear');
     }
@@ -2453,8 +2474,8 @@ export class Game {
     return info.indoors && (!info.hours || isOpen(info.hours));
   }
   /** A case against you: the charges, bail, and when your court date is. */
-  private get case(): { charges: string[]; bail: number; courtAt: number; warrant?: boolean; bailPaid?: number } | undefined {
-    return this.save.state.case as { charges: string[]; bail: number; courtAt: number; warrant?: boolean; bailPaid?: number } | undefined;
+  private get case(): { charges: string[]; bail: number; courtAt: number; warrant?: boolean; warrantFor?: 'sting'; bailPaid?: number } | undefined {
+    return this.save.state.case as { charges: string[]; bail: number; courtAt: number; warrant?: boolean; warrantFor?: 'sting'; bailPaid?: number } | undefined;
   }
   /** Paying bail: cash first, then the bank. You're out, with a court date. */
   private payBail() {
@@ -2579,11 +2600,13 @@ export class Game {
     const lines: string[] = [];
     if (c.warrant) {
       lines.push('You give your name at the desk. The clerk looks at her screen, then at the deputy. You\'re cuffed in the hall: there\'s a warrant out for you.');
-      c.charges.push('Failure to appear');
+      const fta = c.warrantFor !== 'sting';
+      if (fta) c.charges.push('Failure to appear');
       c.warrant = false;
+      delete c.warrantFor;
       const rec = this.record;
       rec.arrests++;
-      rec.charges['Failure to appear'] = (rec.charges['Failure to appear'] ?? 0) + 1;
+      if (fta) rec.charges['Failure to appear'] = (rec.charges['Failure to appear'] ?? 0) + 1;
       rec.last = now();
       lines.push(...this.passCell());
       if (this.health.dead) return this.die(lines);
@@ -2631,7 +2654,7 @@ export class Game {
     const rows = Object.entries(r.charges).filter(([, n]) => n > 0);
     return (
       `<section class="stat-card record"><h3><span>Criminal record</span><b>${r.arrests ? `${r.arrests} arrest${r.arrests > 1 ? 's' : ''}` : 'Clean'}</b></h3>` +
-      (this.case ? `<p class="record-case${this.case.warrant ? ' warrant' : ''}">${this.case.warrant ? 'WARRANT out for you: missed court. Any stop is an arrest. Turn yourself in at the County Courthouse to end it.' : `Court date: ${dateText(this.case.courtAt)}, County Courthouse (weekdays, 9 to 4). Charges: ${this.case.charges.map((x) => x.toLowerCase()).join(', ')}.${this.case.bailPaid ? ` Bail paid: ${money(this.case.bailPaid)} (back when you show up).` : ''}`}</p>` : '') +
+      (this.case ? `<p class="record-case${this.case.warrant ? ' warrant' : ''}">${this.case.warrant ? `WARRANT out for you: ${this.case.warrantFor === 'sting' ? 'the buy you ran from' : 'missed court'}. Any stop is an arrest. Turn yourself in at the County Courthouse to end it.` : `Court date: ${dateText(this.case.courtAt)}, County Courthouse (weekdays, 9 to 4). Charges: ${this.case.charges.map((x) => x.toLowerCase()).join(', ')}.${this.case.bailPaid ? ` Bail paid: ${money(this.case.bailPaid)} (back when you show up).` : ''}`}</p>` : '') +
       ((d) => (d ? `<p class="record-case${now() > d.due ? ' warrant' : ''}">You owe Dez ${money(d.owed)}${now() > d.due ? `. You're late (it was due ${dateText(d.due)}), it grows every day, and he's sending someone.` : `, due ${dateText(d.due)} ${clockText(d.due)}. In the alley, at night.`}</p>` : ''))(this.debt) +
       (now() < ((this.save.state.probationUntil as number) ?? 0) ? `<p class="record-case">On probation until ${dateText(this.save.state.probationUntil as number)} ${clockText(this.save.state.probationUntil as number)}: get charged with anything and you're held, no bail.</p>` : '') +
       (r.arrests
@@ -2989,6 +3012,7 @@ export class Game {
   private enforcerFor(d: { strikes?: number }): import('./person').Person {
     const p = makePerson();
     p.kind = 'civilian';
+    p.sex = 'Male';
     p.personality = 'hard';
     p.build = (d.strikes ?? 0) >= 1 ? 'Muscular' : 'Stocky';
     p.awareness = 'Alert';
@@ -3984,7 +4008,7 @@ export class Game {
           e.looks = [...injuriesText(known), ...marksText(known.marks)];
           e.dread = known.memory.fear ?? 0;
           e.regular = !!known.memory.customer && !!e.recognised && (known.memory.grudge ?? 0) < 30;
-        } else if (Math.random() < Math.min(0.5, this.infamy.rep / 200) * (1 - anon)) {
+        } else if (!sent && Math.random() < Math.min(0.5, this.infamy.rep / 200) * (1 - anon)) {
           // A stranger who's heard about you, and knows your face.
           e.recognised = true;
           e.byRep = true;

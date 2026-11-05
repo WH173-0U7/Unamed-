@@ -479,10 +479,18 @@ export class Game {
     // that comes in meanwhile (the weather, a cigarette burning down) goes under it.
     if (!sticky && this.noteSticky && !this.noteEl.hidden) {
       this.noteEl.querySelector('.note-tap')?.before(...lines.map(p));
+      // (Only the latest few of those: what happened with them stays on top.)
+      const extra = [...this.noteEl.querySelectorAll('p:not(.note-tap):not(.note-head)')];
+      for (const el of extra.slice(0, Math.max(0, extra.length - 3))) el.remove();
+      this.save.state.stickyExtra = [...((this.save.state.stickyExtra as string[] | undefined) ?? []), ...lines].slice(-3);
       return;
     }
     this.noteSticky = sticky;
-    this.noteEl.replaceChildren(...lines.map(p), ...(sticky ? [Object.assign(p('Tap to go on'), { className: 'note-tap' })] : []));
+    if (sticky) this.save.state.stickyNote = [...lines];
+    else delete this.save.state.stickyNote;
+    delete this.save.state.stickyExtra;
+    this.noteEl.classList.toggle('sticky', sticky);
+    this.noteEl.replaceChildren(...lines.map((l) => (sticky ? Object.assign(p(l), { className: 'note-head' }) : p(l))), ...(sticky ? [Object.assign(p('Tap to go on'), { className: 'note-tap' })] : []));
     this.noteEl.hidden = false;
     clearTimeout(this.noteFade);
     this.noteEl.classList.remove('fading');
@@ -502,14 +510,21 @@ export class Game {
   private noteSticky = false;
   private dismissNote() {
     if (!this.noteSticky) return;
-    this.noteSticky = false;
+    this.unstick();
     this.noteTimer = 0.01;
+  }
+  /** No longer waiting (and not brought back on a reload). */
+  private unstick() {
+    this.noteSticky = false;
+    this.noteEl.classList.remove('sticky');
+    delete this.save.state.stickyNote;
+    delete this.save.state.stickyExtra;
   }
 
   /** Rest: several hours pass, and you heal. */
   rest() {
     if (!this.canLurk) return;
-    this.noteSticky = false;
+    this.unstick();
     if (!isHurt(this.health)) {
       this.note(["You're not hurt. There's nothing to rest off."]);
       return;
@@ -575,7 +590,7 @@ export class Game {
     sound.static();
     this.timer = 0.45;
     this.encounter = null;
-    this.noteSticky = false;
+    this.unstick();
     this.noteEl.hidden = true;
     this.wipeBlood();
     // Time passes while you wait: wounds bleed, or heal; the rain soaks you.
@@ -990,7 +1005,7 @@ export class Game {
       if (k) k.person = JSON.parse(JSON.stringify(e.person));
     }
     // (The old life's note doesn't wait for the new one.)
-    this.noteSticky = false;
+    this.unstick();
     this.noteEl.hidden = true;
     // A new you: nothing carried over but the world.
     // (Your name, your ID and your bank account were that character's.)
@@ -1223,7 +1238,7 @@ export class Game {
     }
     this.place = p;
     this.encounter = null;
-    this.noteSticky = false;
+    this.unstick();
     this.noteEl.hidden = true;
     this.wipeBlood();
     this.jam = 0.8;
@@ -1909,7 +1924,7 @@ export class Game {
       lines.push('The street tips over. You sit down hard, and then you are somewhere else entirely.');
       // Hours go by, as with resting: whoever you were watching is long gone.
       if (this.encounter?.stage === 'seen' || this.encounter?.stage === 'over') this.encounter = null;
-      this.noteSticky = false;
+      this.unstick();
       this.wipeBlood();
       lines.push(...passHours(h, 3));
       if (h.dead) return this.die(lines);
@@ -2029,7 +2044,7 @@ export class Game {
   }
   /** A night in a car: warm, dry, out of sight (until the owner's reported it). */
   private sleepInCar(i: number) {
-    this.noteSticky = false;
+    this.unstick();
     const inv = this.inventory;
     const it = inv.items[i];
     const h = this.health;
@@ -2400,7 +2415,7 @@ export class Game {
     if (!c) return;
     const h = this.health;
     delete this.save.state.bailOffer;
-    const lines = [...custodyCare(h), 'A day and a half in County: a bunk, a toilet with no seat, gray food and the noise that never stops.', ...passHours(h, 36, true)];
+    const lines = [...custodyCare(h), 'A day and a half in County: a bunk, a toilet with no seat, and the noise that never stops.', ...passHours(h, 36, true)];
     if (h.dead) return this.die(lines);
     h.stress = Math.min(100, (h.stress ?? 0) + 20);
     lines.push(...this.verdict(true));
@@ -2739,7 +2754,7 @@ export class Game {
       lines.push('Your breathing slows to almost nothing, and the world goes out.');
       // (Hours out: whoever was lying here is long gone.)
       if (this.encounter?.stage === 'seen' || this.encounter?.stage === 'over') this.encounter = null;
-      this.noteSticky = false;
+      this.unstick();
       lines.push(...passHours(h, 4));
       if (h.dead) {
         this.die(lines);
@@ -2775,7 +2790,7 @@ export class Game {
       lines.push("A heavy, sick drowsiness pulls you down before you can get the needle out. You're out where you sit.");
       // (Hours out: whoever was lying here is long gone.)
       if (this.encounter?.stage === 'seen' || this.encounter?.stage === 'over') this.encounter = null;
-      this.noteSticky = false;
+      this.unstick();
       lines.push(...passHours(h, 4));
       if (h.dead) return this.die(lines);
       lines.push('You wake hours later, your skin crawling, with no idea how long you were gone.');
@@ -2877,7 +2892,7 @@ export class Game {
         ? `<p class="shop-broke">The metal detector shrieks. The deputy finds the ${lc(metal.name)} and steps in front of you. "Not in here. Get rid of it and come back."</p>`
         : open
         ? c
-          ? `<ul class="shop-list">${li(c.warrant ? 'Turn yourself in' : 'Appear for your hearing', `${c.charges.map((x) => x.toLowerCase()).join(', ')}.${c.warrant ? ' There’s a warrant: they’ll hold you overnight first.' : ` Your date: ${dateText(c.courtAt)}.`}`, btn('court', 'appear', c.warrant ? 'Go in' : 'Go in'))}</ul>` +
+          ? `<ul class="shop-list">${li(c.warrant ? 'Turn yourself in' : 'Appear for your hearing', `${c.charges.map((x) => x.toLowerCase()).join(', ')}.${c.warrant ? ' There’s a warrant: they’ll hold you overnight first.' : ` Your date: ${hearingToday(c.courtAt) ? 'today' : dateText(c.courtAt)}.`}`, btn('court', 'appear', 'Go in'))}</ul>` +
             `<p class="shop-broke">Could go any way: dropped, a fine, probation, or jail time. Your record counts against you; a good story counts for you.</p>`
           : `<p class="shop-broke">Your name isn't on any list. Nothing for you here.</p>`
         : `<p class="shop-closed">The doors are locked. Open weekdays, 9 to 4.</p>`;
@@ -3537,6 +3552,19 @@ export class Game {
   }
 
   private showSavedScene() {
+    // A note that was waiting for you when the game closed: still waiting.
+    if (Array.isArray(this.save.state.stickyNote) && this.tvState.on && this.place === 'street' && !this.encounter) {
+      const lines = this.save.state.stickyNote as string[];
+      const extra = Array.isArray(this.save.state.stickyExtra) ? (this.save.state.stickyExtra as string[]) : [];
+      this.timers.push(
+        window.setTimeout(() => {
+          if (this.closed) return;
+          this.note(lines, true);
+          this.noteEl.firstElementChild?.classList.add('note-title');
+          if (extra.length) this.note(extra);
+        }, 600),
+      );
+    }
     // Closed on the death screen: it's still there.
     if (typeof this.save.state.deathScreen === 'string') {
       this.dead = true;

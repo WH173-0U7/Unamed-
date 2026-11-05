@@ -4887,3 +4887,42 @@ body[data-drug='withdrawal'] #game {
   from { opacity: 0; }
   to { opacity: 0.55; }
 }
+
+/* Round 10 (browser play) */
+/* The note that waits: it can't grow up over the clock and the status; past
+   that, it scrolls (the latest at the bottom, so swipe up for the rest). */
+#game:not(.in-shop) #note.sticky {
+  max-height: calc(57% - 86px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14px);
+  mask-image: linear-gradient(to bottom, transparent, #000 14px);
+}
+/* A chase says so, even on short screens (there are no tabs to tell you). */
+#enc.chasing .enc-title {
+  display: block !important;
+}
+/* The chase hint goes under the button's label, not beside it. */
+#enc .enc-extra button[data-id='chase'] {
+  flex-direction: column;
+  justify-content: center;
+}
+/* Short landscape: a greyed-out choice still says why. */
+@media (orientation: landscape) and (max-height: 340px) {
+  .police-choice .place[disabled] small {
+    display: block;
+  }
+}
+/* The death screen on a short screen: it scrolls rather than clips. */
+#death {
+  overflow-y: auto;
+  justify-content: safe center;
+}
+@media (max-height: 420px) {
+  #death {
+    gap: 10px;
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+}

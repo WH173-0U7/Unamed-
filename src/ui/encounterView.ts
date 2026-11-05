@@ -220,6 +220,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       else if (root.dataset.stage !== e.stage) uiGlitch(q('.enc-actions'), 0.3);
       root.hidden = false;
       root.dataset.stage = e.stage;
+      root.classList.toggle('chasing', !!e.chase);
       const p = e.person;
       q('.enc-kind').textContent = NAMES[p.kind];
       // Who they are only shows once you've had a look.

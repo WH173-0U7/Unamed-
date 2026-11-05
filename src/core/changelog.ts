@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.02',
+    date: 'Nov 5',
+    items: [
+      'The note that waits for you can’t grow up over the clock and your blood any more: a long one scrolls, and only the latest few things that happen meanwhile are added under it. It’s still there after closing and reopening the game.',
+      'Chases say “They’re running” on every screen size, with how far ahead they are under the Chase button.',
+      'On short landscape screens a greyed-out police choice (like bail you can’t afford) still says why, and the death screen scrolls instead of being cut off.',
+      'Small wording: your court date says “today” on the day, and County’s food is only gray once.',
+    ],
+  },
+  {
     v: '1.01',
     date: 'Nov 5',
     items: [

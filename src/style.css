@@ -4994,3 +4994,12 @@ body[data-drug='withdrawal'] #game {
   color: #e06a5a;
   font-weight: 600;
 }
+/* Very short landscape: what just happened gets the room; the bills are in the top corner anyway. */
+@media (orientation: landscape) and (max-height: 360px) {
+  #shop:has(> .shop-note) > .pocket-purse {
+    display: none;
+  }
+  #shop > .shop-note {
+    min-height: 3.6em;
+  }
+}

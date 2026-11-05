@@ -770,7 +770,7 @@ function rawOptions(e: Encounter): Option[] {
         // They're unconscious: it isn't a fight any more. Keep going, go
         // through their pockets, wake them up to talk, or walk away.
         const wake: Option[] = e.them.dead ? [] : [{ id: 'wake', label: 'Slap them awake', hint: canWake(e) ? 'Have a word with them' : "They're too far gone", disabled: !canWake(e), cat: 'threaten' }];
-        return [...stomps(), ...ground(), ...weaponOptions(e, 'stomp', tired).filter((o) => !/spray/i.test(o.label)), ...searchOptions(e), ...wake, breathe, { id: 'walk', label: 'Walk away', cat: 'move' }];
+        return [...stomps(), ...ground(), ...weaponOptions(e, 'stomp', tired).filter((o) => !/spray/i.test(o.label)), ...searchOptions(e), ...wake, breathe, { id: 'walk', label: e.resident ? 'Leave them there' : 'Walk away', ...(e.resident ? { hint: 'Back to the rest of the house' } : {}), cat: 'move' }];
       }
       if (e.them.yielded) return yieldedOptions(e);
       const demand: Option = { id: 'demand', label: heldBlade(e) ? `"Give it up" (the ${lc(heldBlade(e)!.name)})` : '"Give it up"', hint: oddsHint(yieldChance(e, heldBlade(e) ? KNIFE_EDGE : 0)), cat: 'threaten' };

@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.20',
+    date: 'Nov 5',
+    items: [
+      'Cuffed on someone’s floor, there’s no Run button any more, and you only come to once.',
+      'At a house, what just happened is always in view at the top, even on a small phone.',
+      'Someone woken up in their own bed isn’t carrying groceries. Leaving someone out cold in their house reads like it, and you stay inside.',
+      'Small fixes: no “quiet” while the alarm screams, “the envelope of cash”, “you broke in today”, and the result of a sale fits on a short landscape screen.',
+    ],
+  },
+  {
     v: '1.19',
     date: 'Nov 5',
     items: [

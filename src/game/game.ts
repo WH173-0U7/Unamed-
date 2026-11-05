@@ -705,7 +705,7 @@ export class Game {
     if (id === 'leave-body') {
       const j = this.job;
       const dog = this.atHome?.dog === 'small';
-      return this.closeEncounter([e.resident ? (j?.siren ? 'You step over the body. The alarm is still screaming.' : dog ? 'You step over the body. The little dog won’t stop.' : 'You step over the body. The house is very quiet now.') : 'You leave the body where it lies, and walk.']);
+      return this.closeEncounter([e.resident ? (j?.siren ? 'You step over the body. The alarm is still screaming.' : dog ? 'You step over the body. The little dog won’t stop.' : 'You step over the body. It’s very quiet in here now.') : 'You leave the body where it lies, and walk.']);
     }
     // Approaching someone: bring your body as it is now (and lose the cigarette).
     if (e.stage === 'seen' && id === 'ambushed') e.you = this.yourBody();
@@ -851,7 +851,7 @@ export class Game {
       const ko = e.result === 'lost';
       // They got away (or walked off): say how, and why, not just that they're gone.
       const how = e.result === 'lost-them' || e.result === 'they-fled' ? [...e.log.slice(logFrom, fightTo).filter((l) => l.by !== 'you' && !/ went up to \d+\.$/.test(l.text)).map((l) => l.text).slice(-2), ...(e.chaseEnd ? [e.chaseEnd] : []), ...(e.whyRan ? [e.whyRan] : [])].filter((x, i, a) => a.indexOf(x) === i) : [];
-      const lines = ko && e.chaseOut ? ['You collapsed.', ...after] : ko ? [RESULT.lost, ...remember, ...after] : [e.deal?.kind === 'sting' ? 'It was a setup.' : RESULT[e.result ?? 'left'], ...how, ...after];
+      const lines = ko && e.chaseOut ? ['You collapsed.', ...after] : ko ? [RESULT.lost, ...remember, ...after] : [e.deal?.kind === 'sting' ? 'It was a setup.' : e.resident && e.result === 'walked' ? 'You leave them where they lie.' : RESULT[e.result ?? 'left'], ...how, ...after];
       // (Saved now: a reload in the beat still ends it properly.)
       if (ko) this.save.state.koLines = lines;
       else this.save.state.endLines = lines;
@@ -916,7 +916,7 @@ export class Game {
       ];
       if (dz && !dz.owed) delete this.save.state.debt;
     } else if (beaten?.resident && this.place === 'home') {
-      lines = [...lines.map(indoors), 'You come to face down on their floor, a knee in your back and your wrists cuffed behind you. Blue light through the blinds.'];
+      lines = [...lines.map(indoors).filter((l) => !/^You come to\b/.test(l)), 'You come to face down on their floor, a knee in your back and your wrists cuffed behind you. Blue light through the blinds.'];
       this.save.state.policeWhy = ['They held you down until the police came. You couldn’t have got up if you’d tried.'];
       this.save.state.policeStop = 'burglary';
       this.save.state.policeCuffed = true;
@@ -3407,7 +3407,7 @@ export class Game {
       const state =
         (j.siren ? 'The alarm is screaming. ' : '') +
         (j.killed ? 'There’s a body in the hall. ' : '') +
-        (p.any === 'asleep' ? 'Someone’s asleep in here. You can hear them breathing. ' : p.any === 'out' && !j.metOwner && !j.metOther ? 'Quiet. Nobody moving. ' : '') +
+        (p.any === 'asleep' ? 'Someone’s asleep in here. You can hear them breathing. ' : p.any === 'out' && !j.metOwner && !j.metOther && !j.siren ? 'Quiet. Nobody moving. ' : '') +
         (j.phoned ? 'They called the police. Not long now. ' : '');
       return `<p class="home-state">You’re inside. ${state}Every room you go through takes time, and makes noise.</p><ul class="shop-list">${rows}${li('Get out', 'With what you’ve got.', btn('homeact', 'out', 'Leave'))}</ul>`;
     }
@@ -3602,6 +3602,8 @@ export class Game {
    * asleep in there, whoever's coming home. Then what happened, as a note.
    */
   private homeNote(h: Home, j: HomeJob, lines: string[], noise: number, room?: RoomId) {
+    // (What happened is at the top of the card: show it.)
+    this.shopAt = '';
     j.noise += noise;
     const night = partOfDay() === 'night';
     // The police: on their way (an alarm, a call), or someone hears you.
@@ -3630,6 +3632,8 @@ export class Game {
 
   /** Someone in the house sees you. */
   private confront(h: Home, j: HomeJob, lines: string[], how: 'awake' | 'woke' | 'home', ownerHome?: boolean) {
+    // (What happened is at the top of the card: show it.)
+    this.shopAt = '';
     const p = this.presence(h);
     const owner = how === 'home' ? !!ownerHome : !j.metOwner && p.owner !== 'out' && (j.metOther || p.other === 'out' || p.other == null || Math.random() < 0.6);
     const sex: 'Male' | 'Female' = owner ? h.sex : h.household === 'partner' ? (Math.random() < 0.8 ? (h.sex === 'Male' ? 'Female' : 'Male') : h.sex) : Math.random() < 0.5 ? 'Male' : 'Female';
@@ -3690,6 +3694,11 @@ export class Game {
           } else if (/card/.test(l.kind)) l.detail = name;
           else if (l.opens) l.opens = h.id;
         }
+    }
+    // Out of bed, or already in for the night: no shopping, no backpack.
+    if (c.how !== 'home') {
+      person.clothes = person.clothes.filter((g) => g.name !== 'Grocery bag' && g.name !== 'Backpack');
+      person.carrying = person.carrying.filter((x) => x.name !== 'Grocery bag' && x.name !== 'Backpack');
     }
     const inv = this.inventory;
     const e = newEncounter(person, this.yourBody());
@@ -4282,7 +4291,7 @@ export class Game {
           ? `<button type="button" class="place" data-police="stay"><b>Step out</b><small>Do as they say. They've run the plate.</small></button>`
           : `<button type="button" class="place" data-police="stay"><b>Stay calm</b><small>Let them talk. They'll want to search you.</small></button>` +
             `<button type="button" class="place" data-police="talk"><b>Talk your way out</b><small>Speech. A good story and they move on without a search; a bad one and they look harder.</small></button>`) +
-        `<button type="button" class="place" data-police="run"><b>Run</b><small>Agility, and your legs. If they catch you, it'll hurt.</small></button>` +
+        (this.save.state.policeCuffed ? '' : `<button type="button" class="place" data-police="run"><b>Run</b><small>Agility, and your legs. If they catch you, it'll hurt.</small></button>`) +
         `</div>`;
       return;
     }
@@ -4304,7 +4313,7 @@ export class Game {
             this.homes
               .map((h) => {
                 const here = this.atHome === h;
-                return `<button type="button" class="place ${here ? 'here' : ''}" data-home="${h.id}"><b>${h.addr}</b><small>${here ? "You're here" : `${h.owner}’s place${h.hitAt ? ` · you broke in ${dateText(h.hitAt)}` : ''}${this.hasKeyTo(h) ? ' · you have their keys' : ''}`}</small></button>`;
+                return `<button type="button" class="place ${here ? 'here' : ''}" data-home="${h.id}"><b>${h.addr}</b><small>${here ? "You're here" : `${h.owner}’s place${h.hitAt ? ` · you broke in ${dateText(h.hitAt) === dateText() ? 'today' : dateText(h.hitAt)}` : ''}${this.hasKeyTo(h) ? ' · you have their keys' : ''}`}</small></button>`;
               })
               .join('')
           : '') +

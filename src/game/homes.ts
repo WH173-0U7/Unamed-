@@ -297,7 +297,7 @@ export function roomLoot(h: Home, room: RoomId, carHere: boolean): Loot[] {
   const add = (l: Omit<Loot, 'where' | 'hot'>, where: string) => out.push({ ...l, where, ...(l.kind === 'phone' || l.kind === 'car keys' || /^(laptop|tablet|games console|gold chain|wedding ring|watch|earrings|class ring|bracelet)$/i.test(l.name) ? { hot: true } : {}) });
   const bills = (a: number, b: number) => Math.max(1, Math.round((a + r() * (b - a)) * w));
   if (room === 'bedroom') {
-    if (r() < 0.55) add({ kind: 'cash', name: any(['Cash in a sock', 'Cash under the mattress', 'An envelope of cash']), cash: bills(20, 380) }, any(['dresser', 'under the mattress', 'nightstand']));
+    if (r() < 0.55) add({ kind: 'cash', name: any(['Cash in a sock', 'Cash under the mattress', 'Envelope of cash']), cash: bills(20, 380) }, any(['dresser', 'under the mattress', 'nightstand']));
     const n = r() < 0.65 * w ? 1 + Math.floor(r() * (w > 1 ? 3 : 2)) : 0;
     for (const j of [...JEWELRY].sort(() => r() - 0.5).slice(0, n)) add({ kind: 'misc', name: j, detail: jewelDetail(j) }, 'jewelry box');
     if (r() < 0.25) add({ kind: 'misc', name: 'Painkillers', med: 'painkillers' }, 'nightstand');

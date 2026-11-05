@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.23',
+    date: 'Nov 5',
+    items: [
+      'Someone you wake up has nothing in their pockets: the wallet, the keys and the phone are on the dresser, not on them.',
+      'Fights in a house stay in the house: gunshots are deafening in the little room, people back out of the room instead of weaving down the street, and anyone who runs is out the door, not ducking into a crowd.',
+      'Someone on two broken legs stays in bed screaming for help, and says so every turn instead of “their leg gives way”.',
+      'A mugging reads in order: you get up close, then the knife comes out. A snatch-and-run says they run. Nobody limps a step and goes down in the same breath.',
+    ],
+  },
+  {
     v: '1.22',
     date: 'Nov 5',
     items: [

@@ -3688,11 +3688,15 @@ export class Game {
     const Who = who[0].toUpperCase() + who.slice(1);
     const known = owner ? (this.inventory.items.some((x) => x.homeInfo?.id === h.id) ? ' The face off the ID in your pocket.' : ' The face off the ID you took.') : '';
     const broken = j.how === 'kick' || j.how === 'window';
+    // On two broken legs, the owner's in bed and staying there.
+    const crippled = owner && (this.ownerOf(h)?.broken.filter((b) => b.endsWith('leg')).length ?? 0) >= 2;
     j.occupied = true;
     j.woke = true;
     h.wokeAt = now();
     let text =
-      how === 'awake'
+      crippled && how !== 'home'
+        ? `A light snaps on. ${Who} is in the bed, both legs in casts, and can’t get up.${known} ${He} sees you, and starts screaming for help.`
+        : how === 'awake'
         ? `You’re barely inside when someone steps into the hall: ${who}.${known} ${He} stares at you, and then ${he} understands.`
         : how === 'woke'
           ? h.type === 'room'
@@ -3746,8 +3750,9 @@ export class Game {
       person.clothes = person.clothes.filter((g) => g.name !== 'Grocery bag' && g.name !== 'Backpack');
       person.carrying = person.carrying.filter((x) => x.name !== 'Grocery bag' && x.name !== 'Backpack');
     }
-    // Out of bed: barefoot, no coat (the wallet's on the dresser, not on them).
+    // Out of bed: barefoot, no coat, nothing in their pockets (the wallet's on the dresser, not on them).
     if (c.how === 'woke') {
+      for (const g of person.clothes) g.loot = g.loot.filter((l) => !(l.kind === 'id' || l.kind === 'cash' || /card/.test(l.kind) || l.kind === 'car keys' || l.kind === 'phone' || l.opens));
       person.clothes = person.clothes.filter((g) => !/shoe|boot|sneaker|loafer|slide/i.test(g.name));
       if (person.clothes[0] && /coat|jacket|blazer|windbreaker|puffer|parka|hoodie|flannel/i.test(person.clothes[0].name)) person.clothes[0] = { name: 'T-shirt', loot: [], searched: false };
     }

@@ -840,7 +840,20 @@ let actLogStart = 0;
 export { indoors };
 const say = (by: LogLine['by'], text: string) => {
   text = text.replace(/ {2,}/g, ' ').trim();
-  if (enc.resident) text = indoors(text);
+  // (Limping a step, then going down in the same moment: they just go down.)
+  if (/\bgo(es)? down\b|on the floor/.test(text)) {
+    text = text.replace(/\s*\b(They|You) limp a step\.(?=.*\b(go(es)? down|on the floor))/, '').trim();
+    const prev = enc.log[enc.log.length - 1];
+    if (prev && /\blimp a step\.$/.test(prev.text)) {
+      prev.text = prev.text.replace(/\s*\b(They|You) limp a step\.$/, '').trim();
+      if (!prev.text) enc.log.pop();
+    }
+  }
+  if (enc.resident) {
+    text = indoors(text);
+    // (Out of bed: a T-shirt, not a jacket.)
+    if (enc.resident.how === 'woke') text = text.replace(/\btheir jacket\b/g, 'their shirt').replace(/back of the jacket/g, 'back of the shirt');
+  }
   enc.log.push(landed ? { by, text, hit: landed } : { by, text });
   landed = null;
 };
@@ -2367,7 +2380,7 @@ function theirTurn(started = false) {
     if (Math.random() < getUpChance(T)) {
       T.down = false;
       say('them', legs(T) ? 'They drag themselves up on one good leg.' : oneOf(['They get back on their feet.', 'They scramble back up.', 'They push themselves up off the sidewalk.']));
-    } else say('them', legs(T) ? 'They try to stand, but their leg gives way.' : oneOf(['They try to get up, and fall back down.', 'They get halfway up, and their legs fold.']));
+    } else say('them', legs(T) >= 2 ? oneOf(['Neither leg will hold them. They stay down, and throw whatever they can reach at you.', 'They can\'t get up. They scream for help instead.']) : legs(T) ? 'They try to stand, but their leg gives way.' : oneOf(['They try to get up, and fall back down.', 'They get halfway up, and their legs fold.']));
     return;
   }
   // Losing badly: some try to run for it (much harder on a broken leg).
@@ -2780,7 +2793,7 @@ function sellTo(e: Encounter) {
   if (cents < price) {
     // Not enough: desperate ones grab it; some pay what they have.
     if ((p.kind === 'junkie' || p.kind === 'homeless') && legs(e.them) === 0 && Math.random() < 0.3) {
-      say('them', oneOf(['They look at the bag. They look at you. Then they snatch it out of your hand and run.', '"Lemme see it." The second it\'s in their hand they\'re gone.']));
+      say('them', oneOf(['They look at the bag. They look at you. Then they snatch it out of your hand and run.', '"Lemme see it." The second it\'s in their hand they\'re off and running.']));
       e.deal = { kind: 'snatched', price: 0 };
       bolt('lost-them', 1.2);
       return;
@@ -2856,6 +2869,15 @@ function mug() {
   // A blade already in your hand, or one you can get to (not at the bottom of a bag), with a hand free.
   const blade = heldBlade(e) ?? (e.weapons ?? []).find((w) => w.cuts && !w.hand && !/^bottle$|syringe/i.test(w.name) && !(e.bagged ?? []).includes(w.i) && !handsFull(e));
   const gun = (e.weapons ?? []).find((w) => w.gun && (w.hand || (!(e.bagged ?? []).includes(w.i) && !handsFull(e))));
+  // (You get up close first, then the weapon comes out.)
+  say(
+    'you',
+    [
+      `You cross the street and get right in their face. "Wallet. Phone. Now."`,
+      `You close in fast and grab their arm. "Don't make a sound. Give me what you've got."`,
+      `You step out in front of them, close enough to smell them. "You know what this is. Hand it over."`,
+    ][e.distance],
+  );
   if (gun) {
     const gi = invNow?.items[gun.i];
     if (gi && !gi.hand) gi.hand = freeHand(invNow!) ?? undefined;
@@ -2874,14 +2896,6 @@ function mug() {
     say('you', wasHeld ? `You let them see the ${lc(blade.name)}.` : `You take out the ${lc(blade.name)}${kn && kn.open !== 'fixed' ? ', open it,' : ''} and let them see it.`);
     scare(18);
   }
-  say(
-    'you',
-    [
-      `You cross the street and get right in their face. "Wallet. Phone. Now."`,
-      `You close in fast and grab their arm. "Don't make a sound. Give me what you've got."`,
-      `You step out in front of them, close enough to smell them. "You know what this is. Hand it over."`,
-    ][e.distance],
-  );
   if (Math.random() < yieldChance(e, mugSurprise(e))) {
     T.yielded = true;
     scare(8);

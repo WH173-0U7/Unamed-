@@ -943,6 +943,8 @@ export class Game {
       this.save.state.policeCuffed = true;
       const j = this.job;
       if (j) j.occupied = true;
+      // (What you did to them, and took off them, before they got the better of you.)
+      this.afterResidentFight(beaten);
     } else if (beaten && !beaten.chaseOut && !beaten.them.out) {
       const robbed = robKnockedOut(this.world, this.inventory, beaten, isBrute(beaten.person.personality));
       if (robbed) lines = [...lines, robbed];
@@ -2365,7 +2367,8 @@ export class Game {
     if (cuffed) choice = 'stay';
     const upstairs = (this.atHome?.type === 'apartment' && this.atHome.floor > 1) || this.atHome?.type === 'room';
     if (this.place === 'home') {
-      this.leaveHome(undefined, burglary);
+      // (Got away past them: the break-in, and any body, are on file like any other.)
+      this.leaveHome(undefined, burglary && choice !== 'run');
       this.place = 'street';
     }
     delete this.save.state.policeStop;

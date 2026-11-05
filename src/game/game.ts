@@ -2551,8 +2551,6 @@ export class Game {
     const priors = Math.max(0, rec.arrests - 1);
     // Convicted again while on probation: the old sentence comes back on top.
     const onProbation = now() < ((this.save.state.probationUntil as number) ?? 0);
-    // (Convicted while on it: the probation's done with, one way or another.)
-    if (onProbation) delete this.save.state.probationUntil;
     const sev = c.charges.reduce((n, x) => n + chargeOf(x).sev, 0) + (onProbation ? 4 : 0);
     const lines: string[] = [`Your case is called: ${c.charges.map((x) => x.toLowerCase()).join(', ')}. A public defender you've never met reads your file in the hallway.`];
     // Talking to the judge.
@@ -2569,6 +2567,8 @@ export class Game {
       f.heat = Math.max(0, f.heat - 20);
       return lines;
     }
+    // (Convicted while on it: the probation's done with, one way or another.)
+    if (onProbation) delete this.save.state.probationUntil;
     if (sev <= 3 && !onProbation) {
       const fine = Math.round(c.charges.reduce((n, x) => n + chargeOf(x).fine, 0) * (1 + priors * 0.25));
       const have = Math.round(cashOf(this.inventory) * 100) + (this.account?.cents ?? 0);
@@ -2632,6 +2632,21 @@ export class Game {
       if (c.stingPending) rec.charges['Selling a controlled substance'] = (rec.charges['Selling a controlled substance'] ?? 0) + c.stingPending;
       delete c.stingPending;
       rec.last = now();
+      // Booked: everything on you, bag and all. What's stolen or illegal is charged and taken.
+      const inv = this.inventory;
+      const extra: string[] = [];
+      if (inv.items.some((x) => (x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card')) extra.push('Possession of stolen property');
+      if (inv.items.some((x) => x.secret && x.secret !== 'empty')) extra.push(this.intent() ? 'Possession with intent to distribute' : 'Possession of a controlled substance');
+      if (inv.items.some((x) => x.kind === 'weapon' && /switchblade|butterfly|push dagger/i.test(x.name))) extra.push('Carrying an illegal weapon');
+      lines.push(...this.searchRoom(extra, this.infamy.heat));
+      const before = inv.items.length;
+      inv.items = inv.items.filter((x) => !((x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card' || x.kind === 'weapon' || (x.secret && x.secret !== 'empty') || x.name === 'Zip bags'));
+      if (before > inv.items.length) lines.push('At booking they go through everything you have on you, and keep what they find.');
+      if (extra.length) {
+        c.charges.push(...extra);
+        for (const x of extra) rec.charges[x] = (rec.charges[x] ?? 0) + 1;
+        lines.push(`They add ${extra.map((x) => x.toLowerCase()).join(' and ')}.`);
+      }
       lines.push(...this.passCell());
       if (this.health.dead) return this.die(lines);
     }
@@ -3170,7 +3185,7 @@ export class Game {
         this.note(cleared);
         return;
       }
-      const paid = [...cleared, this.payLine(ROOM_RENT * 100)].join(' ');
+      const paid = [...cleared.filter((x) => !/rent ran out/.test(x)), this.payLine(ROOM_RENT * 100)].join(' ');
       const r = this.room;
       const t = now();
       if (r && t <= r.until + 2 * 86_400_000) r.until = Math.max(t, r.until) + 7 * 86_400_000;
@@ -3252,8 +3267,17 @@ export class Game {
       if (!c) return;
       where.cents += c;
       inv.purse = {};
+      const lines = [`You leave ${money(c)}, rolled tight, ${kind === 'stash' ? 'behind the brick' : 'under the mattress'}.`];
+      if (kind === 'stash') {
+        const s = this.stash;
+        const open = isOpen(placeInfo('fence').hours!);
+        if (!s.seen && Math.random() < 0.06 + this.infamy.heat / 300 + (open ? 0.12 : 0)) {
+          s.seen = true;
+          lines.push(open ? 'The man by the vents is looking your way. He looks away when you look back.' : 'You feel eyes on you. When you turn, the end of the alley is empty.');
+        }
+      }
       this.refresh();
-      this.note([`You leave ${money(c)}, rolled tight, ${kind === 'stash' ? 'behind the brick' : 'under the mattress'}.`]);
+      this.note(lines);
     } else if (where.cents) {
       addTo(inv.purse, fewest(where.cents));
       this.note([`You take the ${money(where.cents)}.`]);

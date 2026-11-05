@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.16',
+    date: 'Nov 5',
+    items: [
+      'Turning yourself in on a warrant, you’re booked like any arrest: they go through everything on you, keep the drugs, the stolen cards and the zip bags, and charge you for them. With heat on you, they may search your room too.',
+      'A dismissed case doesn’t end your probation; only a conviction uses it up.',
+      'Hiding cash behind the brick can be seen, like hiding anything else. Paying rent in the two days’ grace doesn’t tell you the rent ran out as you pay it.',
+    ],
+  },
+  {
     v: '1.15',
     date: 'Nov 5',
     items: [

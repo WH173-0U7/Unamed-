@@ -4959,3 +4959,38 @@ body[data-drug='withdrawal'] #game {
   text-transform: uppercase;
   color: var(--ink-dim);
 }
+/* An address you know: what you can see of it, and what's happening inside. */
+.places-sub {
+  margin: 10px 0 0;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.home-cues {
+  list-style: none;
+  margin: 6px 0 8px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+  overflow-wrap: anywhere;
+}
+.home-cues li + li {
+  margin-top: 3px;
+}
+.home-state,
+.home-alert {
+  margin: 6px 0 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.home-state {
+  color: var(--ink-dim);
+  font-style: italic;
+}
+.home-alert {
+  color: #e06a5a;
+  font-weight: 600;
+}

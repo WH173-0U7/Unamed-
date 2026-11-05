@@ -242,6 +242,8 @@ export interface Encounter {
   regular?: boolean;
   /** Sent by Dez, for the money you owe him. */
   enforcer?: boolean;
+  /** Someone in their own home, and you broke in. */
+  resident?: boolean;
   /** You've sold before (word of it is what brings people over). */
   dealer?: boolean;
   /** They came over to you to buy: face to face, and they want it. */
@@ -791,9 +793,9 @@ function rawOptions(e: Encounter): Option[] {
     case 'over':
       return [
         ...(e.them.dead ? searchOptions(e) : []),
-        ...(e.them.dead ? [{ id: 'leave-body', label: 'Walk away', hint: 'Leave the body where it lies' }] : []),
-        { id: 'lurk', label: 'Lurk again' },
-        { id: 'rest', label: 'Rest', hint: 'Let time pass and heal' },
+        ...(e.them.dead ? [{ id: 'leave-body', label: e.resident ? 'Step over them' : 'Walk away', hint: e.resident ? 'Back to the rest of the house' : 'Leave the body where it lies' }] : []),
+        // (In someone's house, there's no lurking: the rest of the house, or the door.)
+        ...(e.resident ? [] : [{ id: 'lurk', label: 'Lurk again' }, { id: 'rest', label: 'Rest', hint: 'Let time pass and heal' }]),
       ];
     default:
       return [];
@@ -886,13 +888,15 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
   if (e.stage === 'over') return impacts;
   const p = e.person;
   const aw = AWARENESS.indexOf(p.awareness);
-  const who = p.title ? 'big man' : p.kind === 'homeless' ? 'homeless one' : NAMES[p.kind].toLowerCase();
+  const who = e.enforcer ? 'big man' : e.resident ? (p.sex === 'Male' ? 'man' : 'woman') : p.kind === 'homeless' ? 'homeless one' : NAMES[p.kind].toLowerCase();
 
   // Someone you hurt, and they've been looking for you: they find you first.
   if (id === 'ambushed' && e.stage === 'seen') {
     e.stage = 'combat';
     e.facedYou = true;
-    say('them', e.enforcer
+    say('them', e.resident
+      ? oneOf([`You go at them before they can get to a phone. The ${who} backs into the hall, yelling, and grabs for whatever's nearest.`, `"Get out of my house!" The ${who} comes at you, barefoot and furious.`])
+      : e.enforcer
       ? oneOf(['A big man steps out of a doorway and fills the sidewalk in front of you. "Dez says you\'re late."', 'A hand on your collar, from behind. "You owe Dez money. Dez wants it now."'])
       : oneOf([`A hand grabs your shoulder and spins you around. It's the ${who} from before. "Remember me?"`, `Someone steps out of a doorway right in front of you: the ${who}. They've been waiting for you.`]));
     say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));

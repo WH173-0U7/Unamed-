@@ -51,6 +51,38 @@ const HUMANITY: { at: number; name: string; line: string }[] = [
 // know what you've done, only see it in your eyes).
 /** One of these, at random. */
 const oneOf = <T,>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)];
+/** A lock that never gets changed (nobody left to change it). */
+const NEVER = 8.64e15;
+const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
+/** At an address: outside, or in, and what's happened so far. */
+interface HomeJob {
+  home: string;
+  in: boolean;
+  /** How much noise you've made. */
+  noise: number;
+  how?: 'key' | 'try' | 'window' | 'kick';
+  knocked?: boolean;
+  tried?: boolean;
+  /** Someone was home (that's a home invasion, not a burglary). */
+  occupied?: boolean;
+  /** Woken up (by your knocking, say). */
+  woke?: boolean;
+  /** Things you've taken. */
+  took?: number;
+  /** The alarm's going. */
+  siren?: boolean;
+  /** The police get here in this many more things you do. */
+  policeIn?: number;
+  /** Someone saw your face; the doorbell camera got you (and whether your face showed). */
+  seen?: boolean;
+  filmed?: boolean;
+  faceFilmed?: boolean;
+  called?: boolean;
+  /** You saw them make the call. */
+  phoned?: boolean;
+  /** Face to face with someone who lives there. */
+  confront?: { owner: boolean; sex: 'Male' | 'Female'; text: string };
+}
 /** What the pharmacy sells (iron tablets aren't: they do nothing in a hurry). */
 const SOLD_MEDS = () => MEDS.filter((m) => m.id !== 'iron');
 const evilFear = (lost: number) => Math.min(15, lost * 0.1);
@@ -67,6 +99,7 @@ const MUG_COST = 0.5;
 import { chargeOf, COIN_MACHINE_FEE, ER_PRICES, ROOM_RENT, DEZ_CASH, DEZ_FRONT, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place } from './shops';
 import { BILLS, COINS, addTo, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
 import { hoursText, isOpen } from './clock';
+import { anyoneIn, idText, nameFor, ROOM_DESC, ROOM_NAME, roomLoot, roomsOf, whoIsIn, type Home, type Presence, type RoomId } from './homes';
 import { createHitUi } from '../fx/hitUi';
 
 /** Progress stored in the save file under `state.tv`. */
@@ -212,6 +245,7 @@ export class Game {
       else if (b.dataset.court) this.appear();
       else if (b.dataset.room) this.roomAct(b.dataset.room);
       else if (b.dataset.dez) this.dez(b.dataset.dez);
+      else if (b.dataset.homeact) this.homeAct(b.dataset.homeact);
       else if (b.dataset.unstash) this.unstash(b.dataset.unstash);
       else if (b.dataset.cash) this.stashCash(b.dataset.cash);
   }
@@ -441,7 +475,7 @@ export class Game {
   private get place(): Place {
     const p = (this.save.state.place as Place) ?? 'street';
     // (Saved inside a place that's hidden now: you're back outside.)
-    return HIDDEN_PLACES.has(p) ? 'street' : p;
+    return HIDDEN_PLACES.has(p) || (p === 'home' && !this.homeById(this.save.state.homeAt)) ? 'street' : p;
   }
   private set place(p: Place) {
     this.save.state.place = p;
@@ -569,6 +603,13 @@ export class Game {
     // what's left on them.
     const old = this.encounter;
     if (old && old !== e) {
+      if (old.them.dead && old.person.home) {
+        const h = this.homeById(old.person.home.id);
+        if (h && !h.deadAt) {
+          h.deadAt = now();
+          if (h.lockAt == null || h.lockAt > now()) h.lockAt = NEVER;
+        }
+      }
       if (old.enforcer && old.result !== 'lost' && this.debt) this.debt.strikes = (this.debt.strikes ?? 0) + 1;
       // (Remembered first: the thief record then knows who they are, and the two stay one person.)
       if (old.stage !== 'seen') this.rememberThem(old);
@@ -657,7 +698,7 @@ export class Game {
     if (id === 'rest') return this.rest();
     if (id === 'pockets') return this.openSheet('pockets');
     if (id === 'go') return this.openSheet('places');
-    if (id === 'leave-body') return this.closeEncounter(['You leave the body where it lies, and walk.']);
+    if (id === 'leave-body') return this.closeEncounter([e.resident ? 'You step over the body. The house is very quiet now.' : 'You leave the body where it lies, and walk.']);
     // Approaching someone: bring your body as it is now (and lose the cigarette).
     if (e.stage === 'seen' && id === 'ambushed') e.you = this.yourBody();
     else if (e.stage === 'seen') {
@@ -865,6 +906,12 @@ export class Game {
         dz && dz.owed ? `You still owe ${money(dz.owed)}.` : c > owed ? "That's the debt paid. Dez's man kept the rest, for the trouble." : "That's the debt paid.",
       ];
       if (dz && !dz.owed) delete this.save.state.debt;
+    } else if (beaten?.resident && this.place === 'home') {
+      lines = [...lines, 'You come to face down on their floor, a knee in your back and your wrists cuffed behind you. Blue light through the blinds.'];
+      this.save.state.policeWhy = ['They held you down until the police came.'];
+      this.save.state.policeStop = 'burglary';
+      const j = this.job;
+      if (j) j.occupied = true;
     } else if (beaten && !beaten.chaseOut && !beaten.them.out) {
       const robbed = robKnockedOut(this.world, this.inventory, beaten, isBrute(beaten.person.personality));
       if (robbed) lines = [...lines, robbed];
@@ -950,7 +997,9 @@ export class Game {
 
   /** Done with whoever it was: back to the street, with what happened as a note. */
   private closeEncounter(lines: string[]) {
+    const was = this.encounter;
     this.encounter = null;
+    if (was?.resident) this.afterResidentFight(was);
     this.tapsFrom = performance.now() + 800;
     this.refresh();
     uiGlitch(this.view, 0.35);
@@ -1050,7 +1099,7 @@ export class Game {
     this.noteEl.hidden = true;
     // A new you: nothing carried over but the world.
     // (Your name, your ID and your bank account were that character's.)
-    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash']) delete this.save.state[k];
+    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job']) delete this.save.state[k];
     // Nobody knows this face. The people the old you hurt are still out there
     // (and your things on some of them), but they'd be looking for someone else.
     this.world.infamy = newInfamy();
@@ -1242,6 +1291,7 @@ export class Game {
   private sheetAction(b: HTMLButtonElement) {
     if (b.dataset.close !== undefined) this.closeSheet();
     else if (b.dataset.place) this.goTo(b.dataset.place as Place);
+    else if (b.dataset.home) this.goHome(b.dataset.home);
     else if (b.dataset.use) this.useMed(Number(b.dataset.use));
     else if (b.dataset.drop) this.drop(Number(b.dataset.drop));
     else if (b.dataset.fire) this.fire(Number(b.dataset.fire));
@@ -1274,6 +1324,9 @@ export class Game {
     this.shopNote = [];
     this.closeSheet();
     if (p === this.place || HIDDEN_PLACES.has(p)) return;
+    if (p === 'home' && !this.homeById(this.save.state.homeAt)) return;
+    // Walking away from an address: if you were in, it's done.
+    if (this.place === 'home') this.leaveHome();
     this.shopAt = '';
     // A new trip to the ER is a new wait.
     this.erSeen = false;
@@ -1307,6 +1360,7 @@ export class Game {
         guns: 'A buzzer sounds as you push the door. The man behind the counter looks up, and keeps looking.',
         court: 'A deputy at the door watches you put your keys and phone in a plastic tray for the metal detector.',
         room: 'You climb the stairs to the Hotel Marlow. The man in the cage looks up, then down again.',
+        home: `You walk to ${this.atHome?.addr ?? 'the address'}, and take a look at it from across the street.`,
       }[p] ?? '',
     ];
     this.exposure = 0;
@@ -1392,6 +1446,11 @@ export class Game {
     addTo(inv.purse, got);
     sound.coin();
     lines.push(`You sell the ${lc(it.name)} for ${money(o.cents)} (${purseText(got)}).`);
+    // Pawn shops log serial numbers, and the police read the log.
+    if (place === 'pawn' && it.hot && (it.kind === 'phone' || /laptop|tablet|console/i.test(it.name))) {
+      lines.push('He copies the serial number off the bottom into a ledger, and into his computer. Every pawn shop reports what it buys.');
+      this.infamy.heat = Math.min(100, this.infamy.heat + 10);
+    }
     this.refresh();
     this.note(lines);
     buzz(8);
@@ -2252,6 +2311,14 @@ export class Game {
     const w = wearing(inv);
     const carStop = this.save.state.policeStop === 'car';
     const sting = this.save.state.policeStop === 'sting';
+    const burglary = this.save.state.policeStop === 'burglary';
+    // Caught at an address: whatever happens now, you're not going back in.
+    const job = this.save.state.job as HomeJob | undefined;
+    const invasion = !!job?.occupied;
+    if (this.place === 'home') {
+      this.leaveHome(undefined, burglary);
+      this.place = 'street';
+    }
     delete this.save.state.policeStop;
     delete this.save.state.policeWhy;
     const lines: string[] = [];
@@ -2293,6 +2360,12 @@ export class Game {
       arrested = true;
       charges.push('Selling a controlled substance');
     }
+    // Inside someone's home: there's nothing to say.
+    if (burglary && choice !== 'run') {
+      lines.push(invasion ? 'They put you face down in the hallway. Behind them, the people who live here are holding on to each other.' : 'They put you face down on someone else’s carpet, and go through the bag you were filling.');
+      arrested = true;
+      charges.push(invasion ? 'Home invasion' : 'Burglary');
+    }
     // Asleep in a stolen car: they've run the plate.
     if (carStop && choice !== 'run') {
       lines.push('They run the plate while you blink at the flashlight. It comes back stolen. "Out of the car. Slowly."');
@@ -2325,8 +2398,9 @@ export class Game {
       const legs = h.broken.filter((p) => p.endsWith('leg')).length;
       const odds = 0.35 + accuracyBonus(this.stats) - legs * 0.3 - (h.cold ?? 0) * 0.05 - (h.stress ?? 0) * 0.002 - (h.blood < h.maxBlood * 0.75 ? 0.15 : 0);
       if (Math.random() < odds) {
-        lines.push('You bolt. Shouts behind you, a car door, footsteps. You go over a fence and through a yard and down an alley, and when you stop, they\'re gone.');
-        f.heat = Math.min(100, f.heat + 10);
+        lines.push(burglary ? 'Out the back, over a fence, through somebody’s yard and a hedge that tears your face. Flashlights behind you, then fewer, then none.' : 'You bolt. Shouts behind you, a car door, footsteps. You go over a fence and through a yard and down an alley, and when you stop, they\'re gone.');
+        f.heat = Math.min(100, f.heat + (burglary ? 25 : 10));
+        if (burglary) f.burglaries = (f.burglaries ?? 0) + 1;
         // They had the buy on camera: a warrant goes out for you.
         if (sting) {
           f.heat = Math.min(100, f.heat + 25);
@@ -2354,6 +2428,7 @@ export class Game {
         arrested = true;
         charges.push('Resisting arrest');
         // (What they stopped you for still stands.)
+        if (burglary) charges.push(invasion ? 'Home invasion' : 'Burglary');
         if (carStop) {
           charges.push('Possession of stolen property');
           inv.items = inv.items.filter((x) => !(x.kind === 'car keys' && x.car));
@@ -2364,7 +2439,7 @@ export class Game {
           takeMarked();
         }
       }
-    } else if (brandished || arrested || sting) {
+    } else if (brandished || arrested || sting || burglary) {
       // (Nothing to talk about.)
     } else if (choice === 'talk' && talk()) {
       // Talked your way out: no search.
@@ -2397,7 +2472,7 @@ export class Game {
           lines.push('The gun changes everything: one of them keeps a hand on his holster the whole time.');
         }
       }
-      const evidence = inv.items.filter((x) => ((x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card' || (x.secret && x.secret !== 'empty')) && (bagSearched || !inBag(inv, x.spot)));
+      const evidence = inv.items.filter((x) => (this.stolen(x) || (x.secret && x.secret !== 'empty')) && (bagSearched || !inBag(inv, x.spot)));
       if (evidence.length) {
         lines.push(`They find ${evidence.length === 1 ? `the ${lc(evidence[0].name)}` : `${evidence.length} things that aren't yours`}. "${evidence.length === 1 ? 'Whose is this' : 'Whose are these'}?"`);
         arrested = true;
@@ -2414,6 +2489,9 @@ export class Game {
         } else if ((f.reports ?? 0) > 0 && f.heat > 60) {
           charges.push('Assault');
           f.reports = 0;
+        } else if ((f.burglaries ?? 0) > 0 && f.heat > 50) {
+          charges.push('Burglary');
+          f.burglaries = 0;
         }
       } else if (!evidence.length && !banned.length) {
         lines.push('They find nothing. "Stay out of trouble." They get back in the car and roll away.');
@@ -2430,14 +2508,14 @@ export class Game {
     }
     if (arrested) {
       // Booking: everything on you, bag and all. What's stolen or illegal is charged.
-      if (!charges.includes('Possession of stolen property') && inv.items.some((x) => (x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card')) charges.push('Possession of stolen property');
+      if (!charges.includes('Possession of stolen property') && inv.items.some((x) => this.stolen(x))) charges.push('Possession of stolen property');
       if (!charges.some((x) => /controlled substance|intent to distribute/.test(x)) && inv.items.some((x) => x.secret && x.secret !== 'empty')) charges.push(this.intent() ? 'Possession with intent to distribute' : 'Possession of a controlled substance');
       // With heat on you and a room rented, they get the address from the desk clerk.
       lines.push(...this.searchRoom(charges, f.heat));
       if (!charges.includes('Carrying an illegal weapon') && inv.items.some((x) => x.kind === 'weapon' && /switchblade|butterfly|push dagger/i.test(x.name))) charges.push('Carrying an illegal weapon');
       // Whatever's stolen is taken; a night in a cell.
       const before = inv.items.length;
-      inv.items = inv.items.filter((x) => !((x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card' || x.kind === 'weapon' || (x.secret && x.secret !== 'empty') || x.name === 'Zip bags'));
+      inv.items = inv.items.filter((x) => !(this.stolen(x) || x.kind === 'weapon' || (x.secret && x.secret !== 'empty') || x.name === 'Zip bags'));
       const took = before - inv.items.length;
       // It goes on your record: every arrest, and every charge.
       const rec = this.record;
@@ -2635,12 +2713,12 @@ export class Game {
       // Booked: everything on you, bag and all. What's stolen or illegal is charged and taken.
       const inv = this.inventory;
       const extra: string[] = [];
-      if (inv.items.some((x) => (x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card')) extra.push('Possession of stolen property');
+      if (inv.items.some((x) => this.stolen(x))) extra.push('Possession of stolen property');
       if (inv.items.some((x) => x.secret && x.secret !== 'empty')) extra.push(this.intent() ? 'Possession with intent to distribute' : 'Possession of a controlled substance');
       if (inv.items.some((x) => x.kind === 'weapon' && /switchblade|butterfly|push dagger/i.test(x.name))) extra.push('Carrying an illegal weapon');
       lines.push(...this.searchRoom(extra, this.infamy.heat));
       const before = inv.items.length;
-      inv.items = inv.items.filter((x) => !((x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card' || x.kind === 'weapon' || (x.secret && x.secret !== 'empty') || x.name === 'Zip bags'));
+      inv.items = inv.items.filter((x) => !(this.stolen(x) || x.kind === 'weapon' || (x.secret && x.secret !== 'empty') || x.name === 'Zip bags'));
       if (before > inv.items.length) lines.push('At booking they go through everything you have on you, and keep what they find.');
       if (extra.length) {
         c.charges.push(...extra);
@@ -3120,6 +3198,521 @@ export class Game {
     }
   }
 
+  // ---------- Addresses you know, and breaking in ----------
+
+  /** Homes you know the address of (off an ID you took). Yours to lose when you die. */
+  private get homes(): Home[] {
+    return (this.save.state.homes ??= []) as Home[];
+  }
+  private homeById(id: unknown): Home | undefined {
+    return typeof id === 'string' ? this.homes.find((h) => h.id === id) : undefined;
+  }
+  /** The address you're at. */
+  private get atHome(): Home | undefined {
+    return this.place === 'home' ? this.homeById(this.save.state.homeAt) : undefined;
+  }
+  /** What's going on at the address you're at (outside, or in). */
+  private get job(): HomeJob | undefined {
+    const j = this.save.state.job as HomeJob | undefined;
+    return j && j.home === this.save.state.homeAt && this.place === 'home' ? j : undefined;
+  }
+  private newJob(h: Home): HomeJob {
+    const j: HomeJob = { home: h.id, in: false, noise: 0 };
+    this.save.state.job = j;
+    return j;
+  }
+
+  /** An ID in your pockets: its address is one you know now. Their keys: the locks get changed. */
+  private learnHomes() {
+    for (const x of this.inventory.items) {
+      if (x.homeInfo && !this.homeById(x.homeInfo.id)) {
+        this.homes.push(JSON.parse(JSON.stringify(x.homeInfo)) as Home);
+        while (this.homes.length > 16) this.homes.splice(this.homes.findIndex((h) => h.id !== this.save.state.homeAt), 1);
+      }
+      if (x.opens) {
+        const h = this.homeById(x.opens);
+        // Their keys went with you: give them a day or two, and they'll have the locks changed.
+        if (h && h.lockAt == null) h.lockAt = h.deadAt ? NEVER : now() + (10 + Math.random() * 38) * 3_600_000;
+      }
+    }
+  }
+
+  /** The person the address belongs to, if you've met them (you have: you've got their ID). */
+  private ownerOf(h: Home): Known | undefined {
+    return this.people.find((k) => k.person.home?.id === h.id);
+  }
+  /** Who's in, right now. */
+  private presence(h: Home): { owner: Presence; other: Presence | null; any: Presence } {
+    const k = this.ownerOf(h);
+    const e = this.encounter;
+    // You've just left them somewhere (or they're right here with you on the street): not home yet.
+    const away = (!!e && !e.resident && e.person.home?.id === h.id) || (!!k && now() - k.at < 2 * 3_600_000);
+    const w = whoIsIn(h, now(), away);
+    // A broken leg keeps you home.
+    if (!away && !h.deadAt && w.owner === 'out' && k?.broken.some((p) => p.endsWith('leg'))) w.owner = 'awake';
+    const j = this.job;
+    if (j?.woke) {
+      if (w.owner === 'asleep') w.owner = 'awake';
+      if (w.other === 'asleep') w.other = 'awake';
+    }
+    return { ...w, any: anyoneIn(w) };
+  }
+  private hasKeyTo(h: Home): boolean {
+    return this.inventory.items.some((x) => x.opens === h.id);
+  }
+
+  /** Walk to an address you know. */
+  private goHome(id: string) {
+    const h = this.homeById(id);
+    if (!h || this.ending) return;
+    if (this.place === 'home' && this.save.state.homeAt === id) return this.closeSheet();
+    if (this.place === 'home') this.leaveHome();
+    this.save.state.homeAt = id;
+    delete this.save.state.job;
+    // (From one address to the next: by way of the street.)
+    if (this.place === 'home') this.place = 'street';
+    this.goTo('home');
+  }
+
+  /** What you can see from the sidewalk. */
+  private homeCues(h: Home): string[] {
+    const p = this.presence(h);
+    const big = h.type === 'house' || h.type === 'rowhouse';
+    const out: string[] = [];
+    out.push(
+      h.type === 'house'
+        ? h.wealth > 1.15
+          ? 'A two-storey house with a trimmed hedge, a porch light and a side gate.'
+          : 'A one-storey house behind a chain-link fence, the yard gone to weeds.'
+        : h.type === 'rowhouse'
+          ? 'A narrow rowhouse in a terrace of them, three steps up to the door.'
+          : h.type === 'apartment'
+            ? `A brick apartment building with a buzzer panel by the street door. Their door is ${h.floor === 1 ? 'off the ground-floor hall' : `on the ${ordinal(h.floor)} floor, off the stairs; a fire escape zigzags down the back`}.`
+            : 'A rooming house: a hallway of numbered doors, one bathroom at the end, a pay phone nobody uses.',
+    );
+    const lit = (n: number) => (h.seed + Math.floor(now() / 7_200_000)) % n === 0;
+    out.push(
+      p.any === 'awake'
+        ? big
+          ? 'Lights on inside, and the blue flicker of a TV.'
+          : 'Light under their door, and a TV going.'
+        : p.any === 'asleep'
+          ? big
+            ? 'Dark, apart from a night-light somewhere upstairs.'
+            : 'No light under their door. Quiet.'
+          : lit(3)
+            ? 'One lamp on in the front room, and no sound. A timer, maybe.'
+            : big
+              ? 'Dark windows. Nobody moving.'
+              : 'No light under their door, and no sound.',
+    );
+    // The car's out front when they are (or they don't drive to work).
+    if (h.car) out.push(p.owner !== 'out' || h.works === 'home' || h.deadAt ? `A ${h.car} parked out front.` : 'Nothing parked out front.');
+    if (h.sign) out.push('A security company sign in the flowerbed.');
+    if (h.cam) out.push('A doorbell camera by the front door. It sees whoever comes up the steps.');
+    if (h.dogKnown && h.dog) out.push(h.dog === 'big' ? 'Something big lives in there. You heard it.' : 'A small dog in there, yapping at every sound.');
+    if (h.fixedAt && now() > h.fixedAt) out.push('A new deadbolt on the door, the brass still shiny.');
+    if (h.deadAt && now() - h.deadAt > 86_400_000) out.push('Mail piling up in the box. Nobody’s been home for a while.');
+    return out;
+  }
+
+  /** The address: outside, or in. */
+  private homeHtml(h: Home, btn: (attr: string, v: string | number, label: string, no?: string | false | null) => string, li: (name: string, small: string, button: string) => string): string {
+    const j = this.job;
+    const health = this.health;
+    if (j?.confront) {
+      return `<p class="home-alert">${j.confront.text}</p><ul class="shop-list">` + li('Get out', 'Through the way you came in, now. They’ve seen you.', btn('homeact', 'flee', 'Run')) + li('Go at them', 'Before they can get to a phone. It’s their house; they’ll fight for it.', btn('homeact', 'fight', 'Fight')) + `</ul>`;
+    }
+    if (j?.in) {
+      const p = this.presence(h);
+      const rows = roomsOf(h)
+        .map((r) => {
+          const left = h.left?.[r];
+          const looked = h.looked?.[r] != null && now() - h.looked[r]! < 10 * 86_400_000;
+          const what = !looked ? ROOM_DESC[r] : left?.length ? `Still there: ${left.map((l) => lc(l.name)).join(', ')}.` : 'You’ve been through it.';
+          return li(ROOM_NAME[r], what, btn('homeact', `room:${r}`, !looked ? 'Go through it' : 'Take the rest', looked && !left?.length && 'Nothing left'));
+        })
+        .join('');
+      const state =
+        (j.siren ? 'The alarm is screaming. ' : '') +
+        (p.any === 'asleep' ? 'Someone’s asleep in here. You can hear them breathing. ' : p.any === 'out' ? 'Nobody home. ' : '') +
+        (j.phoned ? 'They called the police. Not long now. ' : '');
+      return `<p class="home-state">You’re inside. ${state}Every room you go through takes time, and makes noise.</p><ul class="shop-list">${rows}${li('Get out', 'With what you’ve got.', btn('homeact', 'out', 'Leave'))}</ul>`;
+    }
+    const legs = health.broken.filter((p) => p.endsWith('leg')).length;
+    const key = this.hasKeyTo(h);
+    const high = h.type === 'room' || (h.type === 'apartment' && h.floor > 2);
+    const dog = h.dogKnown && h.dog === 'big' && 'The dog';
+    return (
+      `<ul class="home-cues">${this.homeCues(h).map((l) => `<li>${l}</li>`).join('')}</ul>` +
+      `<ul class="shop-list">` +
+      li('Knock', 'See if anyone answers. Whoever opens the door sees your face.', btn('homeact', 'knock', 'Knock', j?.knocked && 'You did')) +
+      (key ? li('Their keys', 'Let yourself in, quiet as anything. If the locks are still the same.', btn('homeact', 'key', 'Use them', dog)) : '') +
+      li('Try the doors and windows', 'Quiet. People leave a back door unlocked more than you’d think.', btn('homeact', 'try', 'Try', dog || (j?.tried && 'Locked'))) +
+      li('Break a window', 'Loud. Glass cuts.', btn('homeact', 'window', 'Break it', dog || (high && (h.type === 'room' ? 'No window off the hall' : 'Too high up')))) +
+      li('Kick the door in', 'Strength. Very loud, and it might not give.', btn('homeact', 'kick', 'Kick it', dog || (legs ? 'Not on that leg' : null))) +
+      `</ul>`
+    );
+  }
+
+  /** Something done at the address. */
+  private homeAct(what: string) {
+    const h = this.atHome;
+    if (!h || this.ending || this.encounter || this.sheet === 'police') return;
+    const j = this.job ?? this.newJob(h);
+    const inv = this.inventory;
+    const health = this.health;
+    const anon = anonymity(inv);
+    const lines: string[] = [];
+    const atDoor = () => {
+      // A doorbell camera: your face (or your mask) on someone's phone.
+      if (h.cam && !j.filmed) {
+        j.filmed = true;
+        j.faceFilmed = anon < 0.6;
+      }
+    };
+    if (j.confront && what === 'flee') {
+      lines.push(oneOf(['You go back out the way you came, fast, and don’t stop for three blocks.', 'You shove past the doorway and out, and you’re gone before they get the door shut behind you.']));
+      if (anon < 0.6) lines.push('They saw your face. They’ll be telling the police what you look like.');
+      j.seen = anon < 0.6;
+      j.called = true;
+      this.leaveHome(lines);
+      return;
+    }
+    if (j.confront && what === 'fight') {
+      this.residentFight(h, j);
+      return;
+    }
+    if (j.confront) return;
+    // ---- Outside ----
+    if (!j.in) {
+      if (what === 'knock' && !j.knocked) {
+        j.knocked = true;
+        atDoor();
+        const p = this.presence(h);
+        this.dogHeard(h, lines, 0.9);
+        if (p.any === 'awake') {
+          const masked = wearing(inv).masked;
+          if (masked) lines.push('Footsteps. Someone looks at you through the peephole for a long moment, and doesn’t open. A chain rattles on.');
+          else {
+            lines.push(oneOf(['The door opens on the chain. “Yes?” You ask for someone who doesn’t live here. They shut the door.', '“Who is it?” You give a name, any name, and ask if this is the right place. “No.” The door closes.']));
+            j.seen = true;
+            h.sawYou = true;
+          }
+        } else if (p.any === 'asleep') {
+          if (Math.random() < 0.4) {
+            j.woke = true;
+            lines.push('Nothing. Then a light comes on somewhere inside, and stays on. Nobody comes to the door.');
+          } else lines.push('Nothing. You knock again. Nothing.');
+        } else lines.push(oneOf(['Nothing. You knock again, louder. Nobody’s home.', 'You knock and wait. Not a sound from inside.']));
+        return this.homeNote(h, j, lines, 0.05);
+      }
+      let entry: 'key' | 'try' | 'window' | 'kick' | null = null;
+      if (what === 'key' && this.hasKeyTo(h)) {
+        atDoor();
+        if (now() >= (h.lockAt ?? NEVER) && h.lockAt !== NEVER) {
+          lines.push('The key goes in, and won’t turn. They’ve had the locks changed.');
+          inv.items = inv.items.filter((x) => x.opens !== h.id);
+          lines.push('You drop the useless keys down a drain.');
+          return this.homeNote(h, j, lines, 0);
+        }
+        lines.push(h.type === 'apartment' ? 'The street door, the stairs, their door. The deadbolt turns like it’s glad to see you.' : 'The key turns. The door swings open onto the smell of someone else’s home.');
+        entry = 'key';
+      } else if (what === 'try' && !j.tried) {
+        j.tried = true;
+        this.dogHeard(h, lines, 0.6);
+        const odds = h.type === 'house' ? 0.3 : h.type === 'rowhouse' ? 0.2 : h.type === 'room' ? 0.25 : h.floor === 1 ? 0.15 : 0.08;
+        if (Math.random() < odds * (h.fixedAt && now() > h.fixedAt ? 0.3 : 1)) {
+          lines.push(h.type === 'room' ? 'The lock’s a joke. You slip it with a card and you’re in.' : h.type === 'apartment' && h.floor > 1 ? 'Up the fire escape. Their window isn’t latched.' : oneOf(['The back door isn’t locked.', 'A window round the side slides up. Not even latched.']));
+          entry = 'try';
+        } else {
+          lines.push(oneOf(['Locked, all of it. The back door, the windows. Somebody here is careful.', 'You go round every door and window you can reach. Locked.']));
+          return this.homeNote(h, j, lines, 0.05);
+        }
+      } else if (what === 'window' && !(h.type === 'room' || (h.type === 'apartment' && h.floor > 2))) {
+        lines.push('You wrap your sleeve round your hand and put your elbow through the glass. It’s loud. It’s always louder than you think.');
+        if (Math.random() < 0.3) {
+          health.bleeding = Math.max(health.bleeding, 1);
+          lines.push('A shard opens your forearm on the way in. You’re bleeding.');
+        }
+        this.dogHeard(h, lines, 1);
+        entry = 'window';
+      } else if (what === 'kick' && !health.broken.some((p) => p.endsWith('leg'))) {
+        atDoor();
+        const odds = (h.type === 'apartment' ? 0.2 : 0.35) * (h.fixedAt && now() > h.fixedAt ? 0.5 : 1) + (this.stats.strength.level - 1) * 0.025;
+        this.dogHeard(h, lines, 1);
+        if (Math.random() < odds) {
+          lines.push('Third kick, and the frame splits around the deadbolt. The door bangs open.');
+          train(this.stats, 'strength', 4);
+          entry = 'kick';
+        } else {
+          lines.push('You kick it, and kick it again. It shakes in the frame and holds. Everyone on the street heard that.');
+          train(this.stats, 'strength', 2);
+          return this.homeNote(h, j, lines, 0.8);
+        }
+      } else return;
+      // ---- Going in ----
+      const p = this.presence(h);
+      if (h.dog === 'big') {
+        h.dogKnown = true;
+        lines.push('A big dog comes skidding down the hall at you, all teeth. It gets your arm before you can get the door between you.');
+        health.bleeding = Math.max(health.bleeding, 2);
+        health.blood = Math.max(health.maxBlood * 0.55, health.blood - 300);
+        health.stress = Math.min(100, (health.stress ?? 0) + 25);
+        this.fx.impact(true, 300, true, 'spatter');
+        lines.push('You’re back out on the step, bleeding, and the dog is still going.');
+        return this.homeNote(h, j, lines, 0.7);
+      }
+      j.in = true;
+      j.how = entry;
+      j.occupied = p.any !== 'out';
+      const noise = { key: 0.05, try: 0.08, window: 0.5, kick: 0.85 }[entry];
+      // The alarm: armed when nobody's home (and some nights).
+      if (h.alarm && (p.any === 'out' ? Math.random() < 0.9 : p.any === 'asleep' ? Math.random() < 0.5 : false)) {
+        j.siren = true;
+        j.policeIn = 3;
+        lines.push('A beep, beep, beep from a panel by the door, then the siren, deafening. You’ve got minutes.');
+      }
+      if (h.dog === 'small') lines.push('A little dog goes off at your feet, yapping and yapping.');
+      if (p.any === 'awake') return this.confront(h, j, lines, 'awake');
+      if (p.any === 'asleep' && Math.random() < noise * 0.8 + (h.dog ? 0.3 : 0) + (j.siren ? 0.9 : 0)) return this.confront(h, j, lines, 'woke');
+      return this.homeNote(h, j, lines, noise);
+    }
+    // ---- Inside ----
+    if (what === 'out') {
+      lines.push('You let yourself out, and walk. Not fast. Fast looks wrong.');
+      this.leaveHome(lines);
+      return;
+    }
+    const m = /^room:(\w+)$/.exec(what);
+    if (!m) return;
+    const room = m[1] as RoomId;
+    if (!roomsOf(h).includes(room)) return;
+    h.left ??= {};
+    h.looked ??= {};
+    const fresh = h.looked[room] == null || now() - h.looked[room]! >= 10 * 86_400_000;
+    if (fresh) {
+      h.left[room] = roomLoot(h, room);
+      h.looked[room] = now();
+    }
+    const there = h.left[room] ?? [];
+    if (!there.length) {
+      lines.push(fresh ? `You go through ${lc(ROOM_NAME[room])}. Nothing worth taking.` : 'There’s nothing left in there.');
+      return this.homeNote(h, j, lines, 0.08, room);
+    }
+    lines.push(`You go through ${lc(ROOM_NAME[room])}, drawer by drawer.`);
+    const keep: Loot[] = [];
+    for (const l of there) {
+      const r = take(inv, l);
+      lines.push(r.text);
+      if (r.ok) j.took = (j.took ?? 0) + 1;
+      else keep.push(l);
+    }
+    h.left[room] = keep;
+    this.homeNote(h, j, lines, 0.15, room);
+  }
+
+  /** A dog behind the door, if there is one. */
+  private dogHeard(h: Home, lines: string[], odds: number) {
+    if (h.dog && !h.dogKnown && Math.random() < odds) {
+      h.dogKnown = true;
+      lines.push(h.dog === 'big' ? 'A deep bark from right behind the door, and claws on the floor. Something big.' : 'A small dog starts yapping inside, and doesn’t stop.');
+    }
+  }
+
+  /**
+   * After each thing you do there: the noise you made, the neighbours, whoever's
+   * asleep in there, whoever's coming home. Then what happened, as a note.
+   */
+  private homeNote(h: Home, j: HomeJob, lines: string[], noise: number, room?: RoomId) {
+    j.noise += noise;
+    const night = partOfDay() === 'night';
+    // The police: on their way (an alarm, a call), or someone hears you.
+    if (j.policeIn != null) {
+      j.policeIn--;
+      if (j.policeIn <= 0) return this.policeAtHome(j, lines);
+    } else if (Math.random() < (noise >= 0.3 ? noise : noise * 0.15) * (night ? 0.4 : 0.55) * (h.type === 'house' ? 0.8 : 1.3)) {
+      j.policeIn = 2 + Math.floor(Math.random() * 3);
+      if (noise >= 0.5) lines.push(oneOf(['A light comes on in the house next door.', 'Somewhere a window goes up, and a voice says “Hey!”']));
+    }
+    if (j.in) {
+      const p = this.presence(h);
+      // Someone asleep in there: the noise, and the bedroom most of all.
+      if (p.any === 'asleep' && Math.random() < noise * 0.7 + (room === 'bedroom' ? 0.3 : room ? 0.06 : 0)) return this.confront(h, j, lines, 'woke');
+      // Someone out: they come home some time.
+      if (p.any === 'out' && !h.deadAt && room && Math.random() < 0.05 + (h.household === 'family' ? 0.06 : 0)) return this.confront(h, j, lines, 'home');
+      if (p.any === 'out' && h.deadAt && h.household !== 'alone' && room && Math.random() < 0.04) return this.confront(h, j, lines, 'home');
+    }
+    this.refresh();
+    this.note(lines);
+    buzz(noise > 0.4 ? [20, 30, 20] : 8);
+  }
+
+  /** Someone in the house sees you. */
+  private confront(h: Home, j: HomeJob, lines: string[], how: 'awake' | 'woke' | 'home') {
+    const p = this.presence(h);
+    const owner = how === 'home' ? !h.deadAt && (h.household === 'alone' || Math.random() < 0.6) : p.owner !== 'out';
+    const first = h.owner.split(' ')[0];
+    const who = owner ? first : oneOf(['a man', 'a woman']);
+    const known = owner ? ' The face off the ID in your pocket.' : '';
+    j.occupied = true;
+    j.confront = {
+      owner,
+      sex: owner ? h.sex : who === 'a man' ? 'Male' : 'Female',
+      text:
+        how === 'awake'
+          ? `You’re barely inside when someone steps into the hall: ${who}.${known} They stare at you, and then they understand.`
+          : how === 'woke'
+            ? `A light snaps on. ${who[0].toUpperCase()}${who.slice(1)} is in the bedroom doorway, half asleep, then not at all.${known}`
+            : `Keys in the front door. It opens, and ${who} is standing there with a bag of groceries, looking straight at you.${known}`,
+    };
+    // Most reach for a phone.
+    if (Math.random() < 0.65) {
+      j.policeIn = Math.min(j.policeIn ?? 4, 4);
+      j.phoned = true;
+      j.confront.text += ' They’ve got a phone in their hand.';
+    }
+    this.refresh();
+    this.note(lines.length ? lines : [j.confront.text]);
+    buzz([40, 40, 80]);
+  }
+
+  /** Going at whoever lives there: it's a fight, in their hallway. */
+  private residentFight(h: Home, j: HomeJob) {
+    const c = j.confront;
+    if (!c) return;
+    const k = c.owner ? this.ownerOf(h) : undefined;
+    const person = k ? meet(k) : makePerson();
+    if (!k) {
+      person.kind = h.kind === 'junkie' ? 'junkie' : h.kind === 'drunk' && Math.random() < 0.5 ? 'drunk' : 'civilian';
+      person.sex = c.sex;
+      // (Their things say who they are, and where they live: here.)
+      const name = c.owner ? h.owner : nameFor(c.sex, person.race);
+      person.name = name;
+      person.home = c.owner ? h : null;
+      for (const g of person.clothes)
+        for (const l of g.loot) {
+          if (l.kind === 'id') {
+            l.detail = `${name}, ${person.age ?? 30}`;
+            if (l.card) l.card = { ...l.card, addr: h.addr, sex: c.sex === 'Male' ? 'M' : 'F' };
+            l.homeInfo = h;
+          } else if (/card/.test(l.kind)) l.detail = name;
+          else if (l.opens) l.opens = h.id;
+        }
+    }
+    person.title = 'Lives here';
+    const inv = this.inventory;
+    const e = newEncounter(person, this.yourBody());
+    e.conspicuous = conspicuous(inv);
+    if (k) {
+      applyTo(k, e.them);
+      e.recognised = recognises(k, anonymity(inv), lookClothes(inv));
+      e.lookAt = { anon: anonymity(inv), clothes: lookClothes(inv).join('|') };
+      e.grudge = k.memory.grudge;
+      e.history = k.memory.otherLife ? undefined : historyText(k);
+      e.looks = [...injuriesText(k), ...marksText(k.marks)];
+      e.dread = k.memory.fear ?? 0;
+    }
+    e.start = { blood: e.them.blood, broken: [...e.them.broken] };
+    e.resident = true;
+    delete j.confront;
+    this.encounter = e;
+    this.phase = 'idle';
+    this.act('ambushed');
+    buzz([60, 40, 90]);
+  }
+
+  /** The fight in the house is over: what that means for the rest of it. */
+  private afterResidentFight(e: Encounter) {
+    const j = this.job;
+    const h = this.atHome;
+    if (!j || !h) return;
+    // They ran out (to the neighbours, to a phone): the police are coming, fast.
+    if (e.result === 'they-fled' || e.result === 'lost-them') {
+      j.policeIn = Math.min(j.policeIn ?? 2, 2);
+      j.phoned = true;
+    }
+    // You ran: you're gone, and they saw you.
+    if (e.result === 'you-fled' || e.result === 'left' || e.result === 'walked') {
+      j.called = true;
+      j.seen = anonymity(this.inventory) < 0.6;
+      this.leaveHome();
+      this.place = 'street';
+    }
+  }
+
+  /** The police, at the house. */
+  private policeAtHome(j: HomeJob, lines: string[]) {
+    if (!j.in) {
+      // Still outside: they've had a call about a prowler.
+      lines.push('A patrol car rolls up, slow, and a spotlight finds you. Someone called about a prowler.');
+      this.leaveHome();
+      this.save.state.policeWhy = lines;
+      this.save.state.policeStop = true;
+      this.refresh();
+      this.openSheet('police');
+      return;
+    }
+    lines.push(j.siren ? 'Sirens, close, then right outside. Car doors. Flashlights in the front window.' : 'Blue light sweeps across the ceiling. Someone called it in. Car doors, quiet ones.');
+    this.save.state.policeWhy = lines;
+    this.save.state.policeStop = 'burglary';
+    this.refresh();
+    this.openSheet('police');
+    buzz([30, 30, 30]);
+  }
+
+  /**
+   * Leaving an address (walking off, running, or taken away): if you were in,
+   * it's a break-in, and they'll find out. They change the locks, and some
+   * put in a camera or an alarm.
+   */
+  private leaveHome(lines?: string[], caught = false) {
+    const h = this.homeById(this.save.state.homeAt);
+    const j = this.save.state.job as HomeJob | undefined;
+    delete this.save.state.job;
+    if (!h || !j || j.home !== h.id) {
+      if (lines) this.goToStreet(lines);
+      return;
+    }
+    if (j.in || j.took) {
+      h.hits = (h.hits ?? 0) + 1;
+      h.hitAt = now();
+      // New locks in a day or two; a camera, an alarm, sometimes.
+      const fix = now() + (18 + Math.random() * 30) * 3_600_000;
+      h.lockAt = Math.min(h.lockAt ?? fix, fix);
+      h.fixedAt = fix;
+      if (Math.random() < 0.4) h.cam = true;
+      if (Math.random() < 0.25) h.alarm = h.sign = true;
+      if (!caught) {
+        const f = this.infamy;
+        // A burglary gets reported; a face makes it worse.
+        const face = !!j.seen || !!j.faceFilmed;
+        f.heat = Math.min(100, f.heat + 6 + (j.occupied ? 14 : 0) + (face ? 12 : 0));
+        if (face) f.burglaries = (f.burglaries ?? 0) + 1;
+        if (lines && j.faceFilmed) lines.push('That doorbell camera got a good look at you.');
+      }
+    } else if (j.seen || j.faceFilmed) {
+      // (Hanging round and knocking: remembered, a little.)
+      this.infamy.heat = Math.min(100, this.infamy.heat + 2);
+    }
+    if (lines) this.goToStreet(lines);
+  }
+  /** Back out to the street, with what happened as a note. */
+  private goToStreet(lines: string[]) {
+    this.place = 'street';
+    this.shopNote = [];
+    this.encounter = null;
+    this.refresh();
+    uiGlitch(this.view, 0.4);
+    this.note(lines);
+    buzz(10);
+  }
+
+  /** What's stolen on you: someone else's ID or cards, things from a break-in. */
+  private stolen(x: InvItem): boolean {
+    return (x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card' || !!x.hot;
+  }
+
   /** The loose brick in the alley: what's behind it. */
   private get stash(): { items: InvItem[]; cents: number; at: number; seen?: boolean } {
     return (this.save.state.stash ??= { items: [], cents: 0, at: now() }) as { items: InvItem[]; cents: number; at: number; seen?: boolean };
@@ -3292,11 +3885,11 @@ export class Game {
     const r = this.room;
     if (!r || now() > r.until + 2 * 86_400_000 || heat < 50 || Math.random() >= 0.35) return [];
     const lines = ['The desk clerk at the Hotel Marlow gives them your room. They search it too.'];
-    const found = r.items.filter((x) => (x.secret && x.secret !== 'empty') || (x.kind === 'id' && x.own !== this.world.lives) || /card/.test(x.kind) || x.name === 'Zip bags');
+    const found = r.items.filter((x) => (x.secret && x.secret !== 'empty') || this.stolen(x) || x.name === 'Zip bags');
     if (found.length) {
       lines.push(`They find what you'd hidden under the board by the radiator.`);
       if (found.some((x) => x.secret && x.secret !== 'empty') && !charges.some((x) => /controlled substance|intent to distribute/.test(x))) charges.push(this.intent(found) ? 'Possession with intent to distribute' : 'Possession of a controlled substance');
-      if (found.some((x) => x.kind === 'id' || /card/.test(x.kind)) && !charges.includes('Possession of stolen property')) charges.push('Possession of stolen property');
+      if (found.some((x) => this.stolen(x)) && !charges.includes('Possession of stolen property')) charges.push('Possession of stolen property');
       r.items = r.items.filter((x) => !found.includes(x));
     }
     if (r.cents) {
@@ -3371,7 +3964,7 @@ export class Game {
   /** The screen for wherever you are, if it isn't the street. */
   private renderShop() {
     const place = this.place;
-    const here = place !== 'street' && this.tvState.on;
+    const here = place !== 'street' && this.tvState.on && !(place === 'home' && this.encounter);
     this.shopEl.hidden = !here;
     this.view.classList.toggle('in-shop', here);
     if (!here) return;
@@ -3491,10 +4084,14 @@ export class Game {
     }
     // The alley's loose brick: there whenever you are, whoever's about.
     if (place === 'fence') body += this.dezHtml(open) + this.stashHtml('stash');
+    const home = this.atHome;
+    if (home) body = this.homeHtml(home, btn, li);
     const html =
-      `<div class="shop-head"><h2>${info.name}</h2><p>${info.blurb}</p>${info.hours ? `<p class="shop-hours">${hoursText(info.hours)}.</p>` : ''}</div>` +
+      (home
+        ? `<div class="shop-head"><h2>${home.addr}</h2><p>${home.owner}’s place, going by the ${home.type === 'room' ? 'ID' : 'license'}. ${{ house: 'A house', rowhouse: 'A rowhouse', apartment: 'An apartment', room: 'A room in a rooming house' }[home.type]}${home.household === 'alone' || !home.hitAt ? '' : ', and they don’t live alone'}.</p></div>`
+        : `<div class="shop-head"><h2>${info.name}</h2><p>${info.blurb}</p>${info.hours ? `<p class="shop-hours">${hoursText(info.hours)}.</p>` : ''}</div>`) +
       this.noteHtml(this.shopNote, 'shop-note') +
-      `<p class="pocket-purse">${this.purseHtml()}</p>` +
+      (home ? '' : `<p class="pocket-purse">${this.purseHtml()}</p>`) +
       `<div class="shop-body">${body}</div>`;
     // Only when something changed, and keep your place in the list (buying
     // something used to jump you back to the top).
@@ -3536,7 +4133,7 @@ export class Game {
 
   /** In a shop, or a sheet (Pockets, stats, Go) is open: the screen stays clear of what you're on. */
   get inMenu(): boolean {
-    return (this.place !== 'street' && this.tvState.on) || !!this.sheet;
+    return (this.place !== 'street' && this.tvState.on && !(this.place === 'home' && this.encounter)) || !!this.sheet;
   }
 
   private renderSheet() {
@@ -3563,7 +4160,9 @@ export class Game {
       const why = Array.isArray(this.save.state.policeWhy) ? (this.save.state.policeWhy as string[]).map((l) => `<p class="police-why">${l}</p>`).join('') : '';
       card.innerHTML =
         `<div class="sheet-head"><h2>Police</h2></div><div class="sheet-body police">` +
-        (this.save.state.policeStop === 'sting'
+        (this.save.state.policeStop === 'burglary'
+          ? why + `<p>"POLICE! Show me your hands! Show me your HANDS!" Two flashlights in the hallway, and the guns under them.</p>`
+          : this.save.state.policeStop === 'sting'
           ? why + `<p>"Police. Turn around. Hands behind your back." It was a buy. They were waiting for you to make it.</p>`
           : this.save.state.policeStop === 'car'
           ? why + `<p>A second flashlight on the other window. "Step out of the vehicle. Slowly. Hands where I can see them."</p>`
@@ -3571,7 +4170,9 @@ export class Game {
             why +
             `<p>"${masked ? 'Take that off your face. ' : ''}Hold up. Where are you headed ${partOfDay() === 'night' || partOfDay() === 'dusk' ? 'tonight' : 'today'}?"</p>`) +
         `</div><div class="police-choice">` +
-        (this.save.state.policeStop === 'sting'
+        (this.save.state.policeStop === 'burglary'
+          ? `<button type="button" class="place" data-police="stay"><b>Hands up</b><small>On your knees, on someone else's floor. They've got you in the house.</small></button>`
+          : this.save.state.policeStop === 'sting'
           ? `<button type="button" class="place" data-police="stay"><b>Hands behind your back</b><small>They've got the bag, the money, and you on camera.</small></button>`
           : this.save.state.policeStop === 'car'
           ? `<button type="button" class="place" data-police="stay"><b>Step out</b><small>Do as they say. They've run the plate.</small></button>`
@@ -3590,10 +4191,19 @@ export class Game {
     if (this.sheet === 'places') {
       card.innerHTML =
         `<div class="sheet-head"><h2>Where to?</h2>${close}</div><div class="sheet-body places">` +
-        PLACES.filter((p) => !HIDDEN_PLACES.has(p.id)).map(
+        PLACES.filter((p) => !HIDDEN_PLACES.has(p.id) && p.id !== 'home').map(
           (p) =>
             `<button type="button" class="place ${p.id === this.place ? 'here' : ''}" data-place="${p.id}"><b>${p.name}</b><small>${p.id === this.place ? "You're here" : p.desc}${p.id !== this.place && p.id !== 'street' ? (p.hours ? `<i class="${isOpen(p.hours) ? 'open' : 'shut'}">${hoursText(p.hours)}</i>` : '<i class="open">Open all hours</i>') : ''}</small></button>`,
         ).join('') +
+        (this.homes.length
+          ? `<p class="places-sub">Addresses you know</p>` +
+            this.homes
+              .map((h) => {
+                const here = this.atHome === h;
+                return `<button type="button" class="place ${here ? 'here' : ''}" data-home="${h.id}"><b>${h.addr}</b><small>${here ? "You're here" : `${h.owner}’s place${h.hitAt ? ` · you broke in ${dateText(h.hitAt)}` : ''}${this.hasKeyTo(h) ? ' · you have their keys' : ''}`}</small></button>`;
+              })
+              .join('')
+          : '') +
         `</div>`;
       return;
     }
@@ -3677,6 +4287,10 @@ export class Game {
                             ? `${x.detail ? `${x.detail} · ` : ''}${x.doses ?? 0} of 20`
                             : /^loose cigarettes$/i.test(x.name)
                             ? `${x.doses ?? 1} loose`
+                            : x.kind === 'id' && x.card
+                            ? idText((x.detail ?? '').split(',')[0], x.card)
+                            : x.opens
+                            ? `${x.detail ? `${x.detail} · ` : ''}${((h) => (h ? `Opens ${h.addr}${this.atHome === h ? " (you're here)" : ''}` : 'Whose door, you’d need an address to know'))(this.homeById(x.opens))}`
                             : /card/.test(x.kind) && (x.pin || x.drained)
                             ? `${x.detail ? `${x.detail} · ` : ''}${x.drained ? 'Stopped' : `PIN ${x.pin} (cash machine at the bank)`}`
                             : x.detail;
@@ -3776,6 +4390,7 @@ export class Game {
 
   /** Redraws the person button and the encounter screen from the saved state. */
   private refresh() {
+    this.learnHomes();
     this.syncButtons();
     const e = this.encounter;
     this.seenEl.replaceChildren();
@@ -4227,6 +4842,7 @@ export class Game {
     delete this.save.state.wokeLines;
     this.note(woke as string[], true);
     this.noteEl.firstElementChild?.classList.add('note-title');
+    if (this.save.state.policeStop && this.tvState.on && !this.sheet) this.openSheet('police');
   }
 
   /** Closes the game view (back to the menu). */

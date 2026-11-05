@@ -1,3 +1,4 @@
+import { idCard, makeHome, nameFor, yourName, type Home, type IdCard } from './homes';
 import { pickKnife } from './knives';
 import type { MedId } from './inventory';
 import { cashLike, cents, type Purse } from './money';
@@ -133,6 +134,10 @@ const DRUG_CHANCES: [Drug, number][] = [
 
 export interface Person {
   kind: Kind;
+  /** Who they are on paper (what's on their ID), and where they live. */
+  name?: string;
+  age?: number;
+  home?: Home | null;
   /** What the card calls them, when it isn't their kind (Dez's man). */
   title?: string;
   /** How they are, inside (see PERSONALITIES). */
@@ -191,6 +196,13 @@ export interface Loot {
   weapon?: number;
   cuts?: boolean;
   spray?: boolean;
+  /** An ID: everything printed on it, and the home at that address. */
+  card?: IdCard;
+  homeInfo?: Home;
+  /** House keys: which home they open. */
+  opens?: string;
+  /** Taken in a break-in: stolen goods, if anyone looks. */
+  hot?: boolean;
 }
 
 /** Something they're wearing or carrying that can be gone through. */
@@ -346,15 +358,24 @@ export function makePerson(): Person {
       it.name = k.name;
       it.weapon = k.dmg;
     }
+  const race = pick(RACE_CHANCES);
+  const sex: Sex = Math.random() < 0.5 ? 'Male' : 'Female';
+  const build = pick(BUILD_CHANCES[kind]);
+  const name = nameFor(sex, race);
+  const age = 19 + Math.floor(Math.random() * 50);
+  const home = makeHome({ name, sex, kind, age });
   return {
     kind,
     personality,
-    race: pick(RACE_CHANCES),
-    sex: Math.random() < 0.5 ? 'Male' : 'Female',
-    build: pick(BUILD_CHANCES[kind]),
+    name,
+    age,
+    home,
+    race,
+    sex,
+    build,
     awareness: pick(AWARENESS_CHANCES[kind]),
     carrying,
-    clothes: dress(kind, carrying),
+    clothes: dress(kind, carrying, { name, age, sex, race, build, home }),
   };
 }
 
@@ -396,9 +417,7 @@ function spotsOf(name: string): string[] {
 }
 
 /** A name for someone (or for you, when you start as someone new). */
-export const randomName = () => `${FIRST[Math.floor(Math.random() * FIRST.length)]} ${LAST[Math.floor(Math.random() * LAST.length)]}`;
-const FIRST = ['Maria', 'James', 'Wei', 'Aisha', 'Diego', 'Tamika', 'Ryan', 'Priya', 'Omar', 'Hannah', 'Luis', 'Keisha', 'Daniel', 'Mei', 'Tyrone', 'Fatima', 'Kai', 'Grace', 'Marcus', 'Leilani', 'Nadia', 'Joseph', 'Ana', 'Dakota'];
-const LAST = ['Lopez', 'Smith', 'Chen', 'Johnson', 'Haddad', 'Nguyen', 'Williams', 'Garcia', 'Patel', 'Brown', 'Kim', 'Davis', 'Begay', 'Rivera', 'Okafor', 'Kealoha', 'Miller', 'Mansour', 'Jackson', 'Silva', 'Murphy', 'Tran'];
+export const randomName = yourName;
 const STORES = ['Corner Mart', 'Gas & Go', "Lucky's Liquor", 'Dollar Barn', 'Pho 88', 'QuickWash Laundromat', 'Night Owl Diner', 'Rite Way Pharmacy', 'Metro Transit'];
 const NOTES = [
   'A note: "Call Dee back. Don\'t tell Mom."',
@@ -436,7 +455,7 @@ function note(): Omit<Loot, 'where'> {
 }
 
 /** Their clothes, with what they carry put in the pockets. */
-function dress(kind: Kind, carrying: Item[]): Garment[] {
+function dress(kind: Kind, carrying: Item[], who: { name: string; age: number; sex: Sex; race: Race; build: Build; home: Home | null }): Garment[] {
   const [tops, bottoms, shoes] = OUTFITS[kind];
   const clothes: Garment[] = [tops, bottoms, shoes].map((list) => ({ name: any(list), loot: [], searched: false }));
   const has = (n: string) => carrying.some((i) => i.name === n);
@@ -446,19 +465,21 @@ function dress(kind: Kind, carrying: Item[]): Garment[] {
   const pockets = clothes.filter((g) => !/shoe|boot|sneaker|loafer|slide/i.test(g.name));
   const put = (l: Omit<Loot, 'where'>, g = any(pockets), where?: string) => g.loot.push({ ...l, where: where ?? any(spotsOf(g.name)) });
 
-  const name = `${any(FIRST)} ${any(LAST)}`;
-  const age = 19 + Math.floor(r() * 50);
+  const { name, age, home } = who;
+  // The address on their ID: home, or (for someone on the street) the last place that was.
+  const addr = home?.addr ?? `${100 + Math.floor(r() * 900)} Pier St (Harbor Light Mission)`;
+  const card = (dl: boolean, expired = false) => ({ card: idCard({ ...who, addr, dl, expired }), ...(home ? { homeInfo: home } : {}) });
   if (has('Wallet')) {
     // The wallet: back pocket of the trousers, or inside the jacket.
     const g = r() < 0.6 ? clothes[1] : clothes[0];
     const w = (l: Omit<Loot, 'where'>) => put(l, g, 'wallet');
-    if (r() < 0.92) w({ kind: 'id', name: "Driver's license", detail: `${name}, ${age}` });
+    if (r() < 0.92) w({ kind: 'id', name: kind === 'civilian' || r() < 0.5 ? "Driver's license" : 'State ID', detail: `${name}, ${age}`, ...card(true) });
     if (r() < 0.85) w({ kind: 'debit card', name: 'Debit card', detail: name });
     if (r() < (kind === 'civilian' ? 0.6 : 0.3)) w({ kind: 'credit card', name: 'Credit card', detail: name });
     if (r() < 0.8) w(cash(kind === 'civilian' ? money(5, 140) : money(2, 45), 'wallet'));
     for (let i = 0; i < Math.floor(r() * 3); i++) w(receipt());
   } else if (kind === 'homeless' && r() < 0.5) {
-    put({ kind: 'id', name: 'State ID, expired', detail: `${name}, ${age}` });
+    put({ kind: 'id', name: 'State ID, expired', detail: `${name}, ${age}`, ...card(false, true) });
   }
   if (has('Cash')) put(cash(money(5, 80), 'wallet', 'Folded bills'));
   if (has('Loose change')) put(cash(money(0.25, 4.5), 'change', 'Loose change'));
@@ -467,8 +488,10 @@ function dress(kind: Kind, carrying: Item[]): Garment[] {
   if (kind === 'junkie' && r() < 0.55) put(cash(money(4, 28), 'small', 'Crumpled bills'));
   if (has('Phone')) put({ kind: 'phone', name: 'Cell phone', detail: any(PHONES) });
   if (has('Keys')) {
-    if (kind === 'civilian' ? r() < 0.75 : r() < 0.35) put({ kind: 'car keys', name: 'Car keys', detail: `${any(CARS)} key fob` });
-    else put({ kind: 'misc', name: 'House keys', detail: 'A ring of keys' });
+    // Car keys (theirs, parked somewhere), and the keys to home: usually on the same ring.
+    if (kind === 'civilian' ? r() < 0.75 : r() < 0.35) put({ kind: 'car keys', name: 'Car keys', detail: `${home?.car ?? any(CARS)} key fob` });
+    if (home && r() < 0.85) put({ kind: 'misc', name: 'House keys', detail: home.type === 'apartment' ? 'A front-door key, a deadbolt key and a little mailbox key' : home.type === 'room' ? 'A room key on a plastic tag' : 'A front-door key and a deadbolt key', opens: home.id });
+    else if (!home) put({ kind: 'misc', name: 'Keys', detail: "A ring of keys. Whose locks, who knows" });
   }
   if (has('Cigarettes')) {
     // A pack (with however many left in it), or a few loose ones in a pocket.

@@ -20,7 +20,7 @@ import type { InvItem } from './inventory';
  *   and breaks big ones down. After hours, the coin machine in the lobby
  *   still turns coins into bills, for a cut.
  */
-export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records' | 'hospital' | 'guns' | 'court' | 'room';
+export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records' | 'hospital' | 'guns' | 'court' | 'room' | 'home';
 
 export interface PlaceInfo {
   id: Place;
@@ -39,6 +39,8 @@ const EVERY = (a: number, b: number): Hours => [[a, b], [a, b], [a, b], [a, b], 
 
 export const PLACES: PlaceInfo[] = [
   { id: 'street', name: 'The street', desc: 'Lurk in the dark and watch who comes by.', hours: null, blurb: '', indoors: false },
+  // (An address you know, off someone's ID: see homes.ts. Not on the list; under it.)
+  { id: 'home', name: 'An address', desc: '', hours: null, blurb: '', indoors: false },
   {
     id: 'pharmacy',
     name: 'Pharmacy',
@@ -151,6 +153,16 @@ export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'kno
   if (x.med) return { bandages: 8, gauze: 15, painkillers: 6, splint: 22, iron: 12, testkit: 10, caffeine: 5 }[x.med];
   if (x.kind === 'phone') return 180;
   if (/^laptop$/i.test(n)) return 300;
+  if (/^tablet$/i.test(n)) return 220;
+  if (/^games console$/i.test(n)) return 280;
+  if (/^old phone$/i.test(n)) return 60;
+  // Gold goes by weight; diamonds, small ones, not for much.
+  if (/^gold chain$/i.test(n)) return 450;
+  if (/^wedding ring$/i.test(n)) return 300;
+  if (/^class ring$/i.test(n)) return 200;
+  if (/^bracelet$/i.test(n)) return 220;
+  if (/^earrings$/i.test(n)) return 250;
+  if (/^watch$/i.test(n)) return 120;
   if (/phone charger/i.test(n)) return 5;
   if (x.kind === 'car keys') return 80;
   if (x.kind === 'id') return /expired/.test(n) ? 10 : 60;
@@ -302,5 +314,8 @@ export const CHARGES: Record<string, { bail: number; fine: number; days: number;
   Homicide: { bail: 0, fine: 0, days: 3650, sev: 20 },
   'Possession with intent to distribute': { bail: 2500, fine: 2000, days: 45, sev: 7 },
   'Selling a controlled substance': { bail: 5000, fine: 3000, days: 90, sev: 9 },
+  // Breaking into a home; doing it with someone inside (most places treat that as far worse).
+  Burglary: { bail: 5000, fine: 2500, days: 180, sev: 10 },
+  'Home invasion': { bail: 25000, fine: 5000, days: 1095, sev: 15 },
 };
 export const chargeOf = (c: string) => CHARGES[c] ?? { bail: 300, fine: 300, days: 3, sev: 2 };

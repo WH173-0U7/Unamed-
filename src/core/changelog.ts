@@ -11,6 +11,18 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.18',
+    date: 'Nov 5',
+    items: [
+      'People’s names fit them now (no more men called Grace), and your own name could be anyone’s.',
+      'IDs carry everything a real one does: date of birth, sex, height, weight, eyes, hair, address, license number, issue and expiry dates, organ donor.',
+      'Take someone’s ID and you know where they live: it’s under Where to?, in Addresses you know. Walk over and look at the place: lights, a car out front, an alarm sign, a doorbell camera.',
+      'Knock to see if anyone’s home, try the doors and windows, break a window or kick the door in. Their house keys let you walk straight in, until they change the locks (a day or two after the keys went missing).',
+      'Inside, go through the bedroom, living room, kitchen and bathroom: cash, jewelry, laptops, car keys on the hook. Every room is time and noise. Someone asleep can wake up; someone out can come home. Then it’s a fight in their hallway, and it’s home invasion, not burglary.',
+      'Alarms, dogs, neighbours who call it in, and police at the door. Pawn shops log serial numbers. Stolen goods are evidence if you’re searched.',
+    ],
+  },
+  {
     v: '1.17',
     date: 'Nov 5',
     items: [

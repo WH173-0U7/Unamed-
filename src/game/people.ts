@@ -319,6 +319,8 @@ export interface Infamy {
   reports?: number;
   /** Killings someone saw, with your face showing. */
   killsSeen?: number;
+  /** Break-ins they've a description (or a doorbell video) of you for. */
+  burglaries?: number;
 }
 
 export const newInfamy = (): Infamy => ({ rep: 0, heat: 0, at: now() });

@@ -203,6 +203,8 @@ export interface Loot {
   opens?: string;
   /** Taken in a break-in: stolen goods, if anyone looks. */
   hot?: boolean;
+  /** Car keys: the car out front of this home. */
+  carOf?: string;
 }
 
 /** Something they're wearing or carrying that can be gone through. */
@@ -473,7 +475,8 @@ function dress(kind: Kind, carrying: Item[], who: { name: string; age: number; s
     // The wallet: back pocket of the trousers, or inside the jacket.
     const g = r() < 0.6 ? clothes[1] : clothes[0];
     const w = (l: Omit<Loot, 'where'>) => put(l, g, 'wallet');
-    if (r() < 0.92) w({ kind: 'id', name: kind === 'civilian' || r() < 0.5 ? "Driver's license" : 'State ID', detail: `${name}, ${age}`, ...card(true) });
+    const dl = kind === 'civilian' || r() < 0.5;
+    if (r() < 0.92) w({ kind: 'id', name: dl ? "Driver's license" : 'State ID', detail: `${name}, ${age}`, ...card(dl) });
     if (r() < 0.85) w({ kind: 'debit card', name: 'Debit card', detail: name });
     if (r() < (kind === 'civilian' ? 0.6 : 0.3)) w({ kind: 'credit card', name: 'Credit card', detail: name });
     if (r() < 0.8) w(cash(kind === 'civilian' ? money(5, 140) : money(2, 45), 'wallet'));
@@ -489,7 +492,7 @@ function dress(kind: Kind, carrying: Item[], who: { name: string; age: number; s
   if (has('Phone')) put({ kind: 'phone', name: 'Cell phone', detail: any(PHONES) });
   if (has('Keys')) {
     // Car keys (theirs, parked somewhere), and the keys to home: usually on the same ring.
-    if (kind === 'civilian' ? r() < 0.75 : r() < 0.35) put({ kind: 'car keys', name: 'Car keys', detail: `${home?.car ?? any(CARS)} key fob` });
+    if (kind === 'civilian' ? r() < 0.75 : r() < 0.35) put({ kind: 'car keys', name: 'Car keys', detail: `${home?.car ?? any(CARS)} key fob`, ...(home?.car ? { carOf: home.id } : {}) });
     if (home && r() < 0.85) put({ kind: 'misc', name: 'House keys', detail: home.type === 'apartment' ? 'A front-door key, a deadbolt key and a little mailbox key' : home.type === 'room' ? 'A room key on a plastic tag' : 'A front-door key and a deadbolt key', opens: home.id });
     else if (!home) put({ kind: 'misc', name: 'Keys', detail: "A ring of keys. Whose locks, who knows" });
   }

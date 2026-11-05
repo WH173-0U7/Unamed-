@@ -151,11 +151,11 @@ export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'kno
   if (x.secret === 'cocaine') return 60 * (x.doses ?? 1);
   if (x.secret && x.secret !== 'empty') return { heroin: 40, fentanyl: 50, meth: 35, tranq: 15 }[x.secret];
   if (x.med) return { bandages: 8, gauze: 15, painkillers: 6, splint: 22, iron: 12, testkit: 10, caffeine: 5 }[x.med];
+  if (/^old phone$/i.test(n)) return 60;
   if (x.kind === 'phone') return 180;
   if (/^laptop$/i.test(n)) return 300;
   if (/^tablet$/i.test(n)) return 220;
   if (/^games console$/i.test(n)) return 280;
-  if (/^old phone$/i.test(n)) return 60;
   // Gold goes by weight; diamonds, small ones, not for much.
   if (/^gold chain$/i.test(n)) return 450;
   if (/^wedding ring$/i.test(n)) return 300;
@@ -260,7 +260,7 @@ export const GAS_STOCK: Stock[] = [
   { id: 'surgical', name: 'Surgical mask', price: 2, desc: 'Hides a little. Nobody looks twice.', slot: 'face' },
   { id: 'cap', name: 'Baseball cap', price: 22, desc: 'Off the spinner. Shades your eyes from cameras.', slot: 'head' },
   { id: 'beanie', name: 'Beanie', price: 16, desc: 'Covers your hair.', slot: 'head' },
-  { id: 'shades', name: 'Sunglasses', price: 20, desc: 'Gas station shades. Hide your eyes.', slot: 'eyes' },
+  { id: 'shades', name: 'Sunglasses', price: 20, desc: 'Gas station shades. Hides your eyes. At night, a bit odd.', slot: 'eyes' },
 ];
 
 export const PAWN_STOCK: Stock[] = [
@@ -282,7 +282,7 @@ export const PAWN_STOCK: Stock[] = [
   { id: 'anklesheath', name: 'Ankle sheath', price: 28, desc: 'A small knife strapped above your ankle, under your pant leg. Nobody sees it; getting it out in a fight takes a turn.', slot: 'gear' },
   { id: 'cap', name: 'Baseball cap', price: 12, desc: 'Second-hand. Shades your eyes from cameras.', slot: 'head' },
   { id: 'beanie', name: 'Beanie', price: 10, desc: 'Second-hand. Covers your hair.', slot: 'head' },
-  { id: 'shades', name: 'Sunglasses', price: 25, desc: 'A decent used pair from the case. Hide your eyes. At night, a bit odd.', slot: 'eyes' },
+  { id: 'shades', name: 'Sunglasses', price: 25, desc: 'A decent used pair from the case. Hides your eyes. At night, a bit odd.', slot: 'eyes' },
 ];
 
 // ---------- The ER (self-pay) ----------
@@ -315,7 +315,7 @@ export const CHARGES: Record<string, { bail: number; fine: number; days: number;
   'Possession with intent to distribute': { bail: 2500, fine: 2000, days: 45, sev: 7 },
   'Selling a controlled substance': { bail: 5000, fine: 3000, days: 90, sev: 9 },
   // Breaking into a home; doing it with someone inside (most places treat that as far worse).
-  Burglary: { bail: 5000, fine: 2500, days: 180, sev: 10 },
+  Burglary: { bail: 5000, fine: 2500, days: 365, sev: 10 },
   'Home invasion': { bail: 25000, fine: 5000, days: 1095, sev: 15 },
 };
 export const chargeOf = (c: string) => CHARGES[c] ?? { bail: 300, fine: 300, days: 3, sev: 2 };

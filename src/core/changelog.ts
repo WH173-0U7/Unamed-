@@ -11,6 +11,19 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.19',
+    date: 'Nov 5',
+    items: [
+      'Break-ins are harder to game. Walk away and come back, and the place remembers: a door you tried stays locked, and after an alarm or a call there’s a patrol car out front for an hour (longer if there’s a body).',
+      'What you see from outside isn’t the whole truth any more: a lamp on a timer, a TV left on for the dog, a car at home while they took the bus. Knocking doesn’t tell you who’s in.',
+      'Knock someone out in their house and you can keep going through it; let them go and they run for help. Kill someone in there and the police find the body: that’s homicide on top.',
+      'Beaten by the person who lives there, you come to already cuffed: no running.',
+      'Only traceable things count as stolen (electronics, jewelry, a car’s keys), not their painkillers or beer. Jewelry gets photographed for the police log at the pawn shop too. A car can only be stolen once: the spare on the hook is only there if the car is.',
+      'IDs: a state ID isn’t a driver’s license, and nobody’s card was issued before they were sixteen. Residents talk and fight like they’re in their own home (he/she, the floor, not the sidewalk).',
+      'Lots of smaller wording fixes, a rooming-house room that’s just “the room”, and a burglary sentence closer to the real thing.',
+    ],
+  },
+  {
     v: '1.18',
     date: 'Nov 5',
     items: [
@@ -18,8 +31,8 @@ export const CHANGES: Release[] = [
       'IDs carry everything a real one does: date of birth, sex, height, weight, eyes, hair, address, license number, issue and expiry dates, organ donor.',
       'Take someone’s ID and you know where they live: it’s under Where to?, in Addresses you know. Walk over and look at the place: lights, a car out front, an alarm sign, a doorbell camera.',
       'Knock to see if anyone’s home, try the doors and windows, break a window or kick the door in. Their house keys let you walk straight in, until they change the locks (a day or two after the keys went missing).',
-      'Inside, go through the bedroom, living room, kitchen and bathroom: cash, jewelry, laptops, car keys on the hook. Every room is time and noise. Someone asleep can wake up; someone out can come home. Then it’s a fight in their hallway, and it’s home invasion, not burglary.',
-      'Alarms, dogs, neighbours who call it in, and police at the door. Pawn shops log serial numbers. Stolen goods are evidence if you’re searched.',
+      'Inside, go through the bedroom, living room, kitchen and bathroom: cash, jewelry, laptops, car keys on the hook. Every room is time and noise. Someone asleep can wake up; someone out can come home. Then they’ve seen you: run, or fight them in their own hallway. Either way it’s home invasion, not burglary.',
+      'Alarms, dogs, neighbors who call it in, and police at the door. Pawn shops log serial numbers. Stolen goods are evidence if you’re searched.',
     ],
   },
   {

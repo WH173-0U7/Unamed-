@@ -63,11 +63,12 @@ function life(e: Encounter) {
   };
 }
 
+const RESIDENT_BEG = ['"This is my home. Please. Just take it and go."', '"I don\'t want to die in my own house. Please."', '"Take whatever you want. Just get out. Please."', '"I won\'t call anyone. I swear I won\'t."'];
 const KIND: Record<Kind, { beg: string[]; emptied: string[]; letGo: string[]; giveUp: string[] }> = {
   civilian: {
     beg: [
       '"I have work in the morning. Please. I just want to go home."',
-      '"My wife\'s waiting up for me. Please don\'t."',
+      '"Someone\'s waiting up for me. Please don\'t."',
       '"I won\'t call anyone. I swear I won\'t call anyone."',
       '"I don\'t want to die out here. Please."',
     ],
@@ -221,7 +222,8 @@ export function voice(e: Encounter, m: Moment): string[] {
 function voiceAll(e: Encounter, m: Moment): string[] {
   const p = e.person.personality;
   const g = groupOf(p);
-  const kind = KIND[e.person.kind];
+  // In their own home, nobody begs to be let go home.
+  const kind = e.resident ? { ...KIND[e.person.kind], beg: RESIDENT_BEG } : KIND[e.person.kind];
   const L = life(e);
   const fear = e.them.fear ?? 0;
   // (No blood in what they do unless they're actually bleeding.)

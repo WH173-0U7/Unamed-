@@ -79,7 +79,10 @@ export function idCard(o: { sex: Sex; race: Race; build: Build; age: number; add
   if (born > new Date(t.getFullYear() - o.age, t.getMonth(), t.getDate())) born.setFullYear(born.getFullYear() - 1);
   // Renewed every eight years, on the birthday.
   const exp = new Date(t.getFullYear() + (o.expired ? -1 - Math.floor(Math.random() * 4) : 1 + Math.floor(Math.random() * 7)), born.getMonth(), born.getDate());
-  const iss = new Date(exp.getFullYear() - 8, exp.getMonth(), exp.getDate() - 20 - Math.floor(Math.random() * 300));
+  // (Nobody's first card is from before they were sixteen.)
+  const first = new Date(born.getFullYear() + 16, born.getMonth(), born.getDate() + Math.floor(Math.random() * 200));
+  let iss = new Date(exp.getFullYear() - 8, exp.getMonth(), exp.getDate() - 20 - Math.floor(Math.random() * 300));
+  if (iss < first) iss = first > t ? t : first;
   const inches = Math.round(BASE_IN[o.sex] + (Math.random() + Math.random() + Math.random() - 1.5) * 4);
   const lb = Math.round((BASE_LB[o.sex] * (BUILD_LB[o.build] ?? 1) * (inches / BASE_IN[o.sex]) * (0.92 + Math.random() * 0.12)) / 5) * 5;
   const light = o.race === 'White' ? Math.random() : 1;
@@ -156,6 +159,12 @@ export interface Home {
   sawYou?: boolean;
   /** Since the break-in: a new deadbolt, a camera. */
   fixedAt?: number;
+  /** When you last knocked, tried the doors, or woke someone (those stick for a while). */
+  knockedAt?: number;
+  triedAt?: number;
+  wokeAt?: number;
+  /** The police are there (after an alarm, a call, a body), until when. */
+  scene?: { until: number; body?: boolean };
 }
 
 const STREETS = ['Alder St', 'Kestrel Ave', 'Larkin St', 'Halsey Ave', 'Pruitt St', 'Ninth St', 'Cobb Ave', 'Delmar St', 'Wexford Rd', 'Orchard Ln', 'Bellamy St', 'Fulton Ave', 'Sorrel Ct', 'Grand Ave', 'Ivy St', 'Tanner Rd'];
@@ -197,7 +206,7 @@ export function makeHome(o: { name: string; sex: Sex; kind: Kind; age: number })
 }
 
 /** A number in 0..1 that stays the same for this home for a couple of hours. */
-function steady(h: Home, t: number, salt: number): number {
+export function steady(h: Home, t: number, salt: number): number {
   let x = (h.seed ^ Math.floor(t / 7_200_000) * 2654435761 ^ salt * 40503) >>> 0;
   x = Math.imul(x ^ (x >>> 16), 2246822507) >>> 0;
   x = Math.imul(x ^ (x >>> 13), 3266489909) >>> 0;
@@ -249,6 +258,16 @@ export const anyoneIn = (w: { owner: Presence; other: Presence | null }): Presen
 export function roomsOf(h: Home): RoomId[] {
   return h.type === 'room' ? ['bedroom', 'closet'] : ['bedroom', 'living', 'kitchen', 'bathroom'];
 }
+/** What a room's called (a rooming house is one room). */
+export const roomName = (h: Home, r: RoomId) => (h.type === 'room' && r === 'bedroom' ? 'The room' : ROOM_NAME[r]);
+/** Going through it. */
+export const ROOM_SEARCH: Record<RoomId, string> = {
+  bedroom: 'You go through the dresser and the nightstand, drawer by drawer, and lift the mattress.',
+  living: 'You go through the living room: the couch, the shelves, the TV stand.',
+  kitchen: 'You go through the kitchen, drawer by drawer, cupboard by cupboard.',
+  bathroom: 'You open the medicine cabinet, and the cupboard under the sink.',
+  closet: 'You go through the coat on the hook, the box on the shelf, the shoes.',
+};
 export const ROOM_NAME: Record<RoomId, string> = {
   bedroom: 'The bedroom',
   living: 'The living room',
@@ -258,7 +277,7 @@ export const ROOM_NAME: Record<RoomId, string> = {
 };
 export const ROOM_DESC: Record<RoomId, string> = {
   bedroom: 'The dresser, the nightstand, under the mattress: where people keep cash and jewelry.',
-  living: 'Laptops, a tablet, a games console. The TV’s too big to carry.',
+  living: 'A laptop, a tablet, a games console. The TV’s too big to carry.',
   kitchen: 'The junk drawer, the jar on top of the fridge, keys on a hook by the door.',
   bathroom: 'The medicine cabinet.',
   closet: 'A coat on a hook, a box on the shelf, shoes.',
@@ -266,27 +285,32 @@ export const ROOM_DESC: Record<RoomId, string> = {
 
 const JEWELRY = ['Gold chain', 'Wedding ring', 'Watch', 'Earrings', 'Class ring', 'Bracelet'];
 
-/** What's in a room, the first time you go through it. Stolen goods all of it (hot). */
-export function roomLoot(h: Home, room: RoomId): Loot[] {
+/**
+ * What's in a room, the first time you go through it. What could be traced
+ * (electronics, jewelry, a car's keys) is stolen goods (hot); cash and a
+ * packet of painkillers aren't anybody's in particular.
+ */
+export function roomLoot(h: Home, room: RoomId, carHere: boolean): Loot[] {
   const r = Math.random;
   const w = h.wealth * (h.hits ? 0.35 : 1);
   const out: Loot[] = [];
-  const add = (l: Omit<Loot, 'where' | 'hot'>, where: string) => out.push({ ...l, where, hot: true });
+  const add = (l: Omit<Loot, 'where' | 'hot'>, where: string) => out.push({ ...l, where, ...(l.kind === 'phone' || l.kind === 'car keys' || /^(laptop|tablet|games console|gold chain|wedding ring|watch|earrings|class ring|bracelet)$/i.test(l.name) ? { hot: true } : {}) });
   const bills = (a: number, b: number) => Math.max(1, Math.round((a + r() * (b - a)) * w));
   if (room === 'bedroom') {
     if (r() < 0.55) add({ kind: 'cash', name: any(['Cash in a sock', 'Cash under the mattress', 'An envelope of cash']), cash: bills(20, 380) }, any(['dresser', 'under the mattress', 'nightstand']));
     const n = r() < 0.65 * w ? 1 + Math.floor(r() * (w > 1 ? 3 : 2)) : 0;
     for (const j of [...JEWELRY].sort(() => r() - 0.5).slice(0, n)) add({ kind: 'misc', name: j, detail: jewelDetail(j) }, 'jewelry box');
     if (r() < 0.25) add({ kind: 'misc', name: 'Painkillers', med: 'painkillers' }, 'nightstand');
-    if (r() < 0.2) add({ kind: 'phone', name: 'Old phone', detail: 'An older phone in a drawer, still charged' }, 'nightstand drawer');
+    if (r() < 0.2) add({ kind: 'phone', name: 'Old phone', detail: 'An older phone in a drawer, the battery dead' }, 'nightstand drawer');
   } else if (room === 'living') {
     if (r() < 0.5 * Math.min(1.2, w)) add({ kind: 'misc', name: 'Laptop', detail: 'On the couch, a sticker on the lid' }, 'couch');
-    if (r() < 0.35 * w) add({ kind: 'misc', name: 'Tablet', detail: 'In a cover, a kid’s game on the screen' }, 'coffee table');
+    if (r() < 0.35 * w) add({ kind: 'misc', name: 'Tablet', detail: h.household === 'family' ? 'In a cover, a kid’s game on the screen' : 'In a cover, a crack across one corner' }, 'coffee table');
     if (r() < 0.4 * w) add({ kind: 'misc', name: 'Games console', detail: 'Under the TV, controllers and all' }, 'TV stand');
     if (r() < 0.3) add({ kind: 'cash', name: 'Loose change', cash: Math.round((1 + r() * 7) * 4) / 4 }, 'a bowl by the door');
   } else if (room === 'kitchen') {
     if (r() < 0.4) add({ kind: 'cash', name: any(['Cash in a coffee can', 'Rent money, in an envelope', 'Bills in the junk drawer']), cash: bills(15, 240) }, any(['top of the fridge', 'junk drawer', 'cupboard']));
-    if (h.car && r() < 0.7) add({ kind: 'car keys', name: 'Car keys', detail: `${h.car} key fob`, car: 'found', takenAt: Date.now() }, 'hook by the door');
+    // The spare, on the hook: and the car out front, if it's there.
+    if (h.car && carHere && r() < 0.7) add({ kind: 'car keys', name: 'Car keys', detail: `${h.car} key fob`, car: 'found', takenAt: Date.now(), carOf: h.id }, 'hook by the door');
     if (r() < 0.8) add(r() < 0.6 ? { kind: 'weapon', name: 'Kitchen knife', weapon: 8, cuts: true } : { kind: 'weapon', name: 'Steak knife', weapon: 5, cuts: true }, 'knife block');
     if (r() < 0.4) add({ kind: 'misc', name: 'Beer', drink: 'beer', doses: 1 }, 'fridge');
   } else if (room === 'bathroom') {

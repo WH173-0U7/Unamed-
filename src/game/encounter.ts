@@ -242,8 +242,8 @@ export interface Encounter {
   regular?: boolean;
   /** Sent by Dez, for the money you owe him. */
   enforcer?: boolean;
-  /** Someone in their own home, and you broke in. */
-  resident?: boolean;
+  /** Someone in their own home, and you broke in: theirs (or someone who lives there), how they found you, and whether they'd called it in. */
+  resident?: { owner: boolean; how: 'awake' | 'woke' | 'home'; phoned: boolean };
   /** You've sold before (word of it is what brings people over). */
   dealer?: boolean;
   /** They came over to you to buy: face to face, and they want it. */
@@ -837,8 +837,16 @@ let landed: Side | null = null;
 let refusedNow = false;
 /** Where this move's lines start in the log. */
 let actLogStart = 0;
+/** A line from a fight on the street, as it reads in someone's house. */
+export const indoors = (text: string) =>
+  text
+    .replace(/\bthe sidewalk\b/g, 'the floor')
+    .replace(/\bThe sidewalk\b/g, 'The floor')
+    .replace(/\bwalk off into the dark\b/g, 'walk out')
+    .replace(/\boff into the dark\b/g, 'out of the room');
 const say = (by: LogLine['by'], text: string) => {
   text = text.replace(/ {2,}/g, ' ').trim();
+  if (enc.resident) text = indoors(text);
   enc.log.push(landed ? { by, text, hit: landed } : { by, text });
   landed = null;
 };
@@ -888,14 +896,16 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
   if (e.stage === 'over') return impacts;
   const p = e.person;
   const aw = AWARENESS.indexOf(p.awareness);
-  const who = e.enforcer ? 'big man' : e.resident ? (p.sex === 'Male' ? 'man' : 'woman') : p.kind === 'homeless' ? 'homeless one' : NAMES[p.kind].toLowerCase();
+  const who = e.enforcer || p.title === "Dez's man" ? 'big man' : e.resident ? (p.sex === 'Male' ? 'man' : 'woman') : p.kind === 'homeless' ? 'homeless one' : NAMES[p.kind].toLowerCase();
 
   // Someone you hurt, and they've been looking for you: they find you first.
   if (id === 'ambushed' && e.stage === 'seen') {
     e.stage = 'combat';
     e.facedYou = true;
     say('them', e.resident
-      ? oneOf([`You go at them before they can get to a phone. The ${who} backs into the hall, yelling, and grabs for whatever's nearest.`, `"Get out of my house!" The ${who} comes at you, barefoot and furious.`])
+      ? e.resident.phoned
+        ? oneOf([`You go at them. The phone goes skidding across the floor, and the ${who} grabs for whatever's nearest.`, `"Get out of my house!" The ${who} drops the phone and comes at you.`])
+        : oneOf([`You go at them before they can get to a phone. The ${who} ${e.resident.how === 'awake' ? 'backs up the hall' : 'backs away'}, yelling, and grabs for whatever's nearest.`, `"Get out of my house!" The ${who} comes at you${e.resident.how === 'woke' ? ', barefoot and furious' : ', furious'}.`])
       : e.enforcer
       ? oneOf(['A big man steps out of a doorway and fills the sidewalk in front of you. "Dez says you\'re late."', 'A hand on your collar, from behind. "You owe Dez money. Dez wants it now."'])
       : oneOf([`A hand grabs your shoulder and spins you around. It's the ${who} from before. "Remember me?"`, `Someone steps out of a doorway right in front of you: the ${who}. They've been waiting for you.`]));
@@ -2791,7 +2801,7 @@ function sellTo(e: Encounter) {
     end('left');
     return;
   }
-  say('them', oneOf([`"How much?" ${Math.round(price / 100)}. They count it out quick, eyes on the street, and the bag's gone into their pocket.`, `They palm you ${Math.round(price / 100)} dollars, folded small. You palm them the bag. It takes a second.`]));
+  say('them', oneOf([`"How much?" You tell them: ${Math.round(price / 100)}. They count it out quick, eyes on the street, and the bag's gone into their pocket.`, `They palm you ${Math.round(price / 100)} dollars, folded small. You palm them the bag. It takes a second.`]));
   e.deal = { kind: 'sold', price };
   e.customer = true;
   end('sold');

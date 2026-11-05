@@ -53,6 +53,8 @@ const HUMANITY: { at: number; name: string; line: string }[] = [
 const oneOf = <T,>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)];
 /** A lock that never gets changed (nobody left to change it). */
 const NEVER = 8.64e15;
+/** Days Dez's vig keeps compounding once you're late. */
+const VIG_DAYS = 14;
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 /** At an address: outside, or in, and what's happened so far. */
 interface HomeJob {
@@ -1859,12 +1861,18 @@ export class Game {
     }
     if (what === 'machine') {
       if (!count(p, COINS)) return;
+      // (Less than a dollar's worth, after its cut: it gives you your coins back.)
+      if (Math.floor(COINS.reduce((s, d) => s + d * (p[d] ?? 0), 0) * (1 - COIN_MACHINE_FEE)) < 100) {
+        this.note(['You pour in your coins. The machine counts them, beeps, and spits them back out: not enough for a single bill.']);
+        return;
+      }
       const fee = coinsToBills(p, COIN_MACHINE_FEE);
       line = `You pour your coins into the machine. It counts them with a roar and prints a slip, minus ${money(fee)}. You have ${purseText(p)}.`;
     } else if (!teller) return;
     else if (what === 'up') {
+      const before = JSON.stringify(p);
       changeUp(p);
-      line = `The teller counts it all twice and slides back ${purseText(p)}.`;
+      line = JSON.stringify(p) === before ? 'The teller looks at what you’ve got and slides it back. “Nothing to change.”' : `The teller counts it all twice and slides back ${purseText(p)}.`;
     } else if (what.startsWith('break:')) {
       const d = Number(what.slice(6));
       if (!breakBill(p, d)) return;
@@ -2370,7 +2378,12 @@ export class Game {
     const upstairs = (this.atHome?.type === 'apartment' && this.atHome.floor > 1) || this.atHome?.type === 'room';
     // (Out of the house either way; whether you got away is settled below.)
     const atHouse = this.place === 'home';
-    if (atHouse) this.place = 'street';
+    if (atHouse) {
+      this.place = 'street';
+      // (What was said in the house stays in the house.)
+      this.unstick();
+      this.noteEl.hidden = true;
+    }
     delete this.save.state.policeStop;
     delete this.save.state.policeWhy;
     const lines: string[] = [];
@@ -3195,18 +3208,23 @@ export class Game {
    * What you owe Dez, if anything: how much, when it was due, and how often
    * you've beaten the people he sent. Late, it grows a fifth a day (the vig).
    */
-  private get debt(): { owed: number; due: number; vigAt?: number; strikes?: number } | undefined {
-    const d = this.save.state.debt as { owed: number; due: number; vigAt?: number; strikes?: number } | undefined;
+  private get debt(): { owed: number; due: number; vigAt?: number; strikes?: number; vigDays?: number } | undefined {
+    const d = this.save.state.debt as { owed: number; due: number; vigAt?: number; strikes?: number; vigDays?: number } | undefined;
     if (!d) return undefined;
     const t = now();
     if (t > d.due) {
       const from = Math.max(d.due, d.vigAt ?? d.due);
       const days = Math.floor((t - from) / 86_400_000);
       if (days > 0) {
-        d.owed = Math.round(d.owed * Math.pow(1.2, days));
+        // The vig runs two weeks; after that it's not about the money any more (that's what the big man is for).
+        const add = Math.max(0, Math.min(days, VIG_DAYS - (d.vigDays ?? 0)));
+        d.owed = Math.round(d.owed * Math.pow(1.2, add));
+        d.vigDays = (d.vigDays ?? 0) + add;
         d.vigAt = from + days * 86_400_000;
       }
     }
+    // (A debt that ran away before the vig stopped: no more than two weeks of it.)
+    d.owed = Math.min(d.owed, Math.round(DEZ_FRONT * 100 * Math.pow(1.2, VIG_DAYS)));
     return d;
   }
 
@@ -3473,7 +3491,7 @@ export class Game {
     if (h.sign) out.push(h.type === 'house' ? 'A security company sign in the flowerbed.' : 'A security company sticker on the door.');
     if (h.cam) out.push('A doorbell camera by the front door. It sees whoever comes up the steps.');
     if (h.dogKnown && h.dog) out.push(h.dog === 'big' ? 'Something big lives in there. You heard it.' : 'A small dog in there, yapping at every sound.');
-    if (h.fixedAt && now() > h.fixedAt) out.push('A new deadbolt on the door, the brass still shiny.');
+    if (h.fixedAt && now() > h.fixedAt) out.push(now() - h.fixedAt < 30 * 86_400_000 ? 'A new deadbolt on the door, the brass still shiny.' : 'A deadbolt on the door that wasn’t there the first time.');
     if (h.deadAt && now() - h.deadAt > 86_400_000) out.push('Mail piling up in the box. Nobody’s been home for a while.');
     return out;
   }
@@ -4566,7 +4584,7 @@ export class Game {
                               ? `${x.doses ?? 0} spray${x.doses === 1 ? '' : 's'} left · blinds them`
                               : `A weapon: +${x.weapon ?? 0} damage${x.cuts ? ', cuts' : ''}`
                             : x.kind === 'car keys'
-                            ? `${x.detail ?? 'Car keys'} · ${x.car === 'found' ? `the car's parked nearby${x.carSearched ? ', searched' : ''} (the fence buys cars)` : x.car === 'gone' ? "the car's gone" : 'press it on the street to find the car'}`
+                            ? `${x.detail ?? 'Car keys'} · ${x.car === 'found' ? `the car's parked nearby${x.carSearched ? ', searched' : ''} ${now() - (x.takenAt ?? 0) < 3 * 3_600_000 ? '(the fence buys cars)' : '(reported stolen by now: the fence won’t touch it)'}` : x.car === 'gone' ? "the car's gone" : 'press it on the street to find the car'}`
                             : /^(pack of )?cigarettes$/i.test(x.name)
                             ? `${x.detail ? `${x.detail} · ` : ''}${x.doses ?? 0} of 20`
                             : /^loose cigarettes$/i.test(x.name)

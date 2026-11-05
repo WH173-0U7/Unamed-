@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.32',
+    date: 'Nov 5',
+    items: [
+      'Dez’s vig runs for two weeks late and then stops growing: after that he isn’t after interest, he’s after you. (No more billion-dollar debts after a stretch inside.)',
+      'Old car keys in your pockets say the car’s been reported, the same as the fence does.',
+      'A deadbolt is only “still shiny” for the first month. The coin machine won’t take less than a dollar’s worth, and the teller tells you when there’s nothing to change.',
+      'Arrested in a house: no leftover note from inside waiting on the street when you get out.',
+    ],
+  },
+  {
     v: '1.31',
     date: 'Nov 5',
     items: [

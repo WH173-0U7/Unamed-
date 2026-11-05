@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.05',
+    date: 'Nov 5',
+    items: [
+      'Sent down at your hearing while bleeding, they see to the wound before you serve your time, as they do in a cell. You no longer bleed out inside and get robbed “on the street”.',
+      'Dying in the ER, the death screen says so, not that there was nothing on you worth taking.',
+      'An hour by a fire moves things on like any other hours: whoever was across the street is gone, and the note that was waiting for you is put away.',
+      'The cracked-glass double image now really does switch itself off on the very slowest phones.',
+    ],
+  },
+  {
     v: '1.04',
     date: 'Nov 5',
     items: [

@@ -76,8 +76,9 @@ export function createCrackGhost(target: HTMLElement) {
       watching = 0;
       return;
     }
-    // (A long gap: the page was hidden, or it just switched on. Start counting again.)
-    if (!since || t - last > 250) {
+    // (A long gap: the page was hidden, or it just switched on. Start counting
+    // again. Slow frames, even very slow ones, are well under this.)
+    if (!since || t - last > 1500) {
       since = t;
       frames = 0;
     }

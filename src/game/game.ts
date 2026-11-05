@@ -1005,7 +1005,8 @@ export class Game {
     if (e && e.stage !== 'seen') this.rememberThem(e);
     if (e) settle(w, e);
     // (Dying in the ER, nobody goes through your pockets.)
-    const robbed = this.place === 'hospital' ? false : robBody(w, this.inventory, e);
+    const inEr = this.place === 'hospital';
+    const robbed = inEr ? false : robBody(w, this.inventory, e);
     // (Whoever has your things now: their thief record and what you remember of them are one person.)
     const tid = e?.person.thief;
     const th = tid ? w.thieves.find((t) => t.id === tid) : undefined;
@@ -1043,7 +1044,9 @@ export class Game {
       `<p class="death-after">${
         robbed
           ? 'Someone went through your pockets before you were cold. Whatever you had is out there now, on somebody.'
-          : 'There was nothing on you worth taking.'
+          : inEr
+            ? 'You died in the hospital. What you had on you goes into a plastic bag with your name on it, and nobody comes for it.'
+            : 'There was nothing on you worth taking.'
       }</p>` +
       `<button type="button" class="death-btn">Go on as someone new</button>`;
     // (Saved with it: closing the app on this screen still shows it next time.)
@@ -2496,7 +2499,8 @@ export class Game {
   /** Time inside: you heal, you get harder, and you come out with nothing new. */
   private serve(days: number): string[] {
     const h = this.health;
-    const lines = [`You serve ${days >= 365 ? `${Math.round(days / 365)} years` : `your ${days} days`}. The food is gray, the nights are loud, and you learn who not to look at.`, ...passHours(h, Math.min(days * 24, 96), true)];
+    // (They don't let you bleed out inside: the wound's seen to first.)
+    const lines = [...custodyCare(h), `You serve ${days >= 365 ? `${Math.round(days / 365)} years` : `your ${days} days`}. The food is gray, the nights are loud, and you learn who not to look at.`, ...passHours(h, Math.min(days * 24, 96), true)];
     if (h.dead) return lines;
     h.stress = Math.min(100, (h.stress ?? 0) + 25);
     h.nerve = Math.min(100, (h.nerve ?? 0) + 5);
@@ -2670,6 +2674,9 @@ export class Game {
       lines.push(`You try to light ${kindling}, cupping it from the ${isSnow(this.weather.now) ? 'snow' : 'rain'}. It hisses and goes out.`);
     } else {
       const h = this.health;
+      // (An hour by the fire: whoever was across the street is gone, and the moment's passed.)
+      if (this.encounter?.stage === 'seen' || this.encounter?.stage === 'over') this.encounter = null;
+      this.unstick();
       lines.push(`You get a fire going in an old oil drum, with ${kindling} for kindling. You hold your hands over it until the feeling comes back.`);
       lines.push(...passHours(h, 1));
       if (h.dead) return this.die(lines);

@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.08',
+    date: 'Nov 5',
+    items: [
+      'The note that waits for you stays clear of the clock and the date, and “Tap to go on” always shows at the bottom of it (a long note scrolls above it).',
+      'The knockout note looks the same before and after a reload. On short landscape screens the death screen fits, button and all.',
+    ],
+  },
+  {
     v: '1.07',
     date: 'Nov 5',
     items: [

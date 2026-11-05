@@ -4000,6 +4000,7 @@ export class Game {
     if (!this.running || this.closed || !Array.isArray(woke)) return;
     delete this.save.state.wokeLines;
     this.note(woke as string[], true);
+    this.noteEl.firstElementChild?.classList.add('note-title');
   }
 
   /** Closes the game view (back to the menu). */

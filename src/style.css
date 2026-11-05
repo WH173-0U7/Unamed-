@@ -4892,12 +4892,36 @@ body[data-drug='withdrawal'] #game {
 /* The note that waits: it can't grow up over the clock and the status; past
    that, it scrolls (the latest at the bottom, so swipe up for the rest). */
 #game:not(.in-shop) #note.sticky {
-  max-height: calc(57% - 86px);
+  /* (Clear of the clock and date: they end about 50px under the top padding.) */
+  max-height: calc(57% - var(--pad-top, 0px) - 112px);
   overflow-y: auto;
   overscroll-behavior: contain;
   pointer-events: auto;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14px);
-  mask-image: linear-gradient(to bottom, transparent, #000 14px);
+}
+/* "Tap to go on" always shows, at the bottom of the note; what's above it scrolls. */
+#game:not(.in-shop) #note.sticky p.note-tap {
+  position: sticky;
+  bottom: 0;
+  margin: 0;
+  padding: 16px 0 2px;
+  background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.88) 60%);
+}
+/* Short screens: the death screen fits, button and all. */
+@media (max-height: 420px) {
+  #death h2 {
+    font-size: 26px;
+    margin: 0;
+  }
+  #death .death-lines p {
+    margin: 0 0 4px;
+    font-size: 13px;
+  }
+  #death .death-after {
+    display: none;
+  }
+  #death .death-btn {
+    margin-top: 0;
+  }
 }
 /* A chase says so, even on short screens (there are no tabs to tell you). */
 #enc.chasing .enc-title {

@@ -3625,9 +3625,11 @@ export class Game {
     for (const l of there) {
       const r = take(inv, l);
       lines.push(r.text);
-      if (r.ok) j.took = (j.took ?? 0) + 1;
-      if (r.ok && l.kind === 'cash') j.cash = (j.cash ?? 0) + Math.round((l.cash ?? 0) * 100);
-      else keep.push(l);
+      if (!r.ok) keep.push(l);
+      else {
+        j.took = (j.took ?? 0) + 1;
+        if (l.kind === 'cash') j.cash = (j.cash ?? 0) + Math.round((l.cash ?? 0) * 100);
+      }
     }
     h.left[room] = keep;
     this.homeNote(h, j, lines, 0.15, room);

@@ -131,6 +131,9 @@ export const PLACES: PlaceInfo[] = [
 export const placeInfo = (p: Place) => PLACES.find((x) => x.id === p)!;
 /** A week at the Hotel Marlow, cash up front. */
 export const ROOM_RENT = 175;
+/** An eight-ball from Dez: cash, or fronted (and paid back in three days). */
+export const DEZ_CASH = 180;
+export const DEZ_FRONT = 280;
 /** Places that exist but aren't open to the player yet (the gun store: not yet). Remove one to bring it back. */
 export const HIDDEN_PLACES: ReadonlySet<Place> = new Set<Place>(['guns']);
 
@@ -190,7 +193,7 @@ export function offer(place: 'pawn' | 'fence', x: InvItem): { cents: number } | 
   }
   if (v <= 0 || /receipt|note|house keys|transfer|slip|photo/i.test(x.name)) return { why: '"What am I gonna do with that?"' };
   // Drugs, or a needle: that's a dealer's business, not his.
-  if (x.secret || /syringe/i.test(x.name)) return { why: '"I don\'t touch that. Find a dealer."' };
+  if (x.secret || /syringe/i.test(x.name)) return { why: '"I don\'t touch that. Talk to Dez."' };
   // The fence pays less, but takes anything stolen; whole dollars, small bills.
   const rate = x.kind === 'phone' ? 0.08 : 0.12;
   return { cents: Math.max(100, Math.floor(v * rate) * 100) };

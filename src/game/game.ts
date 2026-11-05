@@ -64,7 +64,7 @@ const STOMP_HELPLESS_COST = 1;
 const TORTURE_COST = 3;
 const MUG_COST = 0.5;
 
-import { chargeOf, COIN_MACHINE_FEE, ER_PRICES, ROOM_RENT, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place } from './shops';
+import { chargeOf, COIN_MACHINE_FEE, ER_PRICES, ROOM_RENT, DEZ_CASH, DEZ_FRONT, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place } from './shops';
 import { BILLS, COINS, addTo, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
 import { hoursText, isOpen } from './clock';
 import { createHitUi } from '../fx/hitUi';
@@ -211,6 +211,7 @@ export class Game {
       else if (b.dataset.er) this.er(b.dataset.er as ErCare);
       else if (b.dataset.court) this.appear();
       else if (b.dataset.room) this.roomAct(b.dataset.room);
+      else if (b.dataset.dez) this.dez(b.dataset.dez);
       else if (b.dataset.unstash) this.unstash(b.dataset.unstash);
       else if (b.dataset.cash) this.stashCash(b.dataset.cash);
   }
@@ -568,6 +569,7 @@ export class Game {
     // what's left on them.
     const old = this.encounter;
     if (old && old !== e) {
+      if (old.enforcer && old.result !== 'lost' && this.debt) this.debt.strikes = (this.debt.strikes ?? 0) + 1;
       // (Remembered first: the thief record then knows who they are, and the two stay one person.)
       if (old.stage !== 'seen') this.rememberThem(old);
       settle(this.world, old);
@@ -844,7 +846,16 @@ export class Game {
     this.heldNote = [];
     // While you lay there, they may have gone through your pockets.
     const beaten = this.encounter;
-    if (beaten && !beaten.chaseOut && !beaten.them.out) {
+    if (beaten?.enforcer) {
+      const dz = this.debt;
+      const c = Math.round(cashOf(this.inventory) * 100);
+      if (dz && c) {
+        dz.owed = Math.max(0, dz.owed - c);
+        this.inventory.purse = {};
+      }
+      lines = [...lines, c ? `When you come to, your pockets are empty: ${money(c)} gone to Dez. ${dz && dz.owed ? `You still owe ${money(dz.owed)}.` : "That's the debt paid."}` : `When you come to, they've been through your pockets and found nothing. You still owe Dez ${money(dz?.owed ?? 0)}.`];
+      if (dz && !dz.owed) delete this.save.state.debt;
+    } else if (beaten && !beaten.chaseOut && !beaten.them.out) {
       const robbed = robKnockedOut(this.world, this.inventory, beaten, isBrute(beaten.person.personality));
       if (robbed) lines = [...lines, robbed];
     }
@@ -1029,7 +1040,7 @@ export class Game {
     this.noteEl.hidden = true;
     // A new you: nothing carried over but the world.
     // (Your name, your ID and your bank account were that character's.)
-    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen']) delete this.save.state[k];
+    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt']) delete this.save.state[k];
     // Nobody knows this face. The people the old you hurt are still out there
     // (and your things on some of them), but they'd be looking for someone else.
     this.world.infamy = newInfamy();
@@ -2607,6 +2618,7 @@ export class Game {
     return (
       `<section class="stat-card record"><h3><span>Criminal record</span><b>${r.arrests ? `${r.arrests} arrest${r.arrests > 1 ? 's' : ''}` : 'Clean'}</b></h3>` +
       (this.case ? `<p class="record-case${this.case.warrant ? ' warrant' : ''}">${this.case.warrant ? 'WARRANT out for you: missed court. Any stop is an arrest. Turn yourself in at the County Courthouse to end it.' : `Court date: ${dateText(this.case.courtAt)}, County Courthouse (weekdays, 9 to 4). Charges: ${this.case.charges.map((x) => x.toLowerCase()).join(', ')}.${this.case.bailPaid ? ` Bail paid: ${money(this.case.bailPaid)} (back when you show up).` : ''}`}</p>` : '') +
+      ((d) => (d ? `<p class="record-case${now() > d.due ? ' warrant' : ''}">You owe Dez ${money(d.owed)}${now() > d.due ? `. You're late (it was due ${dateText(d.due)}), it grows every day, and he's sending someone.` : `, due ${dateText(d.due)} ${clockText(d.due)}. In the alley, at night.`}</p>` : ''))(this.debt) +
       (now() < ((this.save.state.probationUntil as number) ?? 0) ? `<p class="record-case">On probation until ${dateText(this.save.state.probationUntil as number)} ${clockText(this.save.state.probationUntil as number)}: get charged with anything and you're held, no bail.</p>` : '') +
       (r.arrests
         ? (rows.length ? `<ul class="record-list">${rows.map(([c, n]) => `<li><span>${c}</span><b>×${n}</b></li>`).join('')}</ul>` : '') +
@@ -2860,8 +2872,10 @@ export class Game {
   /** A bump of coke: you're wired for the next fight (more stamina, less pain). */
   /** Carrying like a dealer: several bags, or bags and the zip bags to make more. */
   private intent(items = this.inventory.items): boolean {
-    const bags = items.filter((x) => x.secret === 'cocaine').length;
-    return bags >= 3 || (bags > 0 && items.some((x) => x.name === 'Zip bags'));
+    const coke = items.filter((x) => x.secret === 'cocaine');
+    const bags = coke.length;
+    const doses = coke.reduce((n, x) => n + (x.doses ?? 0), 0);
+    return bags >= 3 || doses >= 10 || (bags > 0 && items.some((x) => x.name === 'Zip bags'));
   }
 
   /** A deal, settled: the bag out of your pocket, their money into yours (or the police). */
@@ -2935,6 +2949,94 @@ export class Game {
         ? `${this.place === 'room' ? 'At the little table by the window' : 'Hunched in a doorway'}, you tip it out and split it into ${made} little bag${made === 1 ? '' : 's'}, a point in each.${made < n ? ' You run out of room for the rest.' : ''}`
         : "You've got nowhere to put the bags.",
     ]);
+  }
+
+  /**
+   * What you owe Dez, if anything: how much, when it was due, and how often
+   * you've beaten the people he sent. Late, it grows a fifth a day (the vig).
+   */
+  private get debt(): { owed: number; due: number; vigAt?: number; strikes?: number } | undefined {
+    const d = this.save.state.debt as { owed: number; due: number; vigAt?: number; strikes?: number } | undefined;
+    if (!d) return undefined;
+    const t = now();
+    if (t > d.due) {
+      const from = Math.max(d.due, d.vigAt ?? d.due);
+      const days = Math.floor((t - from) / 86_400_000);
+      if (days > 0) {
+        d.owed = Math.round(d.owed * Math.pow(1.2, days));
+        d.vigAt = from + days * 86_400_000;
+      }
+    }
+    return d;
+  }
+
+  /** Who Dez sends: big, calm, and carrying. Bigger each time you send one back. */
+  private enforcerFor(d: { strikes?: number }): import('./person').Person {
+    const p = makePerson();
+    p.kind = 'civilian';
+    p.personality = 'hard';
+    p.build = (d.strikes ?? 0) >= 1 ? 'Muscular' : 'Stocky';
+    p.awareness = 'Alert';
+    p.carrying = [...p.carrying.filter((x) => !x.weapon && !x.spray), { name: 'Lockback folder', weapon: 5, cuts: true }];
+    return p;
+  }
+
+  /** Dez, by the dumpsters at night: an eight-ball for cash, or fronted on credit. */
+  private dezHtml(open: boolean): string {
+    if (!open) return '';
+    const btn = (attr: string, v: string, label: string, no?: string | false) => `<button type="button" data-${attr}="${v}" ${no ? `disabled title="${no}"` : ''}>${label}${no ? `<small>${no}</small>` : ''}</button>`;
+    const li = (name: string, small: string, button: string) => `<li><div><b>${name}</b><small>${small}</small></div><span class="li-btns">${button}</span></li>`;
+    const c = Math.round(cashOf(this.inventory) * 100);
+    const sales = (this.save.state.sales as number) ?? 0;
+    const d = this.debt;
+    const late = !!d && now() > d.due;
+    const stranger = sales < 1 && !d;
+    let rows = '';
+    if (d)
+      rows += li('What you owe Dez', `${money(d.owed)}, ${late ? `late: it was due ${dateText(d.due)}, and it grows a fifth every day.` : `due ${dateText(d.due)}.`}`, btn('dez', 'pay', c >= d.owed ? 'Pay it all' : 'Pay what you have', !c && 'No cash'));
+    rows += li('An eight-ball', 'Three and a half grams. Bag it up and it comes to about 35 points. Cash.', btn('dez', 'cash', money(DEZ_CASH * 100), (stranger && '"I don\'t know you."') || (late && '"Not till you pay me."') || (c < DEZ_CASH * 100 && 'Not enough cash')));
+    rows += li('Fronted', `He gives it to you now, you pay him ${money(DEZ_FRONT * 100)} in three days. Don't be late.`, btn('dez', 'front', 'Front me', (sales < 5 && '"Move some first. Then we talk."') || (!!d && '"You owe me already."')));
+    return `<p class="shop-sub">Dez, by the dumpsters</p><ul class="shop-list">${rows}</ul>`;
+  }
+
+  /** Buying from Dez, or paying him back. */
+  private dez(what: string) {
+    if (this.place !== 'fence' || !isOpen(placeInfo('fence').hours!)) return;
+    const inv = this.inventory;
+    const c = Math.round(cashOf(inv) * 100);
+    const d = this.debt;
+    const sales = (this.save.state.sales as number) ?? 0;
+    const late = !!d && now() > d.due;
+    const ball = () => stow(inv, { kind: 'misc', name: 'Eight-ball', detail: 'Rocky powder in the knotted corner of a sandwich bag', secret: 'cocaine', known: true, doses: 35 });
+    if (what === 'pay' && d && c) {
+      const amount = Math.min(c, d.owed);
+      const paid = this.payLine(amount);
+      d.owed -= amount;
+      const done = d.owed <= 0;
+      if (done) delete this.save.state.debt;
+      this.refresh();
+      this.note([done ? 'Dez counts it twice, slowly, and puts it away. "We\'re good."' : `Dez takes it without counting. "That's a start. ${money(d.owed)} to go."`, paid]);
+      return;
+    }
+    if (what === 'cash' && !late && (sales >= 1 || d) && c >= DEZ_CASH * 100) {
+      if (!ball()) {
+        this.note([`Nowhere to put it. ${noRoomWhy(inv, 'small')}`]);
+        return;
+      }
+      const paid = this.payLine(DEZ_CASH * 100);
+      this.refresh();
+      this.note(['Dez looks up and down the alley, then presses something small and hard into your hand. "Don\'t open it here."', paid]);
+      return;
+    }
+    if (what === 'front' && sales >= 5 && !d) {
+      if (!ball()) {
+        this.note([`Nowhere to put it. ${noRoomWhy(inv, 'small')}`]);
+        return;
+      }
+      this.save.state.debt = { owed: DEZ_FRONT * 100, due: now() + 3 * 86_400_000, strikes: 0 };
+      this.refresh();
+      this.note([`Dez puts it in your hand and doesn't let go straight away. "${money(DEZ_FRONT * 100)}. Three days. I know where you sleep."`]);
+    }
   }
 
   /** The loose brick in the alley: what's behind it. */
@@ -3280,7 +3382,7 @@ export class Game {
         (rented ? this.stashHtml('room') : '');
     }
     // The alley's loose brick: there whenever you are, whoever's about.
-    if (place === 'fence') body += this.stashHtml('stash');
+    if (place === 'fence') body += this.dezHtml(open) + this.stashHtml('stash');
     const html =
       `<div class="shop-head"><h2>${info.name}</h2><p>${info.blurb}</p>${info.hours ? `<p class="shop-hours">${hoursText(info.hours)}.</p>` : ''}</div>` +
       this.noteHtml(this.shopNote, 'shop-note') +
@@ -3820,9 +3922,12 @@ export class Game {
       if (Math.random() < dt * 0.9) this.jam = Math.max(this.jam, 0.2 + Math.random() * 0.25);
       if (this.timer <= 0) {
         // Someone with your things, someone you've met, or a stranger.
-        const thief = maybeThief(this.world);
-        const known = thief ? (thief.known ? (this.people.find((k) => k.id === thief.known) ?? null) : null) : comeBack(this.people);
-        const person = thief ?? (known ? meet(known) : makePerson());
+        // Late with Dez's money: someone comes for it.
+        const dz = this.debt;
+        const sent = !!dz && now() > dz.due && Math.random() < Math.min(0.6, 0.25 + (dz.strikes ?? 0) * 0.1);
+        const thief = sent ? null : maybeThief(this.world);
+        const known = sent ? null : thief ? (thief.known ? (this.people.find((k) => k.id === thief.known) ?? null) : null) : comeBack(this.people);
+        const person = sent ? this.enforcerFor(dz!) : (thief ?? (known ? meet(known) : makePerson()));
         const s = this.lurkState;
         s.times++;
         s.seen[person.kind]++;
@@ -3857,6 +3962,13 @@ export class Game {
         // How they were when it began (to tell, later, what you did this time).
         e.start = { blood: e.them.blood, broken: [...e.them.broken] };
         this.encounter = e;
+        if (sent) {
+          e.enforcer = true;
+          this.phase = 'idle';
+          this.act('ambushed');
+          buzz([60, 40, 90]);
+          return;
+        }
         // The ones who hate you most come looking: they find you first.
         if (known && e.recognised && (e.grudge ?? 0) >= 70 && (e.dread ?? 0) < 60 && !known.broken.some((p) => p.endsWith('leg')) && known.broken.filter((p) => p.endsWith('arm')).length < 2 && Math.random() < 0.5) {
           // Through the normal path, so a fight that ends at once is dealt with properly.

@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.10',
+    date: 'Nov 5',
+    items: [
+      'Dez, by the dumpsters in the alley at night. He doesn’t sell to strangers: make a sale first, and he’ll sell you an eight-ball for $180 cash (about 35 points once you bag it up).',
+      'Move enough and he’ll front you one on credit: $280, due in three days. “I know where you sleep.” Pay him back in the alley, all at once or what you have.',
+      'Be late and it grows by a fifth every day, he won’t sell to you, and he sends someone to find you on the street. Lose, and everything in your pockets goes to Dez. Beat them, and the next one is bigger. What you owe is on the You sheet.',
+      'Carrying an eight-ball, or ten points or more however it’s bagged, counts as possession with intent.',
+    ],
+  },
+  {
     v: '1.09',
     date: 'Nov 5',
     items: ['“Stamp” is now “stomp” everywhere, the American way, matching the rest of the game: “Stomp on their hand”, and the stomps in the fight text.'],

@@ -240,6 +240,8 @@ export interface Encounter {
   heat?: number;
   /** They've bought from you before. */
   regular?: boolean;
+  /** Sent by Dez, for the money you owe him. */
+  enforcer?: boolean;
   /** You sold to them (they remember you as their dealer). */
   customer?: boolean;
   /** How a deal went, for the game to settle (the bag, the money, a cop): see game.settleDeal. */
@@ -886,7 +888,9 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
   if (id === 'ambushed' && e.stage === 'seen') {
     e.stage = 'combat';
     e.facedYou = true;
-    say('them', oneOf([`A hand grabs your shoulder and spins you around. It's the ${who} from before. "Remember me?"`, `Someone steps out of a doorway right in front of you: the ${who}. They've been waiting for you.`]));
+    say('them', e.enforcer
+      ? oneOf(['A big man steps out of a doorway and fills the sidewalk in front of you. "Dez says you\'re late."', 'A hand on your collar, from behind. "You owe Dez money. Dez wants it now."'])
+      : oneOf([`A hand grabs your shoulder and spins you around. It's the ${who} from before. "Remember me?"`, `Someone steps out of a doorway right in front of you: the ${who}. They've been waiting for you.`]));
     say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
     theirTurn(true);
     endOfRound();

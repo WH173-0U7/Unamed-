@@ -922,7 +922,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
     const crippled = !!e.resident && legs(e.them) >= 2;
     if (crippled) e.them.down = true;
     say('them', crippled
-      ? `The ${who} can't get up: both legs still in casts. They're in the bed, throwing whatever's in reach at you and screaming for help.`
+      ? `The ${who} can't get up: both legs still in casts. They try to come off the bed at you and end up on the floor beside it, throwing whatever's in reach and screaming for help.`
       : e.resident
       ? e.resident.phoned
         ? oneOf([`You go at them. The phone goes skidding across the floor, and the ${who} grabs for whatever's nearest.`, `"Get out of my house!" The ${who} drops the phone and comes at you.`])
@@ -1422,13 +1422,14 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
       }
       case 'run':
         spend('you', COST.run);
-        if (Math.random() < fleeChance(y, e.them, accuracyBonus(stats))) {
-          say('you', legs(y) ? 'You limp away as fast as you can, and somehow lose them.' : oneOf(['You break away and run, and don\'t look back until they\'re gone.', 'You run, and duck down a side street. They don\'t follow.', 'You break away and run. You lose them a block later.']));
+        // (Someone on the floor can't chase you: only your own legs can stop you.)
+        if ((e.them.down && !legs(y)) || Math.random() < fleeChance(y, e.them, accuracyBonus(stats))) {
+          say('you', legs(y) ? 'You limp away as fast as you can, and somehow lose them.' : e.resident ? oneOf(['You break away and run, out the door and down the street, and don\'t look back.', 'You run, out the back and over the fence. Nobody follows.']) : oneOf(['You break away and run, and don\'t look back until they\'re gone.', 'You run, and duck down a side street. They don\'t follow.', 'You break away and run. You lose them a block later.']));
           you.gain('agility', 2);
           end('you-fled');
           return impacts;
         }
-        say('you', legs(y) ? "You try to run, but your leg won't take it. They're on you." : "You try to run, but they're on you.");
+        say('you', e.them.down ? "You try to run, but your leg won't take it. You don't get far." : legs(y) ? "You try to run, but your leg won't take it. They're on you." : "You try to run, but they're on you.");
         break;
       case 'getup':
         spend('you', COST.getUp);

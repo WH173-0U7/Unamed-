@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.28',
+    date: 'Nov 5',
+    items: [
+      'Someone on the floor can’t chase you down: run, and only your own legs can stop you. It no longer says “they’re on you” when they’re lying there.',
+      'Someone you woke up doesn’t have a wallet in their pajama pocket. Running out of a house goes out the door, not “a block later”.',
+      'Someone in bed on two broken legs tries to come at you and ends up on the floor beside it, so what happens next adds up.',
+    ],
+  },
+  {
     v: '1.27',
     date: 'Nov 5',
     items: [

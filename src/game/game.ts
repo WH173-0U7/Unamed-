@@ -3787,7 +3787,7 @@ export class Game {
     }
     // Out of bed: barefoot, no coat, nothing in their pockets (the wallet's on the dresser, not on them).
     if (c.how === 'woke') {
-      const pocketed = (l: Loot) => l.kind === 'id' || l.kind === 'cash' || /card/.test(l.kind) || l.kind === 'car keys' || l.kind === 'phone' || !!l.opens;
+      const pocketed = (l: Loot) => l.kind === 'id' || l.kind === 'cash' || /card/.test(l.kind) || l.kind === 'car keys' || l.kind === 'phone' || !!l.opens || l.where === 'wallet';
       for (const g of person.clothes) {
         away.loot.push(...g.loot.filter(pocketed));
         g.loot = g.loot.filter((l) => !pocketed(l));

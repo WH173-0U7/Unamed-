@@ -1562,7 +1562,9 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   } else if (a === 'you' && A.down && (kind === 'kick' || kind === 'punch')) {
     // On your back: no footwork, just whatever you can reach.
     text = kind === 'kick'
-      ? vary([`From the floor, you kick out and catch them ${where}.`, `You drive a heel up from the ground; it lands ${where}.`])
+      ? D.out
+        ? vary([`Still on the ground, you kick them ${where}.`, `You lash a heel out and it thumps into them ${where}.`])
+        : vary([`From the floor, you kick out and catch them ${where}.`, `You drive a heel up from the ground; it lands ${where}.`])
       : D.out
         ? vary([`You drag yourself over and hit them ${where}.`, `Still on the ground, you punch them ${where}.`])
         : vary([`From the floor, you punch up and catch them ${where}.`, `You lash out from the ground and hit them ${where}.`]);
@@ -2441,6 +2443,8 @@ function checkEnd(): boolean {
     return true;
   }
   const T = enc.them;
+  // (Out cold, they're past giving up.)
+  if (T.out) T.yielded = false;
   if (enc.chase && T.out) {
     delete enc.chase;
     T.down = true;
@@ -2984,7 +2988,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     return true;
   }
   if (id === 'let-go') {
-    say('you', e.robbed ? oneOf(['You shove them away from you.', 'You push them off. "Go."', 'You let go of them and step back.']) : 'You let them go.');
+    say('you', e.robbed && !e.you.down ? oneOf(['You shove them away from you.', 'You push them off. "Go."', 'You let go of them and step back.']) : 'You let them go.');
     say('them', speak('letGo') || 'They walk away fast, then run.');
     end(e.robbed ? 'mugged' : 'left');
     return true;

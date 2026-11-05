@@ -11,6 +11,20 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.00',
+    date: 'Nov 5',
+    items: [
+      'However a fight ends (you walk off, let them go, they get away, you run), someone left bleeding badly may not make it. Slapping them awake first doesn’t save them, though awake they have a better chance of stopping it. If they die, it’s on you.',
+      'Someone who’s already watching you is much harder to take by surprise or mug, and there’s no kicking their knee or choking them “from behind” when they’re facing you.',
+      'Taking your mask off after someone’s already seen you no longer dodges being known by your reputation.',
+      'On the ground with them out cold: no pepper spraying an unconscious face, and the punches read right. On the ground with them given up: they bolt instead of being slammed into a wall, and you can let them go from there.',
+      'Cuts read as bad as the blood they let. “Pack of cigarettes” gets its “a”. People woken up after giving in don’t “come to swinging”, and nobody sways on their feet while lying down.',
+      'Fixed: things robbed off you could end up on two copies of the same person, so you could take them back twice. Things taken off your body could vanish when your killer turned up again. Someone you killed could come back if you died before leaving the body.',
+      'A new you no longer inherits the grudge or the fear someone had of the old you. Convicted again while on probation, there’s no deal: it’s time.',
+      'Someone who just robbed you lies low for a few hours before you can run into them. “The heroin has worn off” only shows when it was still on. The note that waits for you is cleared when hours pass or you die, and isn’t added to from Pockets.',
+    ],
+  },
+  {
     v: '0.99',
     date: 'Nov 4',
     items: [

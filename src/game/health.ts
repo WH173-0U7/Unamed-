@@ -277,7 +277,7 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
  * you wake up just strong enough to stand.
  */
 function lieThere(h: Health): string[] {
-  skipClock(h, 3);
+  const off = skipClock(h, 3);
   for (let i = 0; i <= 3; i++) {
     if (i > 0) {
       if (!h.bleeding) break;
@@ -302,7 +302,7 @@ function lieThere(h: Health): string[] {
   h.blood = Math.round(Math.max(h.blood, h.maxBlood * (PASS_OUT + 0.03)));
   // (Hours lying on the sidewalk: the cold gets into you.)
   if ((h.cold ?? 0) > 0) h.cold = Math.min(3, (h.cold ?? 0) + 1);
-  return [h.bleeding ? "You're still bleeding." : 'The blood has dried on you.'];
+  return [h.bleeding ? "You're still bleeding." : 'The blood has dried on you.', ...off];
 }
 
 /**
@@ -389,17 +389,19 @@ export function skipClock(h: Health, hours: number): string[] {
   const lines: string[] = [];
   clampClock(h, t);
   if (h.highUntil != null) {
+    const was = h.highUntil > t;
     h.highUntil -= ms;
     if (h.highUntil <= t) {
-      if (h.high && h.high !== 'meth') lines.push(`The ${h.high === 'tranq' ? 'tranquilizer' : h.high} wears off while you're gone.`);
+      if (was && h.high && h.high !== 'meth') lines.push(`The ${h.high === 'tranq' ? 'tranquilizer' : h.high} has worn off.`);
       delete h.high;
       delete h.highUntil;
     }
   }
   if (h.wiredUntil != null) {
+    const was = h.wiredUntil > t;
     h.wiredUntil -= ms;
     if (h.wiredUntil <= t) {
-      if (h.wired) lines.push(h.wiredBy === 'meth' ? 'The meth wears off. Your skin crawls, and you feel hollow.' : 'The coke wears off. You feel hollow.');
+      if (was && h.wired) lines.push(h.wiredBy === 'meth' ? 'The meth has worn off. Your skin crawls, and you feel hollow.' : 'The coke has worn off. You feel hollow.');
       h.wired = false;
       delete h.wiredBy;
       delete h.wiredUntil;

@@ -122,7 +122,7 @@ const BRUTE: Record<'hothead' | 'proud' | 'hard', Partial<Record<Moment, string[
     letGo: ['"I\'ll find you. I swear to God I\'ll find you."', 'They walk off slowly, looking back, memorizing you.'],
     torture: ['They scream curses at you, then just scream.', '"I\'ll kill you! I\'LL KILL YOU!"'],
     menaced: ['"Yeah? Yeah? You and whose army?"', 'They laugh in your face, but their eyes say otherwise.'],
-    woken: ['They come to swinging, weak and wild.', '"Get off me! Get the fuck off me!"'],
+    woken: ['They come to snarling, too weak to swing.', '"Get off me! Get the fuck off me!"'],
   },
   proud: {
     refuse: ['"No."', '"From you? Never."', '"Get away from me."'],
@@ -152,7 +152,7 @@ const BRUTE: Record<'hothead' | 'proud' | 'hard', Partial<Record<Moment, string[
     letGo: ["They walk away without hurrying. That's worse.", '"See you around."'],
     torture: ['They grunt through it, white-faced, eyes on yours the whole time.', '"That all?" Their voice cracks on it.'],
     menaced: ['"I\'ve heard that before."', 'Nothing. Not a flicker.'],
-    woken: ['Their eyes open and find yours at once, clear and cold.', 'They come to swinging, before they even know where they are.'],
+    woken: ['Their eyes open and find yours at once, clear and cold.', 'Their fists clench before their eyes are even open. Then they see you, and go still.'],
   },
 };
 
@@ -198,14 +198,26 @@ const VICTIM: Partial<Record<Moment, string[]>> = {
 };
 
 /** Candidate lines for a moment (empty: nothing to say). */
+/** What they say or do, without lines for standing up when they're on the ground. */
 export function voice(e: Encounter, m: Moment): string[] {
+  const xs = voiceAll(e, m);
+  if (!e.them.down) return xs;
+  const ys = xs.filter((x) => !/on their feet|back(s)? away|walk(s)? (off|away)|step(s)? back/i.test(x));
+  return ys.length ? ys : xs;
+}
+function voiceAll(e: Encounter, m: Moment): string[] {
   const p = e.person.personality;
   const g = groupOf(p);
   const kind = KIND[e.person.kind];
   const L = life(e);
   const fear = e.them.fear ?? 0;
   // (No blood in what they do unless they're actually bleeding.)
-  const noBlood = (xs: string[]) => (e.them.bleeding > 0 ? xs : xs.filter((x) => !/blood/i.test(x)));
+  const noBlood = (xs: string[]) => {
+    const ys = e.them.bleeding > 0 ? xs : xs.filter((x) => !/blood/i.test(x));
+    // (On the ground, nobody sways on their feet or backs away.)
+    const zs = e.them.down ? ys.filter((x) => !/on their feet|back(s)? away|walk(s)? (off|away)|step back/i.test(x)) : ys;
+    return zs.length ? zs : ys;
+  };
   if (g === 'hothead' || g === 'proud' || g === 'hard') {
     // Scared enough, even the hard ones break (but they break bitter).
     if (m === 'beg' && fear >= 85) return noBlood([...(BRUTE[g].beg ?? []), ...kind.beg.slice(0, 1)]);

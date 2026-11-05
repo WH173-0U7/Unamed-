@@ -153,7 +153,7 @@ export class Game {
       'click',
       (ev) => {
         if (!this.noteSticky || performance.now() < this.tapsFrom) return;
-        if ((ev.target as HTMLElement).closest('button, a, input, #sheet, #shop, #enc, #seen')) return;
+        if ((ev.target as HTMLElement).closest('button, a, input, #sheet, #shop, #enc, #seen, #stats, #you-status')) return;
         this.dismissNote();
       },
       { signal: this.listeners.signal },
@@ -463,6 +463,8 @@ export class Game {
     if (this.sheet === 'stats' || this.sheet === 'pockets') {
       this.sheetNote = lines;
       this.renderSheet();
+      // (A note waiting on the street stays as it was.)
+      if (this.noteSticky && !this.noteEl.hidden) return;
     } else if (this.sheet) {
       // (Places and the police have no room for it: it waits until they close.)
       this.heldNote = [...this.heldNote, ...lines];
@@ -548,8 +550,9 @@ export class Game {
     // what's left on them.
     const old = this.encounter;
     if (old && old !== e) {
-      settle(this.world, old);
+      // (Remembered first: the thief record then knows who they are, and the two stay one person.)
       if (old.stage !== 'seen') this.rememberThem(old);
+      settle(this.world, old);
     }
     this.save.state.encounter = e ?? undefined;
   }
@@ -651,6 +654,13 @@ export class Game {
         if (k) e.recognised = recognises(k, anon, lookClothes(inv));
         // (Known from what people say: more covered up now, less chance.)
         else if (e.byRep && was && anon > was.anon) e.recognised = Math.random() < (1 - anon) / Math.max(0.05, 1 - was.anon);
+        // (Uncovered now, a stranger who's heard about you may know your face after all.)
+        else if (!e.byRep && !e.recognised && was && anon < was.anon && Math.random() < Math.min(0.5, this.infamy.rep / 200) * (1 - anon) - Math.min(0.5, this.infamy.rep / 200) * (1 - was.anon)) {
+          e.recognised = true;
+          e.byRep = true;
+          e.grudge = 0;
+          e.history = "You've never met. But they know your face: people talk.";
+        }
         e.lookAt = { anon, clothes };
       }
     }
@@ -698,7 +708,7 @@ export class Game {
       if (l) worse.push(l);
     }
     if (!wasOver && e.stage === 'over') {
-      if (e.result === 'killed' || (e.result === 'walked' && e.them.dead)) {
+      if (e.result === 'killed' || (e.result !== 'lost' && e.them.dead)) {
         // Killing someone (or leaving them to bleed out): the worst of it, unless you're long past caring.
         addStress(e.you, 30);
         // Was anyone watching? A face in a window, a car going past.
@@ -708,7 +718,15 @@ export class Game {
           f.rep += 15 * (1 - anon * 0.7);
           f.heat = Math.min(100, f.heat + 35 * (1 - anon * 0.6));
           if (anon <= 0.6) f.killsSeen = (f.killsSeen ?? 0) + 1;
-          worse.push(anon > 0.6 ? 'Someone saw that. A face in a window, then gone. At least your face was covered.' : 'Someone saw that. A face in a window, then gone. They saw yours.');
+          worse.push(
+            e.result !== 'killed'
+              ? anon > 0.6
+                ? 'Someone saw you with them before they died. Your face was covered.'
+                : 'Someone saw you with them before they died. They saw your face.'
+              : anon > 0.6
+                ? 'Someone saw that. A face in a window, then gone. At least your face was covered.'
+                : 'Someone saw that. A face in a window, then gone. They saw yours.',
+          );
         }
         this.humanity.kills++;
         const l = this.loseHumanity(KILL_COST);
@@ -963,14 +981,17 @@ export class Game {
     // The encounter you died in (its person may be the one who robs you).
     const e = this.encounter;
     if (e) settle(w, e);
-    if (e && e.stage !== 'seen' && !e.them.dead) this.rememberThem(e);
+    if (e && e.stage !== 'seen') this.rememberThem(e);
     // (Dying in the ER, nobody goes through your pockets.)
     const robbed = this.place === 'hospital' ? false : robBody(w, this.inventory, e);
     // (Whoever has your things now: the record of them says so too.)
     if (e?.person.thief && e.person.known) {
       const k = this.people.find((x) => x.id === e.person.known);
-      if (k) k.person.thief = e.person.thief;
+      if (k) k.person = JSON.parse(JSON.stringify(e.person));
     }
+    // (The old life's note doesn't wait for the new one.)
+    this.noteSticky = false;
+    this.noteEl.hidden = true;
     // A new you: nothing carried over but the world.
     // (Your name, your ID and your bank account were that character's.)
     for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines']) delete this.save.state[k];
@@ -1888,6 +1909,7 @@ export class Game {
       lines.push('The street tips over. You sit down hard, and then you are somewhere else entirely.');
       // Hours go by, as with resting: whoever you were watching is long gone.
       if (this.encounter?.stage === 'seen' || this.encounter?.stage === 'over') this.encounter = null;
+      this.noteSticky = false;
       this.wipeBlood();
       lines.push(...passHours(h, 3));
       if (h.dead) return this.die(lines);
@@ -2007,6 +2029,7 @@ export class Game {
   }
   /** A night in a car: warm, dry, out of sight (until the owner's reported it). */
   private sleepInCar(i: number) {
+    this.noteSticky = false;
     const inv = this.inventory;
     const it = inv.items[i];
     const h = this.health;
@@ -2377,7 +2400,7 @@ export class Game {
     if (!c) return;
     const h = this.health;
     delete this.save.state.bailOffer;
-    const lines = [...custodyCare(h), 'A day and a half in County: a bunk, a toilet with no seat, grey food and the noise that never stops.', ...passHours(h, 36, true)];
+    const lines = [...custodyCare(h), 'A day and a half in County: a bunk, a toilet with no seat, gray food and the noise that never stops.', ...passHours(h, 36, true)];
     if (h.dead) return this.die(lines);
     h.stress = Math.min(100, (h.stress ?? 0) + 20);
     lines.push(...this.verdict(true));
@@ -2415,7 +2438,7 @@ export class Game {
       f.heat = Math.max(0, f.heat - 20);
       return lines;
     }
-    if (sev <= 3) {
+    if (sev <= 3 && !onProbation) {
       const fine = Math.round(c.charges.reduce((n, x) => n + chargeOf(x).fine, 0) * (1 + priors * 0.25));
       const have = Math.round(cashOf(this.inventory) * 100) + (this.account?.cents ?? 0);
       if (have >= fine * 100) {
@@ -2434,7 +2457,7 @@ export class Game {
       lines.push(`You plead guilty. ${/^\$(8|1[18](,|$))/.test(money(fine * 100)) ? 'An' : 'A'} ${money(fine * 100)} fine you can't pay, so it's ${days} days instead.`);
       return [...lines, ...this.serve(days)];
     }
-    if (sev <= 6) {
+    if (sev <= 6 && !onProbation) {
       this.save.state.probationUntil = now() + 30 * 24 * 3_600_000;
       lines.push('Your lawyer takes the deal: you plead guilty and get probation. Get charged with anything while you\'re on it and you\'re held with no bail.');
       f.heat = Math.max(0, f.heat - 30);
@@ -2716,6 +2739,7 @@ export class Game {
       lines.push('Your breathing slows to almost nothing, and the world goes out.');
       // (Hours out: whoever was lying here is long gone.)
       if (this.encounter?.stage === 'seen' || this.encounter?.stage === 'over') this.encounter = null;
+      this.noteSticky = false;
       lines.push(...passHours(h, 4));
       if (h.dead) {
         this.die(lines);
@@ -2751,6 +2775,7 @@ export class Game {
       lines.push("A heavy, sick drowsiness pulls you down before you can get the needle out. You're out where you sit.");
       // (Hours out: whoever was lying here is long gone.)
       if (this.encounter?.stage === 'seen' || this.encounter?.stage === 'over') this.encounter = null;
+      this.noteSticky = false;
       lines.push(...passHours(h, 4));
       if (h.dead) return this.die(lines);
       lines.push('You wake hours later, your skin crawling, with no idea how long you were gone.');

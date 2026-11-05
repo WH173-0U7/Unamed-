@@ -13,6 +13,8 @@ import type { Encounter } from './encounter';
 export interface Thief {
   id: string;
   person: Person;
+  /** When they last took something off you (they lie low for a while). */
+  at?: number;
 }
 
 export interface World {
@@ -83,7 +85,9 @@ export function maybeThief(w: World): Person | null {
     return JSON.parse(JSON.stringify(lead.person)) as Person;
   }
   if (Math.random() >= THIEF_CHANCE) return null;
-  const t = w.thieves[Math.floor(Math.random() * w.thieves.length)];
+  const about = w.thieves.filter((x) => Date.now() - (x.at ?? 0) > 6 * 3_600_000);
+  if (!about.length) return null;
+  const t = about[Math.floor(Math.random() * about.length)];
   return JSON.parse(JSON.stringify(t.person)) as Person;
 }
 
@@ -135,6 +139,7 @@ export function robKnockedOut(w: World, inv: Inventory, e: Encounter, brute: boo
     thief = { id: newId(), person: p };
     w.thieves.push(thief);
   }
+  thief.at = Date.now();
   p.thief = thief.id;
   // (On the person you met: when you're done with them, settle() keeps what they have now.)
   p.clothes[0].loot.push(...loot);

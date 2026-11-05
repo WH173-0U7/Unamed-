@@ -185,6 +185,8 @@ export function remember(
   if (k.memory.otherLife) {
     k.memory.worst = '';
     k.memory.times = 0;
+    k.memory.grudge = 0;
+    delete k.memory.fear;
     delete k.memory.beatYou;
     delete k.worstLevel;
   }

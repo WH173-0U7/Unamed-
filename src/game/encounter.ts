@@ -371,7 +371,7 @@ function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolea
         ]
       : [
       w.spray
-        ? { id: `wpn:${w.i}`, label: 'Pepper spray them', hint: full ? 'Your hands are full' : (w.doses ?? 3) <= 0 ? 'Empty' : `${w.doses ?? 3} left · blinds them`, disabled: full || (w.doses ?? 3) <= 0, cat }
+        ? { id: `wpn:${w.i}`, label: 'Pepper spray them', hint: full ? 'Your hands are full' : (w.doses ?? 3) <= 0 ? 'Empty' : e.them.blinded > 0 ? 'They can\'t see already' : `${w.doses ?? 3} left · blinds them`, disabled: full || (w.doses ?? 3) <= 0 || e.them.blinded > 0, cat }
         : { id: `wpn:${w.i}`, label: /^bottle$/i.test(w.name) ? 'Swing the bottle' : /syringe/i.test(w.name) ? (w.loaded ? `Stab with the syringe (${w.known ? w.loaded : 'loaded'})` : 'Stab with the empty syringe') : `${w.cuts ? (knifeOf(w.name)?.style === 'stab' ? 'Stab' : 'Slash') : 'Hit'} them with the ${lc(w.name)}`, hint: full ? 'Your hands are full' : tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0} damage${w.cuts && !/^bottle$/i.test(w.name) ? ', cuts' : ''}${w.loaded ? ', may inject them' : ''}`, disabled: full || tired(COST.weapon), cat },
       // A whole bottle can be broken for an edge (it doesn't always break).
       ...(/^bottle$/i.test(w.name) ? [{ id: `smash:${w.i}`, label: 'Smash the bottle', hint: full ? 'Your hands are full' : tired(COST.punch) ? 'Too tired' : 'For a jagged edge: it cuts', disabled: full || tired(COST.punch), cat }] : []),
@@ -705,9 +705,10 @@ function rawOptions(e: Encounter): Option[] {
         { id: 'sucker', label: 'Sucker punch', hint: 'Hit them in the head', cat: 'violence' },
         { id: 'shove', label: 'Shove', hint: 'Easiest to land', cat: 'violence' },
         ...learned(e, [
-          { id: 'kneecap', label: 'Kick their knee', hint: 'From behind: down they go', level: KNEE_AMBUSH_LEVEL },
+          // (Watching you, or backed up facing you: there's no "behind" to get to.)
+          ...(e.suspicion >= 75 ? [] : [{ id: 'kneecap', label: 'Kick their knee', hint: 'From behind: down they go', level: KNEE_AMBUSH_LEVEL }]),
           { id: 'slam', label: 'Slam them into the wall', hint: 'Head first', level: SLAM_AMBUSH_LEVEL },
-          { id: 'rear-choke', label: 'Choke from behind', hint: e.distance < 2 ? 'Get right behind them first' : 'Out cold, no blood', level: CHOKE_AMBUSH_LEVEL, disabled: e.distance < 2 },
+          ...(e.suspicion >= 75 ? [] : [{ id: 'rear-choke', label: 'Choke from behind', hint: e.distance < 2 ? 'Get right behind them first' : 'Out cold, no blood', level: CHOKE_AMBUSH_LEVEL, disabled: e.distance < 2 }]),
         ], 'violence'),
         ...((e.weapons ?? []).some((w) => w.spray && (w.doses ?? 3) > 0) ? [((full: boolean) => ({ id: 'spray-ambush', label: 'Pepper spray them', hint: full ? 'Your hands are full' : 'Blind them first', disabled: full, cat: 'violence' as Category }))(handsFull(e) && !(e.weapons ?? []).some((w) => w.spray && w.hand))] : []),
         { id: 'mug', label: 'Mug them', hint: oddsHint(yieldChance(e, mugSurprise(e))), cat: 'violence' },
@@ -732,10 +733,12 @@ function rawOptions(e: Encounter): Option[] {
         return [
           { id: 'punch', label: 'Punch', hint: armHint ?? 'From the floor', cat: 'attack' },
           { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : 'From the floor', disabled: tired(COST.kick), cat: 'attack' },
-          ...weaponOptions(e, 'attack', tired),
+          ...weaponOptions(e, 'attack', tired).filter((o) => !(e.them.out && /spray/i.test(o.label))),
           ...(e.them.down ? [] : learned(e, FLOOR.map((t) => ({ id: t.id, label: t.name, hint: tired(t.cost) ? 'Too tired' : t.hint, level: t.level, disabled: tired(t.cost) })), 'attack')),
           { id: 'getup', label: 'Get up', hint: legHint ?? (y.dazed ? 'Dazed' : undefined), cat: 'move' },
           out ? { id: 'walk', label: 'Crawl away', hint: "They're unconscious", cat: 'move' } : breathe,
+          // (They've given up, and you're down here: you can still let them go.)
+          ...(e.them.yielded && !out ? [{ id: 'let-go', label: 'Let them go', cat: 'move' as Category }] : []),
         ];
       }
       if (out) {
@@ -1068,7 +1071,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
     // Lands more often the sneakier you are, the less aware they are, and the
     // closer you got first. Bum rush and shove are easier to land than a punch.
     const extra = id === 'shove' ? 0.12 : id === 'bumrush' ? 0.06 : id === 'kneecap' ? 0.04 : id === 'slam' ? -0.02 : id === 'rear-choke' ? -0.08 : 0;
-    const chance = clamp([0.8, 0.65, 0.45, 0.3][aw] + e.distance * 0.06 + ambushBonus(stats) + extra - b.guard * 0.5, 0.05, 0.97);
+    const chance = clamp([0.8, 0.65, 0.45, 0.3][aw] + e.distance * 0.06 + ambushBonus(stats) + extra - b.guard * 0.5 - (e.suspicion / 100) * 0.4, 0.05, 0.97);
     if (e.distance === 0) say('you', oneOf(['You cross the street toward them.', 'You step off the curb and close in.', 'You cross over, straight at them.']));
     e.stage = 'combat';
     spend('you', COST.ambush);
@@ -1205,7 +1208,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
       return impacts;
     }
     if (e.stage !== 'combat') return impacts;
-    if (e.them.yielded && (id === 'punch' || id === 'kick' || id.startsWith('stomp') || id.startsWith('wpn:') || id.startsWith('whip:') || id.startsWith('tech:'))) {
+    if (e.them.yielded && (id === 'punch' || id === 'kick' || id.startsWith('stomp') || id.startsWith('wpn:') || id.startsWith('whip:') || id.startsWith('tech:') || id.startsWith('floor:'))) {
       // Hitting them anyway: it's a fight again (they didn't see it coming).
       e.them.yielded = false;
       e.them.offBalance = true;
@@ -1348,23 +1351,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         break;
       case 'walk': {
         if (!e.them.out) break;
-        say('you', y.down ? 'You drag yourself up and stagger away, leaving them where they lie.' : 'You leave them lying there and walk off into the dark.');
-        // Left lying there bleeding, nobody pressing on it: a few hours, unless it clots.
-        const T = e.them;
-        let blood = T.blood;
-        let bleed = T.bleeding;
-        for (let hr = 0; hr < 3 && bleed > 0; hr++) {
-          blood -= ([0, 60, 200, 600, 1200][bleed] * T.maxBlood) / 5000;
-          if (blood <= T.maxBlood * DEATH) {
-            T.dead = true;
-            break;
-          }
-          if (Math.random() < [0, 0.9, 0.7, 0.45, 0.25][bleed]) bleed--;
-        }
-        if (!T.dead) {
-          T.blood = Math.round(blood);
-          T.bleeding = bleed;
-        }
+        say('you', y.down ? 'You crawl away, and drag yourself up further off, leaving them where they lie.' : 'You leave them lying there and walk off into the dark.');
         end('walked');
         return impacts;
       }
@@ -1576,7 +1563,9 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
     // On your back: no footwork, just whatever you can reach.
     text = kind === 'kick'
       ? vary([`From the floor, you kick out and catch them ${where}.`, `You drive a heel up from the ground; it lands ${where}.`])
-      : vary([`From the floor, you punch up and catch them ${where}.`, `You lash out from the ground and hit them ${where}.`]);
+      : D.out
+        ? vary([`You drag yourself over and hit them ${where}.`, `Still on the ground, you punch them ${where}.`])
+        : vary([`From the floor, you punch up and catch them ${where}.`, `You lash out from the ground and hit them ${where}.`]);
   } else if (a === 'you' && kind === 'kick') {
     text = vary(kickText(t, where, into));
   } else if (a === 'you' && (loc !== 'arm' || D.out)) {
@@ -2174,7 +2163,7 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
       ],
     ];
     // (How bad it reads follows how badly it actually bleeds.)
-    return pickLine(cuts[Math.min(tier, D.bleeding >= 3 ? 2 : D.bleeding >= 2 ? 1 : 0)]);
+    return pickLine(cuts[Math.min(tier, Math.max(tier - 1, D.bleeding >= 3 ? 2 : D.bleeding >= 2 ? 1 : 0))]);
   }
   const pools: Record<Loc, Line[][]> = {
     head: [
@@ -2696,6 +2685,7 @@ function spray(i: number, inv: Inventory) {
     say('you', 'You press the button. The can hisses, and nothing comes out. It\'s empty.');
     return;
   }
+  if (enc.them.out) return;
   it.doses = Math.max(0, (it.doses ?? 3) - 1);
   spend('you', 4);
   enc.them.blinded = 99;
@@ -2711,7 +2701,7 @@ function spray(i: number, inv: Inventory) {
 /** Getting the drop on them makes a mugging easier: close, and them not looking. */
 function mugSurprise(e: Encounter) {
   const aw = AWARENESS.indexOf(e.person.awareness);
-  return [0.15, 0.08, 0, -0.08][aw] + e.distance * 0.05;
+  return [0.15, 0.08, 0, -0.08][aw] + e.distance * 0.05 - (e.suspicion / 100) * 0.3;
 }
 
 /** Knocked out, but not bled out: a slap can bring them round. */
@@ -2792,8 +2782,8 @@ function yieldTurn() {
   const nerve = 40 - P.yield * 100;
   if (fear < nerve && Math.random() < (nerve - fear) / 70) {
     if (!T.down && legs(T) === 0 && Math.random() < clamp(0.55 * P.flee - P.fight, 0.05, 0.95)) {
-      if (Math.random() < fleeChance(T, e.you, 0.1)) {
-        say('them', 'They see their chance and bolt.');
+      if (e.you.down || Math.random() < fleeChance(T, e.you, 0.1)) {
+        say('them', e.you.down ? 'You\'re on the ground. They see their chance and bolt.' : 'They see their chance and bolt.');
         bolt('they-fled', 2.5);
       } else {
         say('them', 'They try to bolt. You catch them by the collar and slam them into the wall.');
@@ -3153,7 +3143,8 @@ function search(id: string, inv?: Inventory) {
 
 /** Plural things take no article ("plastic bags", "bills, folded small"). */
 const plural = (s: string) => {
-  const last = s.split(',')[0].trim().split(' ').pop() ?? '';
+  // (The head noun: "pack of cigarettes" is one pack.)
+  const last = s.split(',')[0].trim().split(' of ')[0].split(' ').pop() ?? '';
   return /^[a-z]+s$/.test(last) && !/(ss|us|is|gas|lens)$/.test(last);
 };
 /** Lower-case the first letter only ("state ID", not "state id"). */
@@ -3165,6 +3156,33 @@ function end(result: Result) {
   delete enc.chase;
   enc.stage = 'over';
   enc.result = result;
+  if (result !== 'killed' && result !== 'lost') bleedOut();
+}
+
+/**
+ * However it ends, someone left bleeding badly may not make it: out cold
+ * with nobody pressing on it, or awake and trying to stop it themselves
+ * (better odds). A few hours, unless it clots.
+ */
+function bleedOut() {
+  const T = enc.them;
+  if (T.dead || T.bleeding < (T.out ? 1 : 2)) return;
+  let blood = T.blood;
+  let bleed = T.bleeding;
+  const press = T.out ? 0 : 0.2;
+  for (let hr = 0; hr < 3 && bleed > 0; hr++) {
+    blood -= ([0, 60, 200, 600, 1200][bleed] * T.maxBlood) / 5000;
+    if (blood <= T.maxBlood * DEATH) {
+      T.dead = true;
+      T.out = true;
+      T.down = true;
+      T.blood = Math.round(blood);
+      return;
+    }
+    if (Math.random() < Math.min(0.95, [0, 0.9, 0.7, 0.45, 0.25][bleed] + press)) bleed--;
+  }
+  T.blood = Math.round(blood);
+  T.bleeding = bleed;
 }
 
 /** Words for one side doing something to the other ("they" and "you" take the same verbs). */

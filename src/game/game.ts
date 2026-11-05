@@ -1036,12 +1036,14 @@ export class Game {
     this.tapsFrom = performance.now() + 800;
     this.refresh();
     uiGlitch(this.view, 0.35);
+    // A sale that was a setup: what happened goes at the top of the stop (not a note waiting for you after jail).
+    if (this.save.state.policeStop === 'sting') {
+      this.save.state.policeWhy = [...lines, 'The buyer has a badge out now. So do the two coming up behind you.'];
+      this.openSheet('police');
+      return;
+    }
     this.note(lines, true);
     this.noteEl.firstElementChild?.classList.add('note-title');
-    if (this.save.state.policeStop === 'sting') {
-      this.save.state.policeWhy = ['The buyer has a badge out now. So do the two coming up behind you.'];
-      this.openSheet('police');
-    }
   }
 
   /**
@@ -1478,7 +1480,7 @@ export class Game {
     inv.items.splice(i, 1);
     // The pawn shop pays from the till; the fence peels small bills off a roll.
     // (A car pays in a roll of twenties.)
-    const got = place === 'pawn' ? fewest(o.cents) : cashLike(o.cents, it.kind === 'car keys' ? 'wallet' : 'small');
+    const got = place === 'pawn' ? fewest(o.cents) : it.kind === 'car keys' ? ((p) => ((p[2000] = (p[2000] ?? 0) + Math.floor(o.cents / 2000)), p))(fewest(o.cents % 2000)) : cashLike(o.cents, 'small');
     addTo(inv.purse, got);
     sound.coin();
     lines.push(`You sell the ${lc(it.name)} for ${money(o.cents)} (${purseText(got)}).`);
@@ -2601,6 +2603,7 @@ export class Game {
       lines.push(...custodyCare(h));
       delete h.smokingUntil;
       lines.push('You spend the night in a holding cell that smells of bleach and piss.', ...passHours(h, 8, true));
+      this.ageHomes(8);
       h.cold = 0;
       if (h.dead) return this.die(lines);
       if (charges.length) {
@@ -2683,6 +2686,7 @@ export class Game {
     const h = this.health;
     delete this.save.state.bailOffer;
     const lines = [...custodyCare(h), 'A day and a half in County: a bunk, a toilet with no seat, and the noise that never stops.', ...passHours(h, 36, true)];
+    this.ageHomes(36);
     if (h.dead) return this.die(lines);
     h.stress = Math.min(100, (h.stress ?? 0) + 20);
     lines.push(...this.verdict(true));
@@ -2756,6 +2760,7 @@ export class Game {
     const h = this.health;
     // (They don't let you bleed out inside: the wound's seen to first.)
     const lines = [...custodyCare(h), `You serve ${days >= 365 ? (Math.round(days / 365) === 1 ? 'the year' : `${Math.round(days / 365)} years`) : `your ${days} days`}. The food is gray, the nights are loud, and you learn who not to look at.`, ...passHours(h, Math.min(days * 24, 96), true)];
+    this.ageHomes(days * 24);
     if (h.dead) return lines;
     h.stress = Math.min(100, (h.stress ?? 0) + 25);
     h.nerve = Math.min(100, (h.nerve ?? 0) + 5);
@@ -3360,6 +3365,19 @@ export class Game {
   private hasKeyTo(h: Home): boolean {
     return this.inventory.items.some((x) => x.opens === h.id);
   }
+  /**
+   * Time served (the game's clock is the real one; a sentence isn't): the
+   * houses you know move on by that much. The police leave, the locks get changed.
+   */
+  private ageHomes(hours: number) {
+    const ms = hours * 3_600_000;
+    for (const h of this.homes) {
+      if (h.scene) h.scene.until -= ms;
+      if (h.lockAt != null && h.lockAt !== NEVER) h.lockAt -= ms;
+      if (h.fixedAt != null) h.fixedAt -= ms;
+      for (const k of ['triedAt', 'knockedAt', 'wokeAt', 'hitAt', 'deadAt'] as const) if (h[k] != null) h[k]! -= ms;
+    }
+  }
   /** After a break-in, once the new locks are in: the camera, the alarm they paid for. */
   private fixUp(h: Home) {
     if (!h.fixedAt || now() < h.fixedAt) return;
@@ -3725,10 +3743,12 @@ export class Game {
           ? h.type === 'room'
             ? `A light snaps on. ${Who} is sitting up in the bed, half asleep, then not at all.${known}`
             : `A light snaps on. ${Who} is in the bedroom doorway, half asleep, then not at all.${known}`
-          : body
+          : broken && j.how === 'kick'
+            ? body
+              ? `Someone pushes the broken door open and stops dead: ${who}. ${He} sees the body in the hall, and then ${he} sees you.${known}`
+              : `Someone pushes the broken door open and stops dead: ${who}, looking straight at you.${known}`
+            : body
             ? `Keys in the front door. It opens, and ${who} sees the body in the hall before ${he} sees you. Then ${he} sees you.${known}`
-            : broken && j.how === 'kick'
-            ? `Someone pushes the broken door open and stops dead: ${who}, looking straight at you.${known}`
             : partOfDay() === 'night'
               ? `Keys in the front door. It opens, and ${who} is standing there in a work jacket, keys still in hand, looking straight at you.${known}`
               : `Keys in the front door. It opens, and ${who} is standing there with a bag of groceries, looking straight at you.${known}`;

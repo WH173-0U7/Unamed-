@@ -1414,7 +1414,8 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         if (Math.random() < odds) {
           const dmg = Math.round(roll(3, 6) * damageMult(stats));
           e.them.down = true;
-          say('you', `${novice() ? 'You grab hold of them and drag them down, falling half on top of them.' : 'You get hold of them and throw them down.'} ${wound('them', 'body', dmg, 'fall')} They're on the floor.`);
+          const fell = wound('them', 'body', dmg, 'fall');
+          say('you', `${novice() ? 'You grab hold of them and drag them down, falling half on top of them.' : 'You get hold of them and throw them down.'} ${fell}${/\bhit the (sidewalk|floor|ground)\b/.test(fell) ? '' : " They're on the floor."}`);
           you.gain('strength', 3);
           you.gain('agility', 2);
         } else say('you', b.solid ? "You grab them, but they're too strong. They shake you off." : 'They twist out of your grip.');

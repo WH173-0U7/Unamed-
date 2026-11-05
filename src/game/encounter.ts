@@ -3187,6 +3187,11 @@ function end(result: Result) {
  */
 function bleedOut() {
   const T = enc.them;
+  // (Beaten past saving: walking off straight away doesn't change it.)
+  if (!T.dead && T.out && T.awake <= -100) {
+    T.dead = true;
+    return;
+  }
   if (T.dead || T.bleeding < (T.out ? 1 : 2)) return;
   let blood = T.blood;
   let bleed = T.bleeding;

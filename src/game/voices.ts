@@ -203,16 +203,20 @@ export function voice(e: Encounter, m: Moment): string[] {
   let xs = voiceAll(e, m);
   const legs = e.them.broken.filter((p) => p.endsWith('leg')).length;
   // (A broken leg: nobody runs off on it.)
+  const moves = /\b(run|runs|ran|scramble|scrambles|weave|weaves|stumble|stumbles|shuffle|shuffles|walk|walks|bolt|gone|vanish|back(s)? away)\b/i;
   if (m === 'letGo' && legs) {
-    const ys = xs.filter((x) => !/\b(run|runs|ran|scramble|weave|weaves|stumble|stumbles|shuffle|shuffles|walk|walks|bolt|back(s)? away)\b/i.test(x));
+    const ys = xs.filter((x) => !moves.test(x) && !(e.them.down && /sit down/i.test(x)));
     return ys.length ? ys : [legs >= 2 ? 'They stay where they are, on the ground, and watch you go.' : 'They limp away as fast as the leg will let them, looking back the whole way.'];
   }
   if (!e.them.down) return xs;
   xs = xs.filter(Boolean);
+  // (Let go from the ground: they get up before they go anywhere.)
+  if (m === 'letGo') {
+    const ys = xs.filter((x) => !moves.test(x) && !/sit down|on their feet/i.test(x));
+    return ys.length ? ys : ['They scramble to their feet and run, and don\'t look back.'];
+  }
   const ys = xs.filter((x) => !/on their feet|back(s)? away|walk(s)? (off|away)|step(s)? (back|aside)|stand(s)? over|look(s)? down at you/i.test(x));
-  if (ys.length) return ys;
-  // (Let go from the ground: they get up first.)
-  return m === 'letGo' ? ['They scramble to their feet and run, and don\'t look back.'] : xs;
+  return ys.length ? ys : xs;
 }
 function voiceAll(e: Encounter, m: Moment): string[] {
   const p = e.person.personality;

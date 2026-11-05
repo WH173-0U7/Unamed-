@@ -2482,7 +2482,6 @@ export class Game {
       if (Math.random() < odds) {
         lines.push(burglary ? (upstairs ? 'Down the fire escape, the last ten feet in a drop, and away down the alley. Flashlights behind you, then fewer, then none.' : 'Out the back, over a fence, through somebody’s yard and a hedge that tears your face. Flashlights behind you, then fewer, then none.') : 'You bolt. Shouts behind you, a car door, footsteps. You go over a fence and through a yard and down an alley, and when you stop, they\'re gone.');
         f.heat = Math.min(100, f.heat + (burglary ? 25 : 10));
-        if (burglary) f.burglaries = (f.burglaries ?? 0) + 1;
         // They had the buy on camera: a warrant goes out for you.
         if (sting) {
           f.heat = Math.min(100, f.heat + 25);
@@ -2588,9 +2587,6 @@ export class Game {
     }
     // Caught at the house, or got away past them (then the break-in, and any body, are on file like any other).
     if (atHouse) this.leaveHome(undefined, burglary && arrested);
-    // Charged with it here and now: that's what the description was for.
-    if (charges.includes('Homicide') && (f.killsSeen ?? 0) > 0) f.killsSeen = f.killsSeen! - 1;
-    if (charges.includes('Burglary') && (f.burglaries ?? 0) > 0) f.burglaries = f.burglaries! - 1;
     if (arrested && pending?.stingPending) {
       if (pending.warrantFor === 'sting') lines.push('At the station they run your name. There\'s a warrant out for you: the buy you ran from.');
       serveStings();
@@ -2868,7 +2864,7 @@ export class Game {
     return (
       `<section class="stat-card record"><h3><span>Criminal record</span><b>${r.arrests ? `${r.arrests} arrest${r.arrests > 1 ? 's' : ''}` : this.case?.warrant ? 'Wanted' : 'Clean'}</b></h3>` +
       (this.case ? `<p class="record-case${this.case.warrant ? ' warrant' : ''}">${this.case.warrant ? `WARRANT out for you: ${this.case.warrantFor === 'sting' ? 'the buy you ran from' : 'missed court'}. Any stop is an arrest. Turn yourself in at the County Courthouse to end it.` : `Court date: ${dateText(this.case.courtAt)}, County Courthouse (weekdays, 9 to 4). Charges: ${this.case.charges.map((x) => x.toLowerCase()).join(', ')}.${this.case.bailPaid ? ` Bail paid: ${money(this.case.bailPaid)} (back when you show up).` : ''}`}</p>` : '') +
-      ((d) => (d ? `<p class="record-case${now() > d.due ? ' warrant' : ''}">You owe Dez ${money(d.owed)}${now() > d.due ? `. You're late (it was due ${dateText(d.due)}), it grows every day, and he's sending someone.` : `, due ${dateText(d.due)} ${clockText(d.due)}. In the alley, at night.`}</p>` : ''))(this.debt) +
+      ((d) => (d ? `<p class="record-case${now() > d.due ? ' warrant' : ''}">You owe Dez ${money(d.owed)}${now() > d.due ? `. You're late (it was due ${dateText(d.due)}), ${(d.vigDays ?? 0) >= VIG_DAYS ? "he's done waiting" : 'it grows every day'}, and he's sending someone.` : `, due ${dateText(d.due)} ${clockText(d.due)}. In the alley, at night.`}</p>` : ''))(this.debt) +
       (now() < ((this.save.state.probationUntil as number) ?? 0) ? `<p class="record-case">On probation until ${dateText(this.save.state.probationUntil as number)} ${clockText(this.save.state.probationUntil as number)}: get charged with anything and you're held, no bail.</p>` : '') +
       (r.arrests
         ? (rows.length ? `<ul class="record-list">${rows.map(([c, n]) => `<li><span>${c}</span><b>×${n}</b></li>`).join('')}</ul>` : '') +
@@ -3253,7 +3249,7 @@ export class Game {
     const stranger = sales < 1 && !d;
     let rows = '';
     if (d)
-      rows += li('What you owe Dez', `${money(d.owed)}, ${late ? `late: it was due ${dateText(d.due)}, and it grows a fifth every day.` : `due ${dateText(d.due)}.`}`, btn('dez', 'pay', c >= d.owed ? 'Pay it all' : 'Pay what you have', !c && 'No cash'));
+      rows += li('What you owe Dez', `${money(d.owed)}, ${late ? `late: it was due ${dateText(d.due)}, ${(d.vigDays ?? 0) >= VIG_DAYS ? 'and he’s done adding to it. Now he wants it, or you.' : 'and it grows a fifth every day.'}` : `due ${dateText(d.due)}.`}`, btn('dez', 'pay', c >= d.owed ? 'Pay it all' : 'Pay what you have', !c && 'No cash'));
     rows += li('An eight-ball', 'Three and a half grams. Bag it up and it comes to about 35 points. Cash.', btn('dez', 'cash', money(DEZ_CASH * 100), (stranger && '"I don\'t know you."') || (late && '"Not till you pay me."') || (c < DEZ_CASH * 100 && 'Not enough cash')));
     rows += li('Fronted', `He gives it to you now, you pay him ${money(DEZ_FRONT * 100)} in three days. Don't be late.`, btn('dez', 'front', 'Front me', (sales < 5 && '"Move some first. Then we talk."') || (!!d && '"You owe me already."')));
     return `<p class="shop-sub">Dez, by the dumpsters</p><ul class="shop-list">${rows}</ul>`;
@@ -3368,6 +3364,7 @@ export class Game {
    */
   private presence(h: Home): { owner: Presence; other: Presence | null; any: Presence } {
     const k = this.ownerOf(h);
+    if (k) heal(k);
     const e = this.encounter;
     const j = this.job;
     // You've just left them somewhere (or they're right here with you on the street): not home yet.
@@ -3418,7 +3415,14 @@ export class Game {
       if (k.healedAt != null) k.healedAt -= ms;
       for (const p of Object.keys(k.mends) as (keyof typeof k.mends)[]) k.mends[p]! -= ms;
       for (const m of Object.keys(k.markEnds) as (keyof typeof k.markEnds)[]) k.markEnds[m]! -= ms;
+      heal(k);
     }
+    // What's said about you fades; bans and doubts lapse.
+    const inf = this.world.infamy;
+    if (inf) inf.at -= ms;
+    if (typeof st.pawnBan === 'number') st.pawnBan -= ms;
+    const ok = st.idOk as { until: number } | undefined;
+    if (ok) ok.until -= ms;
   }
   /** After a break-in, once the new locks are in: the camera, the alarm they paid for. */
   private fixUp(h: Home) {
@@ -3771,7 +3775,9 @@ export class Game {
     const known = owner ? (this.inventory.items.some((x) => x.homeInfo?.id === h.id) ? ' The face off the ID in your pocket.' : ' The face off the ID you took.') : '';
     const broken = j.how === 'kick' || j.how === 'window';
     // On two broken legs, the owner's in bed and staying there.
-    const crippled = owner && (this.ownerOf(h)?.broken.filter((b) => b.endsWith('leg')).length ?? 0) >= 2;
+    const ownerK = owner ? this.ownerOf(h) : undefined;
+    if (ownerK) heal(ownerK);
+    const crippled = owner && (ownerK?.broken.filter((b) => b.endsWith('leg')).length ?? 0) >= 2;
     const body = !!j.killed;
     j.occupied = true;
     j.woke = true;

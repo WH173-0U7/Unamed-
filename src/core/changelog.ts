@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.34',
+    date: 'Nov 5',
+    items: [
+      'Getting caught in one break-in no longer wipes what the police have on you for another (or for a killing someone saw).',
+      'People heal during your time inside: an owner who had two broken legs when you went in is walking around by the time you’re out.',
+      'Once Dez’s vig stops, he says so: he’s done adding to it, he wants it, or you.',
+      'Time inside also fades your name on the street, and lifts a pawn-shop ban.',
+    ],
+  },
+  {
     v: '1.33',
     date: 'Nov 5',
     items: [

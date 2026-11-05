@@ -2267,12 +2267,20 @@ export class Game {
     if (pending?.warrant && choice !== 'run') {
       lines.push('One of them runs your name on the radio. A pause. "There\'s a warrant out for you. Turn around."');
       arrested = true;
-      if (pending.warrantFor === 'sting') {
-        // (The charge on the warrant: charged now, at the station, like any other.)
-        pending.charges = pending.charges.filter((x) => x !== 'Selling a controlled substance');
-        charges.push('Selling a controlled substance');
-      } else charges.push('Failure to appear');
+      if (pending.warrantFor !== 'sting') charges.push('Failure to appear');
     }
+    /** The sting(s) you ran from: charged now, at the station, like any other (so they go on your record). */
+    const serveStings = () => {
+      const n = pending?.stingPending ?? 0;
+      if (!pending || !n) return;
+      for (let k = 0; k < n; k++) {
+        const at = pending.charges.lastIndexOf('Selling a controlled substance');
+        if (at >= 0) pending.charges.splice(at, 1);
+        charges.push('Selling a controlled substance');
+      }
+      delete pending.stingPending;
+    };
+    if (pending?.warrant && choice !== 'run') serveStings();
     // A buy that was a setup: arrested, the marked money goes back in an evidence bag.
     const takeMarked = () => {
       const marked = Math.min(Math.round(cashOf(inv) * 100), (this.save.state.stingCash as number) ?? 0);
@@ -2323,7 +2331,8 @@ export class Game {
         if (sting) {
           f.heat = Math.min(100, f.heat + 25);
           const c = this.case ?? { charges: [], bail: 0, courtAt: now() };
-          if (!c.charges.includes('Selling a controlled substance')) c.charges = [...c.charges, 'Selling a controlled substance'];
+          c.charges = [...c.charges, 'Selling a controlled substance'];
+          c.stingPending = (c.stingPending ?? 0) + 1;
           // (Already wanted for missing court, that stays the reason; otherwise it's the buy.)
           if (!c.warrant) c.warrantFor = 'sting';
           c.warrant = true;
@@ -2331,6 +2340,7 @@ export class Game {
           if (c.bailPaid) {
             lines.push(`You were out on bail. Not any more: the ${money(c.bailPaid)} is gone.`);
             c.bailPaid = 0;
+            c.jumped = true;
           }
           this.save.state.case = c;
           delete this.save.state.stingCash;
@@ -2410,10 +2420,9 @@ export class Game {
         f.heat = Math.max(0, f.heat - 5);
       }
     }
-    if (arrested && pending?.warrant && pending.warrantFor === 'sting' && !charges.includes('Selling a controlled substance')) {
-      lines.push('At the station they run your name. There\'s a warrant out for you: the buy you ran from.');
-      pending.charges = pending.charges.filter((x) => x !== 'Selling a controlled substance');
-      charges.push('Selling a controlled substance');
+    if (arrested && pending?.stingPending) {
+      if (pending.warrantFor === 'sting') lines.push('At the station they run your name. There\'s a warrant out for you: the buy you ran from.');
+      serveStings();
     }
     if (arrested && pending?.warrant && pending.warrantFor !== 'sting' && !charges.includes('Failure to appear')) {
       lines.push('At the station they run your name. There\'s a warrant out for you, too.');
@@ -2452,11 +2461,12 @@ export class Game {
           lines.push(`You were already out on bail. It's revoked: the ${money(c.bailPaid!)} you put up is gone.`);
           c.bailPaid = 0;
         }
-        const noBail = revoked || c.charges.some((x) => chargeOf(x).bail === 0) || now() < ((this.save.state.probationUntil as number) ?? 0);
+        const noBail = revoked || !!c.jumped || c.charges.some((x) => chargeOf(x).bail === 0) || now() < ((this.save.state.probationUntil as number) ?? 0);
         c.bail = noBail ? 0 : Math.round(c.charges.reduce((n, x) => n + chargeOf(x).bail, 0) * (1 + priors * 0.5));
         c.courtAt = courtDate();
         c.warrant = false;
         delete c.warrantFor;
+        delete c.jumped;
         this.save.state.case = c;
         lines.push(`In the morning you're charged: ${charges.map((x) => x.toLowerCase()).join(', ')}.`);
         if (noBail) {
@@ -2484,8 +2494,8 @@ export class Game {
     return info.indoors && (!info.hours || isOpen(info.hours));
   }
   /** A case against you: the charges, bail, and when your court date is. */
-  private get case(): { charges: string[]; bail: number; courtAt: number; warrant?: boolean; warrantFor?: 'sting'; bailPaid?: number } | undefined {
-    return this.save.state.case as { charges: string[]; bail: number; courtAt: number; warrant?: boolean; warrantFor?: 'sting'; bailPaid?: number } | undefined;
+  private get case(): { charges: string[]; bail: number; courtAt: number; warrant?: boolean; warrantFor?: 'sting'; bailPaid?: number; stingPending?: number; jumped?: boolean } | undefined {
+    return this.save.state.case as { charges: string[]; bail: number; courtAt: number; warrant?: boolean; warrantFor?: 'sting'; bailPaid?: number; stingPending?: number; jumped?: boolean } | undefined;
   }
   /** Paying bail: cash first, then the bank. You're out, with a court date. */
   private payBail() {
@@ -2541,6 +2551,8 @@ export class Game {
     const priors = Math.max(0, rec.arrests - 1);
     // Convicted again while on probation: the old sentence comes back on top.
     const onProbation = now() < ((this.save.state.probationUntil as number) ?? 0);
+    // (Convicted while on it: the probation's done with, one way or another.)
+    if (onProbation) delete this.save.state.probationUntil;
     const sev = c.charges.reduce((n, x) => n + chargeOf(x).sev, 0) + (onProbation ? 4 : 0);
     const lines: string[] = [`Your case is called: ${c.charges.map((x) => x.toLowerCase()).join(', ')}. A public defender you've never met reads your file in the hallway.`];
     // Talking to the judge.
@@ -2617,7 +2629,8 @@ export class Game {
       const rec = this.record;
       rec.arrests++;
       if (fta) rec.charges['Failure to appear'] = (rec.charges['Failure to appear'] ?? 0) + 1;
-      else rec.charges['Selling a controlled substance'] = (rec.charges['Selling a controlled substance'] ?? 0) + 1;
+      if (c.stingPending) rec.charges['Selling a controlled substance'] = (rec.charges['Selling a controlled substance'] ?? 0) + c.stingPending;
+      delete c.stingPending;
       rec.last = now();
       lines.push(...this.passCell());
       if (this.health.dead) return this.die(lines);

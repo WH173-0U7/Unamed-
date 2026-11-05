@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.14',
+    date: 'Nov 5',
+    items: [
+      'Every sting you ran from is charged and goes on your record when they catch up with you, however that happens: even if you were already wanted for missing court, or got stung twice.',
+      'Jump bail by running from a sting, and when they catch you there’s no bail this time.',
+      'Convicted while on probation, the probation is used up: it doesn’t keep making every later arrest worse.',
+    ],
+  },
+  {
     v: '1.13',
     date: 'Nov 5',
     items: [

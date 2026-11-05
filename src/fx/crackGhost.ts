@@ -69,13 +69,19 @@ export function createCrackGhost(target: HTMLElement) {
    */
   let frames = 0;
   let since = 0;
+  let last = 0;
   let watching = 0;
   const watch = (t: number) => {
     if (!on) {
       watching = 0;
       return;
     }
-    if (!since) since = t;
+    // (A long gap: the page was hidden, or it just switched on. Start counting again.)
+    if (!since || t - last > 250) {
+      since = t;
+      frames = 0;
+    }
+    last = t;
     frames++;
     if (t - since >= 2000) {
       const fps = (frames * 1000) / (t - since);

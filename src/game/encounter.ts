@@ -642,7 +642,7 @@ function chaseStep() {
 }
 
 /** Chance to get back up off the floor. */
-const getUpChance = (f: Body) => Math.max(0.1, 0.8 - legs(f) * 0.3 - (f.dazed ? 0.2 : 0) - (f.stamina < COST.getUp ? 0.3 : 0));
+const getUpChance = (f: Body) => (legs(f) >= 2 ? 0 : Math.max(0.1, 0.8 - legs(f) * 0.3 - (f.dazed ? 0.2 : 0) - (f.stamina < COST.getUp ? 0.3 : 0)));
 
 /** What you can do right now, sorted into tabs (see `Category`). */
 /**
@@ -698,7 +698,7 @@ function rawOptions(e: Encounter): Option[] {
         ...(e.known.carrying ? [] : [{ id: 'carrying', label: 'What are they carrying?', disabled: e.distance < 1, hint: e.distance < 1 ? 'Need to be closer' : undefined, cat: 'surveil' as Category }]),
         ...(e.known.awareness ? [] : [{ id: 'awareness', label: 'How aware are they?', cat: 'surveil' as Category }]),
         // Noticed, or nearly: cover for yourself.
-        ...(e.suspicion >= 35 ? [{ id: 'bluff', label: 'Act natural', hint: 'Speech: look like you belong here', cat: 'surveil' as Category }] : []),
+        ...(e.suspicion >= 35 && !e.recognised ? [{ id: 'bluff', label: 'Act natural', hint: 'Speech: look like you belong here', cat: 'surveil' as Category }] : []),
         ...(e.known.sex && e.known.race ? [] : [{ id: 'sex', label: 'Get a look at them', hint: e.distance < 1 ? 'Hard to tell from here' : 'Their face, their build', cat: 'surveil' as Category }]),
         ...(e.known.personality ? [] : [{ id: 'read', label: 'Read them', hint: e.distance < 1 ? 'Need to be closer' : 'What kind of person?', disabled: e.distance < 1, cat: 'surveil' as Category }]),
         { id: 'bumrush', label: 'Bum rush', hint: 'Knock them down', cat: 'violence' },
@@ -868,7 +868,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
     e.facedYou = true;
     say('them', oneOf([`A hand grabs your shoulder and spins you around. It's the ${who} from before. "Remember me?"`, `Someone steps out of a doorway right in front of you: the ${who}. They've been waiting for you.`]));
     say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
-    theirTurn();
+    theirTurn(true);
     endOfRound();
     return impacts;
   }
@@ -890,7 +890,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           say('them', oneOf([`The ${who} looks up and sees you, and their face changes. They know you. They come straight at you.`, `"You." The ${who} knows you. They're already coming.`]));
           e.stage = 'combat';
           say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
-          theirTurn();
+          theirTurn(true);
           endOfRound();
         } else if (lame) {
           say('them', `The ${who} sees you and goes rigid. They know you. On crutches, they can't run; they back up against the wall.`);
@@ -980,6 +980,8 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         break;
       }
       case 'bluff': {
+        // (Someone who knows you isn't fooled by acting natural.)
+        if (e.recognised) return impacts;
         // Stop, check your phone, look lost: anything but following them.
         const odds = clamp(0.35 + lieBonus(stats) - (e.conspicuous ? 0.2 : 0) - (e.exposed ?? 0) * 0.4 - aw * 0.06, 0.05, 0.92);
         if (Math.random() < odds) {
@@ -1122,7 +1124,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         scare(15);
       } else if (id === 'sucker') {
         const dmg = Math.round(roll(16, 24) * (aw === 0 ? 1.3 : 1) * str);
-        say('you', `${amb('sucker')} ${wound('them', 'head', dmg, 'punch')}`);
+        say('you', `${e.suspicion >= 75 ? vary(['You step in fast and swing before they can get their hands up.', 'They see it coming, but not soon enough: your fist catches the side of their head.']) : amb('sucker')} ${wound('them', 'head', dmg, 'punch')}`);
       } else if (id === 'bumrush') {
         const dmg = Math.round(roll(10, 15) * str);
         if (!b.solid) {
@@ -1691,7 +1693,7 @@ function shoot(it: { name: string; doses?: number }) {
   } else if (loc === 'body' || loc === 'stomach') {
     ml = Math.round(T.maxBlood * (0.1 + Math.random() * 0.1) * pw);
     T.bleeding = Math.min(4, Math.max(T.bleeding, pw > 1.5 ? 4 : 3));
-    T.awake = Math.max(-40, T.awake - 45 * pw);
+    T.awake = Math.min(T.awake, Math.max(-40, T.awake - 45 * pw));
     if (loc === 'body' && !T.lung && Math.random() < 0.4) {
       T.lung = true;
       text += ' They make a wet, sucking sound with every breath: it’s gone into a lung.';
@@ -1703,7 +1705,7 @@ function shoot(it: { name: string; doses?: number }) {
   } else {
     ml = Math.round(T.maxBlood * (0.05 + Math.random() * 0.05) * pw);
     T.bleeding = Math.min(4, Math.max(T.bleeding, pw > 1.5 ? 3 : 2));
-    T.awake = Math.max(-20, T.awake - 20 * pw);
+    T.awake = Math.min(T.awake, Math.max(-20, T.awake - 20 * pw));
     const part = `${Math.random() < 0.5 ? 'left' : 'right'} ${loc}` as Part;
     if (!T.broken.includes(part) && Math.random() < 0.4 * pw) {
       T.broken.push(part);
@@ -2265,7 +2267,7 @@ function pickLine(pool: [string, (() => void)?][]): string {
 }
 
 /** Their move in a fight. */
-function theirTurn() {
+function theirTurn(started = false) {
   const e = enc;
   const p = e.person;
   const b = BUILDS[p.build];
@@ -2273,10 +2275,11 @@ function theirTurn() {
   if (T.out) return; // unconscious
   if (T.yielded) return yieldTurn();
   // Scared enough, they give up: hands up, or curled up on the floor.
+  // (Not on the swing they came at you with.)
   const fear = T.fear ?? 0;
   const P = personalityOf(p);
   const breaking = fear + P.yield * 100;
-  if (breaking >= 75 && Math.random() < 0.25 + (breaking - 75) / 60) {
+  if (!started && breaking >= 75 && Math.random() < 0.25 + (breaking - 75) / 60) {
     T.yielded = true;
     say('them', speak(T.down ? 'giveUpDown' : 'giveUp'));
     you.gain('intimidation', 5);
@@ -2510,7 +2513,7 @@ function spotted() {
     enc.stage = 'combat';
     enc.facedYou = true;
     say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
-    theirTurn();
+    theirTurn(true);
     endOfRound();
   } else if (legs(enc.them) > 0) {
     // On crutches, they can't outrun anyone.
@@ -2570,7 +2573,7 @@ export const GROUND: Technique[] = [
 /** When you're the one on the floor (and they're standing). */
 export const FLOOR: Technique[] = [
   { id: 'floor:legs', name: 'Kick their legs', hint: 'Bring them down too', level: 18, kind: 'kick', aim: 'leg', hit: 0, dmg: 0.5, cost: 12, effect: 'sweep', text: 'From the floor, you kick hard at their ankles.' },
-  { id: 'floor:pull', name: 'Drag them down', hint: 'Down here with you', level: 36, kind: 'punch', aim: 'body', hit: 0.05, dmg: 0.3, cost: 12, effect: 'sweep', text: 'You grab their legs and haul them down onto the sidewalk with you.' },
+  { id: 'floor:pull', name: 'Drag them down', hint: 'Down here with you', level: 36, kind: 'punch', aim: 'body', hit: 0.05, dmg: 0.3, cost: 12, effect: 'sweep', text: 'You grab at their legs and pull.' },
 ];
 /** Every learned move, wherever it's used. */
 const ALL_MOVES = () => [...TECHNIQUES, ...GROUND, ...FLOOR];
@@ -2897,7 +2900,10 @@ function threatAct(id: string, inv?: Inventory): boolean {
     say('them', shown.length ? `They turn out their pockets${isBrute(e.person.personality) ? '' : ' with shaking hands'}: ${list(shown)}.` : "They turn out their pockets. There's nothing in them.");
     if (shown.length) maybeSay('emptied', 0.85);
     const arms_ = e.person.carrying.filter((it) => it.weapon || it.spray);
-    if (arms_.length) say('them', `They drop ${list(arms_.map((it) => `the ${lc(it.name)}`))} at your feet.`);
+    if (arms_.length) {
+      say('them', `They drop ${list(arms_.map((it) => `the ${lc(it.name)}`))} at your feet.`);
+      e.them.weaponOut = null;
+    }
     you.gain('intimidation', 3);
     return true;
   }
@@ -2926,7 +2932,10 @@ function threatAct(id: string, inv?: Inventory): boolean {
             ? 'You pat them down. No money, nothing in their pockets.'
             : 'You pat them down. Nothing on them at all.',
     );
-    if (arms_.length) say('you', `You find ${list(arms_.map((it) => a(lc(it.name))))} on them, and make them drop ${arms_.length > 1 ? 'them' : 'it'}.`);
+    if (arms_.length) {
+      say('you', `You find ${list(arms_.map((it) => a(lc(it.name))))} on them, and make them drop ${arms_.length > 1 ? 'them' : 'it'}.`);
+      e.them.weaponOut = null;
+    }
     if (hid.length) {
       scare(8);
       maybeSay('caught', 1);

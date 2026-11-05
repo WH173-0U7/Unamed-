@@ -11,6 +11,19 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.03',
+    date: 'Nov 5',
+    items: [
+      'Someone who comes after you (an ambush, a grudge, spotting you following) no longer gives up on the very swing they started with.',
+      'A knife they dropped at your feet stays on the ground: they can’t cut you with it after you hit them anyway.',
+      'Someone who knows you can’t be fooled by acting natural. A sucker punch on someone watching you comes from the front, not “from behind”. “Drag them down” is an attempt until it works.',
+      'Nobody stands up on two broken legs. Nobody with both arms broken jumps you. Someone let go from the ground gets up before they run.',
+      'Fixed: dying to someone already carrying your things could split them into two people and lose the new things. Whoever robs your body lies low for a while too.',
+      'Thrown out of the gun store for a fake ID, you’re told why. A stranger who knew you by reputation, and doesn’t once you cover up, isn’t shown as knowing you. “People who remember you” counts only people who know this you.',
+      'No doing coke at a shop counter. The cracked-glass double image doesn’t switch itself off just because you went to another app and came back.',
+    ],
+  },
+  {
     v: '1.02',
     date: 'Nov 5',
     items: [

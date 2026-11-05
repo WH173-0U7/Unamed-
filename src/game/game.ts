@@ -668,7 +668,14 @@ export class Game {
       if (!was || was.anon !== anon || was.clothes !== clothes) {
         if (k) e.recognised = recognises(k, anon, lookClothes(inv));
         // (Known from what people say: more covered up now, less chance.)
-        else if (e.byRep && was && anon > was.anon) e.recognised = Math.random() < (1 - anon) / Math.max(0.05, 1 - was.anon);
+        else if (e.byRep && was && anon > was.anon) {
+          e.recognised = Math.random() < (1 - anon) / Math.max(0.05, 1 - was.anon);
+          if (!e.recognised) {
+            delete e.byRep;
+            delete e.history;
+            e.grudge = 0;
+          }
+        }
         // (Uncovered now, a stranger who's heard about you may know your face after all.)
         else if (!e.byRep && !e.recognised && was && anon < was.anon && Math.random() < Math.min(0.5, this.infamy.rep / 200) * (1 - anon) - Math.min(0.5, this.infamy.rep / 200) * (1 - was.anon)) {
           e.recognised = true;
@@ -995,14 +1002,17 @@ export class Game {
     const lurked = this.lurkState.times - w.lifeStart;
     // The encounter you died in (its person may be the one who robs you).
     const e = this.encounter;
-    if (e) settle(w, e);
     if (e && e.stage !== 'seen') this.rememberThem(e);
+    if (e) settle(w, e);
     // (Dying in the ER, nobody goes through your pockets.)
     const robbed = this.place === 'hospital' ? false : robBody(w, this.inventory, e);
-    // (Whoever has your things now: the record of them says so too.)
-    if (e?.person.thief && e.person.known) {
+    // (Whoever has your things now: their thief record and what you remember of them are one person.)
+    const tid = e?.person.thief;
+    const th = tid ? w.thieves.find((t) => t.id === tid) : undefined;
+    if (e && th && e.person.known) {
+      th.person.known = e.person.known;
       const k = this.people.find((x) => x.id === e.person.known);
-      if (k) k.person = JSON.parse(JSON.stringify(e.person));
+      if (k) k.person = JSON.parse(JSON.stringify(th.person));
     }
     // (The old life's note doesn't wait for the new one.)
     this.unstick();
@@ -1380,8 +1390,9 @@ export class Game {
     if (place === 'guns') {
       const mine = this.ownId();
       if (!mine) {
-        this.note([inv.items.some((x) => x.kind === 'id') ? 'He looks at the ID, then at you. "That\'s not you." He slides it back and doesn\'t take his eyes off you until you\'re out the door.' : '"ID first. Your own. Everybody gets the background check."']);
-        if (inv.items.some((x) => x.kind === 'id')) this.goTo('street');
+        const fake = inv.items.some((x) => x.kind === 'id');
+        if (fake) this.goTo('street');
+        this.note([fake ? 'He looks at the ID, then at you. "That\'s not you." He slides it back and doesn\'t take his eyes off you until you\'re out the door.' : '"ID first. Your own. Everybody gets the background check."']);
         return;
       }
       if (s.gun) {
@@ -2811,6 +2822,10 @@ export class Game {
     const it = inv.items[i];
     const h = this.health;
     if (it?.secret !== 'cocaine' || !it.known || h.wired) return;
+    if (this.inside) {
+      this.note(['Not in here. Someone behind the counter is already watching you.']);
+      return;
+    }
     it.doses = (it.doses ?? 1) - 1;
     h.wired = true;
     h.wiredBy = 'coke';
@@ -3428,7 +3443,7 @@ export class Game {
       ['Reputation', `${repName(f.rep)} (${Math.round(f.rep)})`],
       ['Police', HEAT_NAMES[heatLevel(f.heat)]],
       ['Anonymity', `${Math.round(anon * 100)}%${conspicuous(inv) ? ' · masked: people notice you faster' : ''}`],
-      ['People who remember you', `${this.people.length}`],
+      ['People who remember you', `${this.people.filter((k) => !k.memory.otherLife).length}`],
     ];
   }
 
@@ -3520,7 +3535,7 @@ export class Game {
         e.start = { blood: e.them.blood, broken: [...e.them.broken] };
         this.encounter = e;
         // The ones who hate you most come looking: they find you first.
-        if (known && e.recognised && (e.grudge ?? 0) >= 70 && (e.dread ?? 0) < 60 && !known.broken.some((p) => p.endsWith('leg')) && Math.random() < 0.5) {
+        if (known && e.recognised && (e.grudge ?? 0) >= 70 && (e.dread ?? 0) < 60 && !known.broken.some((p) => p.endsWith('leg')) && known.broken.filter((p) => p.endsWith('arm')).length < 2 && Math.random() < 0.5) {
           // Through the normal path, so a fight that ends at once is dealt with properly.
           this.phase = 'idle';
           this.act('ambushed');

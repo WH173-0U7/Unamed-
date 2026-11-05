@@ -64,6 +64,7 @@ export function robBody(w: World, inv: Inventory, e: Encounter | null): boolean 
     thief = { id: newId(), person: makePerson() };
     w.thieves.push(thief);
   }
+  thief.at = Date.now();
   const p = thief.person;
   p.thief = thief.id;
   // Into the pockets of whatever they're wearing up top (or the first thing).

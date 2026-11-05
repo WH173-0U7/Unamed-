@@ -203,7 +203,9 @@ export function voice(e: Encounter, m: Moment): string[] {
   const xs = voiceAll(e, m);
   if (!e.them.down) return xs;
   const ys = xs.filter((x) => !/on their feet|back(s)? away|walk(s)? (off|away)|step(s)? back/i.test(x));
-  return ys.length ? ys : xs;
+  if (ys.length) return ys;
+  // (Let go from the ground: they get up first.)
+  return m === 'letGo' ? ['They scramble to their feet and run, and don\'t look back.'] : xs;
 }
 function voiceAll(e: Encounter, m: Moment): string[] {
   const p = e.person.personality;

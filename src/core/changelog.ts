@@ -11,6 +11,18 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.07',
+    date: 'Nov 5',
+    items: [
+      'Dealing. Buy zip bags at the gas station and bag up coke in Pockets, a point in each. Then ask the people you lurk on if they’re looking. Junkies buy most, drunks late at night, a civilian now and then. They pay the going rate if they have it, or whatever they’ve got. Some grab the bag and run (catch them and it’s yours again). Speech helps.',
+      'Buyers remember you: a regular comes over instead of running, and asks for the same again. Every sale gets your name around, to buyers and to the police.',
+      'Some of the civilians are undercover cops, more of them the hotter you are. A sale to one ends in handcuffs: selling a controlled substance. Caught with three bags or more, or bags and the zip bags to make more, it’s possession with intent to distribute.',
+      'A stash: the loose brick in the alley. Hide things and cash behind it from Pockets. Someone may find it over time, much sooner if anyone saw you use it, and the man by the vents often does.',
+      'The Hotel Marlow: a room by the week, $175 cash, no questions. Sleep there for eight hours, warm and safe. Leave things under the board by the radiator. You can smoke, drink and use in your own room. Fall two days behind and they clear it out. Someone might get into it. Arrested with heat on you, the police may search it too.',
+      'Also fixed: dying in an indoor place with people about (not only the ER) doesn’t get your body robbed. The ER remembers it has seen you after a reload. Someone out cold can’t rob you. The cracked glass ignores a single stall.',
+    ],
+  },
+  {
     v: '1.06',
     date: 'Nov 5',
     items: [

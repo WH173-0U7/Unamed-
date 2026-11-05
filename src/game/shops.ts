@@ -20,7 +20,7 @@ import type { InvItem } from './inventory';
  *   and breaks big ones down. After hours, the coin machine in the lobby
  *   still turns coins into bills, for a cut.
  */
-export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records' | 'hospital' | 'guns' | 'court';
+export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records' | 'hospital' | 'guns' | 'court' | 'room';
 
 export interface PlaceInfo {
   id: Place;
@@ -64,9 +64,17 @@ export const PLACES: PlaceInfo[] = [
     indoors: true,
   },
   {
+    id: 'room',
+    name: 'Hotel Marlow',
+    desc: 'Rooms by the week. Cash, no lease, no questions.',
+    hours: null,
+    blurb: 'A rooming house over a shuttered bakery. A man in a cage by the stairs takes cash and doesn’t look up. The hallway smells of bleach and old cigarettes.',
+    indoors: true,
+  },
+  {
     id: 'fence',
     name: 'The alley',
-    desc: 'Someone back there buys anything stolen.',
+    desc: 'Someone back there buys anything stolen. A loose brick to hide things behind.',
     hours: EVERY(20, 4),
     blurb: 'Behind the laundromat, in the steam from the vents. He keeps his hands in his pockets and his eyes on the street.',
     indoors: false,
@@ -121,6 +129,8 @@ export const PLACES: PlaceInfo[] = [
   },
 ];
 export const placeInfo = (p: Place) => PLACES.find((x) => x.id === p)!;
+/** A week at the Hotel Marlow, cash up front. */
+export const ROOM_RENT = 175;
 /** Places that exist but aren't open to the player yet (the gun store: not yet). Remove one to bring it back. */
 export const HIDDEN_PLACES: ReadonlySet<Place> = new Set<Place>(['guns']);
 
@@ -227,6 +237,7 @@ export const GAS_STOCK: Stock[] = [
   { id: 'cigs', name: 'Pack of cigarettes', price: 9, desc: '20 in a pack. Takes the edge off stress.', doses: 20 },
   { id: 'lighter', name: 'Lighter', price: 3, desc: 'Full of fuel.', doses: 100 },
   { id: 'matches', name: 'Matches', price: 1, desc: 'A book of 20.', doses: 20 },
+  { id: 'zipbags', name: 'Zip bags', price: 3, desc: 'A pack of 50 tiny zip-top bags, by the register. “For jewelry,” the label says.', doses: 50 },
   { id: 'bandages', name: 'Bandages', price: 11, desc: 'Slows bleeding a level. Pricier than the pharmacy.', med: 'bandages' },
   { id: 'painkillers', name: 'Painkillers', price: 8, desc: 'Takes the edge off the pain. Pricier than the pharmacy.', med: 'painkillers' },
   { id: 'bandana', name: 'Bandana', price: 8, desc: 'Over your nose and mouth. Hides about half.', slot: 'face' },
@@ -286,5 +297,7 @@ export const CHARGES: Record<string, { bail: number; fine: number; days: number;
   Assault: { bail: 1500, fine: 1000, days: 30, sev: 6 },
   'Failure to appear': { bail: 0, fine: 500, days: 10, sev: 4 },
   Homicide: { bail: 0, fine: 0, days: 3650, sev: 20 },
+  'Possession with intent to distribute': { bail: 2500, fine: 2000, days: 45, sev: 7 },
+  'Selling a controlled substance': { bail: 5000, fine: 3000, days: 90, sev: 9 },
 };
 export const chargeOf = (c: string) => CHARGES[c] ?? { bail: 300, fine: 300, days: 3, sev: 2 };

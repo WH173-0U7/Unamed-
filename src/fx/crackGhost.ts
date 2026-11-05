@@ -70,6 +70,7 @@ export function createCrackGhost(target: HTMLElement) {
   let frames = 0;
   let since = 0;
   let last = 0;
+  let stalls = 0;
   let watching = 0;
   const watch = (t: number) => {
     if (!on) {
@@ -81,6 +82,10 @@ export function createCrackGhost(target: HTMLElement) {
     if (!since || t - last > 1500) {
       since = t;
       frames = 0;
+      stalls = 0;
+    } else if (t - last > 250 && ++stalls < 3) {
+      // (A stall or two: left out of the count. Every frame that slow is just slow.)
+      since += t - last;
     }
     last = t;
     frames++;
@@ -88,6 +93,7 @@ export function createCrackGhost(target: HTMLElement) {
       const fps = (frames * 1000) / (t - since);
       frames = 0;
       since = t;
+      stalls = 0;
       if (fps < 30) {
         slow = true;
         try {

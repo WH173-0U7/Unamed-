@@ -45,7 +45,7 @@ import {
 export const ENCOUNTER_VERSION = 3;
 
 export type Stage = 'seen' | 'menu' | 'surveil' | 'violence' | 'combat' | 'over';
-export type Result = 'won' | 'lost' | 'they-fled' | 'you-fled' | 'lost-them' | 'left' | 'walked' | 'killed' | 'mugged';
+export type Result = 'won' | 'lost' | 'they-fled' | 'you-fled' | 'lost-them' | 'left' | 'walked' | 'killed' | 'mugged' | 'sold';
 export type Side = 'you' | 'them';
 export type Part = 'nose' | 'ribs' | 'left arm' | 'right arm' | 'left leg' | 'right leg';
 export type Loc = 'head' | 'body' | 'stomach' | 'arm' | 'leg';
@@ -233,6 +233,17 @@ export interface Encounter {
   byRep?: boolean;
   /** How a chase ended on your side (out of breath, you stopped), for the closing note. */
   chaseEnd?: string;
+  /** Bags you could sell them: one-point bags of coke (see game.prime), and loose powder not bagged yet. */
+  product?: number;
+  bulk?: number;
+  /** How hot the police are on you (game.prime), for who might be a cop. */
+  heat?: number;
+  /** They've bought from you before. */
+  regular?: boolean;
+  /** You sold to them (they remember you as their dealer). */
+  customer?: boolean;
+  /** How a deal went, for the game to settle (the bag, the money, a cop): see game.settleDeal. */
+  deal?: { kind: 'sold' | 'snatched' | 'sting' | 'no'; price: number; reported?: boolean; done?: boolean };
   grudge?: number;
   /** What you know of them: what you did, how they look now. */
   history?: string;
@@ -311,7 +322,7 @@ export const CATEGORY_NAMES: Record<Category, string> = {
   torture: 'Torture',
   move: 'Move',
 };
-const SURVEIL_IDS = ['follow', 'build', 'carrying', 'awareness', 'sex', 'read', 'bluff'];
+const SURVEIL_IDS = ['follow', 'build', 'carrying', 'awareness', 'sex', 'read', 'bluff', 'sell'];
 const VIOLENCE_IDS = ['bumrush', 'sucker', 'shove', 'mug', 'kneecap', 'slam', 'rear-choke', 'spray-ambush'];
 
 // ---------- Fear ----------
@@ -701,6 +712,12 @@ function rawOptions(e: Encounter): Option[] {
         ...(e.suspicion >= 35 && !e.recognised ? [{ id: 'bluff', label: 'Act natural', hint: 'Speech: look like you belong here', cat: 'surveil' as Category }] : []),
         ...(e.known.sex && e.known.race ? [] : [{ id: 'sex', label: 'Get a look at them', hint: e.distance < 1 ? 'Hard to tell from here' : 'Their face, their build', cat: 'surveil' as Category }]),
         ...(e.known.personality ? [] : [{ id: 'read', label: 'Read them', hint: e.distance < 1 ? 'Need to be closer' : 'What kind of person?', disabled: e.distance < 1, cat: 'surveil' as Category }]),
+        // Selling: only with something bagged up to sell, and only the once.
+        ...((e.product ?? 0) > 0 || (e.bulk ?? 0) > 0
+          ? (e.asked ?? []).includes('sell')
+            ? []
+            : [{ id: 'sell', label: e.regular ? '"Same as last time?"' : '"You looking?"', hint: (e.product ?? 0) > 0 ? 'Sell them a bag' : 'Bag it up first (Pockets)', disabled: !(e.product ?? 0), cat: 'surveil' as Category }]
+          : []),
         { id: 'bumrush', label: 'Bum rush', hint: 'Knock them down', cat: 'violence' },
         { id: 'sucker', label: 'Sucker punch', hint: 'Hit them in the head', cat: 'violence' },
         { id: 'shove', label: 'Shove', hint: 'Easiest to land', cat: 'violence' },
@@ -895,6 +912,10 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
           theirTurn(true);
           endOfRound();
+        } else if (e.regular && (e.grudge ?? 0) < 30) {
+          // Someone you've sold to: they know what you are, and that's why they come over.
+          say('them', oneOf([`The ${who} sees you and nods, and drifts over. "Hey. You around?"`, `The ${who} catches your eye, glances up and down the street, and comes over.`]));
+          e.distance = 2;
         } else if (lame) {
           say('them', `The ${who} sees you and goes rigid. They know you. On crutches, they can't run; they back up against the wall.`);
           e.suspicion = 100;
@@ -906,6 +927,14 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         }
       } else say('info', `${p.kind === 'homeless' ? 'Someone homeless' : `A ${who}`}, ${DISTANCE[0].toLowerCase()}. They haven't seen you.`);
     }
+    return impacts;
+  }
+
+  // ---------- Dealing: "You looking?" ----------
+  if (id === 'sell' && (e.stage === 'menu' || e.stage === 'surveil' || e.stage === 'violence')) {
+    if (!(e.product ?? 0) || (e.asked ?? []).includes('sell')) return impacts;
+    (e.asked ??= []).push('sell');
+    sellTo(e);
     return impacts;
   }
 
@@ -2679,6 +2708,68 @@ function choke() {
     say('you', 'You get them in a headlock and squeeze. They claw at you, slower, slower, then go limp. Out cold.');
   } else say('you', 'You get them in a headlock and squeeze. They claw at your arm, choking, and tear free.');
   scare(15);
+}
+
+/**
+ * Selling them a bag. Who buys is who's already using: junkies most, drunks
+ * late at night, a civilian now and then (and sometimes the civilian is a
+ * cop). What they pay is the going rate if they have it, whatever they've
+ * got if they're desperate; some would rather grab it and run. Speech helps.
+ */
+function sellTo(e: Encounter) {
+  const p = e.person;
+  const hr = new Date().getHours();
+  const night = hr >= 21 || hr < 5;
+  e.distance = 2;
+  e.facedYou = true;
+  say('you', e.regular ? oneOf(['You give them a nod. "Same as last time?"', '"Hey. You need?"']) : oneOf(['You fall in beside them and keep your voice low. "You looking?"', 'You catch their eye. "You need something? I got you."', '"Hey. You good? I can help you out."']));
+  // A plainclothes cop, playing a buyer (more of them when they're after you).
+  const cop = p.kind === 'civilian' ? 0.04 + (e.heat ?? 0) / 300 : 0;
+  if (!e.regular && Math.random() < cop) {
+    say('them', oneOf(['"Yeah. Yeah, I\'m looking." A twenty, folded small. They take the bag and look at it a little too long.', '"How much for one?" They pay without haggling, and slip the bag into a jacket pocket.']));
+    say('info', 'A car door opens behind you. Then another.');
+    e.deal = { kind: 'sting', price: 20 };
+    end('sold');
+    return;
+  }
+  const want = clamp(({ junkie: 0.75, drunk: night ? 0.45 : 0.25, homeless: 0.3, civilian: night ? 0.16 : 0.06 } as Record<string, number>)[p.kind] + (e.regular ? 0.3 : 0) - e.suspicion / 250 + ((e.speechLevel ?? 1) - 1) * 0.002, 0.02, 0.95);
+  if (Math.random() >= want) {
+    say('them', p.kind === 'civilian' ? oneOf(['"What? No. Get away from me."', 'They look at you like you\'re something on their shoe and walk faster.', '"I\'m good." They don\'t look at you again.']) : oneOf(['"Nah. Not tonight."', '"I\'m good, man."', 'They shake their head and keep going.']));
+    // Some people call it in.
+    e.deal = { kind: 'no', price: 0, reported: p.kind === 'civilian' && Math.random() < 0.2 };
+    end('left');
+    return;
+  }
+  const cents = p.clothes.reduce((n, g) => n + g.loot.filter((l) => l.kind === 'cash').reduce((m, l) => m + Math.round((l.cash ?? 0) * 100), 0), 0);
+  const rate = ({ junkie: 15, drunk: 20, homeless: 10, civilian: 25 } as Record<string, number>)[p.kind] * (1 + ((e.speechLevel ?? 1) - 1) * 0.004);
+  const price = Math.round(rate) * 100;
+  if (cents < price) {
+    // Not enough: desperate ones grab it; some pay what they have.
+    if ((p.kind === 'junkie' || p.kind === 'homeless') && Math.random() < 0.3) {
+      say('them', oneOf(['They look at the bag. They look at you. Then they snatch it out of your hand and run.', '"Lemme see it." The second it\'s in their hand they\'re gone.']));
+      e.deal = { kind: 'snatched', price: 0 };
+      bolt('lost-them', 1.2);
+      return;
+    }
+    if (cents >= Math.min(price / 2, 800)) {
+      const all = Math.floor(cents / 100) * 100;
+      say('them', `"I only got ${Math.floor(cents / 100)}. Come on. That's all I got." They hold it out, crumpled.`);
+      say('you', 'You take it, and hand them the bag.');
+      e.deal = { kind: 'sold', price: all };
+      e.customer = true;
+      end('sold');
+      return;
+    }
+    say('them', oneOf(['"I ain\'t got it right now. Front me one? I\'m good for it."', '"I got like two dollars, man."']));
+    say('you', 'You shake your head.');
+    e.deal = { kind: 'no', price: 0 };
+    end('left');
+    return;
+  }
+  say('them', oneOf([`"How much?" ${Math.round(price / 100)}. They count it out quick, eyes on the street, and the bag's gone into their pocket.`, `They palm you ${Math.round(price / 100)} dollars, folded small. You palm them the bag. It takes a second.`]));
+  e.deal = { kind: 'sold', price };
+  e.customer = true;
+  end('sold');
 }
 
 /** Takes something out of your inventory mid-fight (the lists of what's where move up with it). */

@@ -23,6 +23,8 @@ export interface Memory {
   worst: string;
   /** They know your face. */
   sawFace: boolean;
+  /** They've bought from you. */
+  customer?: boolean;
   /** What's remembered was done by an earlier you (this you doesn't know it). */
   otherLife?: boolean;
   /** What they'd describe ("someone in a ski mask, a coat"). */
@@ -105,6 +107,7 @@ function worstOf(e: Encounter, robbed: boolean, stomped: boolean, mugged = false
   let worst = 'came at them';
   let grudge = 15;
   if (e.result === 'lost' && !e.chaseOut) return { worst: 'fought you, and won', grudge: 5 };
+  if (e.result === 'sold') return { worst: 'sold to them', grudge: 0 };
   if (e.result === 'they-fled') {
     worst = 'came at them, and they got away';
     grudge = 20;
@@ -162,7 +165,7 @@ export function remember(
   // and ran, or spotted you following, isn't your victim.)
   const start = e.start ?? { blood: T.maxBlood, broken: [] };
   const hurt = T.blood < start.blood - 1 || T.broken.some((p) => !start.broken.includes(p));
-  if (!e.fought && !hurt && e.result !== 'lost' && !did.mugged) return null;
+  if (!e.fought && !hurt && e.result !== 'lost' && !did.mugged && !e.customer) return null;
   let k = existing >= 0 ? people[existing] : undefined;
   if (!k) {
     k = {
@@ -223,6 +226,7 @@ export function remember(
   // How scared of you they are now (torture stays with them).
   mem.fear = Math.max(mem.fear ?? 0, Math.round((T.fear ?? 0) * (did.tortured ? 1 : 0.7)));
   mem.beatYou = e.result === 'lost' && !e.chaseOut;
+  if (e.customer) mem.customer = true;
   // Beating you takes the fear out of them.
   if (mem.beatYou) mem.fear = Math.round((mem.fear ?? 0) * 0.3);
   // Keep the worst thing you've done to them.

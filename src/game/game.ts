@@ -64,7 +64,7 @@ const STOMP_HELPLESS_COST = 1;
 const TORTURE_COST = 3;
 const MUG_COST = 0.5;
 
-import { chargeOf, COIN_MACHINE_FEE, ER_PRICES, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place } from './shops';
+import { chargeOf, COIN_MACHINE_FEE, ER_PRICES, ROOM_RENT, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place } from './shops';
 import { BILLS, COINS, addTo, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
 import { hoursText, isOpen } from './clock';
 import { createHitUi } from '../fx/hitUi';
@@ -210,6 +210,9 @@ export class Game {
       else if (b.dataset.records) this.getId();
       else if (b.dataset.er) this.er(b.dataset.er as ErCare);
       else if (b.dataset.court) this.appear();
+      else if (b.dataset.room) this.roomAct(b.dataset.room);
+      else if (b.dataset.unstash) this.unstash(b.dataset.unstash);
+      else if (b.dataset.cash) this.stashCash(b.dataset.cash);
   }
 
   /** What you're carrying and holding, to see whether a tap did anything. */
@@ -697,6 +700,7 @@ export class Game {
     const downBefore = !!e.you?.down;
     const logFrom = e.log.length;
     const impacts = act(e, id, this.stats, this.inventory, (this.save.state.moves ??= {}) as Record<string, number>);
+    this.settleDeal(e);
     // Down on the sidewalk: dirt on the glass.
     if (!downBefore && e.you?.down) this.fx.dirt(e.you.out ? 0.9 : 0.6);
     // Gunshots get called in.
@@ -758,7 +762,7 @@ export class Game {
       // last blows should still be there); what happens to you afterwards is
       // added, and is what the closing note says.
       // Walked away before anything happened: nothing carries over (no nerve, the coke still in you).
-      const nothing = !e.fought && !e.chased && (e.result === 'left' || e.result === 'lost-them');
+      const nothing = !e.fought && !e.chased && (e.result === 'left' || e.result === 'lost-them' || e.result === 'sold');
       after = nothing ? [] : afterFight(this.health, e.you, e.result!);
       // How it sits with you: what you did to them, and who they were.
       if (e.result !== 'lost' && e.result !== 'killed') {
@@ -840,7 +844,7 @@ export class Game {
     this.heldNote = [];
     // While you lay there, they may have gone through your pockets.
     const beaten = this.encounter;
-    if (beaten && !beaten.chaseOut) {
+    if (beaten && !beaten.chaseOut && !beaten.them.out) {
       const robbed = robKnockedOut(this.world, this.inventory, beaten, isBrute(beaten.person.personality));
       if (robbed) lines = [...lines, robbed];
     }
@@ -931,6 +935,10 @@ export class Game {
     uiGlitch(this.view, 0.35);
     this.note(lines, true);
     this.noteEl.firstElementChild?.classList.add('note-title');
+    if (this.save.state.policeStop === 'sting') {
+      this.save.state.policeWhy = ['The buyer has a badge out now. So do the two coming up behind you.'];
+      this.openSheet('police');
+    }
   }
 
   /**
@@ -1006,7 +1014,8 @@ export class Game {
     if (e) settle(w, e);
     // (Dying in the ER, nobody goes through your pockets.)
     const inEr = this.place === 'hospital';
-    const robbed = inEr ? false : robBody(w, this.inventory, e);
+    const indoors = this.inside;
+    const robbed = indoors ? false : robBody(w, this.inventory, e);
     // (Whoever has your things now: their thief record and what you remember of them are one person.)
     const tid = e?.person.thief;
     const th = tid ? w.thieves.find((t) => t.id === tid) : undefined;
@@ -1020,7 +1029,7 @@ export class Game {
     this.noteEl.hidden = true;
     // A new you: nothing carried over but the world.
     // (Your name, your ID and your bank account were that character's.)
-    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines']) delete this.save.state[k];
+    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen']) delete this.save.state[k];
     // Nobody knows this face. The people the old you hurt are still out there
     // (and your things on some of them), but they'd be looking for someone else.
     this.world.infamy = newInfamy();
@@ -1044,7 +1053,9 @@ export class Game {
       `<p class="death-after">${
         robbed
           ? 'Someone went through your pockets before you were cold. Whatever you had is out there now, on somebody.'
-          : inEr
+          : indoors && !inEr
+            ? 'Somebody called it in. What you had on you went into a plastic bag with your name on it, and nobody comes for it.'
+            : inEr
             ? 'You died in the hospital. What you had on you goes into a plastic bag with your name on it, and nobody comes for it.'
             : 'There was nothing on you worth taking.'
       }</p>` +
@@ -1220,6 +1231,8 @@ export class Game {
     else if (b.dataset.taste) this.identify(Number(b.dataset.taste), false);
     else if (b.dataset.test) this.identify(Number(b.dataset.test), true);
     else if (b.dataset.bump) this.bump(Number(b.dataset.bump));
+    else if (b.dataset.bagup) this.bagUp(Number(b.dataset.bagup));
+    else if (b.dataset.stash) this.stashItem(Number(b.dataset.stash));
     else if (b.dataset.inject) this.inject(Number(b.dataset.inject));
     else if (b.dataset.pack) this.packLoose(Number(b.dataset.pack));
     else if (b.dataset.move) this.moveItem(Number(b.dataset.move));
@@ -1272,12 +1285,16 @@ export class Game {
         hospital: 'The ER doors hiss open. You give a name at the desk and they tell you to sit.',
         guns: 'A buzzer sounds as you push the door. The man behind the counter looks up, and keeps looking.',
         court: 'A deputy at the door watches you put your keys and phone in a plastic tray for the metal detector.',
-      }[p],
+        room: 'You climb the stairs to the Hotel Marlow. The man in the cage looks up, then down again.',
+      }[p] ?? '',
     ];
     this.exposure = 0;
     this.wasInside = inside;
     this.insideAt = p;
-    if (inside) lines.push(...this.goingIn());
+    if (inside && p !== 'room') lines.push(...this.goingIn());
+    // Whether your hiding places are as you left them.
+    if (p === 'fence') lines.push(...this.checkStash());
+    if (p === 'room') lines.push(...this.checkRoom());
     if (!inside && WET_AMOUNT[this.weather.now] > 0) lines.push(`It's still ${isSnow(this.weather.now) ? 'snowing' : 'raining'} (${WEATHER_NAME[this.weather.now].toLowerCase()}).`);
     this.note(lines);
     buzz(10);
@@ -1539,7 +1556,14 @@ export class Game {
     };
   }
   /** Seen once this visit: the wait in the waiting room is over. */
-  private erSeen = false;
+  /** Seen by triage on this trip to the ER (kept in the save: a reload doesn't put you back in the queue). */
+  private get erSeen(): boolean {
+    return !!this.save.state.erSeen;
+  }
+  private set erSeen(v: boolean) {
+    if (v) this.save.state.erSeen = true;
+    else delete this.save.state.erSeen;
+  }
 
   /**
    * The ER. They treat what you can't: stitches, setting a nose, a cast, a
@@ -1895,7 +1919,7 @@ export class Game {
     const it = inv.items[i];
     const h = this.health;
     if (!it?.drink || (it.doses ?? 0) <= 0 || !this.canOpenSheet) return;
-    if (this.inside && it.drink !== 'energy') {
+    if (this.inside && this.place !== 'room' && it.drink !== 'energy') {
       this.note(['Not in here. Someone behind the counter is already watching you.']);
       return;
     }
@@ -2139,7 +2163,7 @@ export class Game {
   /** Why you can't light a cigarette now, or null. */
   private smokeBlocked(): string | null {
     if (!this.flame()) return 'Nothing to light it';
-    if (this.inside) return 'No smoking in here';
+    if (this.inside && this.place !== 'room') return 'No smoking in here';
     if (this.smoking) return `Still smoking (${Math.ceil(((this.health.smokingUntil ?? 0) - now()) / 60000)} min left)`;
     if (!this.canOpenSheet) return 'Not now';
     return null;
@@ -2206,6 +2230,7 @@ export class Game {
     const f = this.infamy;
     const w = wearing(inv);
     const carStop = this.save.state.policeStop === 'car';
+    const sting = this.save.state.policeStop === 'sting';
     delete this.save.state.policeStop;
     delete this.save.state.policeWhy;
     const lines: string[] = [];
@@ -2222,6 +2247,12 @@ export class Game {
       lines.push('One of them runs your name on the radio. A pause. "There\'s a warrant out for you. Turn around."');
       arrested = true;
       charges.push('Failure to appear');
+    }
+    // A buy that was a setup: that's the arrest.
+    if (sting && choice !== 'run') {
+      lines.push('The cuffs go on. The twenty you took is marked; the bag is already in an evidence envelope.');
+      arrested = true;
+      charges.push('Selling a controlled substance');
     }
     // Asleep in a stolen car: they've run the plate.
     if (carStop && choice !== 'run') {
@@ -2271,8 +2302,9 @@ export class Game {
           inv.items = inv.items.filter((x) => !(x.kind === 'car keys' && x.car));
         }
         if (brandished) charges.push('Brandishing a weapon');
+        if (sting) charges.push('Selling a controlled substance');
       }
-    } else if (brandished || arrested) {
+    } else if (brandished || arrested || sting) {
       // (Nothing to talk about.)
     } else if (choice === 'talk' && talk()) {
       // Talked your way out: no search.
@@ -2310,7 +2342,7 @@ export class Game {
         lines.push(`They find ${evidence.length === 1 ? `the ${lc(evidence[0].name)}` : `${evidence.length} things that aren't yours`}. "${evidence.length === 1 ? 'Whose is this' : 'Whose are these'}?"`);
         arrested = true;
         if (evidence.some((x) => x.kind !== 'misc' && !(x.secret && x.secret !== 'empty'))) charges.push('Possession of stolen property');
-        if (evidence.some((x) => x.secret && x.secret !== 'empty')) charges.push('Possession of a controlled substance');
+        if (evidence.some((x) => x.secret && x.secret !== 'empty')) charges.push(this.intent() ? 'Possession with intent to distribute' : 'Possession of a controlled substance');
       }
       if (looks) {
         lines.push('One of them looks at you a long time, then at his phone. "That\'s the one." The cuffs go on.');
@@ -2335,7 +2367,9 @@ export class Game {
     if (arrested) {
       // Booking: everything on you, bag and all. What's stolen or illegal is charged.
       if (!charges.includes('Possession of stolen property') && inv.items.some((x) => (x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card')) charges.push('Possession of stolen property');
-      if (!charges.includes('Possession of a controlled substance') && inv.items.some((x) => x.secret && x.secret !== 'empty')) charges.push('Possession of a controlled substance');
+      if (!charges.some((x) => /controlled substance|intent to distribute/.test(x)) && inv.items.some((x) => x.secret && x.secret !== 'empty')) charges.push(this.intent() ? 'Possession with intent to distribute' : 'Possession of a controlled substance');
+      // With heat on you and a room rented, they get the address from the desk clerk.
+      lines.push(...this.searchRoom(charges, f.heat));
       if (!charges.includes('Carrying an illegal weapon') && inv.items.some((x) => x.kind === 'weapon' && /switchblade|butterfly|push dagger/i.test(x.name))) charges.push('Carrying an illegal weapon');
       // Whatever's stolen is taken; a night in a cell.
       const before = inv.items.length;
@@ -2730,7 +2764,7 @@ export class Game {
   /** Why you can't inject right now, or null. */
   private injectBlocked(): string | null {
     if (!this.canOpenSheet) return 'Not now';
-    if (this.inside) return 'Not in here';
+    if (this.inside && this.place !== 'room') return 'Not in here';
     const h = this.health;
     if (h.high && (h.highUntil ?? 0) > now()) return 'Still high';
     return null;
@@ -2824,12 +2858,268 @@ export class Game {
   }
 
   /** A bump of coke: you're wired for the next fight (more stamina, less pain). */
+  /** Carrying like a dealer: several bags, or bags and the zip bags to make more. */
+  private intent(items = this.inventory.items): boolean {
+    const bags = items.filter((x) => x.secret === 'cocaine').length;
+    return bags >= 3 || (bags > 0 && items.some((x) => x.name === 'Zip bags'));
+  }
+
+  /** A deal, settled: the bag out of your pocket, their money into yours (or the police). */
+  private settleDeal(e: Encounter) {
+    const d = e.deal;
+    if (!d || d.done) return;
+    d.done = true;
+    const f = this.infamy;
+    if (d.kind === 'no') {
+      if (d.reported) f.heat = Math.min(100, f.heat + 6);
+      return;
+    }
+    const inv = this.inventory;
+    const bag = inv.items.find((x) => x.secret === 'cocaine' && x.known && x.doses === 1);
+    if (!bag) return;
+    inv.items.splice(inv.items.indexOf(bag), 1);
+    if (d.kind === 'snatched') {
+      // In their fist as they run: catch them, and it's yours again.
+      e.person.clothes[0]?.loot.push({ kind: 'misc', name: 'Small baggie', detail: 'Yours: they snatched it', secret: 'cocaine', known: true, doses: 1, where: 'clenched in their fist', yours: true });
+      return;
+    }
+    // Their money, out of their pockets and into yours.
+    let need = d.price;
+    let got = 0;
+    for (const g of e.person.clothes)
+      for (const l of [...g.loot]) {
+        if (need <= 0 || l.kind !== 'cash') continue;
+        const have = Math.round((l.cash ?? 0) * 100);
+        const take = Math.min(have, need);
+        need -= take;
+        got += take;
+        const left = have - take;
+        if (left > 0) {
+          l.cash = left / 100;
+          l.purse = fewest(left);
+        } else g.loot.splice(g.loot.indexOf(l), 1);
+      }
+    addTo(inv.purse, fewest(got));
+    if (d.kind === 'sting') {
+      this.save.state.policeStop = 'sting';
+      return;
+    }
+    // Word gets around: to buyers, and to the police.
+    f.rep += 1;
+    f.heat = Math.min(100, f.heat + 2);
+    this.save.state.sales = ((this.save.state.sales as number) ?? 0) + 1;
+  }
+
+  /** Splitting powder into little bags to sell, a point in each. */
+  private bagUp(i: number) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    const zip = inv.items.find((y) => y.name === 'Zip bags' && (y.doses ?? 0) > 0);
+    if (!it || it.secret !== 'cocaine' || !it.known || (it.doses ?? 0) < 2 || !zip || !this.canOpenSheet) return;
+    if (this.inside && this.place !== 'room') {
+      this.note(['Not in here. Not with someone behind the counter watching.']);
+      return;
+    }
+    const n = Math.min(it.doses ?? 0, zip.doses ?? 0);
+    let made = 0;
+    for (let k = 0; k < n; k++) {
+      if (!stow(inv, { kind: 'misc', name: 'Small baggie', detail: 'A point, bagged to sell', secret: 'cocaine', known: true, doses: 1 })) break;
+      made++;
+    }
+    it.doses = (it.doses ?? 0) - made;
+    zip.doses = (zip.doses ?? 0) - made;
+    inv.items = inv.items.filter((x) => (x !== it || (it.doses ?? 0) > 0) && (x !== zip || (zip.doses ?? 0) > 0));
+    this.refresh();
+    this.note([
+      made
+        ? `${this.place === 'room' ? 'At the little table by the window' : 'Hunched in a doorway'}, you tip it out and split it into ${made} little bag${made === 1 ? '' : 's'}, a point in each.${made < n ? ' You run out of room for the rest.' : ''}`
+        : "You've got nowhere to put the bags.",
+    ]);
+  }
+
+  /** The loose brick in the alley: what's behind it. */
+  private get stash(): { items: InvItem[]; cents: number; at: number; seen?: boolean } {
+    return (this.save.state.stash ??= { items: [], cents: 0, at: now() }) as { items: InvItem[]; cents: number; at: number; seen?: boolean };
+  }
+  /** Your room at the Hotel Marlow (if you've rented one): paid until when, and what you left in it. */
+  private get room(): { until: number; items: InvItem[]; cents: number; at: number } | undefined {
+    return this.save.state.room as { until: number; items: InvItem[]; cents: number; at: number } | undefined;
+  }
+  private get roomRented(): boolean {
+    const r = this.room;
+    return !!r && now() < r.until;
+  }
+
+  /** Back at the alley: has someone found it? (More likely if someone saw you.) */
+  private checkStash(): string[] {
+    const s = this.save.state.stash as { items: InvItem[]; cents: number; at: number; seen?: boolean } | undefined;
+    if (!s) return [];
+    const days = Math.max(0, (now() - s.at) / 86_400_000);
+    s.at = now();
+    if (!s.items.length && !s.cents) return [];
+    if (Math.random() < 1 - Math.pow(1 - (s.seen ? 0.3 : 0.04), days)) {
+      s.items = [];
+      s.cents = 0;
+      s.seen = false;
+      return ['The loose brick is lying in the gravel. Behind it, nothing. Someone found your stash.'];
+    }
+    return [];
+  }
+
+  /** Back at the room: rent run out (they clear it), or someone's been in. */
+  private checkRoom(): string[] {
+    const r = this.room;
+    if (!r) return [];
+    const t = now();
+    if (t > r.until + 2 * 86_400_000) {
+      delete this.save.state.room;
+      return ["Your key doesn't turn. The man in the cage doesn't look up: the rent ran out, so they cleared the room. Whatever you left is in a dumpster, or in someone's pocket."];
+    }
+    const days = Math.max(0, (t - r.at) / 86_400_000);
+    r.at = t;
+    if (r.cents && Math.random() < 1 - Math.pow(0.985, days)) {
+      r.cents = 0;
+      return ["The lock's been scratched up. The cash you left under the mattress is gone."];
+    }
+    return t > r.until ? ['The rent ran out. They hold the room two days, then clear it.'] : [];
+  }
+
+  /** The room: rent it, pay ahead, or sleep. */
+  private roomAct(what: string) {
+    if (this.place !== 'room') return;
+    const inv = this.inventory;
+    const h = this.health;
+    if (what === 'rent') {
+      if (Math.round(cashOf(inv) * 100) < ROOM_RENT * 100) return;
+      const paid = this.payLine(ROOM_RENT * 100);
+      const r = this.room;
+      const t = now();
+      if (r && t <= r.until + 2 * 86_400_000) r.until = Math.max(t, r.until) + 7 * 86_400_000;
+      else this.save.state.room = { until: t + 7 * 86_400_000, items: [], cents: 0, at: t };
+      this.refresh();
+      this.note([r ? 'You push the week through the slot. He writes it in a book without looking up.' : 'You push the cash through the slot. A key on a plastic tag comes back: room 14, up two flights.', paid]);
+      return;
+    }
+    if (what === 'sleep' && this.roomRented) {
+      this.unstick();
+      const was = h.cold ?? 0;
+      const lines = ['You lock the door, wedge the chair under the handle, and sleep. Eight hours. Nobody comes.', ...passHours(h, 8, true)];
+      if (h.dead) return this.die(lines);
+      h.cold = 0;
+      h.stress = Math.max(0, (h.stress ?? 0) - 30);
+      if (was) lines.push('You wake up warm, for once.');
+      this.refresh();
+      this.note(lines);
+    }
+  }
+
+  /** Leaving something behind the brick, or in your room. */
+  private stashItem(i: number) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    const where = this.place === 'fence' ? this.stash : this.place === 'room' && this.roomRented ? this.room : undefined;
+    if (!it || !where || !this.canOpenSheet) return;
+    inv.items.splice(i, 1);
+    delete it.hand;
+    where.items.push(it);
+    const lines = [this.place === 'fence' ? `You work the loose brick out, push the ${lc(it.name)} into the gap, and fit the brick back.` : `You leave the ${lc(it.name)} in your room, under the loose board by the radiator.`];
+    // In the alley someone may see you do it (the man by the vents, a face in a window).
+    if (this.place === 'fence') {
+      const s = this.stash;
+      const open = isOpen(placeInfo('fence').hours!);
+      if (!s.seen && Math.random() < 0.06 + this.infamy.heat / 300 + (open ? 0.12 : 0)) {
+        s.seen = true;
+        lines.push(open ? 'The man by the vents is looking your way. He looks away when you look back.' : 'You feel eyes on you. When you turn, the end of the alley is empty.');
+      }
+    }
+    this.refresh();
+    this.note(lines);
+  }
+
+  /** Taking something back out of the stash or the room: "stash:3", "room:0". */
+  private unstash(v: string) {
+    const [kind, n] = v.split(':');
+    const where = kind === 'stash' && this.place === 'fence' ? this.stash : kind === 'room' && this.place === 'room' && this.roomRented ? this.room : undefined;
+    const it = where?.items[Number(n)];
+    if (!where || !it) return;
+    const { spot: _spot, size: _size, kg: _kg, ...rest } = it;
+    void _spot;
+    void _size;
+    void _kg;
+    const got = stow(this.inventory, rest);
+    if (!got) {
+      this.note([`No room for the ${lc(it.name)}. ${noRoomWhy(this.inventory, measure(it).size)}`]);
+      return;
+    }
+    where.items.splice(Number(n), 1);
+    this.refresh();
+    this.note([`You take the ${lc(it.name)}.`]);
+  }
+
+  /** All your cash in, or all of it back out: "stash:in", "room:out". */
+  private stashCash(v: string) {
+    const [kind, dir] = v.split(':');
+    const where = kind === 'stash' && this.place === 'fence' ? this.stash : kind === 'room' && this.place === 'room' && this.roomRented ? this.room : undefined;
+    if (!where) return;
+    const inv = this.inventory;
+    if (dir === 'in') {
+      const c = Math.round(cashOf(inv) * 100);
+      if (!c) return;
+      where.cents += c;
+      inv.purse = {};
+      this.refresh();
+      this.note([`You leave ${money(c)}, rolled tight, ${kind === 'stash' ? 'behind the brick' : 'under the mattress'}.`]);
+    } else if (where.cents) {
+      addTo(inv.purse, fewest(where.cents));
+      this.note([`You take the ${money(where.cents)}.`]);
+      where.cents = 0;
+      this.refresh();
+    }
+  }
+
+  /** Arrested with heat on you: they get your room from the desk clerk, and search it. */
+  private searchRoom(charges: string[], heat: number): string[] {
+    const r = this.room;
+    if (!r || now() > r.until + 2 * 86_400_000 || heat < 50 || Math.random() >= 0.35) return [];
+    const lines = ['The desk clerk at the Hotel Marlow gives them your room. They search it too.'];
+    const found = r.items.filter((x) => (x.secret && x.secret !== 'empty') || (x.kind === 'id' && x.own !== this.world.lives) || /card/.test(x.kind) || x.name === 'Zip bags');
+    if (found.length) {
+      lines.push(`They find what you'd hidden under the board by the radiator.`);
+      if (found.some((x) => x.secret && x.secret !== 'empty') && !charges.some((x) => /controlled substance|intent to distribute/.test(x))) charges.push(this.intent(found) ? 'Possession with intent to distribute' : 'Possession of a controlled substance');
+      if (found.some((x) => x.kind === 'id' || /card/.test(x.kind)) && !charges.includes('Possession of stolen property')) charges.push('Possession of stolen property');
+      r.items = r.items.filter((x) => !found.includes(x));
+    }
+    if (r.cents) {
+      lines.push(`The ${money(r.cents)} under the mattress goes into an evidence bag: proceeds, they call it.`);
+      r.cents = 0;
+    }
+    return lines;
+  }
+
+  /** A hiding place, in a shop body: what's in it, and taking it back. */
+  private stashHtml(kind: 'stash' | 'room'): string {
+    const where = kind === 'stash' ? this.save.state.stash as { items: InvItem[]; cents: number } | undefined : this.room;
+    const items = where?.items ?? [];
+    const cents = where?.cents ?? 0;
+    const c = Math.round(cashOf(this.inventory) * 100);
+    const btn = (attr: string, v: string, label: string, no?: string | false) => `<button type="button" data-${attr}="${v}" ${no ? `disabled title="${no}"` : ''}>${label}${no ? `<small>${no}</small>` : ''}</button>`;
+    const li = (name: string, small: string, button: string) => `<li><div><b>${name}</b><small>${small}</small></div><span class="li-btns">${button}</span></li>`;
+    return (
+      `<p class="shop-sub">${kind === 'stash' ? 'Behind the loose brick, low in the wall by the dumpster' : 'Under the loose board by the radiator'}</p>` +
+      `<ul class="shop-list">` +
+      items.map((x, i) => li(x.name, x.detail ?? '', btn('unstash', `${kind}:${i}`, 'Take'))).join('') +
+      li('Cash', cents ? `${money(cents)} hidden here.` : 'None hidden here.', btn('cash', `${kind}:in`, 'Leave yours', !c && 'No cash') + btn('cash', `${kind}:out`, 'Take it', !cents && 'Nothing there')) +
+      `</ul>` +
+      (items.length ? '' : `<p class="shop-broke">Nothing ${kind === 'stash' ? 'behind it' : 'left here'}. Leave things from Pockets (“${kind === 'stash' ? 'Hide it' : 'Leave it here'}”).</p>`)
+    );
+  }
+
   private bump(i: number) {
     const inv = this.inventory;
     const it = inv.items[i];
     const h = this.health;
     if (it?.secret !== 'cocaine' || !it.known || h.wired) return;
-    if (this.inside) {
+    if (this.inside && this.place !== 'room') {
       this.note(['Not in here. Someone behind the counter is already watching you.']);
       return;
     }
@@ -2978,7 +3268,19 @@ export class Game {
         ? usable.map(({ x, i }) => li(`Cash machine · ${x.name}`, `${x.detail ? `${x.detail}'s card · ` : ''}PIN ${x.pin}. There's a camera over the screen.`, btn('atm', i, 'Withdraw'))).join('')
         : li('Cash machine', cards.some(({ x }) => x.drained) && !cards.some(({ x }) => !x.drained && !x.pin) ? "The cards you had PINs for have been stopped." : cards.length ? "You've got cards, but no PIN for them. Someone would have to tell you." : 'Any hour. You need a card, and its PIN.', btn('atm', -1, 'Use', 'No card with a PIN'));
       body += `</ul>`;
+    } else if (place === 'room') {
+      // The Hotel Marlow: a room by the week.
+      const r = this.room;
+      const rented = this.roomRented;
+      body =
+        `<ul class="shop-list">` +
+        (rented ? li('Your room, upstairs', `Room 14, paid up until ${dateText(r!.until)}. A bed, a lock that mostly works, a window onto the fire escape. Warm, and nobody bothers you.`, btn('room', 'sleep', 'Sleep')) : '') +
+        li(rented ? 'Another week' : 'A room for a week', rented ? "Pay ahead. Fall behind and they clear it after two days." : 'Cash up front. No lease, no ID, no questions.', btn('room', 'rent', money(ROOM_RENT * 100), c < ROOM_RENT * 100 && 'Not enough cash')) +
+        `</ul>` +
+        (rented ? this.stashHtml('room') : '');
     }
+    // The alley's loose brick: there whenever you are, whoever's about.
+    if (place === 'fence') body += this.stashHtml('stash');
     const html =
       `<div class="shop-head"><h2>${info.name}</h2><p>${info.blurb}</p>${info.hours ? `<p class="shop-hours">${hoursText(info.hours)}.</p>` : ''}</div>` +
       this.noteHtml(this.shopNote, 'shop-note') +
@@ -3051,13 +3353,17 @@ export class Game {
       const why = Array.isArray(this.save.state.policeWhy) ? (this.save.state.policeWhy as string[]).map((l) => `<p class="police-why">${l}</p>`).join('') : '';
       card.innerHTML =
         `<div class="sheet-head"><h2>Police</h2></div><div class="sheet-body police">` +
-        (this.save.state.policeStop === 'car'
+        (this.save.state.policeStop === 'sting'
+          ? why + `<p>"Police. Turn around. Hands behind your back." It was a buy. They were waiting for you to make it.</p>`
+          : this.save.state.policeStop === 'car'
           ? why + `<p>A second flashlight on the other window. "Step out of the vehicle. Slowly. Hands where I can see them."</p>`
           : `<p>A patrol car pulls up beside you, lights off. Two of them get out. One has a hand on his belt.</p>` +
             why +
             `<p>"${masked ? 'Take that off your face. ' : ''}Hold up. Where are you headed ${partOfDay() === 'night' || partOfDay() === 'dusk' ? 'tonight' : 'today'}?"</p>`) +
         `</div><div class="police-choice">` +
-        (this.save.state.policeStop === 'car'
+        (this.save.state.policeStop === 'sting'
+          ? `<button type="button" class="place" data-police="stay"><b>Hands behind your back</b><small>They've got the bag, the money, and you on camera.</small></button>`
+          : this.save.state.policeStop === 'car'
           ? `<button type="button" class="place" data-police="stay"><b>Step out</b><small>Do as they say. They've run the plate.</small></button>`
           : `<button type="button" class="place" data-police="stay"><b>Stay calm</b><small>Let them talk. They'll want to search you.</small></button>` +
             `<button type="button" class="place" data-police="talk"><b>Talk your way out</b><small>Speech. A good story and they move on without a search; a bad one and they look harder.</small></button>`) +
@@ -3184,6 +3490,10 @@ export class Game {
                   if (inv.items.some((y) => y.med === 'testkit')) acts += act('test', 'Test');
                 }
                 if (x.secret === 'cocaine' && x.known) acts += act('bump', 'Bump', h.wired ? 'Already wired' : null);
+                if (x.secret === 'cocaine' && x.known && (x.doses ?? 0) >= 2)
+                  acts += act('bagup', 'Bag it up', !inv.items.some((y) => y.name === 'Zip bags' && (y.doses ?? 0) > 0) ? 'No zip bags' : this.inside && this.place !== 'room' ? 'Not in here' : null);
+                // The alley's loose brick, or your room: somewhere to leave it.
+                if (this.place === 'fence' || (this.place === 'room' && this.roomRented)) acts += act('stash', this.place === 'fence' ? 'Hide it' : 'Leave it here');
                 // A gun: load it from a box of its rounds.
                 if (gunOf(x.name)) acts += act('load', 'Load', (x.doses ?? 0) >= gunOf(x.name)!.holds ? 'Full' : inv.items.some((y) => y.name === gunOf(x.name)!.ammo && (y.doses ?? 0) > 0) ? null : 'No ammunition');
                 // Car keys: find the car (on the street), then go through it, or sleep in it.
@@ -3230,6 +3540,11 @@ export class Game {
   /** What the encounter needs to know about you to offer its options (see Encounter.flame). */
   private prime(e: Encounter) {
     const inv = this.inventory;
+    // Bags to sell (a point each), and powder not bagged up yet.
+    const coke = inv.items.filter((x) => x.secret === 'cocaine' && x.known && (x.doses ?? 0) > 0);
+    e.product = coke.filter((x) => x.doses === 1).length;
+    e.bulk = coke.filter((x) => (x.doses ?? 0) > 1).reduce((n, x) => n + (x.doses ?? 0), 0);
+    e.heat = this.infamy.heat;
     // Face to face and awake, they see you as you are now (the least covered you've been is what sticks).
     if (e.facedYou && e.stage !== 'seen' && !e.them.out && !e.them.dead && !e.chase) {
       const anon = anonymity(inv);
@@ -3530,6 +3845,7 @@ export class Game {
           e.history = known.memory.otherLife ? undefined : historyText(known);
           e.looks = [...injuriesText(known), ...marksText(known.marks)];
           e.dread = known.memory.fear ?? 0;
+          e.regular = !!known.memory.customer && !!e.recognised;
         } else if (Math.random() < Math.min(0.5, this.infamy.rep / 200) * (1 - anon)) {
           // A stranger who's heard about you, and knows your face.
           e.recognised = true;

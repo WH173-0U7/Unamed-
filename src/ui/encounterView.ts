@@ -17,6 +17,7 @@ export const RESULT: Record<string, string> = {
   'they-fled': 'They got away.',
   'you-fled': 'You got away.',
   'lost-them': 'You lost them.',
+  sold: 'You made a sale.',
   left: 'You let them go.',
   walked: 'You walked away.',
   killed: "They're dead.",

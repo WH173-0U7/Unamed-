@@ -81,7 +81,7 @@ interface HomeJob {
   /** You saw them make the call. */
   phoned?: boolean;
   /** Face to face with someone who lives there (and how they found you). */
-  confront?: { owner: boolean; sex: 'Male' | 'Female'; text: string; how: 'awake' | 'woke' | 'home' };
+  confront?: { owner: boolean; sex: 'Male' | 'Female'; text: string; how: 'awake' | 'woke' | 'home'; phoned?: boolean };
   /** Who you've already had it out with in there; someone dead in the house. */
   metOwner?: boolean;
   metOther?: boolean;
@@ -1115,7 +1115,8 @@ export class Game {
     if (e) settle(w, e);
     // (Dying in the ER, nobody goes through your pockets.)
     const inEr = this.place === 'hospital';
-    const indoors = this.inside;
+    // (In someone's house counts: nobody goes through your pockets on their hallway floor.)
+    const indoors = this.inside || (this.place === 'home' && !!this.job?.in);
     const robbed = indoors ? false : robBody(w, this.inventory, e);
     // (Whoever has your things now: their thief record and what you remember of them are one person.)
     const tid = e?.person.thief;
@@ -1351,7 +1352,8 @@ export class Game {
 
   /** Walk somewhere else. */
   private goTo(p: Place) {
-    if (this.ending) return;
+    // (Stopped by the police: you're not walking anywhere.)
+    if (this.ending || this.save.state.policeStop) return;
     this.shopNote = [];
     this.closeSheet();
     if (p === this.place || HIDDEN_PLACES.has(p)) return;
@@ -1473,7 +1475,8 @@ export class Game {
     }
     inv.items.splice(i, 1);
     // The pawn shop pays from the till; the fence peels small bills off a roll.
-    const got = place === 'pawn' ? fewest(o.cents) : cashLike(o.cents, 'small');
+    // (A car pays in a roll of twenties.)
+    const got = place === 'pawn' ? fewest(o.cents) : cashLike(o.cents, it.kind === 'car keys' ? 'wallet' : 'small');
     addTo(inv.purse, got);
     sound.coin();
     lines.push(`You sell the ${lc(it.name)} for ${money(o.cents)} (${purseText(got)}).`);
@@ -3444,7 +3447,7 @@ export class Game {
       return (
         `<p class="home-alert">${j.confront.text}</p><ul class="shop-list">` +
         li('Get out', 'Back out the way you came in, now. They’ve seen you.', btn('homeact', 'flee', 'Run')) +
-        li('Go at them', `${j.phoned ? 'Before they can finish the call.' : 'Before they can get to a phone.'} It’s their house; they’ll fight for it.`, btn('homeact', 'fight', 'Fight')) +
+        li('Go at them', `${j.confront.phoned ? 'Before they can finish the call.' : 'Before they can get to a phone.'} It’s their house; they’ll fight for it.`, btn('homeact', 'fight', 'Fight')) +
         `</ul>`
       );
     }
@@ -3486,7 +3489,7 @@ export class Game {
   /** Something done at the address. */
   private homeAct(what: string) {
     const h = this.atHome;
-    if (!h || this.ending || this.encounter || this.sheet === 'police') return;
+    if (!h || this.ending || this.encounter || this.sheet === 'police' || this.save.state.policeStop) return;
     this.fixUp(h);
     const j = this.job ?? this.newJob(h);
     const inv = this.inventory;
@@ -3706,6 +3709,7 @@ export class Game {
     const broken = j.how === 'kick' || j.how === 'window';
     // On two broken legs, the owner's in bed and staying there.
     const crippled = owner && (this.ownerOf(h)?.broken.filter((b) => b.endsWith('leg')).length ?? 0) >= 2;
+    const body = !!j.killed;
     j.occupied = true;
     j.woke = true;
     h.wokeAt = now();
@@ -3718,18 +3722,21 @@ export class Game {
           ? h.type === 'room'
             ? `A light snaps on. ${Who} is sitting up in the bed, half asleep, then not at all.${known}`
             : `A light snaps on. ${Who} is in the bedroom doorway, half asleep, then not at all.${known}`
-          : broken && j.how === 'kick'
+          : body
+            ? `Keys in the front door. It opens, and ${who} sees the body in the hall before ${he} sees you. Then ${he} sees you.${known}`
+            : broken && j.how === 'kick'
             ? `Someone pushes the broken door open and stops dead: ${who}, looking straight at you.${known}`
             : partOfDay() === 'night'
               ? `Keys in the front door. It opens, and ${who} is standing there in a work jacket, keys still in hand, looking straight at you.${known}`
               : `Keys in the front door. It opens, and ${who} is standing there with a bag of groceries, looking straight at you.${known}`;
-    // Most reach for a phone.
-    if (Math.random() < 0.65) {
+    // Most reach for a phone (anyone who's just found a body, all of them).
+    const phones = Math.random() < (body ? 0.95 : 0.65);
+    if (phones) {
       j.policeIn = Math.min(j.policeIn ?? 4, 4);
       j.phoned = true;
       text += ` ${He}’s got a phone in ${his} hand.`;
     }
-    j.confront = { owner, sex, text, how };
+    j.confront = { owner, sex, text, how, phoned: phones };
     this.refresh();
     this.note(lines.length ? lines : [text]);
     buzz([40, 40, 80]);
@@ -3811,7 +3818,7 @@ export class Game {
       e.dread = k.memory.fear ?? 0;
     }
     e.start = { blood: e.them.blood, broken: [...e.them.broken] };
-    e.resident = { owner: c.owner, how: c.how, phoned: !!j.phoned, away };
+    e.resident = { owner: c.owner, how: c.how, phoned: !!c.phoned, away };
     j.cashBefore = Math.round(cashOf(inv) * 100);
     if (c.owner) j.metOwner = true;
     else j.metOther = true;
@@ -5026,7 +5033,8 @@ export class Game {
     delete this.save.state.koLines;
     if (woke) this.save.state.wokeLines = woke;
     this.view.classList.remove('ko-out');
-    if (woke) this.timers.push(window.setTimeout(() => this.showWoke(), 2900));
+    // (Waking up to the police: they're there the moment the picture is.)
+    if (woke) this.timers.push(window.setTimeout(() => this.showWoke(), this.save.state.policeStop ? 600 : 2900));
     // (Kept in timers, so quitting straight after can't touch the next game.)
     this.timers.push(window.setTimeout(() => {
       this.powerBtn.hidden = true;
@@ -5065,9 +5073,17 @@ export class Game {
     const woke = this.save.state.wokeLines;
     if (!this.running || this.closed || !Array.isArray(woke)) return;
     delete this.save.state.wokeLines;
+    // Woken up into a police stop: what happened goes at the top of it (not in a note left for after jail).
+    if (this.save.state.policeStop) {
+      this.save.state.policeWhy = [...(woke as string[]), ...(Array.isArray(this.save.state.policeWhy) ? (this.save.state.policeWhy as string[]) : [])];
+      if (this.tvState.on) {
+        if (this.sheet === 'police') this.renderSheet();
+        else this.openSheet('police');
+      }
+      return;
+    }
     this.note(woke as string[], true);
     this.noteEl.firstElementChild?.classList.add('note-title');
-    if (this.save.state.policeStop && this.tvState.on && !this.sheet) this.openSheet('police');
   }
 
   /** Closes the game view (back to the menu). */

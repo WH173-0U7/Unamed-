@@ -243,7 +243,13 @@ export interface Encounter {
   /** Sent by Dez, for the money you owe him. */
   enforcer?: boolean;
   /** Someone in their own home, and you broke in: theirs (or someone who lives there), how they found you, and whether they'd called it in. */
-  resident?: { owner: boolean; how: 'awake' | 'woke' | 'home'; phoned: boolean };
+  resident?: {
+    owner: boolean;
+    how: 'awake' | 'woke' | 'home';
+    phoned: boolean;
+    /** What they'd put down in the house (wallet, keys, shoes, coat): back on them once it's over. */
+    away?: { garments: import('./person').Garment[]; loot: import('./person').Loot[]; top?: import('./person').Garment; carrying: import('./person').Item[] };
+  };
   /** You've sold before (word of it is what brings people over). */
   dealer?: boolean;
   /** They came over to you to buy: face to face, and they want it. */
@@ -841,11 +847,14 @@ export { indoors };
 const say = (by: LogLine['by'], text: string) => {
   text = text.replace(/ {2,}/g, ' ').trim();
   // (Limping a step, then going down in the same moment: they just go down.)
-  if (/\bgo(es)? down\b|on the floor/.test(text)) {
-    text = text.replace(/\s*\b(They|You) limp a step\.(?=.*\b(go(es)? down|on the floor))/, '').trim();
+  // (Only the same person, and only in this move.)
+  const down = (who: string) => new RegExp(`\\b${who} (go(es)? down|hit the (sidewalk|floor|ground))|\\b${who === 'They' ? "They're" : "You're"} on the (floor|sidewalk|ground)`);
+  for (const who of ['They', 'You']) {
+    if (!down(who).test(text)) continue;
+    text = text.replace(new RegExp(`\\s*\\b${who} limp a step\\.(?=.*${down(who).source})`), '').trim();
     const prev = enc.log[enc.log.length - 1];
-    if (prev && /\blimp a step\.$/.test(prev.text)) {
-      prev.text = prev.text.replace(/\s*\b(They|You) limp a step\.$/, '').trim();
+    if (prev && enc.log.length - 1 >= actLogStart && new RegExp(`\\b${who} limp a step\\.$`).test(prev.text)) {
+      prev.text = prev.text.replace(new RegExp(`\\s*\\b${who} limp a step\\.$`), '').trim();
       if (!prev.text) enc.log.pop();
     }
   }
@@ -913,7 +922,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
     const crippled = !!e.resident && legs(e.them) >= 2;
     if (crippled) e.them.down = true;
     say('them', crippled
-      ? `The ${who} can't get up: both legs still in casts. They're on the floor by the bed, throwing whatever's in reach at you and screaming for help.`
+      ? `The ${who} can't get up: both legs still in casts. They're in the bed, throwing whatever's in reach at you and screaming for help.`
       : e.resident
       ? e.resident.phoned
         ? oneOf([`You go at them. The phone goes skidding across the floor, and the ${who} grabs for whatever's nearest.`, `"Get out of my house!" The ${who} drops the phone and comes at you.`])
@@ -2380,7 +2389,7 @@ function theirTurn(started = false) {
     if (Math.random() < getUpChance(T)) {
       T.down = false;
       say('them', legs(T) ? 'They drag themselves up on one good leg.' : oneOf(['They get back on their feet.', 'They scramble back up.', 'They push themselves up off the sidewalk.']));
-    } else say('them', legs(T) >= 2 ? oneOf(['Neither leg will hold them. They stay down, and throw whatever they can reach at you.', 'They can\'t get up. They scream for help instead.']) : legs(T) ? 'They try to stand, but their leg gives way.' : oneOf(['They try to get up, and fall back down.', 'They get halfway up, and their legs fold.']));
+    } else say('them', legs(T) >= 2 ? vary(['Neither leg will hold them. They stay down, and throw whatever they can reach at you.', 'They can\'t get up. They scream for help instead.', 'They grab for the edge of something and can\'t pull themselves up.']) : legs(T) ? 'They try to stand, but their leg gives way.' : oneOf(['They try to get up, and fall back down.', 'They get halfway up, and their legs fold.']));
     return;
   }
   // Losing badly: some try to run for it (much harder on a broken leg).

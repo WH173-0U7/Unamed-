@@ -624,6 +624,16 @@ export class Game {
         if (h) h.household = 'alone';
       }
       if (old.enforcer && old.result !== 'lost' && this.debt) this.debt.strikes = (this.debt.strikes ?? 0) + 1;
+      // Someone from a house: dressed again, with their wallet and keys, before they're remembered.
+      const a = old.resident?.away;
+      if (a) {
+        const p = old.person;
+        if (a.top && p.clothes[0]?.name === 'T-shirt' && !p.clothes[0].loot.length) p.clothes[0] = a.top;
+        p.clothes.push(...a.garments);
+        p.carrying.push(...a.carrying);
+        if (a.loot.length) (p.clothes[1] ?? p.clothes[0])?.loot.push(...a.loot.map((l) => ({ ...l, where: 'pocket' })));
+        delete old.resident!.away;
+      }
       // (Remembered first: the thief record then knows who they are, and the two stay one person.)
       if (old.stage !== 'seen') this.rememberThem(old);
       settle(this.world, old);
@@ -3747,19 +3757,35 @@ export class Game {
           else if (l.opens) l.opens = h.id;
         }
     }
+    // What they've put down somewhere in the house (not on them now): theirs again when they're next out.
+    const away: { garments: typeof person.clothes; loot: Loot[]; top?: (typeof person.clothes)[number]; carrying: typeof person.carrying } = { garments: [], loot: [], carrying: [] };
     // Out of bed, or already in for the night: no shopping, no backpack.
     if (c.how !== 'home') {
+      away.garments.push(...person.clothes.filter((g) => g.name === 'Grocery bag' || g.name === 'Backpack'));
       person.clothes = person.clothes.filter((g) => g.name !== 'Grocery bag' && g.name !== 'Backpack');
+      away.carrying.push(...person.carrying.filter((x) => x.name === 'Grocery bag' || x.name === 'Backpack'));
       person.carrying = person.carrying.filter((x) => x.name !== 'Grocery bag' && x.name !== 'Backpack');
     }
     // Out of bed: barefoot, no coat, nothing in their pockets (the wallet's on the dresser, not on them).
     if (c.how === 'woke') {
-      for (const g of person.clothes) g.loot = g.loot.filter((l) => !(l.kind === 'id' || l.kind === 'cash' || /card/.test(l.kind) || l.kind === 'car keys' || l.kind === 'phone' || l.opens));
+      const pocketed = (l: Loot) => l.kind === 'id' || l.kind === 'cash' || /card/.test(l.kind) || l.kind === 'car keys' || l.kind === 'phone' || !!l.opens;
+      for (const g of person.clothes) {
+        away.loot.push(...g.loot.filter(pocketed));
+        g.loot = g.loot.filter((l) => !pocketed(l));
+      }
+      away.garments.push(...person.clothes.filter((g) => /shoe|boot|sneaker|loafer|slide/i.test(g.name)));
       person.clothes = person.clothes.filter((g) => !/shoe|boot|sneaker|loafer|slide/i.test(g.name));
-      if (person.clothes[0] && /coat|jacket|blazer|windbreaker|puffer|parka|hoodie|flannel/i.test(person.clothes[0].name)) person.clothes[0] = { name: 'T-shirt', loot: [], searched: false };
+      if (person.clothes[0] && /coat|jacket|blazer|windbreaker|puffer|parka|hoodie|flannel/i.test(person.clothes[0].name)) {
+        away.top = person.clothes[0];
+        person.clothes[0] = { name: 'T-shirt', loot: [], searched: false };
+      }
     }
     // The phone they were calling on went across the floor.
-    if (j.phoned) for (const g of person.clothes) g.loot = g.loot.filter((l) => l.kind !== 'phone');
+    if (j.phoned)
+      for (const g of person.clothes) {
+        away.loot.push(...g.loot.filter((l) => l.kind === 'phone'));
+        g.loot = g.loot.filter((l) => l.kind !== 'phone');
+      }
     const inv = this.inventory;
     const e = newEncounter(person, this.yourBody());
     e.conspicuous = conspicuous(inv);
@@ -3773,7 +3799,7 @@ export class Game {
       e.dread = k.memory.fear ?? 0;
     }
     e.start = { blood: e.them.blood, broken: [...e.them.broken] };
-    e.resident = { owner: c.owner, how: c.how, phoned: !!j.phoned };
+    e.resident = { owner: c.owner, how: c.how, phoned: !!j.phoned, away };
     if (c.owner) j.metOwner = true;
     else j.metOther = true;
     delete j.confront;

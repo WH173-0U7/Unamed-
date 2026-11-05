@@ -418,7 +418,7 @@ const money = (a: number, b: number) => Math.round((a + r() * (b - a)) * 100) / 
 const any = <T>(xs: T[]) => xs[Math.floor(r() * xs.length)];
 
 /** Cash, as bills and coins (whole dollars unless it's change). */
-function cash(dollars: number, style: 'wallet' | 'small' | 'change', name = 'Cash'): Omit<Loot, 'where'> {
+export function cash(dollars: number, style: 'wallet' | 'small' | 'change', name = 'Cash'): Omit<Loot, 'where'> {
   const purse = cashLike(style === 'change' ? dollars * 100 : Math.max(1, Math.round(dollars)) * 100, style);
   return { kind: 'cash', name, cash: cents(purse) / 100, purse };
 }
@@ -461,6 +461,8 @@ function dress(kind: Kind, carrying: Item[]): Garment[] {
   if (has('Cash')) put(cash(money(5, 80), 'wallet', 'Folded bills'));
   if (has('Loose change')) put(cash(money(0.25, 4.5), 'change', 'Loose change'));
   if (kind === 'homeless' && r() < 0.3) put(cash(money(3, 30), 'small', 'Folded bills'), clothes[2], 'left shoe');
+  // A junkie out at night has usually hustled up something: enough for a bag, maybe.
+  if (kind === 'junkie' && r() < 0.55) put(cash(money(4, 28), 'small', 'Crumpled bills'));
   if (has('Phone')) put({ kind: 'phone', name: 'Cell phone', detail: any(PHONES) });
   if (has('Keys')) {
     if (kind === 'civilian' ? r() < 0.75 : r() < 0.35) put({ kind: 'car keys', name: 'Car keys', detail: `${any(CARS)} key fob` });

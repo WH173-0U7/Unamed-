@@ -418,7 +418,7 @@ export class Game {
     if (k.memory.sawFace && !before) f.rep += k.memory.grudge / 8;
     // Who goes to the police: most civilians, few junkies.
     const reports = { civilian: 0.7, drunk: 0.4, homeless: 0.25, junkie: 0.15 }[k.person.kind];
-    if (Math.random() < reports) {
+    if (e.result !== 'sold' && Math.random() < reports) {
       f.heat = Math.min(100, f.heat + (k.memory.grudge / 5) * (k.memory.sawFace ? 1 : 0.4));
       if (k.memory.sawFace && e.fought) f.reports = (f.reports ?? 0) + 1;
     }
@@ -801,7 +801,7 @@ export class Game {
       const ko = e.result === 'lost';
       // They got away (or walked off): say how, and why, not just that they're gone.
       const how = e.result === 'lost-them' || e.result === 'they-fled' ? [...e.log.slice(logFrom, fightTo).filter((l) => l.by !== 'you' && !/ went up to \d+\.$/.test(l.text)).map((l) => l.text).slice(-2), ...(e.chaseEnd ? [e.chaseEnd] : []), ...(e.whyRan ? [e.whyRan] : [])].filter((x, i, a) => a.indexOf(x) === i) : [];
-      const lines = ko && e.chaseOut ? ['You collapsed.', ...after] : ko ? [RESULT.lost, ...remember, ...after] : [RESULT[e.result ?? 'left'], ...how, ...after];
+      const lines = ko && e.chaseOut ? ['You collapsed.', ...after] : ko ? [RESULT.lost, ...remember, ...after] : [e.deal?.kind === 'sting' ? 'It was a setup.' : RESULT[e.result ?? 'left'], ...how, ...after];
       // (Saved now: a reload in the beat still ends it properly.)
       if (ko) this.save.state.koLines = lines;
       else this.save.state.endLines = lines;
@@ -1040,7 +1040,7 @@ export class Game {
     this.noteEl.hidden = true;
     // A new you: nothing carried over but the world.
     // (Your name, your ID and your bank account were that character's.)
-    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt']) delete this.save.state[k];
+    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash']) delete this.save.state[k];
     // Nobody knows this face. The people the old you hurt are still out there
     // (and your things on some of them), but they'd be looking for someone else.
     this.world.infamy = newInfamy();
@@ -1302,7 +1302,7 @@ export class Game {
     this.exposure = 0;
     this.wasInside = inside;
     this.insideAt = p;
-    if (inside && p !== 'room') lines.push(...this.goingIn());
+    if (inside && !(p === 'room' && this.roomRented)) lines.push(...this.goingIn());
     // Whether your hiding places are as you left them.
     if (p === 'fence') lines.push(...this.checkStash());
     if (p === 'room') lines.push(...this.checkRoom());
@@ -1930,7 +1930,7 @@ export class Game {
     const it = inv.items[i];
     const h = this.health;
     if (!it?.drink || (it.doses ?? 0) <= 0 || !this.canOpenSheet) return;
-    if (this.inside && this.place !== 'room' && it.drink !== 'energy') {
+    if (this.inside && !this.inOwnRoom && it.drink !== 'energy') {
       this.note(['Not in here. Someone behind the counter is already watching you.']);
       return;
     }
@@ -2174,7 +2174,7 @@ export class Game {
   /** Why you can't light a cigarette now, or null. */
   private smokeBlocked(): string | null {
     if (!this.flame()) return 'Nothing to light it';
-    if (this.inside && this.place !== 'room') return 'No smoking in here';
+    if (this.inside && !this.inOwnRoom) return 'No smoking in here';
     if (this.smoking) return `Still smoking (${Math.ceil(((this.health.smokingUntil ?? 0) - now()) / 60000)} min left)`;
     if (!this.canOpenSheet) return 'Not now';
     return null;
@@ -2259,7 +2259,12 @@ export class Game {
       arrested = true;
       charges.push('Failure to appear');
     }
-    // A buy that was a setup: that's the arrest.
+    // A buy that was a setup: the marked money goes back in an evidence bag, whatever happens.
+    if (sting) {
+      const marked = Math.min(Math.round(cashOf(inv) * 100), (this.save.state.stingCash as number) ?? 0);
+      if (marked) pay(inv.purse, marked);
+      delete this.save.state.stingCash;
+    }
     if (sting && choice !== 'run') {
       lines.push('The cuffs go on. The twenty you took is marked; the bag is already in an evidence envelope.');
       arrested = true;
@@ -2299,6 +2304,15 @@ export class Game {
       if (Math.random() < odds) {
         lines.push('You bolt. Shouts behind you, a car door, footsteps. You go over a fence and through a yard and down an alley, and when you stop, they\'re gone.');
         f.heat = Math.min(100, f.heat + 10);
+        // They had the buy on camera: a warrant goes out for you.
+        if (sting) {
+          f.heat = Math.min(100, f.heat + 25);
+          const c = this.case ?? { charges: [], bail: 0, courtAt: now() };
+          if (!c.charges.includes('Selling a controlled substance')) c.charges = [...c.charges, 'Selling a controlled substance'];
+          c.warrant = true;
+          this.save.state.case = c;
+          lines.push("They've got the buy on camera. There'll be a warrant out for you by morning.");
+        }
       } else {
         lines.push('You bolt, and get about ten yards. One of them takes your legs out and you hit the sidewalk face first. A knee in your back, your arms wrenched behind you.');
         h.blood = Math.min(h.blood, Math.max(h.maxBlood * 0.6, h.blood - 350));
@@ -2384,7 +2398,7 @@ export class Game {
       if (!charges.includes('Carrying an illegal weapon') && inv.items.some((x) => x.kind === 'weapon' && /switchblade|butterfly|push dagger/i.test(x.name))) charges.push('Carrying an illegal weapon');
       // Whatever's stolen is taken; a night in a cell.
       const before = inv.items.length;
-      inv.items = inv.items.filter((x) => !((x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card' || x.kind === 'weapon' || (x.secret && x.secret !== 'empty')));
+      inv.items = inv.items.filter((x) => !((x.kind === 'id' && x.own !== this.world.lives) || x.kind === 'credit card' || x.kind === 'debit card' || x.kind === 'weapon' || (x.secret && x.secret !== 'empty') || x.name === 'Zip bags'));
       const took = before - inv.items.length;
       // It goes on your record: every arrest, and every charge.
       const rec = this.record;
@@ -2633,7 +2647,7 @@ export class Game {
     const inv = this.inventory;
     const w = wearing(inv);
     if (what === 'mask' && w.face) {
-      if (!w.masked && this.inside) {
+      if (!w.masked && this.inside && !this.inOwnRoom) {
         this.note([`Not in here. You'd be thrown out, or worse.`]);
         return;
       }
@@ -2652,7 +2666,7 @@ export class Game {
   /** Why you can't burn something right now, or null. */
   private burnBlocked(): string | null {
     if (!this.flame()) return 'Nothing to light it';
-    if (this.inside) return 'Not in here';
+    if (this.inside && !this.inOwnRoom) return 'Not in here';
     return null;
   }
 
@@ -2776,7 +2790,7 @@ export class Game {
   /** Why you can't inject right now, or null. */
   private injectBlocked(): string | null {
     if (!this.canOpenSheet) return 'Not now';
-    if (this.inside && this.place !== 'room') return 'Not in here';
+    if (this.inside && !this.inOwnRoom) return 'Not in here';
     const h = this.health;
     if (h.high && (h.highUntil ?? 0) > now()) return 'Still high';
     return null;
@@ -2916,6 +2930,7 @@ export class Game {
     addTo(inv.purse, fewest(got));
     if (d.kind === 'sting') {
       this.save.state.policeStop = 'sting';
+      this.save.state.stingCash = got;
       return;
     }
     // Word gets around: to buyers, and to the police.
@@ -2930,7 +2945,7 @@ export class Game {
     const it = inv.items[i];
     const zip = inv.items.find((y) => y.name === 'Zip bags' && (y.doses ?? 0) > 0);
     if (!it || it.secret !== 'cocaine' || !it.known || (it.doses ?? 0) < 2 || !zip || !this.canOpenSheet) return;
-    if (this.inside && this.place !== 'room') {
+    if (this.inside && !this.inOwnRoom) {
       this.note(['Not in here. Not with someone behind the counter watching.']);
       return;
     }
@@ -3047,6 +3062,10 @@ export class Game {
   private get room(): { until: number; items: InvItem[]; cents: number; at: number } | undefined {
     return this.save.state.room as { until: number; items: InvItem[]; cents: number; at: number } | undefined;
   }
+  /** In your own room (rented, and you're in it): smoke, drink, use, mask up, burn things. */
+  private get inOwnRoom(): boolean {
+    return this.place === 'room' && this.roomRented;
+  }
   private get roomRented(): boolean {
     const r = this.room;
     return !!r && now() < r.until;
@@ -3079,9 +3098,12 @@ export class Game {
     }
     const days = Math.max(0, (t - r.at) / 86_400_000);
     r.at = t;
-    if (r.cents && Math.random() < 1 - Math.pow(0.985, days)) {
+    if ((r.cents || r.items.length) && Math.random() < 1 - Math.pow(0.985, days)) {
+      const took = r.items.filter((x) => (x.secret && x.secret !== 'empty') || x.kind === 'phone' || x.kind === 'weapon');
+      r.items = r.items.filter((x) => !took.includes(x));
+      const had = r.cents;
       r.cents = 0;
-      return ["The lock's been scratched up. The cash you left under the mattress is gone."];
+      if (had || took.length) return ["The lock's been scratched up. Someone's been in: " + [had ? 'the cash under the mattress' : '', took.length ? `what was under the board` : ''].filter(Boolean).join(' and ') + ' is gone.'];
     }
     return t > r.until ? ['The rent ran out. They hold the room two days, then clear it.'] : [];
   }
@@ -3093,6 +3115,11 @@ export class Game {
     const h = this.health;
     if (what === 'rent') {
       if (Math.round(cashOf(inv) * 100) < ROOM_RENT * 100) return;
+      const cleared = this.checkRoom();
+      if (cleared.length && !this.room) {
+        this.note(cleared);
+        return;
+      }
       const paid = this.payLine(ROOM_RENT * 100);
       const r = this.room;
       const t = now();
@@ -3103,6 +3130,12 @@ export class Game {
       return;
     }
     if (what === 'sleep' && this.roomRented) {
+      const r = this.room!;
+      if (now() - ((r as { slept?: number }).slept ?? 0) < 4 * 3_600_000) {
+        this.note(["You lie down, but you're not tired. You stare at the water stain on the ceiling until you give up."]);
+        return;
+      }
+      (r as { slept?: number }).slept = now();
       this.unstick();
       const was = h.cold ?? 0;
       const lines = ['You lock the door, wedge the chair under the handle, and sleep. Eight hours. Nobody comes.', ...passHours(h, 8, true)];
@@ -3221,7 +3254,7 @@ export class Game {
     const it = inv.items[i];
     const h = this.health;
     if (it?.secret !== 'cocaine' || !it.known || h.wired) return;
-    if (this.inside && this.place !== 'room') {
+    if (this.inside && !this.inOwnRoom) {
       this.note(['Not in here. Someone behind the counter is already watching you.']);
       return;
     }
@@ -3593,7 +3626,7 @@ export class Game {
                 }
                 if (x.secret === 'cocaine' && x.known) acts += act('bump', 'Bump', h.wired ? 'Already wired' : null);
                 if (x.secret === 'cocaine' && x.known && (x.doses ?? 0) >= 2)
-                  acts += act('bagup', 'Bag it up', !inv.items.some((y) => y.name === 'Zip bags' && (y.doses ?? 0) > 0) ? 'No zip bags' : this.inside && this.place !== 'room' ? 'Not in here' : null);
+                  acts += act('bagup', 'Bag it up', !inv.items.some((y) => y.name === 'Zip bags' && (y.doses ?? 0) > 0) ? 'No zip bags' : this.inside && !this.inOwnRoom ? 'Not in here' : null);
                 // The alley's loose brick, or your room: somewhere to leave it.
                 if (this.place === 'fence' || (this.place === 'room' && this.roomRented)) acts += act('stash', this.place === 'fence' ? 'Hide it' : 'Leave it here');
                 // A gun: load it from a box of its rounds.
@@ -3950,7 +3983,7 @@ export class Game {
           e.history = known.memory.otherLife ? undefined : historyText(known);
           e.looks = [...injuriesText(known), ...marksText(known.marks)];
           e.dread = known.memory.fear ?? 0;
-          e.regular = !!known.memory.customer && !!e.recognised;
+          e.regular = !!known.memory.customer && !!e.recognised && (known.memory.grudge ?? 0) < 30;
         } else if (Math.random() < Math.min(0.5, this.infamy.rep / 200) * (1 - anon)) {
           // A stranger who's heard about you, and knows your face.
           e.recognised = true;
@@ -4002,6 +4035,11 @@ export class Game {
   }
 
   private showSavedScene() {
+    // Loaded standing at a hiding place: it's as safe as it would have been (no reload trick).
+    if (this.place === 'fence' || this.place === 'room') {
+      const lost = this.place === 'fence' ? this.checkStash() : this.checkRoom();
+      if (lost.length) this.timers.push(window.setTimeout(() => !this.closed && this.note(lost), 700));
+    }
     // A note that was waiting for you when the game closed: still waiting.
     if (Array.isArray(this.save.state.stickyNote) && this.tvState.on && this.place === 'street' && !this.encounter) {
       const lines = this.save.state.stickyNote as string[];

@@ -1,5 +1,5 @@
 import type { Body, Encounter, Marks, Part } from './encounter';
-import type { Person } from './person';
+import { cash, type Person } from './person';
 import { now } from './clock';
 
 /**
@@ -227,6 +227,8 @@ export function remember(
   mem.fear = Math.max(mem.fear ?? 0, Math.round((T.fear ?? 0) * (did.tortured ? 1 : 0.7)));
   mem.beatYou = e.result === 'lost' && !e.chaseOut;
   if (e.customer) mem.customer = true;
+  // (Hurt them, and you're not their dealer any more.)
+  if (mem.grudge >= 30) delete mem.customer;
   // Beating you takes the fear out of them.
   if (mem.beatYou) mem.fear = Math.round((mem.fear ?? 0) * 0.3);
   // Keep the worst thing you've done to them.
@@ -236,7 +238,12 @@ export function remember(
   }
   // A grudge grows when you hurt them again.
   mem.grudge = Math.min(100, Math.max(mem.grudge, w.grudge) + (mem.times > 1 && (hurt || did.robbed) ? 10 : 0));
-  while (people.length > MAX_PEOPLE) people.shift();
+  // Full: forget whoever matters least (no grudge, longest ago), not the oldest enemy.
+  while (people.length > MAX_PEOPLE) {
+    let worst = 0;
+    for (let i = 1; i < people.length - 1; i++) if ((people[i].memory.grudge ?? 0) < (people[worst].memory.grudge ?? 0)) worst = i;
+    people.splice(worst, 1);
+  }
   return k;
 }
 
@@ -259,6 +266,12 @@ export function meet(k: Known): Person {
   heal(k);
   const p = JSON.parse(JSON.stringify(k.person)) as Person;
   p.known = k.id;
+  // A while later, they've got money on them again (a payday, a hustle, a handout).
+  const empty = !p.clothes.some((g) => g.loot.some((l) => l.kind === 'cash'));
+  if (empty && now() - (k.at ?? 0) > 6 * 3_600_000 && Math.random() < 0.7 && p.clothes[0]) {
+    const amount = { junkie: 4 + Math.random() * 24, drunk: 8 + Math.random() * 50, homeless: 2 + Math.random() * 14, civilian: 15 + Math.random() * 110 }[p.kind];
+    p.clothes[0].loot.push({ ...cash(amount, 'small', 'Folded bills'), where: 'pocket' });
+  }
   return p;
 }
 

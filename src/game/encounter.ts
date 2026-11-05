@@ -916,6 +916,10 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
           theirTurn(true);
           endOfRound();
+        } else if (e.byRep && (e.grudge ?? 0) < 30 && e.person.kind !== 'civilian' && Math.random() < 0.6) {
+          // Heard about you: not as someone to run from.
+          say('them', oneOf([`The ${who} looks at you a second too long, then drifts over. "You're the one, right? You holding?"`, `The ${who} has heard about you. They come over, hands in pockets.`]));
+          e.distance = 2;
         } else if (e.regular && (e.grudge ?? 0) < 30) {
           // Someone you've sold to: they know what you are, and that's why they come over.
           say('them', oneOf([`The ${who} sees you and nods, and drifts over. "Hey. You around?"`, `The ${who} catches your eye, glances up and down the street, and comes over.`]));
@@ -2732,11 +2736,12 @@ function sellTo(e: Encounter) {
   if (!e.regular && Math.random() < cop) {
     say('them', oneOf(['"Yeah. Yeah, I\'m looking." A twenty, folded small. They take the bag and look at it a little too long.', '"How much for one?" They pay without haggling, and slip the bag into a jacket pocket.']));
     say('info', 'A car door opens behind you. Then another.');
-    e.deal = { kind: 'sting', price: 20 };
+    e.deal = { kind: 'sting', price: 2000 };
     end('sold');
     return;
   }
-  const want = clamp(({ junkie: 0.75, drunk: night ? 0.45 : 0.25, homeless: 0.3, civilian: night ? 0.16 : 0.06 } as Record<string, number>)[p.kind] + (e.regular ? 0.3 : 0) - e.suspicion / 250 + ((e.speechLevel ?? 1) - 1) * 0.002, 0.02, 0.95);
+  const scary = (e.conspicuous ? 0.2 : 0) + (heldBlade(e) ? 0.3 : 0) + (hr >= 8 && hr < 18 ? 0.08 : 0);
+  const want = clamp(-scary + ({ junkie: 0.75, drunk: night ? 0.45 : 0.25, homeless: 0.3, civilian: night ? 0.16 : 0.06 } as Record<string, number>)[p.kind] + (e.regular ? 0.3 : 0) - e.suspicion / 250 + ((e.speechLevel ?? 1) - 1) * 0.002, 0.02, 0.95);
   if (Math.random() >= want) {
     say('them', p.kind === 'civilian' ? oneOf(['"What? No. Get away from me."', 'They look at you like you\'re something on their shoe and walk faster.', '"I\'m good." They don\'t look at you again.']) : oneOf(['"Nah. Not tonight."', '"I\'m good, man."', 'They shake their head and keep going.']));
     // Some people call it in.

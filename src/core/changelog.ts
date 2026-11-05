@@ -11,6 +11,18 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.11',
+    date: 'Nov 5',
+    items: [
+      'A sale to an undercover cop is a marked twenty, and they take it back when they cuff you. Get away from a sting on foot and they’ve got the buy on camera: a warrant goes out for you.',
+      'Junkies usually have hustled up a few dollars, so they buy (and the desperate ones still grab). People you’ve met before have money on them again after a while.',
+      'Word that you’re holding brings buyers over instead of scaring them off. Nobody buys from someone in a ski mask or with a knife out, and few do in broad daylight.',
+      'The Hotel Marlow’s lobby isn’t your room: only a rented room lets you smoke, drink, use, bag up, mask up or burn things. You sleep there when you’re tired, not on demand.',
+      'Reloading at the alley or in your room doesn’t keep a stash or room safe: it’s checked as if you’d walked in. Paying rent after they’ve cleared the room tells you so. Break-ins can take what’s under the board, not just cash.',
+      'Hurt a regular and they’re not your customer any more. A sale doesn’t re-report an old fight. Booking takes the zip bags too. People who bought from you no longer push the people you’ve hurt out of the game’s memory.',
+    ],
+  },
+  {
     v: '1.10',
     date: 'Nov 5',
     items: [

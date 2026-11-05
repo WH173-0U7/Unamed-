@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.04',
+    date: 'Nov 5',
+    items: [
+      'Refusing to be mugged and swinging at you, or swinging a crutch when cornered, they don’t give up in the same breath. Neither do they right after flatly refusing to give it up.',
+      'A needle dose landing later fits what they’re doing: running, given up, or already on the ground. A hard knock to the head no longer pulls someone back from dying.',
+      'Someone with a broken leg who you let go limps off or stays put; they don’t run. Nobody steps aside or stands over you while lying on the ground.',
+      'A polished trip is a sweep until it lands. A wall slam on someone facing you isn’t “before they know you’re there”. Both on the floor, nobody “swings down” at you.',
+      'With both legs broken, Get up is greyed out, and crawling away doesn’t have you standing.',
+    ],
+  },
+  {
     v: '1.03',
     date: 'Nov 5',
     items: [

@@ -197,7 +197,7 @@ export const TECH_TEXT: Record<string, [string[], string[]]> = {
   ],
   'tech:sweep': [
     ['You fumble a foot behind their ankle and push.', 'You hook at their ankle and shove, hoping.'],
-    ['You catch their weight on the wrong foot and sweep it out.', 'A hook behind the ankle, a hand on the chest, and their feet are gone.'],
+    ['You catch their weight on the wrong foot and sweep at it.', 'A hook behind the ankle, a hand on the chest, and you sweep.'],
   ],
   'ground:kneedrop': [
     ['You drop onto their chest, knee first, and almost miss.', 'You fall onto them, knee first.'],

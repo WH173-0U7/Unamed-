@@ -200,9 +200,16 @@ const VICTIM: Partial<Record<Moment, string[]>> = {
 /** Candidate lines for a moment (empty: nothing to say). */
 /** What they say or do, without lines for standing up when they're on the ground. */
 export function voice(e: Encounter, m: Moment): string[] {
-  const xs = voiceAll(e, m);
+  let xs = voiceAll(e, m);
+  const legs = e.them.broken.filter((p) => p.endsWith('leg')).length;
+  // (A broken leg: nobody runs off on it.)
+  if (m === 'letGo' && legs) {
+    const ys = xs.filter((x) => !/\b(run|runs|ran|scramble|weave|weaves|stumble|stumbles|shuffle|shuffles|walk|walks|bolt|back(s)? away)\b/i.test(x));
+    return ys.length ? ys : [legs >= 2 ? 'They stay where they are, on the ground, and watch you go.' : 'They limp away as fast as the leg will let them, looking back the whole way.'];
+  }
   if (!e.them.down) return xs;
-  const ys = xs.filter((x) => !/on their feet|back(s)? away|walk(s)? (off|away)|step(s)? back/i.test(x));
+  xs = xs.filter(Boolean);
+  const ys = xs.filter((x) => !/on their feet|back(s)? away|walk(s)? (off|away)|step(s)? (back|aside)|stand(s)? over|look(s)? down at you/i.test(x));
   if (ys.length) return ys;
   // (Let go from the ground: they get up first.)
   return m === 'letGo' ? ['They scramble to their feet and run, and don\'t look back.'] : xs;
@@ -217,7 +224,7 @@ function voiceAll(e: Encounter, m: Moment): string[] {
   const noBlood = (xs: string[]) => {
     const ys = e.them.bleeding > 0 ? xs : xs.filter((x) => !/blood/i.test(x));
     // (On the ground, nobody sways on their feet or backs away.)
-    const zs = e.them.down ? ys.filter((x) => !/on their feet|back(s)? away|walk(s)? (off|away)|step back/i.test(x)) : ys;
+    const zs = e.them.down ? ys.filter((x) => !/on their feet|back(s)? away|walk(s)? (off|away)|step (back|aside)|stand(s)? over|look(s)? down at you/i.test(x)) : ys;
     return zs.length ? zs : ys;
   };
   if (g === 'hothead' || g === 'proud' || g === 'hard') {

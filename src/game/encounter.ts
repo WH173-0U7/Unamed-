@@ -735,7 +735,7 @@ function rawOptions(e: Encounter): Option[] {
           { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : 'From the floor', disabled: tired(COST.kick), cat: 'attack' },
           ...weaponOptions(e, 'attack', tired).filter((o) => !(e.them.out && /spray/i.test(o.label))),
           ...(e.them.down ? [] : learned(e, FLOOR.map((t) => ({ id: t.id, label: t.name, hint: tired(t.cost) ? 'Too tired' : t.hint, level: t.level, disabled: tired(t.cost) })), 'attack')),
-          { id: 'getup', label: 'Get up', hint: legHint ?? (y.dazed ? 'Dazed' : undefined), cat: 'move' },
+          { id: 'getup', label: 'Get up', hint: legHint ?? (y.dazed ? 'Dazed' : undefined), disabled: legs(y) >= 2, cat: 'move' },
           out ? { id: 'walk', label: 'Crawl away', hint: "They're unconscious", cat: 'move' } : breathe,
           // (They've given up, and you're down here: you can still let them go.)
           ...(e.them.yielded && !out ? [{ id: 'let-go', label: 'Let them go', cat: 'move' as Category }] : []),
@@ -808,6 +808,8 @@ let impacts: Impact[] = [];
 let outBefore = false;
 /** Who the last blow landed on, for the next line said (see LogLine.hit). */
 let landed: Side | null = null;
+/** They refused to give it up this very move (they don't then cave on the same turn). */
+let refusedNow = false;
 /** Where this move's lines start in the log. */
 let actLogStart = 0;
 const say = (by: LogLine['by'], text: string) => {
@@ -820,6 +822,7 @@ const say = (by: LogLine['by'], text: string) => {
 export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory, moves?: Record<string, number>): Impact[] {
   practice = moves ?? {};
   actLogStart = e.log.length;
+  refusedNow = false;
   invNow = inv;
   e.you.awake ??= 100;
   e.them.awake ??= e.them.out ? -25 : 100;
@@ -1101,7 +1104,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         }
       } else if (id === 'slam') {
         const dmg = Math.round(roll(15, 23) * str);
-        say('you', `${amb('slam')} ${wound('them', 'head', dmg, 'punch')}`);
+        say('you', `${e.suspicion >= 75 ? vary(['You grab them by the collar and drive their face into the wall.', 'They see you coming, but you get a hand on their neck and slam their face into the wall.']) : amb('slam')} ${wound('them', 'head', dmg, 'punch')}`);
         if (!e.them.out && !e.them.dazed) {
           e.them.dazed = 2;
           say('them', "They're dazed.");
@@ -1349,11 +1352,11 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         if (Math.random() < getUpChance(y)) {
           y.down = false;
           say('you', 'You get back on your feet.');
-        } else say('you', legs(y) ? 'You try to stand, but your leg gives way.' : 'You try to get up, and fall back down.');
+        } else say('you', legs(y) >= 2 ? 'You try to stand. Neither leg will take your weight.' : legs(y) ? 'You try to stand, but your leg gives way.' : 'You try to get up, and fall back down.');
         break;
       case 'walk': {
         if (!e.them.out) break;
-        say('you', y.down ? 'You crawl away, and drag yourself up further off, leaving them where they lie.' : 'You leave them lying there and walk off into the dark.');
+        say('you', y.down ? (legs(y) >= 2 ? 'You drag yourself away along the sidewalk on your elbows, leaving them where they lie.' : 'You crawl away, and drag yourself up further off, leaving them where they lie.') : 'You leave them lying there and walk off into the dark.');
         end('walked');
         return impacts;
       }
@@ -1456,7 +1459,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
     } else if (a === 'you' && D.down && kind === 'punch') {
       say(a, oneOf(['They twist away on the ground, and you miss.', 'They roll, and your fist hits the sidewalk.']));
     } else if (d === 'you' && D.down && kind !== 'stomp') {
-      say(a, oneOf([`${N.S} swing down at you and miss.`, 'You roll, and it misses.']));
+      say(a, A.down ? oneOf([`${N.S} lash out at you across the sidewalk and miss.`, 'You roll, and it misses.']) : oneOf([`${N.S} swing down at you and miss.`, 'You roll, and it misses.']));
     } else if (a === 'you' && t !== 1 && kind !== 'kick') {
       const ms = missText(t, tech ? 'tech' : kind);
       say(a, vary(D.down ? ms.filter((x) => !/step back|slip (it|the punch)|read it/.test(x)).concat(['You miss.']) : ms));
@@ -1472,7 +1475,7 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
         say(a, `${N.S} slip and fall. ${N.re} on the floor.`);
       }
     } else if (d === 'you') {
-      say(a, oneOf(['They swing and miss.', 'You duck their swing.', 'They lunge. You step aside.']));
+      say(a, A.down ? oneOf(['They swing up at you from the ground and miss.', 'They grab at your legs and miss.']) : oneOf(['They swing and miss.', 'You duck their swing.', 'They lunge. You step aside.']));
     } else if (kind === 'weapon') {
       say(a, oneOf(['You swing and miss.', 'They jerk back out of reach.', 'It catches nothing but air.']));
     } else {
@@ -1687,7 +1690,7 @@ function shoot(it: { name: string; doses?: number }) {
     T.bleeding = 4;
     T.out = true;
     T.down = true;
-    T.awake = -80;
+    T.awake = Math.min(T.awake, -80);
     ml = Math.round(T.maxBlood * 0.12);
     text += wasDownShot ? ' It glances off their skull, and the blood comes fast.' : ' It glances off their skull. They drop, out cold, and the blood comes fast.';
   } else if (loc === 'body' || loc === 'stomach') {
@@ -1869,18 +1872,22 @@ function doseThemNow(drug: Exclude<import('./person').Drug, 'empty'>) {
   if (drug === 'meth') {
     T.stamina = Math.min(T.maxStamina, T.stamina + 30);
     scare(-15);
-    say('them', 'Their eyes go wide and wild. They come at you harder.');
+    say('them', enc.chase ? 'Ahead of you they find a burst of speed from somewhere, wild and jerky.' : T.yielded ? 'Their eyes go wide and wild. Their hands won\'t stay still.' : T.down ? 'Their eyes go wide and wild, and they thrash on the ground.' : 'Their eyes go wide and wild. They come at you harder.');
     return;
   }
   if (Math.random() < (drug === 'heroin' ? 0.25 : drug === 'fentanyl' ? 0.55 : 0.6)) {
+    const wasDown = T.down;
     T.out = true;
     T.down = true;
     T.awake = -70; // drugged under: they won't come to soon
-    say('them', drug === 'tranq' ? 'Their legs fold and they slump to the sidewalk, out.' : "Their eyes roll up. They sag to the sidewalk, breathing slow and shallow. They're out.");
+    if (enc.chase) {
+      // (checkEnd says how they fold, ahead of you.)
+    } else if (wasDown) say('them', "Their eyes roll up and their head drops back against the sidewalk. They're out.");
+    else say('them', drug === 'tranq' ? 'Their legs fold and they slump to the sidewalk, out.' : "Their eyes roll up. They sag to the sidewalk, breathing slow and shallow. They're out.");
   } else {
     T.dazed = 3;
     T.stamina = Math.max(0, T.stamina - 30);
-    say('them', 'They sway, heavy-lidded, slow. They can barely lift their hands.');
+    say('them', enc.chase ? 'Ahead of you they slow, weaving, like they\'re running through water.' : 'They sway, heavy-lidded, slow. They can barely lift their hands.');
   }
 }
 
@@ -2279,7 +2286,7 @@ function theirTurn(started = false) {
   const fear = T.fear ?? 0;
   const P = personalityOf(p);
   const breaking = fear + P.yield * 100;
-  if (!started && breaking >= 75 && Math.random() < 0.25 + (breaking - 75) / 60) {
+  if (!started && !refusedNow && breaking >= 75 && Math.random() < 0.25 + (breaking - 75) / 60) {
     T.yielded = true;
     say('them', speak(T.down ? 'giveUpDown' : 'giveUp'));
     you.gain('intimidation', 5);
@@ -2521,7 +2528,7 @@ function spotted() {
     say('them', 'They see you and try to hobble away on their crutches. They get nowhere. They turn, cornered, and swing a crutch at you.');
     enc.stage = 'combat';
     say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
-    theirTurn();
+    theirTurn(true);
     endOfRound();
   } else {
     enc.facedYou = true;
@@ -2775,7 +2782,7 @@ function mug() {
   }
   say('them', speak('refuseMug'));
   say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
-  theirTurn();
+  theirTurn(true);
   endOfRound();
 }
 
@@ -2849,6 +2856,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     } else {
       say('you', '"Give it up," you tell them.');
       say('them', speak('refuse'));
+      refusedNow = true;
       you.gain('intimidation', 3);
     }
     return true;

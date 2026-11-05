@@ -1,7 +1,7 @@
 import { AMBUSH_TEXT, TECH_TEXT, kickText, missText, punchText, stompText, tierOf, tierUpLine, weaponText, type Tier } from './practice';
 import { AWARENESS, BUILDS, NAMES, personalityOf, type Item, type Loot, type Person } from './person';
 import { money } from './money';
-import { isBrute, voice, type Moment } from './voices';
+import { indoors, isBrute, voice, type Moment } from './voices';
 import { caffeineEdge } from './health';
 import { partOfDay } from './clock';
 import { knifeOf, type Knife } from './knives';
@@ -837,13 +837,7 @@ let landed: Side | null = null;
 let refusedNow = false;
 /** Where this move's lines start in the log. */
 let actLogStart = 0;
-/** A line from a fight on the street, as it reads in someone's house. */
-export const indoors = (text: string) =>
-  text
-    .replace(/\bthe sidewalk\b/g, 'the floor')
-    .replace(/\bThe sidewalk\b/g, 'The floor')
-    .replace(/\bwalk off into the dark\b/g, 'walk out')
-    .replace(/\boff into the dark\b/g, 'out of the room');
+export { indoors };
 const say = (by: LogLine['by'], text: string) => {
   text = text.replace(/ {2,}/g, ' ').trim();
   if (enc.resident) text = indoors(text);
@@ -902,7 +896,12 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
   if (id === 'ambushed' && e.stage === 'seen') {
     e.stage = 'combat';
     e.facedYou = true;
-    say('them', e.resident
+    // In their own home on two broken legs: they can't come at anyone.
+    const crippled = !!e.resident && legs(e.them) >= 2;
+    if (crippled) e.them.down = true;
+    say('them', crippled
+      ? `The ${who} can't get up: both legs still in casts. They're on the floor by the bed, throwing whatever's in reach at you and screaming for help.`
+      : e.resident
       ? e.resident.phoned
         ? oneOf([`You go at them. The phone goes skidding across the floor, and the ${who} grabs for whatever's nearest.`, `"Get out of my house!" The ${who} drops the phone and comes at you.`])
         : oneOf([`You go at them before they can get to a phone. The ${who} ${e.resident.how === 'awake' ? 'backs up the hall' : 'backs away'}, yelling, and grabs for whatever's nearest.`, `"Get out of my house!" The ${who} comes at you${e.resident.how === 'woke' ? ', barefoot and furious' : ', furious'}.`])
@@ -1418,7 +1417,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         break;
       case 'walk': {
         if (!e.them.out) break;
-        say('you', y.down ? (legs(y) >= 2 ? 'You drag yourself away along the sidewalk on your elbows, leaving them where they lie.' : 'You crawl away, and drag yourself up further off, leaving them where they lie.') : 'You leave them lying there and walk off into the dark.');
+        say('you', e.resident ? (y.down ? 'You drag yourself away from them across the floor, and haul yourself up by the doorframe.' : 'You leave them lying there, and go back to the rest of the house.') : y.down ? (legs(y) >= 2 ? 'You drag yourself away along the sidewalk on your elbows, leaving them where they lie.' : 'You crawl away, and drag yourself up further off, leaving them where they lie.') : 'You leave them lying there and walk off into the dark.');
         end('walked');
         return impacts;
       }
@@ -2642,7 +2641,7 @@ export const GROUND: Technique[] = [
 /** When you're the one on the floor (and they're standing). */
 export const FLOOR: Technique[] = [
   { id: 'floor:legs', name: 'Kick their legs', hint: 'Bring them down too', level: 18, kind: 'kick', aim: 'leg', hit: 0, dmg: 0.5, cost: 12, effect: 'sweep', text: 'From the floor, you kick hard at their ankles.' },
-  { id: 'floor:pull', name: 'Drag them down', hint: 'Down here with you', level: 36, kind: 'punch', aim: 'body', hit: 0.05, dmg: 0.3, cost: 12, effect: 'sweep', text: 'You grab at their legs and pull.' },
+  { id: 'floor:pull', name: 'Drag them down', hint: 'Down here with you', level: 36, kind: 'punch', aim: 'leg', hit: 0.05, dmg: 0.3, cost: 12, effect: 'sweep', text: 'You grab at their legs and pull.' },
 ];
 /** Every learned move, wherever it's used. */
 const ALL_MOVES = () => [...TECHNIQUES, ...GROUND, ...FLOOR];
@@ -2685,7 +2684,7 @@ function techEffect(t: Technique) {
         T.down = true;
         say('them', "They go down hard. They're on the floor.");
         scare(5);
-      }
+      } else if (!T.down) say('them', oneOf(['They stagger, and keep their feet.', 'They lurch, catch themselves, and stay up.']));
       break;
     case 'ko':
       if (!T.out && Math.random() < 0.16 + (1 - T.blood / T.maxBlood) * 0.4) {

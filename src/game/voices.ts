@@ -1,6 +1,22 @@
 import type { Encounter } from './encounter';
 import type { Kind, Personality } from './person';
 
+/** A line from a fight on the street, as it reads in someone's house. */
+export const indoors = (text: string) =>
+  text
+    .replace(/\bthe sidewalk\b/g, 'the floor')
+    .replace(/\bThe sidewalk\b/g, 'The floor')
+    .replace(/\bwalk off into the dark\b/g, 'walk out')
+    .replace(/\boff into the dark\b/g, 'out of the room')
+    .replace(/\bthe street swims\b/g, 'the room swims')
+    .replace(/\bThe street tips\b/g, 'The room tips')
+    .replace(/\bcut through a parking lot\b/g, 'go out the back')
+    .replace(/\bin the gutter\b/g, 'on their floor')
+    .replace(/\bthe end of the street\b/g, 'the door')
+    .replace(/\binto an alley\b/g, 'out the door')
+    .replace(/\bdown a side street\b/g, 'out the back');
+
+
 /**
  * What people say and do, in their own voice. The scared (timid, jumpy,
  * calm) are people with lives: rent, kids, a job in the morning, the little
@@ -202,6 +218,11 @@ const VICTIM: Partial<Record<Moment, string[]>> = {
 /** What they say or do, without lines for standing up when they're on the ground. */
 export function voice(e: Encounter, m: Moment): string[] {
   let xs = voiceAll(e, m);
+  // In their own home: no offers to go home for more money, no streets to look down.
+  if (e.resident) {
+    const ys = xs.filter((x) => !/money at home|Pleasure doing business/i.test(x)).map(indoors);
+    xs = ys.length ? ys : xs.map(indoors);
+  }
   const legs = e.them.broken.filter((p) => p.endsWith('leg')).length;
   // (A broken leg: nobody runs off on it.)
   const moves = /\b(run|runs|ran|scramble|scrambles|weave|weaves|stumble|stumbles|shuffle|shuffles|walk|walks|bolt|gone|vanish|back(s)? away)\b/i;

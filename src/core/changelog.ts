@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.21',
+    date: 'Nov 5',
+    items: [
+      'Walking off while someone in the house is staring at you counts as running: they saw your face.',
+      'A car can only be had once, whichever set of keys you use. Kill someone’s roommate and they don’t come back; kill the owner and the locks still get changed if anyone else lives there.',
+      'A new life can learn the addresses an old one knew, all over again.',
+      'Fights in someone’s home read like it: no streets or gutters, no “money at home”, no walking off into the dark. Someone woken up is barefoot and without a coat; someone on two broken legs can’t get up to fight; the phone they were calling on isn’t in their pocket.',
+      'Dragging someone down who keeps their feet says so, instead of describing a body blow.',
+    ],
+  },
+  {
     v: '1.20',
     date: 'Nov 5',
     items: [

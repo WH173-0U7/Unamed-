@@ -611,8 +611,14 @@ export class Game {
         const h = this.homeById(old.person.home.id);
         if (h && !h.deadAt) {
           h.deadAt = now();
-          if (h.lockAt == null || h.lockAt > now()) h.lockAt = NEVER;
+          // (Nobody left to change the locks: unless someone else lives there, or it's already arranged.)
+          if (h.lockAt == null && h.household === 'alone') h.lockAt = NEVER;
         }
+      }
+      // Someone else who lived there, dead: one fewer in the house.
+      if (old.them.dead && old.resident && !old.resident.owner) {
+        const h = this.atHome;
+        if (h) h.household = 'alone';
       }
       if (old.enforcer && old.result !== 'lost' && this.debt) this.debt.strikes = (this.debt.strikes ?? 0) + 1;
       // (Remembered first: the thief record then knows who they are, and the two stay one person.)
@@ -823,7 +829,7 @@ export class Game {
         const what = (e.tortured ?? 0) > 0 ? 'torture' : e.mugged || (e.robbed && e.result === 'mugged') ? 'mug' : beat ? 'beat' : null;
         if (what) {
           const g = guilt(e, what, this.humanity.lost);
-          after.push(...g.lines);
+          after.push(...(e.resident ? g.lines.map(indoors) : g.lines));
           const h = this.health;
           h.stress = Math.max(0, Math.min(100, (h.stress ?? 0) + g.stress));
         }
@@ -916,7 +922,7 @@ export class Game {
       ];
       if (dz && !dz.owed) delete this.save.state.debt;
     } else if (beaten?.resident && this.place === 'home') {
-      lines = [...lines.map(indoors).filter((l) => !/^You come to\b/.test(l)), 'You come to face down on their floor, a knee in your back and your wrists cuffed behind you. Blue light through the blinds.'];
+      lines = [...lines.map(indoors).filter((l) => !/^(You come to|Someone finds you)\b/.test(l)), 'You come to face down on their floor, a knee in your back and your wrists cuffed behind you. Blue light through the blinds.'];
       this.save.state.policeWhy = ['They held you down until the police came. You couldn’t have got up if you’d tried.'];
       this.save.state.policeStop = 'burglary';
       this.save.state.policeCuffed = true;
@@ -1109,7 +1115,7 @@ export class Game {
     this.noteEl.hidden = true;
     // A new you: nothing carried over but the world.
     // (Your name, your ID and your bank account were that character's.)
-    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job']) delete this.save.state[k];
+    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned']) delete this.save.state[k];
     // Nobody knows this face. The people the old you hurt are still out there
     // (and your things on some of them), but they'd be looking for someone else.
     this.world.infamy = newInfamy();
@@ -2128,11 +2134,17 @@ export class Game {
     if (!it || it.kind !== 'car keys' || it.car || this.place !== 'street' || !this.canLurk) return;
     const make = (it.detail ?? 'car').replace(/ key fob$/i, '');
     const hours = (now() - (it.takenAt ?? 0)) / 3_600_000;
-    if (hours > 3) {
+    // A car you've already had (off the hook in their kitchen): it isn't there to find twice.
+    const home = this.homeById(it.carOf);
+    if (home && home.car === null) {
+      it.car = 'gone';
+      this.note([`You walk the block pressing the fob. Nothing. That ${make} is long gone.`]);
+    } else if (hours > 3) {
       it.car = 'gone';
       this.note([`You walk the block pressing the fob. Nothing. By now the ${make} has been reported, towed, or driven home on the spare key.`]);
     } else if (Math.random() < 0.7) {
       it.car = 'found';
+      if (home) home.car = null;
       this.note([`Somewhere down the block a ${make} chirps and flashes its lights. There it is.`, 'You can go through it or sleep in it. The fence knows someone who buys cars.']);
     } else {
       it.car = 'gone';
@@ -3272,9 +3284,10 @@ export class Game {
       if (x.opens) {
         const h = this.homeById(x.opens);
         // Their keys went with you: give them a day or two, and they'll have the locks changed.
-        if (h && h.lockAt == null) h.lockAt = h.deadAt ? NEVER : now() + (10 + Math.random() * 38) * 3_600_000;
+        if (h && h.lockAt == null) h.lockAt = h.deadAt && h.household === 'alone' ? NEVER : now() + (10 + Math.random() * 38) * 3_600_000;
       }
-      if (x.kind === 'car keys' && x.carOf) {
+      // (The spare off the hook: you've got that car now.)
+      if (x.kind === 'car keys' && x.carOf && x.car === 'found') {
         const h = this.homeById(x.carOf);
         if (h) h.car = null;
       }
@@ -3700,6 +3713,13 @@ export class Game {
       person.clothes = person.clothes.filter((g) => g.name !== 'Grocery bag' && g.name !== 'Backpack');
       person.carrying = person.carrying.filter((x) => x.name !== 'Grocery bag' && x.name !== 'Backpack');
     }
+    // Out of bed: barefoot, no coat (the wallet's on the dresser, not on them).
+    if (c.how === 'woke') {
+      person.clothes = person.clothes.filter((g) => !/shoe|boot|sneaker|loafer|slide/i.test(g.name));
+      if (person.clothes[0] && /coat|jacket|blazer|windbreaker|puffer|parka|hoodie|flannel/i.test(person.clothes[0].name)) person.clothes[0] = { name: 'T-shirt', loot: [], searched: false };
+    }
+    // The phone they were calling on went across the floor.
+    if (j.phoned) for (const g of person.clothes) g.loot = g.loot.filter((l) => l.kind !== 'phone');
     const inv = this.inventory;
     const e = newEncounter(person, this.yourBody());
     e.conspicuous = conspicuous(inv);
@@ -3781,6 +3801,11 @@ export class Game {
     }
     const e = this.encounter;
     if (e?.resident && e.them.dead) j.killed = true;
+    // Walked off in the middle of being seen: that's running, and they saw you.
+    if (j.confront) {
+      j.seen = anonymity(this.inventory) < 0.6;
+      j.called = true;
+    }
     if (j.in || j.took) {
       h.hits = (h.hits ?? 0) + 1;
       h.hitAt = now();

@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.15',
+    date: 'Nov 5',
+    items: [
+      'Someone who comes over to buy from you is face to face: no kicking their knee or choking them “from behind”, and they’re hard to take by surprise.',
+      'They came to buy, so they mostly do. If they change their mind, they leave rather than “keep going”. Only people who know you deal come over asking.',
+      'Nobody buys from someone with anything in their hand (a bat or a gun, not only a blade). Nobody on two broken legs grabs the bag and runs.',
+    ],
+  },
+  {
     v: '1.14',
     date: 'Nov 5',
     items: [

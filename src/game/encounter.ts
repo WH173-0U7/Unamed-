@@ -242,6 +242,10 @@ export interface Encounter {
   regular?: boolean;
   /** Sent by Dez, for the money you owe him. */
   enforcer?: boolean;
+  /** You've sold before (word of it is what brings people over). */
+  dealer?: boolean;
+  /** They came over to you to buy: face to face, and they want it. */
+  cameOver?: boolean;
   /** You sold to them (they remember you as their dealer). */
   customer?: boolean;
   /** How a deal went, for the game to settle (the bag, the money, a cop): see game.settleDeal. */
@@ -916,14 +920,19 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           say('info', oneOf(['The fight is on.', 'No going back now.', 'Here it comes.']));
           theirTurn(true);
           endOfRound();
-        } else if (e.byRep && (e.grudge ?? 0) < 30 && e.person.kind !== 'civilian' && Math.random() < 0.6) {
+        } else if (e.byRep && e.dealer && (e.grudge ?? 0) < 30 && e.person.kind !== 'civilian' && Math.random() < 0.6) {
           // Heard about you: not as someone to run from.
           say('them', oneOf([`The ${who} looks at you a second too long, then drifts over. "You're the one, right? You holding?"`, `The ${who} has heard about you. They come over, hands in pockets.`]));
           e.distance = 2;
+          // (Face to face: there's no getting behind them now.)
+          e.suspicion = 75;
+          e.cameOver = true;
         } else if (e.regular && (e.grudge ?? 0) < 30) {
           // Someone you've sold to: they know what you are, and that's why they come over.
           say('them', oneOf([`The ${who} sees you and nods, and drifts over. "Hey. You around?"`, `The ${who} catches your eye, glances up and down the street, and comes over.`]));
           e.distance = 2;
+          e.suspicion = 75;
+          e.cameOver = true;
         } else if (lame) {
           say('them', `The ${who} sees you and goes rigid. They know you. On crutches, they can't run; they back up against the wall.`);
           e.suspicion = 100;
@@ -1110,6 +1119,8 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
     const b = BUILDS[p.build];
     const lvl = stats.unarmed?.level ?? 1;
     if ((id === 'kneecap' && lvl < KNEE_AMBUSH_LEVEL) || (id === 'slam' && lvl < SLAM_AMBUSH_LEVEL) || (id === 'rear-choke' && (lvl < CHOKE_AMBUSH_LEVEL || e.distance < 2))) return impacts;
+    // (Facing you, or watching for you: there's no getting behind them.)
+    if ((id === 'kneecap' || id === 'rear-choke') && e.suspicion >= 75) return impacts;
     // Lands more often the sneakier you are, the less aware they are, and the
     // closer you got first. Bum rush and shove are easier to land than a punch.
     const extra = id === 'shove' ? 0.12 : id === 'bumrush' ? 0.06 : id === 'kneecap' ? 0.04 : id === 'slam' ? -0.02 : id === 'rear-choke' ? -0.08 : 0;
@@ -2740,10 +2751,11 @@ function sellTo(e: Encounter) {
     end('sold');
     return;
   }
-  const scary = (e.conspicuous ? 0.2 : 0) + (heldBlade(e) ? 0.3 : 0) + (hr >= 8 && hr < 18 ? 0.08 : 0);
-  const want = clamp(-scary + ({ junkie: 0.75, drunk: night ? 0.45 : 0.25, homeless: 0.3, civilian: night ? 0.16 : 0.06 } as Record<string, number>)[p.kind] + (e.regular ? 0.3 : 0) - e.suspicion / 250 + ((e.speechLevel ?? 1) - 1) * 0.002, 0.02, 0.95);
+  // (Anything in your hand, a blade, a bat, a gun: nobody buys from that.)
+  const scary = (e.conspicuous ? 0.2 : 0) + ((e.weapons ?? []).some((w) => w.hand) ? 0.3 : 0) + (hr >= 8 && hr < 18 ? 0.08 : 0);
+  const want = clamp(-scary + ({ junkie: 0.75, drunk: night ? 0.45 : 0.25, homeless: 0.3, civilian: night ? 0.16 : 0.06 } as Record<string, number>)[p.kind] + (e.cameOver ? 0.55 : e.regular ? 0.3 : 0) - (e.cameOver ? 0 : e.suspicion / 250) + ((e.speechLevel ?? 1) - 1) * 0.002, 0.02, 0.95);
   if (Math.random() >= want) {
-    say('them', p.kind === 'civilian' ? oneOf(['"What? No. Get away from me."', 'They look at you like you\'re something on their shoe and walk faster.', '"I\'m good." They don\'t look at you again.']) : oneOf(['"Nah. Not tonight."', '"I\'m good, man."', 'They shake their head and keep going.']));
+    say('them', e.cameOver ? oneOf(['"Nah. Changed my mind." They step back, and they\'re gone.', 'They look at the bag, then up the street. "Not here. Not now."']) : p.kind === 'civilian' ? oneOf(['"What? No. Get away from me."', 'They look at you like you\'re something on their shoe and walk faster.', '"I\'m good." They don\'t look at you again.']) : oneOf(['"Nah. Not tonight."', '"I\'m good, man."', 'They shake their head and keep going.']));
     // Some people call it in.
     e.deal = { kind: 'no', price: 0, reported: p.kind === 'civilian' && Math.random() < 0.2 };
     end('left');
@@ -2754,7 +2766,7 @@ function sellTo(e: Encounter) {
   const price = Math.round(rate) * 100;
   if (cents < price) {
     // Not enough: desperate ones grab it; some pay what they have.
-    if ((p.kind === 'junkie' || p.kind === 'homeless') && Math.random() < 0.3) {
+    if ((p.kind === 'junkie' || p.kind === 'homeless') && legs(e.them) === 0 && Math.random() < 0.3) {
       say('them', oneOf(['They look at the bag. They look at you. Then they snatch it out of your hand and run.', '"Lemme see it." The second it\'s in their hand they\'re gone.']));
       e.deal = { kind: 'snatched', price: 0 };
       bolt('lost-them', 1.2);

@@ -3730,6 +3730,7 @@ export class Game {
     e.product = coke.filter((x) => x.doses === 1).length;
     e.bulk = coke.filter((x) => (x.doses ?? 0) > 1).reduce((n, x) => n + (x.doses ?? 0), 0);
     e.heat = this.infamy.heat;
+    e.dealer = ((this.save.state.sales as number) ?? 0) > 0;
     // Face to face and awake, they see you as you are now (the least covered you've been is what sticks).
     if (e.facedYou && e.stage !== 'seen' && !e.them.out && !e.them.dead && !e.chase) {
       const anon = anonymity(inv);

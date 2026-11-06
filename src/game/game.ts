@@ -2414,30 +2414,30 @@ export class Game {
       }
       return this.carNote(c, lines, 0.03);
     }
-    const m = /^part:(\w+)$/.exec(what);
-    const part = m?.[1] as CarPart | undefined;
-    if (!part || !CAR_PARTS.includes(part)) return;
     c.looked ??= {};
     c.left ??= {};
-    const fresh = c.looked[part] == null;
-    if (firstIn && part !== 'trunk') lines.push('The fob unlocks it with a clunk. You slide in and pull the door to.');
-    if (fresh) {
-      const { loot, empty } = partLoot(c, part);
-      c.left[part] = loot;
-      c.looked[part] = now();
-      if (!loot.length) {
-        lines.push(`${searchLine(part)} ${empty}`);
-        return this.carNote(c, lines, part === 'trunk' ? 0.08 : 0.04);
+    const tk = /^take:(\w+):(\d+|all)$/.exec(what);
+    if (tk) {
+      const p = tk[1] as CarPart;
+      const there = c.left[p];
+      if (!CAR_PARTS.includes(p) || !there?.length) return;
+      const picks = tk[2] === 'all' ? [...there] : there[Number(tk[2])] ? [there[Number(tk[2])]] : [];
+      if (!picks.length) return;
+      for (const l of picks) {
+        const r = take(this.inventory, l);
+        lines.push(r.text);
+        if (r.ok) there.splice(there.indexOf(l), 1);
       }
-      lines.push(searchLine(part));
-    } else lines.push(`You go back for what you left in ${lc(PART_NAME[part])}.`);
-    const keep: Loot[] = [];
-    for (const l of c.left[part] ?? []) {
-      const r = take(this.inventory, l);
-      lines.push(r.text);
-      if (!r.ok) keep.push(l);
+      return this.carNote(c, lines, 0.02);
     }
-    c.left[part] = keep;
+    const m = /^part:(\w+)$/.exec(what);
+    const part = m?.[1] as CarPart | undefined;
+    if (!part || !CAR_PARTS.includes(part) || c.looked[part] != null) return;
+    if (firstIn && part !== 'trunk') lines.push('The fob unlocks it with a clunk. You slide in and pull the door to.');
+    const { loot, empty } = partLoot(c, part);
+    c.left[part] = loot;
+    c.looked[part] = now();
+    lines.push(loot.length ? `${searchLine(part)} You turn up ${list2(loot.map(lootA))}.` : `${searchLine(part)} ${empty}`);
     this.carNote(c, lines, part === 'trunk' ? 0.08 : 0.04);
   }
   /** After each thing you do at the car: who saw. */
@@ -2480,6 +2480,20 @@ export class Game {
     else for (const x of this.inventory.items) if (mine(x)) x.car = 'gone';
   }
 
+  /** What you've turned up in a house or a car: pick it up a thing at a time, or all of it. */
+  private foundHtml(found: { l: Loot; at: string; where: string }[], attr: string, btn: (attr: string, v: string | number, label: string, no?: string | false | null) => string, li: (name: string, small: string, button: string) => string): string {
+    if (!found.length) return '';
+    const rows = found.map(({ l, at, where }) => {
+      const m = measure(l);
+      const what = l.kind === 'cash' ? money(Math.round((l.cash ?? 0) * 100)) : `${l.detail ? `${l.detail} · ` : ''}${m.size}, ${kgLabel(m.kg)}`;
+      return li(l.name, `${what} · ${where}`, btn(attr, `take:${at}`, 'Take'));
+    });
+    // (Everything from one place, in one go: quicker, and noisier.)
+    const places = [...new Set(found.map((f) => f.at.split(':')[0]))];
+    const all = places.filter((p) => found.filter((f) => f.at.startsWith(`${p}:`)).length > 1).map((p) => li(`All of it from ${lc(found.find((f) => f.at.startsWith(`${p}:`))!.where)}`, 'Quicker than one at a time. Noisier.', btn(attr, `take:${p}:all`, 'Take all')));
+    return `<p class="shop-sub">What you’ve turned up</p><ul class="shop-list">${rows.join('')}${all.join('')}</ul>`;
+  }
+
   /** The hunt: what you've heard, and what you can do. */
   private huntHtml(s: HuntState, btn: (attr: string, v: string | number, label: string, no?: string | false | null) => string, li: (name: string, small: string, button: string) => string): string {
     const key = this.keysFor(s.car)!;
@@ -2513,16 +2527,17 @@ export class Game {
     ];
     const rows = CAR_PARTS.map((p) => {
       const looked = c.looked?.[p] != null;
-      const left = c.left?.[p];
-      const what = !looked ? PART_DESC[p] : left?.length ? `Still there: ${left.map((l) => lc(l.name)).join(', ')}.` : 'You’ve been through it.';
-      return li(PART_NAME[p], what, btn('caract', `part:${p}`, !looked ? 'Go through it' : 'Take the rest', cops || (looked && !left?.length && 'Nothing left')));
+      const n = looked ? (c.left?.[p]?.length ?? 0) : 0;
+      return li(PART_NAME[p], !looked ? PART_DESC[p] : n ? `${n} thing${n > 1 ? 's' : ''} you could take, below.` : 'You’ve been through it.', btn('caract', `part:${p}`, 'Go through it', cops || (looked && 'Searched')));
     }).join('');
+    const found = cops ? [] : CAR_PARTS.flatMap((p) => (c.looked?.[p] != null ? (c.left?.[p] ?? []).map((l, i) => ({ l, at: `${p}:${i}`, where: PART_NAME[p] })) : []));
     return (
       `<ul class="home-cues">${cues.map((l) => `<li>${l}</li>`).join('')}</ul>` +
       `<ul class="shop-list">${rows}` +
       li('Sleep in it', 'The back seat, doors locked. Warm and dry, and the windows fog. Until it’s been reported.', btn('caract', 'sleep', 'Sleep', cops)) +
       li('Walk away', 'Leave it where it is. It’ll be here, for a while.', btn('caract', 'leave', 'Go')) +
       `</ul>` +
+      this.foundHtml(found, 'caract', btn, li) +
       (cops ? '' : this.stashHtml('trunk'))
     );
   }
@@ -3848,20 +3863,24 @@ export class Game {
     }
     if (j?.in) {
       const p = this.presence(h);
+      const looked = (r: RoomId) => h.looked?.[r] != null && now() - h.looked[r]! < 10 * 86_400_000;
       const rows = roomsOf(h)
         .map((r) => {
-          const left = h.left?.[r];
-          const looked = h.looked?.[r] != null && now() - h.looked[r]! < 10 * 86_400_000;
-          const what = !looked ? ROOM_DESC[r] : left?.length ? `Still there: ${left.map((l) => lc(l.name)).join(', ')}.` : 'You’ve been through it.';
-          return li(roomName(h, r), what, btn('homeact', `room:${r}`, !looked ? 'Go through it' : 'Take the rest', looked && !left?.length && 'Nothing left'));
+          const n = looked(r) ? (h.left?.[r]?.length ?? 0) : 0;
+          return li(roomName(h, r), !looked(r) ? ROOM_DESC[r] : n ? `${n} thing${n > 1 ? 's' : ''} you could take, below.` : 'You’ve been through it.', btn('homeact', `room:${r}`, 'Go through it', looked(r) && 'Searched'));
         })
         .join('');
+      // What you've turned up: yours to pick from, one thing at a time.
+      const found = roomsOf(h).flatMap((r) => (looked(r) ? (h.left?.[r] ?? []).map((l, i) => ({ l, at: `${r}:${i}`, where: roomName(h, r) })) : []));
       const state =
         (j.siren ? 'The alarm is screaming. ' : '') +
         (j.killed ? 'There’s a body in the hall. ' : '') +
         (p.any === 'asleep' ? 'Someone’s asleep in here. You can hear them breathing. ' : p.any === 'out' && !j.metOwner && !j.metOther && !j.siren ? 'Quiet. Nobody moving. ' : '') +
         (j.phoned ? 'They called the police. Not long now. ' : '');
-      return `<p class="home-state">You’re inside. ${state}Every room you go through takes time, and makes noise.</p><ul class="shop-list">${rows}${li('Get out', 'With what you’ve got.', btn('homeact', 'out', 'Leave'))}</ul>`;
+      return (
+        `<p class="home-state">You’re inside. ${state}Every room you go through, and everything you pick up, takes time and makes noise.</p><ul class="shop-list">${rows}${li('Get out', 'With what you’ve got.', btn('homeact', 'out', 'Leave'))}</ul>` +
+        this.foundHtml(found, 'homeact', btn, li)
+      );
     }
     const legs = health.broken.filter((p) => p.endsWith('leg')).length;
     const key = this.hasKeyTo(h);
@@ -4014,37 +4033,39 @@ export class Game {
       this.leaveHome(lines);
       return;
     }
+    h.left ??= {};
+    h.looked ??= {};
+    // Picking something up (or all of it): a moment's noise, in that room.
+    const tk = /^take:(\w+):(\d+|all)$/.exec(what);
+    if (tk) {
+      const room = tk[1] as RoomId;
+      const there = h.left[room];
+      if (!roomsOf(h).includes(room) || !there?.length || h.looked[room] == null) return;
+      const picks = tk[2] === 'all' ? [...there] : there[Number(tk[2])] ? [there[Number(tk[2])]] : [];
+      if (!picks.length) return;
+      for (const l of picks) {
+        const r = take(inv, l);
+        lines.push(r.text);
+        if (!r.ok) continue;
+        there.splice(there.indexOf(l), 1);
+        j.took = (j.took ?? 0) + 1;
+        if (l.kind === 'cash') j.cash = (j.cash ?? 0) + Math.round((l.cash ?? 0) * 100);
+      }
+      return this.homeNote(h, j, lines, picks.length > 1 ? 0.08 : 0.03, room);
+    }
     const m = /^room:(\w+)$/.exec(what);
     if (!m) return;
     const room = m[1] as RoomId;
     if (!roomsOf(h).includes(room)) return;
-    h.left ??= {};
-    h.looked ??= {};
     const fresh = h.looked[room] == null || now() - h.looked[room]! >= 10 * 86_400_000;
-    if (fresh) {
-      h.left[room] = roomLoot(h, room, this.carHere(h));
-      h.looked[room] = now();
-    }
+    if (!fresh) return;
+    h.left[room] = roomLoot(h, room, this.carHere(h));
+    h.looked[room] = now();
     // (A car you've already had: its spare isn't worth anything now.)
     if (h.car == null && h.left[room]?.some((l) => l.kind === 'car keys' && l.carOf)) h.left[room] = h.left[room]!.filter((l) => !(l.kind === 'car keys' && l.carOf));
     const there = h.left[room] ?? [];
-    if (!there.length) {
-      lines.push(fresh ? `${ROOM_SEARCH[room]} Nothing worth taking.` : 'There’s nothing left in there.');
-      return this.homeNote(h, j, lines, 0.08, room);
-    }
-    lines.push(fresh ? ROOM_SEARCH[room] : `You go back for what you left in ${lc(roomName(h, room))}.`);
-    const keep: Loot[] = [];
-    for (const l of there) {
-      const r = take(inv, l);
-      lines.push(r.text);
-      if (!r.ok) keep.push(l);
-      else {
-        j.took = (j.took ?? 0) + 1;
-        if (l.kind === 'cash') j.cash = (j.cash ?? 0) + Math.round((l.cash ?? 0) * 100);
-      }
-    }
-    h.left[room] = keep;
-    this.homeNote(h, j, lines, 0.15, room);
+    lines.push(there.length ? `${ROOM_SEARCH[room]} You turn up ${list2(there.map(lootA))}.` : `${ROOM_SEARCH[room]} Nothing worth taking.`);
+    this.homeNote(h, j, lines, 0.12, room);
   }
 
   /** A dog behind the door, if there is one. */
@@ -5720,6 +5741,15 @@ function withA(s: string): string {
   const n = lc(s);
   const first = n.split(',')[0].trim().split(' ').pop() ?? '';
   return /^gauze/.test(n) || (/s$/.test(first) && !/ss$/.test(first)) ? n : /^[aeiou]/.test(n) ? `an ${n}` : `a ${n}`;
+}
+/** Something turned up, said in a list: "a laptop", "car keys", "loose change", "a pack of cigarettes". */
+function lootA(l: { kind: string; name: string }): string {
+  const n = lc(l.name);
+  // ("pack of cigarettes" goes by "pack"; "games console" by "console".)
+  const w = n.split(' ');
+  const head = / of /.test(n) ? w[0] : w[w.length - 1].replace(/[^a-z]/g, '');
+  if (/^(cash|loose|change|folded)\b/.test(n) || /^(gauze)$/.test(n) || (/s$/.test(head) && !/ss$/.test(head))) return n;
+  return /^[aeiou]/.test(n) ? `an ${n}` : `a ${n}`;
 }
 /** "the knife and the bottle". */
 function list2(xs: string[]): string {

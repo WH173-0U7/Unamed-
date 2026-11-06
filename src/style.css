@@ -5772,3 +5772,18 @@ body:has(.lockup) #pause-btn {
     display: none;
   }
 }
+
+/* Toasts wrap rather than cut off. */
+#toast {
+  white-space: normal;
+  text-align: center;
+  border-radius: 16px;
+  width: max-content;
+}
+/* A short screen: the main menu scrolls rather than running off the bottom. */
+@media (max-height: 360px) {
+  #screen-main {
+    overflow-y: auto;
+    justify-content: safe center;
+  }
+}

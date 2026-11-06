@@ -11,6 +11,18 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.06',
+    date: 'Nov 6',
+    items: [
+      'Your body runs on the real clock now, like everyone else’s: bones knit, cuts close, blood comes back, a concussion clears, and bleeding drains you, hour by hour, whether the game is open, paused or closed. Lying down or locked up, it goes faster.',
+      'Rest still gives you its quick few hours of healing, but only once every four hours; after that, the rest is up to time. (Resting and getting up over and over no longer heals you for free.) Lurking no longer counts as an hour gone.',
+      'Jail no longer adds hours on top of the real time you spend inside.',
+      'A message waiting for you after a knockout shows under how you came to, instead of flashing past. A long message keeps its first lines when more come in.',
+      'With your arms broken, the takedowns that need your hands don’t hide the kicks they replaced. A greyed-out old move no longer comes back next to its greyed-out replacement.',
+      'Messages wrap instead of being cut off, the main menu scrolls on a very short screen, and Escape closes What’s new.',
+    ],
+  },
+  {
     v: '2.05',
     date: 'Nov 6',
     items: [

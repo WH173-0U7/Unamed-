@@ -444,8 +444,11 @@ const REPLACED_BY: [string, string][] = [
 function learned(e: Encounter, list: (Omit<Option, 'cat'> & { level: number; style?: Style })[], cat: Category): Option[] {
   const lvl = (t: { style?: Style }) => e.styleLevels?.[t.style ?? styleOfId(t as { id: string })] ?? e.unarmedLevel ?? 1;
   const known = list.filter((t) => t.level <= lvl(t)).map(({ level: _l, style: _s, ...o }) => ({ ...o, cat }));
-  const usable = new Set(known.filter((o) => !o.disabled).map((o) => o.id));
-  return known.filter((o) => !REPLACED_BY.some(([old, by]) => old === o.id && usable.has(by)));
+  // (With your arms broken, a takedown with your hands is no better than the kick it replaced.)
+  const handsGone = arms(e.you) >= 1;
+  const usable = new Set(known.filter((o) => !o.disabled && !(handsGone && (o.id === 'tech:double' || o.id === 'floor:pull'))).map((o) => o.id));
+  // (The old one comes back only when it can be used itself: no second dead button.)
+  return known.filter((o) => !REPLACED_BY.some(([old, by]) => old === o.id && (usable.has(by) || !usable.has(old))));
 }
 /** What style a move is (by its id: the basic moves, the ambushes, the learned ones). */
 export function styleOfId(o: { id: string }): Style {

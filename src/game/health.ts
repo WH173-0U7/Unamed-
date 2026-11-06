@@ -8,6 +8,10 @@ import { BLEEDING, DEATH, PASS_OUT, STRESS_NAMES, stressLevel, type Body, type M
  * and get up once it's over).
  */
 export interface Health {
+  /** When your body was last brought up to date on the real clock (it heals whether you're playing or not). */
+  healedAt?: number;
+  /** When a rest last did its quick healing (it does once every few hours: the rest takes time). */
+  restHealAt?: number;
   /** How worn down you are, 0 (fresh) .. 100 (spent): fights, lurking, walking. Wears off in real time. */
   fatigue?: number;
   /** When fatigue was last brought up to date (ms). */

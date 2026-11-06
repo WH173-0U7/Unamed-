@@ -8,7 +8,7 @@ import { toughnessResist } from './stats';
 import { STAT_NAMES, lieBonus, persuadeBonus, train, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
 import { MEND_HOURS, CONCUSSION_HOURS } from './health';
 import { addFatigue, fatigueLevel, fatigueNow, fatigueOdds, restLeft, FATIGUE_NAMES, FATIGUE_SPENT } from './health';
-import { clampClock, cravingLine, useHabit, withdrawalEffects, HIGH_HOURS, LURK_HOURS, addCaffeine, caffeineNow, caffeineLevel, drunkLevel, soberUp, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
+import { clampClock, cravingLine, useHabit, withdrawalEffects, HIGH_HOURS, addCaffeine, caffeineNow, caffeineLevel, drunkLevel, soberUp, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
 import { ALL_TECHNIQUES, PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
 import type { Upcoming } from '../core/notify';
@@ -76,7 +76,7 @@ const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n 
 /** Everything in the save that's this character's (not the world's). */
 const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'laterLines', 'restLines'];
 /** What only makes sense in the moment (a stop, a fight, a door you're at): not kept when you stop being them. */
-const MOMENT_KEYS = ['encounter', 'policeStop', 'policeResult', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow'];
+const MOMENT_KEYS = ['laterLines', 'restLines', 'encounter', 'policeStop', 'policeResult', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow'];
 /**
  * Someone you used to be: kept whole (stats, body, pockets, record), inside
  * or out on the streets, to free, to meet, and to go on as again.
@@ -626,9 +626,9 @@ export class Game {
     const head = sticky;
     sticky = true;
     if (!head && this.noteSticky && !this.noteEl.hidden) {
-      this.noteEl.querySelector('.note-tap')?.before(...lines.map(p));
-      // (Only the latest few of those: what happened with them stays on top.)
-      const extra = [...this.noteEl.querySelectorAll('p:not(.note-tap):not(.note-head)')];
+      this.noteEl.querySelector('.note-tap')?.before(...lines.map((l) => Object.assign(p(l), { className: 'note-extra' })));
+      // (Only the latest few of those: what the note said first stays.)
+      const extra = [...this.noteEl.querySelectorAll('p.note-extra')];
       for (const el of extra.slice(0, Math.max(0, extra.length - 3))) el.remove();
       this.save.state.stickyExtra = [...((this.save.state.stickyExtra as string[] | undefined) ?? []), ...lines].slice(-3);
       // (Longer now: find it room again.)
@@ -787,8 +787,12 @@ export class Game {
   rest() {
     if (!this.canLurk) return;
     this.unstick();
-    const hurt = isHurt(this.health);
+    const hurt = isHurt(this.health) && this.restHeals;
     if (!hurt) {
+      if (isHurt(this.health) && fatigueNow(this.health) < 3) {
+        this.note(['You rested not long ago. What’s left of it heals with time.']);
+        return;
+      }
       if (fatigueNow(this.health) < 3) {
         this.note(["You're not hurt, and you're not tired. There's nothing to rest off."]);
         return;
@@ -801,7 +805,8 @@ export class Game {
     this.wipeBlood();
     const raining = WET_AMOUNT[this.weather.now] > 0;
     const lieAfter = fatigueNow(this.health) >= 3;
-    const lines = [raining ? `You find a doorway out of the ${isSnow(this.weather.now) ? 'snow' : 'rain'} and rest for a few hours.` : 'You find somewhere quiet and rest for a few hours.', ...passHours(this.health, REST_HOURS, true, !lieAfter)];
+    this.health.restHealAt = now();
+    const lines = [raining ? `You find a doorway out of the ${isSnow(this.weather.now) ? 'snow' : 'rain'} and rest.` : 'You find somewhere quiet and rest.', ...passHours(this.health, REST_HOURS, true, !lieAfter)];
     if (this.health.dead) return this.die(lines);
     const h = this.health;
     if (h.cold) {
@@ -904,7 +909,7 @@ export class Game {
     const c = car ? this.carById(car) : undefined;
     if (c && now() >= c.towAt) {
       this.refresh();
-      this.note([...said, ...lines, ...this.towed(c, 'You wake to a hammering on the glass: the tow truck driver. You climb out, and he hooks it up without a word to you.'), ...meanwhile]);
+      this.note([...said, ...this.towed(c, 'You wake to a hammering on the glass: the tow truck driver. You climb out, and he hooks it up without a word to you.'), ...meanwhile]);
       return;
     }
     // (Reported by now: someone's been looking for it.)
@@ -983,8 +988,8 @@ export class Game {
     this.unstick();
     this.noteEl.hidden = true;
     this.wipeBlood();
-    // Time passes while you wait: wounds bleed, or heal; the rain soaks you.
-    const lines = passHours(this.health, LURK_HOURS, false, false);
+    // (Wounds bleed and heal on the real clock now, not by the lurk.)
+    const lines: string[] = [];
     // Withdrawal: the craving, and (off drink or downers, badly) a seizure.
     {
       const wd = withdrawalEffects(this.health);
@@ -2880,7 +2885,9 @@ export class Game {
       this.unstick();
       const h = this.health;
       const lieAfter = fatigueNow(h) >= 3;
-      lines.push(`${firstIn ? 'The fob unlocks it with a clunk. ' : ''}You climb into the back seat, lock the doors and curl up. The windows fog over.`, ...passHours(h, REST_HOURS, true, !lieAfter));
+      const heals = this.restHeals;
+      if (heals) h.restHealAt = now();
+      lines.push(`${firstIn ? 'The fob unlocks it with a clunk. ' : ''}You climb into the back seat, lock the doors and curl up. The windows fog over.`, ...(heals ? passHours(h, REST_HOURS, true, !lieAfter) : []));
       if (h.dead) return this.die(lines);
       h.cold = 0;
       h.stress = Math.max(0, (h.stress ?? 0) - 15);
@@ -3434,7 +3441,7 @@ export class Game {
       lines.push(`You're arrested.${took ? ` They keep ${took === 1 ? 'the evidence' : `${took === 2 ? 'both' : `all ${took}`} things they took off you`}.` : ''}`);
       lines.push(...custodyCare(h));
       delete h.smokingUntil;
-      lines.push('You spend the night in a holding cell that smells of bleach and piss.', ...passHours(h, 8, true, false));
+      lines.push('You spend the night in a holding cell that smells of bleach and piss.');
       rec.nights = (rec.nights ?? 0) + 1;
       h.cold = 0;
       if (h.dead) return this.die(lines);
@@ -3518,7 +3525,7 @@ export class Game {
     if (!c) return;
     const h = this.health;
     delete this.save.state.bailOffer;
-    const lines = [...custodyCare(h), 'A day and a half in County: a bunk, a toilet with no seat, and the noise that never stops.', ...passHours(h, 36, true, false)];
+    const lines = [...custodyCare(h), 'A day and a half in County: a bunk, a toilet with no seat, and the noise that never stops.'];
     this.record.heldHours = (this.record.heldHours ?? 0) + 36;
     this.lockUp(36, 'In County, waiting for your hearing');
     if (h.dead) return this.die(lines);
@@ -3609,9 +3616,8 @@ export class Game {
     this.lockUp(days * 24, days >= 365 ? `Serving ${prisonTerm(days)} in state prison` : `Serving ${days} days in County`);
     rec.lastOut = this.jail?.until ?? now();
     // (They don't let you bleed out inside: the wound's seen to first.)
-    const lines = [...custodyCare(h), `You serve ${days >= 365 ? (prisonTerm(days) === 'a year' ? 'the year' : prisonTerm(days)) : `your ${days} days`}. The food is gray, the nights are loud, and you learn who not to look at.`, ...passHours(h, Math.min(days * 24, 96), true, false)];
-    // (The rest of the term goes by too: habits fade, bones and faces mend.)
-    if (!h.dead && days * 24 > 96) passHours(h, days * 24 - 96, true, false);
+    // (Bones and faces mend on the real clock while you're in there.)
+    const lines = [...custodyCare(h), `You serve ${days >= 365 ? (prisonTerm(days) === 'a year' ? 'the year' : prisonTerm(days)) : `your ${days} days`}. The food is gray, the nights are loud, and you learn who not to look at.`];
     if (h.dead) return lines;
     h.stress = Math.min(100, (h.stress ?? 0) + 25);
     h.nerve = Math.min(100, (h.nerve ?? 0) + 5);
@@ -3701,6 +3707,35 @@ export class Game {
     });
     return out;
   }
+  /**
+   * Your body on the real clock, like everyone else's: bleeding, blood coming
+   * back, bones and cuts mending, a concussion clearing, an hour at a time,
+   * game open or not (lying down or locked up, faster).
+   */
+  private healOnClock() {
+    const h = this.health;
+    const t = now();
+    if (h.healedAt == null || h.healedAt > t) {
+      h.healedAt = t;
+      return;
+    }
+    // (Mid-fight, the fight's own body is the one that counts: it catches up after.)
+    const e = this.encounter;
+    if (this.dead || (e && e.stage !== 'seen' && e.stage !== 'over')) return;
+    const hours = Math.floor((t - h.healedAt) / 3_600_000);
+    if (hours < 1) return;
+    h.healedAt += hours * 3_600_000;
+    const lines = passHours(h, Math.min(hours, 24 * 120), h.restingSince != null || !!this.jail, false);
+    if (h.dead) return this.die(lines);
+    if (lines.length) {
+      this.refresh();
+      this.note(lines);
+    }
+  }
+  /** A rest's quick healing: once every few hours (after that, the rest takes time). */
+  private get restHeals(): boolean {
+    return now() - (this.health.restHealAt ?? 0) >= 4 * 3_600_000;
+  }
   /** Kept for later: what happened while you couldn't see it (saved, so a reload keeps it too). */
   private later(lines: string[]) {
     this.save.state.laterLines = [...((this.save.state.laterLines as string[] | undefined) ?? []), ...lines].slice(-6);
@@ -3710,7 +3745,7 @@ export class Game {
     const xs = this.save.state.laterLines as string[] | undefined;
     if (!xs?.length) return;
     const e = this.encounter;
-    if (!this.running || !this.tvState.on || !this.tv.showingPicture || this.koLines || this.save.state.koLines || this.ending || this.dead || this.jail || this.health.restingSince != null || this.sheet || (e && e.stage !== 'seen')) return;
+    if (!this.running || !this.tvState.on || !this.tv.showingPicture || this.koLines || this.save.state.koLines || this.save.state.wokeLines || this.ending || this.dead || this.jail || this.health.restingSince != null || this.sheet || (e && e.stage !== 'seen')) return;
     delete this.save.state.laterLines;
     this.note(xs);
   }
@@ -4039,7 +4074,7 @@ export class Game {
         rec.charges['Aiding an escape'] = (rec.charges['Aiding an escape'] ?? 0) + 1;
         rec.last = t;
         rec.nights = (rec.nights ?? 0) + 1;
-        lines.push('You’re arrested: aiding an escape.', ...custodyCare(h), 'You spend the night in a holding cell.', ...passHours(h, 8, true, false));
+        lines.push('You’re arrested: aiding an escape.', ...custodyCare(h), 'You spend the night in a holding cell.');
         h.cold = 0;
         delete h.smokingUntil;
         if (h.dead) return this.die(lines);
@@ -4141,7 +4176,7 @@ export class Game {
   }
   /** A night held after turning yourself in. */
   private passCell(): string[] {
-    const lines = [...custodyCare(this.health), 'You spend the night in a holding cell.', ...passHours(this.health, 8, true, false)];
+    const lines = [...custodyCare(this.health), 'You spend the night in a holding cell.'];
     this.lockUp(8, 'A night in a holding cell');
     this.health.cold = 0;
     delete this.health.smokingUntil;
@@ -5571,7 +5606,7 @@ export class Game {
     }
     if (what === 'sleep' && this.roomRented) {
       const r = this.room!;
-      const recent = now() - ((r as { slept?: number }).slept ?? 0) < 4 * 3_600_000;
+      const recent = now() - ((r as { slept?: number }).slept ?? 0) < 4 * 3_600_000 || !this.restHeals;
       if (recent && fatigueNow(h) < 3) {
         this.note(["You lie down, but you're not tired. You stare at the water stain on the ceiling until you give up."]);
         return;
@@ -5580,6 +5615,7 @@ export class Game {
       // (Just slept: lying down again rests you, but the night's healing was had already.)
       if (recent) return this.lieDown('room', ['You lock the door again and lie back down.']);
       (r as { slept?: number }).slept = now();
+      h.restHealAt = now();
       const was = h.cold ?? 0;
       const lieAfter = fatigueNow(h) >= 3;
       const lines = [lieAfter ? 'You lock the door, wedge the chair under the handle, and lie down. Nobody comes.' : 'You lock the door, wedge the chair under the handle, and sleep. Eight hours. Nobody comes.', ...passHours(h, 8, true, !lieAfter)];
@@ -6901,6 +6937,7 @@ export class Game {
       // Missed your court date: a warrant.
       const cs = this.case;
       this.settleSelves();
+      this.healOnClock();
       if (cs && !cs.warrant && !this.save.state.bailOffer && !this.jail && now() > cs.courtAt) {
         cs.warrant = true;
         delete cs.warrantFor;

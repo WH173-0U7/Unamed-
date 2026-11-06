@@ -332,7 +332,7 @@ $('pause-btn').addEventListener('click', pause);
 addEventListener('keydown', (e) => {
   if (e.code !== 'Escape') return;
   if (state === 'playing') pause();
-  else if (menu.current === 'settings' || menu.current === 'confirm') menu.back();
+  else if (menu.current === 'settings' || menu.current === 'confirm' || menu.current === 'news') menu.back();
   else if (state === 'paused') resume();
 });
 // Leaving or closing the app pauses it, which saves (and, in the Android app,
@@ -359,9 +359,10 @@ const setUpdateLabel = (t: string) => updateBtns.forEach((b) => (b.textContent =
 async function appBuild(): Promise<number> {
   if (!isApp()) return Infinity;
   try {
-    return Number((await App.getInfo()).build) || 0;
+    return Number((await App.getInfo()).build) || Infinity;
   } catch {
-    return 0;
+    // (Can't tell: don't nag.)
+    return Infinity;
   }
 }
 async function checkForUpdates(quiet: boolean) {

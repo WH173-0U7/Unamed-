@@ -13,7 +13,7 @@ export interface Latest {
   appBuild: number;
 }
 
-/** Whether version a comes after b ("2.01" after "2.0", "2.10" after "2.9"). */
+/** Whether version a comes after b. Versions go 2.0, 2.01 … 2.09, 2.1 (that's 2.10), 2.11: the part after the dot is hundredths. */
 export function newer(a: string, b: string): boolean {
   const pa = a.split('.').map(Number);
   const pb = b.split('.').map(Number);

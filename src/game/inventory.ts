@@ -55,6 +55,9 @@ export interface InvItem {
   hot?: boolean;
   /** Car keys: the car from this home. */
   carOf?: string;
+  /** Car keys: the car you found with them (see cars.ts), and where it is before you have. */
+  carId?: string;
+  hunt?: import('./cars').Hunt;
 }
 
 /** Somewhere to keep things: a pocket, a bag. */
@@ -192,6 +195,8 @@ export function measure(x: { kind: string; name: string; med?: MedId }): { size:
   if (x.kind === 'car keys') return { size: 'small', kg: 0.08 };
   if (/^laptop$/i.test(n)) return { size: 'medium', kg: 1.8 };
   if (/^tablet$/i.test(n)) return { size: 'medium', kg: 0.5 };
+  if (/^cordless drill$/i.test(n)) return { size: 'medium', kg: 1.7 };
+  if (/^toolbox$/i.test(n)) return { size: 'large', kg: 6 };
   if (/^games console$/i.test(n)) return { size: 'large', kg: 3.2 };
   if (/^(gold chain|wedding ring|watch|earrings|class ring|bracelet)$/i.test(n)) return { size: 'small', kg: /watch/i.test(n) ? 0.12 : 0.02 };
   if (x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card') return { size: 'small', kg: 0.005 };
@@ -288,7 +293,7 @@ export function take(inv: Inventory, l: Loot): { ok: boolean; text: string } {
       return { ok: true, text: `You pocket ${(l.doses ?? 1) === 1 ? 'the loose cigarette' : `the ${l.doses} loose cigarettes`} with the others.${once}` };
     }
   }
-  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained, weapon: l.weapon, cuts: l.cuts, spray: l.spray, drink: l.drink, ...(l.card ? { card: l.card } : {}), ...(l.homeInfo ? { homeInfo: l.homeInfo } : {}), ...(l.opens ? { opens: l.opens } : {}), ...(l.hot ? { hot: true } : {}), ...(l.carOf ? { carOf: l.carOf } : {}), ...(l.kind === 'car keys' ? { takenAt: l.takenAt ?? Date.now(), car: l.car, carSearched: l.carSearched } : {}) });
+  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained, weapon: l.weapon, cuts: l.cuts, spray: l.spray, drink: l.drink, ...(l.card ? { card: l.card } : {}), ...(l.homeInfo ? { homeInfo: l.homeInfo } : {}), ...(l.opens ? { opens: l.opens } : {}), ...(l.hot ? { hot: true } : {}), ...(l.carOf ? { carOf: l.carOf } : {}), ...(l.carId ? { carId: l.carId } : {}), ...(l.hunt ? { hunt: l.hunt } : {}), ...(l.kind === 'car keys' ? { takenAt: l.takenAt ?? Date.now(), car: l.car, carSearched: l.carSearched } : {}) });
   if (!it) return { ok: false, text: `No room for the ${l.name.toLowerCase()}. ${noRoomWhy(inv, measure(l).size)}` };
   const spot = inv.spots.find((s) => s.id === it.spot)!;
   return { ok: true, text: `You put the ${l.name.toLowerCase()} in your ${spot.on.toLowerCase()} (${spot.name.toLowerCase()}).${once}` };

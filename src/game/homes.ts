@@ -313,7 +313,7 @@ export function roomLoot(h: Home, room: RoomId, carHere: boolean): Loot[] {
   } else if (room === 'kitchen') {
     if (r() < 0.4) add({ kind: 'cash', name: any(['Cash in a coffee can', 'Rent money, in an envelope', 'Bills in the junk drawer']), cash: bills(15, 240) }, any(['top of the fridge', 'junk drawer', 'cupboard']));
     // The spare, on the hook: and the car out front, if it's there.
-    if (h.car && carHere && r() < 0.7) add({ kind: 'car keys', name: 'Car keys', detail: `${h.car} key fob`, car: 'found', takenAt: Date.now(), carOf: h.id }, 'hook by the door');
+    if (h.car && carHere && r() < 0.7) add({ kind: 'car keys', name: 'Car keys', detail: `${h.car} key fob`, car: 'found', carOf: h.id }, 'hook by the door');
     if (r() < 0.8) add(r() < 0.6 ? { kind: 'weapon', name: 'Kitchen knife', weapon: 8, cuts: true } : { kind: 'weapon', name: 'Steak knife', weapon: 5, cuts: true }, 'knife block');
     if (r() < 0.4) add({ kind: 'misc', name: 'Beer', drink: 'beer', doses: 1 }, 'fridge');
   } else if (room === 'bathroom') {

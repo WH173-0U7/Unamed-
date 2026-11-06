@@ -20,7 +20,7 @@ import type { InvItem } from './inventory';
  *   and breaks big ones down. After hours, the coin machine in the lobby
  *   still turns coins into bills, for a cut.
  */
-export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records' | 'hospital' | 'guns' | 'court' | 'room' | 'home';
+export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records' | 'hospital' | 'guns' | 'court' | 'room' | 'home' | 'car';
 
 export interface PlaceInfo {
   id: Place;
@@ -41,6 +41,8 @@ export const PLACES: PlaceInfo[] = [
   { id: 'street', name: 'The street', desc: 'Lurk in the dark and watch who comes by.', hours: null, blurb: '', indoors: false },
   // (An address you know, off someone's ID: see homes.ts. Not on the list; under it.)
   { id: 'home', name: 'An address', desc: '', hours: null, blurb: '', indoors: false },
+  // (A car you've the keys to, found or still looking for: see cars.ts. Not on the list; under it.)
+  { id: 'car', name: 'A car', desc: '', hours: null, blurb: '', indoors: false },
   {
     id: 'pharmacy',
     name: 'Pharmacy',
@@ -155,6 +157,8 @@ export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'kno
   if (x.kind === 'phone') return 180;
   if (/^laptop$/i.test(n)) return 300;
   if (/^tablet$/i.test(n)) return 220;
+  if (/^cordless drill$/i.test(n)) return 110;
+  if (/^toolbox$/i.test(n)) return 90;
   if (/^games console$/i.test(n)) return 280;
   // Gold goes by weight; diamonds, small ones, not for much.
   if (/^gold chain$/i.test(n)) return 450;

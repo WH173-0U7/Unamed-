@@ -205,6 +205,9 @@ export interface Loot {
   hot?: boolean;
   /** Car keys: the car out front of this home. */
   carOf?: string;
+  /** Car keys: the car you found with them, and where it is before you have (see cars.ts). */
+  carId?: string;
+  hunt?: import('./cars').Hunt;
 }
 
 /** Something they're wearing or carrying that can be gone through. */

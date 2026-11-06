@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.46',
+    date: 'Nov 6',
+    items: [
+      'Car keys work differently now. “Find the car” takes you out walking the blocks, pressing the fob and listening for a chirp. Take too long and it’s been reported, moved, or towed.',
+      'A car you find is its own place: go through the glovebox, the console, under the seats, the back seat and the trunk, each in turn. What’s inside fits whoever owns it. Someone may see you and call it in.',
+      'Cars you have the keys to are listed in Where to?. Sleep in one, or keep things in its trunk, until it’s reported and towed.',
+    ],
+  },
+  {
     v: '1.45',
     date: 'Nov 6',
     items: [

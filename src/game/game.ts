@@ -4812,6 +4812,12 @@ export class Game {
   }
 
   /** Your bills and coins, as little chips: "$20 ×2". */
+  /** The You sheet. */
+  private renderStatsSheet(card: HTMLElement, close: string) {
+    const h = this.health;
+    const summary = `<p class="you-summary"><span>Blood <b>${(h.blood / 1000).toFixed(1)} L</b></span><span>Cash <b>${money(Math.round(cashOf(this.inventory) * 100))}</b></span><span>Character <b>#${this.world.lives}</b></span></p>`;
+    card.innerHTML = `<div class="sheet-head"><h2>You</h2>${close}</div><div class="sheet-body">${this.noteHtml(this.sheetNote, 'sheet-note')}${summary}${this.statsHtml()}${this.marksHtml()}${this.recordHtml()}</div>`;
+  }
   /** Where the cash is on you, and how much room it's taking. */
   private cashWhereHtml(): string {
     const inv = this.inventory;
@@ -5069,9 +5075,26 @@ export class Game {
       return;
     }
     if (this.sheet === 'stats') {
-      const h = this.health;
-      const summary = `<p class="you-summary"><span>Blood <b>${(h.blood / 1000).toFixed(1)} L</b></span><span>Cash <b>${money(Math.round(cashOf(this.inventory) * 100))}</b></span><span>Character <b>#${this.world.lives}</b></span></p>`;
-      card.innerHTML = `<div class="sheet-head"><h2>You</h2>${close}</div><div class="sheet-body">${this.noteHtml(this.sheetNote, 'sheet-note')}${summary}${this.statsHtml()}${this.marksHtml()}${this.recordHtml()}</div>`;
+      // (Mid-fight: you as you are now, the blood you've lost and what's broken, not as you walked in.)
+      const e = this.encounter;
+      const real = this.save.state.health;
+      if (e && e.stage !== 'seen' && !e.result) {
+        const now_ = structuredClone(this.health);
+        const b = e.you;
+        now_.blood = b.blood;
+        now_.bleeding = b.bleeding;
+        for (const p of b.broken) if (!now_.broken.includes(p)) now_.broken.push(p);
+        if (b.concussed && now_.concussion <= 0) now_.concussion = 1;
+        if (b.lung) now_.lung = true;
+        now_.stress = b.stress ?? now_.stress;
+        if (b.marks) now_.marks = b.marks;
+        this.save.state.health = now_;
+      }
+      try {
+        this.renderStatsSheet(card, close);
+      } finally {
+        this.save.state.health = real;
+      }
       return;
     }
     if (this.sheet === 'places') {

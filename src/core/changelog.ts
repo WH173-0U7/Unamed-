@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.27',
+    date: 'Nov 6',
+    items: [
+      'Fatigue goes faster: from exhausted to fresh takes about 3 hours in a motel bed, 4 in a car, 5 in a doorway, and about 8 if you don’t rest at all (game open or closed).',
+      'It builds up a little slower, too: fight moves, lurking and walking across town each tire you less.',
+    ],
+  },
+  {
     v: '2.26',
     date: 'Nov 6',
     items: ['Resting, the plasma center and delivery shifts no longer show cell bars behind them: those are only for jail.'],

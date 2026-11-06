@@ -949,7 +949,7 @@ export class Game {
       this.note(['You’re spent. Your eyes keep closing on their own and the street swims. You need to lie down. Tap Rest.']);
       return;
     }
-    addFatigue(this.health, 0.5);
+    addFatigue(this.health, 0.3);
     this.phase = 'cut';
     sound.static();
     this.timer = 0.45;
@@ -1105,7 +1105,7 @@ export class Game {
     if (id === 'open' && this.crowd.length && e.stage !== 'over') e.log.push({ by: 'info', text: this.crowd.length === 1 ? 'Someone else is on the street. They’d see anything you do.' : `${this.crowd.length === 2 ? 'Two others are' : 'Others are'} on the street. They’d see anything you do.` });
     // Fighting wears you down: every move (more for a chase, a lot more for being beaten senseless).
     if (!wasOver && stageBefore !== 'seen' && stageBefore !== 'menu' && stageBefore !== 'surveil' && !id.startsWith('search') && !id.startsWith('take')) {
-      addFatigue(this.health, 1.3 + (e.chase ? 1 : 0) + (e.stage === 'over' && e.result === 'lost' ? 10 : 0));
+      addFatigue(this.health, 0.9 + (e.chase ? 0.7 : 0) + (e.stage === 'over' && e.result === 'lost' ? 8 : 0));
     }
     this.settleDeal(e);
     // Down on the sidewalk: dirt on the glass.
@@ -1755,7 +1755,7 @@ export class Game {
     {
       const inv = this.inventory;
       const load = carriedKg(inv) / (inv.maxKg ?? 15);
-      if (p !== 'street') addFatigue(this.health, 0.8 * (1 + Math.max(0, load - 0.5) * 2));
+      if (p !== 'street') addFatigue(this.health, 0.5 * (1 + Math.max(0, load - 0.5) * 2));
       if (load > 0.5) {
         const up = train(this.stats, 'strength', 1 + Math.round(load * 2));
         if (up) this.later([`Strength went up to ${up}. You can carry ${kgLabel(carryLimit(up))} now.`]);

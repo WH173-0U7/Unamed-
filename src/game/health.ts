@@ -458,10 +458,10 @@ export function clampClock(h: Health, t = Date.now()) {
 
 /** One injury, for the stats sheet: what it is, what it does to you, how long it lasts. */
 /** Fatigue off an hour, lying down (exhausted to fresh: about 8 hours) and on your feet (a quarter of that). */
-export const FATIGUE_REST_PER_HOUR = 12.5;
-export const FATIGUE_IDLE_PER_HOUR = 4;
+export const FATIGUE_REST_PER_HOUR = 25;
+export const FATIGUE_IDLE_PER_HOUR = 12.5;
 /** Lying down, by where: a bed is best (exhausted to fresh: about 6 h), a car (8 h), a doorway (10 h). */
-export const restRate = (h: Health) => (h.restingSince == null ? FATIGUE_IDLE_PER_HOUR : h.restWhere === 'room' ? 16.7 : h.restWhere === 'car' ? FATIGUE_REST_PER_HOUR : 10);
+export const restRate = (h: Health) => (h.restingSince == null ? FATIGUE_IDLE_PER_HOUR : h.restWhere === 'room' ? 33.4 : h.restWhere === 'car' ? FATIGUE_REST_PER_HOUR : 20);
 /** Too worn out to do anything but lie down. */
 export const FATIGUE_SPENT = 90;
 export const FATIGUE_NAMES = ['Fresh', 'Tired', 'Worn out', 'Exhausted', 'Spent'];
@@ -482,7 +482,7 @@ export function addFatigue(h: Health, n: number) {
 /** How much worse your odds are, worn out: up to 15% at the end of your rope. */
 export const fatigueOdds = (h: Health) => Math.min(0.15, fatigueNow(h) * 0.0015);
 /** Real time until you're fresh, lying down (ms). */
-export const restLeft = (h: Health) => (fatigueNow(h) / (h.restingSince != null ? restRate(h) : 16.7)) * 3_600_000;
+export const restLeft = (h: Health) => (fatigueNow(h) / (h.restingSince != null ? restRate(h) : 33.4)) * 3_600_000;
 
 export interface InjuryInfo {
   name: string;
@@ -538,7 +538,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
         status: true,
         meter: { k: Math.min(1, f / 100), text: `${Math.round(f)} / 100` },
         effects: [`Stamina in a fight: −${Math.round(f * 0.4)}%`, `Your blows, and the odds on everything you try: −${Math.round(Math.min(15, f * 0.15))}%`, ...(lv >= 4 ? ['Too worn out to lurk: you need to lie down'] : [])],
-        heals: `${h.restingSince != null ? 'Lying down: fresh' : 'In a bed (your motel room): fresh'} in about ${left < 1 ? `${Math.max(1, Math.round(left * 60))} minutes` : `${Math.round(left * 10) / 10} hours`}, real time. A car takes longer, a doorway longer still. Otherwise, game open or closed, it wears off by itself, slowly (about a day from exhausted).`,
+        heals: `${h.restingSince != null ? 'Lying down: fresh' : 'In a bed (your motel room): fresh'} in about ${left < 1 ? `${Math.max(1, Math.round(left * 60))} minutes` : `${Math.round(left * 10) / 10} hours`}, real time. A car takes longer, a doorway longer still. Otherwise, game open or closed, it wears off by itself (about 8 hours from exhausted).`,
       });
     }
   }

@@ -3368,9 +3368,7 @@ body[data-drug='tranq'] #drug .d-top {
 body[data-drug='tranq'] #drug .d-bot {
   animation: d-nod-bot 8s ease-in-out infinite;
 }
-body[data-drug='tranq'] #game {
-  animation: d-sway 7s ease-in-out infinite;
-}
+/* (Tranq's sway is done frame by frame, with drink's: see drugs.ts.) */
 @keyframes d-drift {
   to {
     transform: translate(8%, -6%) scale(1.15);
@@ -3410,8 +3408,12 @@ body[data-drug='drunk'] #drug .d-blot {
   background: radial-gradient(circle at 40% 45%, rgba(255, 200, 120, 0.1), transparent 30%), radial-gradient(circle at 62% 55%, rgba(255, 200, 120, 0.08), transparent 30%);
   animation: d-double 4.2s ease-in-out infinite;
 }
-body[data-drug='drunk'] #game {
-  animation: d-reel 6s ease-in-out infinite;
+/* (The room's sway is done frame by frame: see drugs.ts.) */
+#haze {
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  pointer-events: none;
 }
 @keyframes d-reel-glow {
   50% {

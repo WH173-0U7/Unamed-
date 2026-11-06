@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.48',
+    date: 'Nov 6',
+    items: [
+      'Drunk, the whole screen sways, the buttons and text included, and every so often it lurches. Everything goes blurry, swimming in and out of focus, and gets worse the more you drink. Tranquilizers do it too, and heroin and fentanyl blur things a little.',
+      'In a shop or with Pockets open it eases off so you can still read, but it doesn’t go away.',
+    ],
+  },
+  {
     v: '1.47',
     date: 'Nov 6',
     items: [

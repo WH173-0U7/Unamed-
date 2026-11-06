@@ -23,7 +23,8 @@ import { gunOf } from './guns';
 import { HEAT_NAMES, applyTo, comeBack, heal, fade, heatLevel, historyText, injuriesText, meet, newInfamy, recognises, remember, repName, type Infamy, type Known } from './people';
 import { anonymity, conspicuous, describe, hasHood, lookClothes, wearing } from './look';
 import { marksText, list as listOf, a as aOf } from './encounter';
-import { cashFill, cashFits, cashWhere, pocketCash, roomForCents } from './inventory';
+import { cashFill, cashFits, cashWhere, pocketCash, roomForCents, spotMl } from './inventory';
+import { mlOf } from './money';
 import { lootIcon, lootMark } from './lootIcon';
 import { MEDS, take, freeHand, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
 
@@ -2000,7 +2001,20 @@ export class Game {
       f.heat = Math.min(100, f.heat + 4 * (1 - anon));
     } else {
       const credit = card.kind === 'credit card';
-      const avail = credit ? 2 + Math.floor(Math.random() * 19) : 1 + Math.floor(Math.random() * 15);
+      // What the account (or the card's cash advance) will give, in twenties, up to the machine's daily limit.
+      // (Old saves, before cards had money behind them: about what they used to give.)
+      const behind = card.balance ?? (credit ? 2 + Math.floor(Math.random() * 19) : 1 + Math.floor(Math.random() * 15)) * 2000;
+      const cap = card.limit ?? 40000;
+      const avail = Math.floor(Math.min(behind, cap) / 2000);
+      if (avail <= 0) {
+        card.drained = true;
+        lines.push(`You type ${card.pin}. It works. You ask for $20, and the screen says INSUFFICIENT FUNDS. ${credit ? 'Maxed out.' : 'There’s nothing in there.'}`);
+        f.heat = Math.min(100, f.heat + 4 * (1 - anon));
+        this.refresh();
+        this.note(lines);
+        buzz(8);
+        return;
+      }
       // (As many twenties as you can stuff in your pockets.)
       const room = { ...inv, purse: { ...inv.purse } };
       const can = avail - (pocketCash(room, { 2000: avail })[2000] ?? 0);
@@ -2010,7 +2024,8 @@ export class Game {
       }
       const twenties = avail - (pocketCash(inv, { 2000: avail })[2000] ?? 0);
       card.drained = true;
-      lines.push(`You type ${card.pin}. It works. You take out ${money(twenties * 2000)}${twenties < avail ? ', all you can carry: the rest stays in the machine' : credit ? ' on a cash advance' : ', all that was in there'}, in twenties.`);
+      const limited = behind > cap && twenties === avail;
+      lines.push(`You type ${card.pin}. It works. You take out ${money(twenties * 2000)} in twenties${credit ? ' on a cash advance' : ''}${twenties < avail ? ', all you can carry. The rest stays in the machine.' : limited ? `, as much as the machine gives in a day.${credit ? '' : ' There was more in there.'}` : credit ? ', all the card allows.' : behind - twenties * 2000 >= 100 ? `, all of it but ${money(behind - twenties * 2000)} the machine can’t give in twenties.` : ', all that was in there.'}`);
       lines.push("By morning they'll have stopped the card.");
       f.heat = Math.min(100, f.heat + 10 * (1 - anon));
     }
@@ -5210,11 +5225,12 @@ export class Game {
       const share = cashAt.get(sp.id) ?? 0;
       if (!xs.length && !share) continue;
       const used = usedKg(inv, sp.id) + share * purseKg(inv);
-      const fill = Math.min(100, (100 * used) / sp.maxKg);
+      // (Full by weight, or full by bulk: bills take room long before they weigh much.)
+      const fill = Math.min(100, 100 * Math.max(used / sp.maxKg, usedKg(inv, sp.id) / sp.maxKg + (share * mlOf(inv.purse)) / spotMl(sp)));
       body +=
         `<div class="spot"><h3><span>${sp.on} · ${sp.name}</span><em>${sp.fits} · ${hideWord(concealOf(sp, inv.clothes[0]))}</em></h3>` +
         `<div class="spot-bar"><i style="width:${fill}%"></i><span>${kgLabel(used)} / ${sp.maxKg} kg</span></div>` +
-        (share ? `<p class="pocket-empty">${share > 0.999 ? 'Your cash' : `About ${money(Math.round((allCash * share) / 100) * 100 || allCash)} of your cash`}, folded in here.</p>` : '') +
+        (share ? `<p class="pocket-empty">${share > 0.999 ? 'Your cash' : Math.round((allCash * share) / 100) >= 1 ? `About ${money(Math.round((allCash * share) / 100) * 100)} of your cash` : 'Some of your cash'}, ${BILLS.some((d) => inv.purse[d]) ? 'folded in here' : 'loose in here'}.</p>` : '') +
         (xs.length
           ? `<ul class="pocket-list">${xs
               .map(({ x, i }) => {

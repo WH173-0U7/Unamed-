@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.79',
+    date: 'Nov 6',
+    items: [
+      'What’s behind a stolen card goes by who it belonged to: someone from a nice house might have a few thousand in checking, someone scraping by twenty dollars or nothing at all. The machine gives no more than its daily limit (a few hundred), and an empty account says INSUFFICIENT FUNDS.',
+      'Credit cards, the way they really are: most people never set a PIN for one, and ask for it and they’ll tell you there isn’t one. The few that have one give a cash advance, a slice of the credit line.',
+      'Pocket bars fill up by bulk as well as weight (a pocket full of bills is full even if it weighs little). Coins are “loose in here”, not folded.',
+    ],
+  },
+  {
     v: '1.78',
     date: 'Nov 6',
     items: [

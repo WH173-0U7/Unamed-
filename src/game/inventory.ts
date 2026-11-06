@@ -32,6 +32,13 @@ export interface InvItem {
   pin?: string;
   pinOk?: boolean;
   drained?: boolean;
+  /** A card: what's in the account (a debit card), or the cash advance it allows (a credit card), and the machine's daily limit, in cents. */
+  balance?: number;
+  limit?: number;
+  /** A credit card nobody ever set a PIN for (most of them): no cash out of it. */
+  noPin?: boolean;
+  /** You asked them for its PIN already. */
+  pinAsked?: boolean;
   /** Your own ID (which life it's for: see World.lives). Never evidence. */
   own?: number;
   /** Something to drink (beer, liquor, an energy drink), swigs in `doses`. */
@@ -222,6 +229,8 @@ export const usedKg = (inv: Inventory, spot: string) => inv.items.filter((i) => 
 
 /** How much a pocket or bag holds, in mL per kg it's rated for (a jeans pocket, 0.4 kg: about 140 mL). */
 const ML_PER_KG: Record<Size, number> = { small: 350, medium: 1200, large: 1700 };
+/** How much a pocket or bag holds, in mL. */
+export const spotMl = (sp: Spot) => ML_PER_KG[sp.fits] * sp.maxKg;
 /** Where cash can go: anywhere but a sheath or a holster. */
 const cashSpots = (inv: Inventory) => inv.spots.filter((s) => !bladeOnly(s) && !gunOnly(s));
 /** The room left in each pocket once your things are in: [mL, kg]. */
@@ -390,7 +399,7 @@ export function take(inv: Inventory, l: Loot): { ok: boolean; text: string; cent
       return { ok: true, text: `You pocket ${(l.doses ?? 1) === 1 ? 'the loose cigarette' : `the ${l.doses} loose cigarettes`} with the others.${once}` };
     }
   }
-  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained, weapon: l.weapon, cuts: l.cuts, spray: l.spray, drink: l.drink, ...(l.card ? { card: l.card } : {}), ...(l.homeInfo ? { homeInfo: l.homeInfo } : {}), ...(l.opens ? { opens: l.opens } : {}), ...(l.hot ? { hot: true } : {}), ...(l.carOf ? { carOf: l.carOf } : {}), ...(l.carId ? { carId: l.carId } : {}), ...(l.hunt ? { hunt: l.hunt } : {}), ...(l.tookAt != null ? { tookAt: l.tookAt } : {}), ...(l.kind === 'car keys' ? { takenAt: l.takenAt ?? Date.now(), car: l.car, carSearched: l.carSearched } : {}) });
+  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained, ...(l.balance != null ? { balance: l.balance, limit: l.limit } : {}), ...(l.noPin ? { noPin: true } : {}), ...(l.pinAsked ? { pinAsked: true } : {}), weapon: l.weapon, cuts: l.cuts, spray: l.spray, drink: l.drink, ...(l.card ? { card: l.card } : {}), ...(l.homeInfo ? { homeInfo: l.homeInfo } : {}), ...(l.opens ? { opens: l.opens } : {}), ...(l.hot ? { hot: true } : {}), ...(l.carOf ? { carOf: l.carOf } : {}), ...(l.carId ? { carId: l.carId } : {}), ...(l.hunt ? { hunt: l.hunt } : {}), ...(l.tookAt != null ? { tookAt: l.tookAt } : {}), ...(l.kind === 'car keys' ? { takenAt: l.takenAt ?? Date.now(), car: l.car, carSearched: l.carSearched } : {}) });
   // ("the state ID (expired)": not "the state id, expired".)
   const nm = l.name.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase()).replace(/^([^,]+), ([^,]+)$/, '$1 ($2)');
   if (!it) return { ok: false, text: `No room for the ${nm}. ${noRoomWhy(inv, measure(l).size)}` };

@@ -444,7 +444,7 @@ function yieldedOptions(e: Encounter): Option[] {
   if (e.emptied && !patted && !asked.includes('rest')) out.push({ id: 'ask-rest', label: '"Is that everything?"', hint: 'Are they holding out on you?', cat: 'threaten' });
   e.person.clothes.forEach((g, gi) =>
     g.loot.forEach((l, li) => {
-      if (g.searched && !l.hidden && /card/.test(l.kind) && !l.pin) out.push({ id: `pin:${gi}:${li}`, label: '"What\'s the PIN?"', hint: `Their ${l.name.toLowerCase()}`, cat: 'threaten' });
+      if (g.searched && !l.hidden && /card/.test(l.kind) && !l.pin && !l.pinAsked) out.push({ id: `pin:${gi}:${li}`, label: '"What\'s the PIN?"', hint: `Their ${l.name.toLowerCase()}`, cat: 'threaten' });
     }),
   );
   for (const c of e.cardsHeld ?? []) out.push({ id: `pin-mine:${c.i}`, label: '"What\'s the PIN?"', hint: `The ${c.name.toLowerCase()} you took`, cat: 'threaten' });
@@ -3184,7 +3184,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     return true;
   }
   if (id.startsWith('pin:') || id.startsWith('pin-mine:')) {
-    let card: { name: string; pin?: string; pinOk?: boolean } | undefined;
+    let card: { name: string; kind?: string; pin?: string; pinOk?: boolean; noPin?: boolean; pinAsked?: boolean } | undefined;
     if (id.startsWith('pin:')) {
       const [, gi, li] = id.split(':').map(Number);
       card = e.person.clothes[gi]?.loot[li];
@@ -3192,8 +3192,15 @@ function threatAct(id: string, inv?: Inventory): boolean {
       const it = inv?.items[Number(id.slice(9))];
       card = it && /card/.test(it.kind) && it.detail === e.holder ? it : undefined;
     }
-    if (!card || card.pin) return false;
+    if (!card || card.pin || card.pinAsked) return false;
     say('you', `"The ${card.name.toLowerCase()}. What's the PIN?"`);
+    // (A credit card most people never set one for: there's nothing to tell.)
+    if (card.noPin && fear >= 25) {
+      card.pinAsked = true;
+      say('them', oneOf(['"It doesn\'t have one! It\'s a credit card, I just tap it!"', '"There isn\'t a PIN! I swear! I never set one up!"', '"I don\'t know it. I never use it at a machine. Nobody does."']));
+      you.gain('intimidation', 2);
+      return true;
+    }
     if (fear < 25) {
       say('them', (isBrute(e.person.personality) ? speak('refuse') : speak('pinRefuse')) || 'They press their lips together and say nothing.');
       return true;

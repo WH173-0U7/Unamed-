@@ -188,6 +188,14 @@ export interface Loot {
   pinOk?: boolean;
   /** A card already used at the cash machine (it's been stopped). */
   drained?: boolean;
+  /** A card: what's in the account (a debit card), or the cash advance it allows (a credit card), and the machine's daily limit, in cents. */
+  balance?: number;
+  limit?: number;
+  /** A credit card nobody ever set a PIN for (most of them): no cash out of it. */
+  noPin?: boolean;
+  /** You asked them for its PIN already. */
+  pinAsked?: boolean;
+
   /** Something to drink (uses in `doses`). */
   drink?: 'beer' | 'liquor' | 'energy';
   /** Car keys: the car's state, carried over if they're taken off you and found again. */
@@ -463,6 +471,28 @@ function note(): Omit<Loot, 'where'> {
   return { kind: 'misc', name: 'Note', detail: any(NOTES) };
 }
 
+/** A spread around a middle (a few have far more, a few far less): log-normal. */
+const around = (mid: number, spread = 0.9) => {
+  const u = Math.max(1e-9, r());
+  const v = r();
+  return mid * Math.exp(spread * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v));
+};
+/** In the checking account: what's there, and how much the machine will give in a day. */
+function debitMoney(kind: Kind, means: number): { balance: number; limit: number } {
+  const mid = kind === 'civilian' ? 900 * means : kind === 'drunk' ? 260 * means : 45 * means;
+  // (Payday's a week off, or yesterday.)
+  const balance = Math.round(Math.max(0, around(mid) - (r() < 0.15 ? mid : 0)) * 100);
+  const limit = (kind === 'civilian' ? (means > 1.2 ? 800 : means > 0.8 ? 500 : 400) : 300) * 100;
+  return { balance, limit };
+}
+/** A credit card: most have no PIN at all (you can't take cash out without one); the ones that do, a cash advance limit. */
+function creditMoney(kind: Kind, means: number): { balance: number; limit: number; noPin?: boolean } {
+  if (r() < 0.75) return { balance: 0, limit: 0, noPin: true };
+  const line = around(kind === 'civilian' ? 4000 * means : 1200 * means, 0.6);
+  // (Cash advances are a slice of the credit line, and the machine's limit caps it.)
+  return { balance: Math.round(line * (0.2 + r() * 0.1)) * 100, limit: (kind === 'civilian' && means > 1 ? 500 : 300) * 100 };
+}
+
 /** Their clothes, with what they carry put in the pockets. */
 function dress(kind: Kind, carrying: Item[], who: { name: string; age: number; sex: Sex; race: Race; build: Build; home: Home | null }): Garment[] {
   const [tops, bottoms, shoes] = OUTFITS[kind];
@@ -484,8 +514,10 @@ function dress(kind: Kind, carrying: Item[], who: { name: string; age: number; s
     const w = (l: Omit<Loot, 'where'>) => put(l, g, 'wallet');
     const dl = kind === 'civilian' || r() < 0.5;
     if (r() < 0.92) w({ kind: 'id', name: dl ? "Driver's license" : 'State ID', detail: `${name}, ${age}`, ...card(dl) });
-    if (r() < 0.85) w({ kind: 'debit card', name: 'Debit card', detail: name });
-    if (r() < (kind === 'civilian' ? 0.6 : 0.3)) w({ kind: 'credit card', name: 'Credit card', detail: name });
+    // What's behind the cards goes by what they earn: the house they live in says that, or the life they lead.
+    const means = home?.wealth ?? (kind === 'civilian' ? 1 : kind === 'drunk' ? 0.55 : 0.25);
+    if (r() < 0.85) w({ kind: 'debit card', name: 'Debit card', detail: name, ...debitMoney(kind, means) });
+    if (r() < (kind === 'civilian' ? 0.6 : 0.3)) w({ kind: 'credit card', name: 'Credit card', detail: name, ...creditMoney(kind, means) });
     if (r() < 0.8) w(cash(kind === 'civilian' ? money(5, 140) : money(2, 45), 'wallet'));
     for (let i = 0; i < Math.floor(r() * 3); i++) w(receipt());
   } else if (kind === 'homeless' && r() < 0.5) {

@@ -183,7 +183,8 @@ export function createSnow(fall: HTMLCanvasElement) {
           continue;
         }
         const r = 0.9 + 3.6 * f.z * f.z + f.z;
-        fx.globalAlpha = 0.28 + 0.6 * f.z;
+        // (Near ones, up where the clock and your blood are: fainter, so they don't cover them.)
+        fx.globalAlpha = (0.28 + 0.6 * f.z) * (f.z > 0.7 && f.y < h * 0.15 ? 0.5 : 1);
         // The nearest are out of focus: bigger and fainter.
         const blur = f.z > 0.85 ? 2.2 : 1;
         fx.drawImage(sprite, f.x - r * blur, f.y - r * blur, r * 2 * blur, r * 2 * blur);

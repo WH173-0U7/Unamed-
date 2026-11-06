@@ -20,6 +20,7 @@ export function createTv(renderer: THREE.WebGLRenderer) {
       uniform float uPicture;     // 0..1: how much of it is showing
       uniform float uJam;         // 0..1: interference (signal cutting out)
       uniform float uOff;         // seconds since switched off (-1: not switching off)
+      uniform float uDim;         // the hour: a touch darker at night
       varying vec2 vUv;
       ${glslHash}
 
@@ -151,6 +152,7 @@ export function createTv(renderer: THREE.WebGLRenderer) {
         float lit = smoothstep(0.4, 1.2, t);
         float refl = 1.0 - smoothstep(0.0, 0.5, length((vUv - vec2(0.27, 0.8)) * vec2(1.0, 1.8)));
         col += vec3(0.85, 0.9, 1.0) * refl * refl * 0.035 * lit;
+        col *= uDim;
 
         gl_FragColor = vec4(col, 1.0);
       }
@@ -161,6 +163,7 @@ export function createTv(renderer: THREE.WebGLRenderer) {
       uPicture: { value: 0 },
       uJam: { value: 0 },
       uOff: { value: -1 },
+      uDim: { value: 1 },
       uTime: { value: 0 },
       uRes: { value: new THREE.Vector2(1, 1) },
       uLines: { value: 240 },
@@ -213,6 +216,10 @@ export function createTv(renderer: THREE.WebGLRenderer) {
     },
     setPicture(texture: THREE.Texture) {
       pass.material.uniforms.tPicture.value = texture;
+    },
+    /** How bright the tube is for the hour (1 by day, a little less at night). */
+    setDim(v: number) {
+      pass.material.uniforms.uDim.value = v;
     },
     /** Interference, 0 (clear) to 1 (signal lost). */
     setJam(v: number) {

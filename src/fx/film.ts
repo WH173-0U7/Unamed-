@@ -88,13 +88,13 @@ export function createFilm(container: HTMLElement, game = false) {
         for (int i = 0; i < 2; i++) {
           float fi = float(i);
           float era = floor(uTime * 0.4 + fi * 0.5);
-          if (hash1(era * 7.0 + fi * 101.0) > 1.0 - 0.55 * uDust) {
+          if (hash1(era * 7.0 + fi * 101.0) > 1.0 - 0.25 * uDust) {
             float x = hash1(era * 7.0 + fi * 101.0 + 1.0) * res.x
               + sin(uTime * (1.3 + fi)) * 3.0 + (hash1(frame + fi * 9.0) - 0.5) * 0.8;
             float flick = step(0.15, hash1(frame * 3.0 + fi)); // drops out now and then
             float line = (1.0 - smoothstep(0.3, 0.9, abs(p.x - x))) * flick;
             col = mix(col, vec3(0.85), line);
-            a = mix(a, 0.28, line);
+            a = mix(a, 0.16, line);
           }
         }
 

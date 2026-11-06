@@ -210,10 +210,10 @@ export function createRain(fall: HTMLCanvasElement, glass: Glass) {
     fx.clearRect(0, 0, w, h);
     if (streaks.length || flash > 0) {
       fx.lineCap = 'round';
-      fx.lineWidth = 1;
+      fx.lineWidth = 1.2;
       // Three shades of streak, one path each.
       const fade = Math.min(1, amount * 1.5);
-      for (const [lo, hi, a] of [[0, 0.09, 0.07], [0.09, 0.14, 0.11], [0.14, 1, 0.16]]) {
+      for (const [lo, hi, a] of [[0, 0.09, 0.1], [0.09, 0.14, 0.16], [0.14, 1, 0.24]]) {
         fx.strokeStyle = `rgba(190, 205, 225, ${a * fade})`;
         fx.beginPath();
         for (const s of streaks) {

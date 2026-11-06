@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.20',
+    date: 'Nov 6',
+    items: [
+      'The street, polished: whoever you’ve seen fades in once and stays (it used to flash off and on), and their card says what you can see from over there (“Stocky woman, across the street”).',
+      'Lurking no longer empties the screen: Lurk, Go and Pockets stay, greyed, while you wait, and the wait is a little shorter. What you feel while you wait (the cold, a craving) shows once the static clears, readable.',
+      'On a small sideways screen, a message and whoever you’ve seen both fit. Police stops read in order: the car slows, then pulls in. Only the latest weather line shows.',
+      'Cravings know what’s in your pockets, flurries by day come out of a white sky, and the cold doesn’t repeat itself. A first-time hint on the street, and the first time Rest shows, what it does.',
+      'Night is a little darker on the tube, rain shows better, the film scratch is fainter, and the edge tabs keep clear of a phone’s notch.',
+    ],
+  },
+  {
     v: '2.19',
     date: 'Nov 6',
     items: [

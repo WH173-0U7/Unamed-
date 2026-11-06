@@ -6101,3 +6101,66 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
     padding-right: 2px;
   }
 }
+
+/* ===== Street & lurking polish ===== */
+/* Who you've seen comes in once: the glitch and the fade together, not one after the other. */
+#seen.ui-glitch {
+  animation: ui-glitch 0.32s steps(1, end), seen-in 0.9s ease both !important;
+}
+/* Notes read over static and snow. */
+#note p {
+  text-shadow: 0 0 10px #000, 0 0 3px #000, 0 0 1px #000;
+}
+/* While you wait, Lurk stays, greyed: the screen doesn't empty out every lurk. */
+#lurk-btn.waiting {
+  opacity: 0.3;
+  pointer-events: none;
+  animation: none;
+}
+/* The very short landscape screen: room for the note, the card and Lurk together. */
+@media (max-height: 340px) {
+  #lurk-btn svg,
+  #rest-btn svg {
+    width: 26px;
+    height: 26px;
+  }
+  #lurk-btn,
+  #rest-btn {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  #game:not(.in-shop) #note.sticky p.note-tap {
+    display: none;
+  }
+  #note.tight p {
+    font-size: 11px;
+    margin-bottom: 2px;
+  }
+}
+/* Landscape, with room: the card still says what you can see of them. */
+@media (min-height: 341px) {
+  #seen.compact .seen-race {
+    display: block;
+    margin-top: 0;
+    font-size: 10px;
+  }
+}
+/* Clear of the notch and the home bar. */
+.edge-left {
+  left: env(safe-area-inset-left, 0px);
+}
+.edge-right {
+  right: env(safe-area-inset-right, 0px);
+}
+.edge-tab.edge-bottom {
+  bottom: env(safe-area-inset-bottom, 0px);
+}
+/* Your blood and cash, and the You tab, come up with the picture. */
+#game.warming #you-status,
+#game.warming #you-btn {
+  visibility: hidden;
+}
+/* The blood bar never shrinks to a sliver. */
+.you-blood i {
+  min-width: 80px;
+}

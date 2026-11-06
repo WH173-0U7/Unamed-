@@ -501,8 +501,8 @@ export class Game {
       h.cold = cold + 1;
       return [
         '',
-        snowing ? `Snow melts into your ${top.toLowerCase() || 'clothes'} and the cold gets in. You're chilled.` : `The rain soaks through your ${top.toLowerCase() || 'clothes'}. You're chilled.`,
-        "You're soaked through and cold to the bone.",
+        snowing ? `Snow melts into your ${top.toLowerCase() || 'clothes'} and the cold gets in. You're chilled.` : warm < 1 ? "The rain gets in at your collar and cuffs. You're chilled." : `The rain soaks through your ${top.toLowerCase() || 'clothes'}. You're chilled.`,
+        snowing ? "The snow has worked its way in under everything. You're cold to the bone." : "Your clothes cling, cold and heavy. You're cold to the bone.",
         "You can't stop shivering. Your fingers won't work properly. You're freezing.",
       ][h.cold];
     }
@@ -592,7 +592,7 @@ export class Game {
   }
 
   /** A few lines shown in the middle of the screen for a while. */
-  private note(lines: string[], sticky = false) {
+  private note(lines: string[], sticky = false, tag?: string) {
     if (!lines.length) return;
     const fight = this.encounter;
     // The beat after a fight ends (the screen's about to change), lying down, inside:
@@ -639,7 +639,9 @@ export class Game {
     const head = sticky;
     sticky = true;
     if (!head && this.noteSticky && !this.noteEl.hidden) {
-      this.noteEl.querySelector('.note-tap')?.before(...lines.map((l) => Object.assign(p(l), { className: 'note-extra' })));
+      // (The weather: only how it is now, not how it was a minute ago.)
+      if (tag) this.noteEl.querySelectorAll(`p[data-tag="${tag}"]`).forEach((x) => x.remove());
+      this.noteEl.querySelector('.note-tap')?.before(...lines.map((l) => { const el = Object.assign(p(l), { className: 'note-extra' }); if (tag) el.dataset.tag = tag; return el; }));
       // (Only the latest few of those: what the note said first stays.)
       const extra = [...this.noteEl.querySelectorAll('p.note-extra')];
       for (const el of extra.slice(0, Math.max(0, extra.length - 3))) el.remove();
@@ -653,7 +655,7 @@ export class Game {
     else delete this.save.state.stickyNote;
     delete this.save.state.stickyExtra;
     this.noteEl.classList.toggle('sticky', sticky);
-    this.noteEl.replaceChildren(...lines.map((l) => (head ? Object.assign(p(l), { className: 'note-head' }) : p(l))), Object.assign(p('Tap to dismiss'), { className: 'note-tap' }));
+    this.noteEl.replaceChildren(...lines.map((l) => { const el = head ? Object.assign(p(l), { className: 'note-head' }) : p(l); if (tag) el.dataset.tag = tag; return el; }), Object.assign(p('Tap to dismiss'), { className: 'note-tap' }));
     this.noteEl.hidden = false;
     clearTimeout(this.noteFade);
     this.noteEl.classList.remove('fading');
@@ -999,7 +1001,7 @@ export class Game {
       return;
     }
     if (fatigueNow(this.health) >= FATIGUE_SPENT) {
-      this.note(['You’re spent. Your eyes keep closing on their own and the street swims. You need to lie down: Rest.']);
+      this.note(['You’re spent. Your eyes keep closing on their own and the street swims. You need to lie down. Tap Rest.']);
       return;
     }
     addFatigue(this.health, 0.5);
@@ -1015,7 +1017,12 @@ export class Game {
     // Withdrawal: the craving, and (off drink or downers, badly) a seizure.
     {
       const wd = withdrawalEffects(this.health);
-      if (wd.worst && wd.worst.sev > 0.15 && Math.random() < 0.3) lines.push(cravingLine(wd.worst.k));
+      if (wd.worst && wd.worst.sev > 0.15 && Math.random() < 0.3) {
+        const inv = this.inventory;
+        const pack = wd.worst.k === 'nicotine' && inv.items.some((x) => /cigarettes/i.test(x.name) && (x.doses ?? 1) > 0);
+        const bottle = wd.worst.k === 'alcohol' && inv.items.some((x) => (x.drink === 'liquor' || x.drink === 'beer') && (x.doses ?? 1) > 0);
+        lines.push(pack ? 'Your hand keeps going to the pack in your pocket.' : bottle ? 'You keep thinking about the bottle in your pocket.' : cravingLine(wd.worst.k));
+      }
       if (wd.seizure > 0 && Math.random() < wd.seizure) {
         lines.push('Your jaw locks, your arms jerk, and the street tilts away. When you come to, you\'re on the sidewalk, your tongue bitten, your whole body aching. A seizure.');
         lines.push(...passHours(this.health, 1));
@@ -1039,8 +1046,8 @@ export class Game {
       this.save.state.policeWhy = [
         ...lines,
         wanted
-          ? oneOf(['The one in the passenger seat looks from you to his phone, and back.', "They slow as they pass, and the brake lights come on. They've had a description."])
-          : oneOf(['One of them is looking at your pocket, at what shows.', 'His eyes go to the shape under your clothes and stay there.']),
+          ? oneOf(['A patrol car slows as it passes. The one in the passenger seat looks from you to his phone, and back.', "A patrol car rolls past, slow. The brake lights come on. They've had a description."])
+          : oneOf(['A patrol car slows alongside. The one in the passenger seat is looking at your pocket, at what shows.', "A patrol car slows alongside. The driver's eyes go to the shape under your clothes and stay there."]),
       ];
       this.save.state.policeStop = true;
       this.openSheet('police');
@@ -1048,17 +1055,22 @@ export class Game {
       return;
     }
     this.refresh();
-    this.lurkBtn.hidden = true;
+    // (Lurk greys out while you wait, rather than vanishing: the screen stays put.)
+    this.lurkBtn.classList.add('waiting');
     this.restBtn.hidden = true;
     if (lines.some((l) => l.includes('collapse'))) {
       // Collapsed from blood loss: nobody this time.
       this.phase = 'idle';
+      this.lurkBtn.classList.remove('waiting');
       this.note(lines);
       return;
     }
-    this.note(lines);
+    // (Said once the static clears: nobody can read through the cut.)
+    this.pendingLurk = lines;
     buzz(10);
   }
+  /** What to say as the lurk's static clears (the cold, a craving). */
+  private pendingLurk: string[] = [];
 
   /** An option picked in the encounter (or 'open' from the person button). */
   private act(id: string) {
@@ -2099,6 +2111,8 @@ export class Game {
     buzz(8);
   }
 
+  /** How bright the tube is for the hour (eased toward it). */
+  private dim = 1;
   /** Wear tapped once with things that wouldn't fit: a second tap goes ahead. */
   private armedWear: { id: string; at: number } | null = null;
   /** A shop row's buttons: clothes can be worn now or carried. */
@@ -6334,8 +6348,8 @@ export class Game {
           ? why + `<p>A flashlight on you over the open trunk lid. "Step away from the car. Hands where I can see them."</p>`
           : this.save.state.policeStop === 'car'
           ? why + `<p>A second flashlight on the other window. "Step out of the vehicle. Slowly. Hands where I can see them."</p>`
-          : `<p>A patrol car pulls up beside you, lights off. Two of them get out. One has a hand on his belt.</p>` +
-            why +
+          : why +
+            `<p>${/patrol car/i.test(why) ? 'It pulls in beside you' : 'A patrol car pulls up beside you'}, lights off. Two of them get out. One has a hand on his belt.</p>` +
             `<p>"${masked ? 'Take that off your face. ' : ''}Hold up. Where are you headed ${partOfDay() === 'night' || partOfDay() === 'dusk' ? 'tonight' : 'today'}?"</p>`) +
         `</div><div class="police-choice">` +
         (this.save.state.policeStop === 'burglary' && this.save.state.policeCuffed
@@ -6598,8 +6612,9 @@ export class Game {
       k.textContent = e.resident ? 'Lives here' : (e.person.title ?? NAMES[e.person.kind]);
       const r = document.createElement('span');
       r.className = 'seen-race';
-      // From here you can't make out who they are, only what.
-      r.textContent = 'Across the street';
+      // From here you can't make out who they are: only their size, and whether it's a man or a woman.
+      const p = e.person;
+      r.textContent = e.resident || e.enforcer || p.title ? 'Across the street' : `${p.build} ${p.sex === 'Male' ? 'man' : 'woman'}, across the street`;
       const tap = document.createElement('span');
       tap.className = 'seen-tap';
       tap.textContent = 'Tap to approach';
@@ -6852,7 +6867,12 @@ export class Game {
       this.jam = 1;
       if (this.timer <= 0) {
         this.phase = 'waiting';
-        this.timer = 1.2 + Math.random() * 1.6;
+        this.timer = 1 + Math.random() * 1.3;
+        if (this.pendingLurk.length) {
+          const l = this.pendingLurk;
+          this.pendingLurk = [];
+          this.note(l);
+        }
       }
     } else if (this.phase === 'waiting') {
       // The wait: the odd flicker of interference.
@@ -7170,7 +7190,7 @@ export class Game {
       }
       const was = this.weather.now;
       if (updateWeather(this.weather) && this.running && this.tvState.on && this.weather.now !== was && !this.inside) {
-        this.note([weatherLine(this.weather.now, was)]);
+        this.note([weatherLine(this.weather.now, was, partOfDay() !== 'day')], false, 'weather');
       }
     }
     this.tickClock();
@@ -7257,18 +7277,38 @@ export class Game {
     // The Lurk button shows whenever you're free to lurk.
     const e = this.encounter;
     const show = this.canLurk && !(e && e.stage === 'over'); // then it's in the encounter screen
-    if (this.lurkBtn.hidden === show) {
-      this.lurkBtn.hidden = !show;
+    // (While you wait, it stays, greyed.)
+    const waiting = this.phase !== 'idle' && this.place === 'street' && this.running;
+    if (!waiting) this.lurkBtn.classList.remove('waiting');
+    const showL = show || waiting;
+    if (this.lurkBtn.hidden === showL) {
+      this.lurkBtn.hidden = !showL;
       this.lurkBtn.querySelector('span')!.textContent = 'Lurk';
     }
     const rest = show && (isHurt(this.health) || fatigueNow(this.health) >= 10);
     if (this.restBtn.hidden === rest) this.restBtn.hidden = !rest;
+    // The very first time: what there is to do.
+    if (show && !this.save.state.toldStart && this.lurkState.times - this.world.lifeStart === 0) {
+      this.save.state.toldStart = true;
+      this.later(['Lurk, and watch the street: someone always comes along. Go takes you places. Pockets is what you carry. You is you.']);
+    }
+    if (rest && !this.save.state.restTold) {
+      this.save.state.restTold = true;
+      this.later(['You’re worn down. Rest: lie low and get your strength back. It takes real time, and you can get up early.']);
+    }
     // The edge tabs: whenever a drawer could be pulled in.
-    const pull = this.canOpenSheet && !this.sheet;
+    const pull = (this.canOpenSheet && !this.sheet) || (this.phase !== 'idle' && this.place === 'street' && this.running && !this.sheet);
     if (this.goBtn.hidden === pull) this.goBtn.hidden = !pull;
     if (this.bagBtn.hidden === pull) this.bagBtn.hidden = !pull;
     // You (your stats): any time the TV's on and nothing's open, even mid-fight.
     const you = this.running && this.tvState.on && !this.sheet && !this.dead;
+    // (Your blood and cash, and the You tab, come up with the picture, not before.)
+    this.view.classList.toggle('warming', this.tvState.on && !this.tv.showingPicture);
+    // (The hour on the tube: a touch darker at night, eased in.)
+    const pd = partOfDay();
+    const want = pd === 'night' ? 0.84 : pd === 'day' ? 1 : 0.92;
+    this.dim += (want - this.dim) * 0.02;
+    this.tv.setDim(this.dim);
     if (this.youBtn.hidden === you) this.youBtn.hidden = !you;
   }
 

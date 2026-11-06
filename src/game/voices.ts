@@ -5,6 +5,7 @@ import type { Kind, Personality } from './person';
 export const indoors = (text: string) =>
   text
     .replace(/\bthe sidewalk\b/g, 'the floor')
+    .replace(/just how it is out here/g, 'just how it is')
     .replace(/\bThe sidewalk\b/g, 'The floor')
     .replace(/\bwalk off into the dark\b/g, 'walk out')
     .replace(/\boff into the dark\b/g, 'out of the room')

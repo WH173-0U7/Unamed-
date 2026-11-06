@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.61',
+    date: 'Nov 6',
+    items: [
+      'Someone you slap awake doesn’t swing at you in the same moment they come round.',
+      'Search lists read better: “$59 in folded bills”, “a lighter (43% full)”, “two pepper sprays”, “two sets of house keys”, “matches (20 left, in the bag)”.',
+      'Someone with both arms broken gets up and lies there like it. A dropped weapon shows as on the ground by them.',
+    ],
+  },
+  {
     v: '1.60',
     date: 'Nov 6',
     items: [

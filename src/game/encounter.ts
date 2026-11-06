@@ -375,7 +375,7 @@ function searchOptions(e: Encounter): Option[] {
   // What they were carrying to hurt you with: in their hand, or on the ground by them.
   e.person.carrying.forEach((it, ci) => {
     if ((it.weapon || it.spray) && (!e.them.yielded || e.emptied))
-      found.push({ id: `takec:${ci}`, label: it.name, hint: e.them.weaponOut === it.name ? 'On the ground by them' : 'They were carrying it', cat: 'search' });
+      found.push({ id: `takec:${ci}`, label: it.name, hint: e.them.weaponOut === it.name || it.dropped ? 'On the ground by them' : 'They were carrying it', cat: 'search' });
   });
   const all: Option[] = found.length > 1 ? [{ id: 'take-all', label: 'Take everything', hint: `${found.length} things`, cat: 'search' }] : [];
   const out = [...all, ...found, ...todo];
@@ -2421,8 +2421,8 @@ function theirTurn(started = false) {
     spend('them', COST.getUp);
     if (Math.random() < getUpChance(T)) {
       T.down = false;
-      say('them', legs(T) ? 'They drag themselves up on one good leg.' : oneOf(['They get back on their feet.', 'They scramble back up.', 'They push themselves up off the sidewalk.']));
-    } else say('them', legs(T) >= 2 ? vary([arms(T) >= 2 ? 'Neither leg will hold them, and their arms are no use. They lie there.' : 'Neither leg will hold them. They stay down, and throw whatever they can reach at you.', 'They can\'t get up. They scream for help instead.', 'They grab for the edge of something and can\'t pull themselves up.']) : legs(T) ? 'They try to stand, but their leg gives way.' : oneOf(['They try to get up, and fall back down.', 'They get halfway up, and their legs fold.']));
+      say('them', legs(T) ? 'They drag themselves up on one good leg.' : arms(T) >= 2 ? 'They roll over and get their feet under them, arms held to their chest.' : oneOf(['They get back on their feet.', 'They scramble back up.', 'They push themselves up off the sidewalk.']));
+    } else say('them', legs(T) >= 2 ? arms(T) >= 2 ? 'Neither leg will hold them, and their arms are no use. They lie there.' : vary(['Neither leg will hold them. They stay down, and throw whatever they can reach at you.', 'They can\'t get up. They scream for help instead.', 'They grab for the edge of something and can\'t pull themselves up.']) : legs(T) ? 'They try to stand, but their leg gives way.' : oneOf(['They try to get up, and fall back down.', 'They get halfway up, and their legs fold.']));
     return;
   }
   // Losing badly: some try to run for it (much harder on a broken leg).
@@ -3072,6 +3072,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
       T.dazed = 2;
       T.awake = 20;
       T.yielded = true;
+      yieldedNow = true;
       scare(30);
       say('you', 'You slap them until their eyes open.');
       say('them', speak('woken') || 'They see you standing over them and start to beg.');
@@ -3282,7 +3283,11 @@ function torture(how: string) {
 
 /** A thing off them in a list ("$105 in cash", not "cash, $105"). */
 function lootWords(l: Loot): string {
-  return a(lc(lootLabel(l))).replace(/^(?:some )?cash, (\$[\d,.]+)$/i, '$1 in cash');
+  return a(lc(lootLabel(l)))
+    .replace(/^(?:some )?cash, (\$[\d,.]+)$/i, '$1 in cash')
+    // ("$59 in folded bills", not "folded bills, $59"; "a lighter (43% full)".)
+    .replace(/^((?:folded|crumpled|loose|rolled)[a-z ]*?), (\$[\d,.]+)$/i, '$2 in $1')
+    .replace(/^(an? [^,]+), ([^,]+)$/i, '$1 ($2)');
 }
 
 /** Takes a weapon they were carrying (it's yours now: they can't use it on you). */
@@ -3352,7 +3357,7 @@ function search(id: string, inv?: Inventory) {
     }
     if (cash) lines.unshift(`${money(Math.round(cash * 100))} in cash`);
     if (lines.length) say('you', `You take ${left.length ? 'what you can carry' : 'everything'}: ${list(lines)}.`);
-    if (left.length) say('you', `There's no room for ${list(left)}. You leave ${left.length > 1 ? 'them' : 'it'}.`);
+    if (left.length) say('you', `There's no room for ${list(left)}. You leave ${left.length > 1 || /[^s]s$/i.test(left[0]) ? 'them' : 'it'}.`);
     return;
   }
   if (id.startsWith('takec:')) {
@@ -3380,7 +3385,9 @@ const list = (xs0: string[]) => {
   for (const x of xs0) n.set(x, (n.get(x) ?? 0) + 1);
   const xs = [...n].flatMap(([x, k]) => (k < 2 ? [x] : several(x, k)));
   // (A list inside the list, "a wallet with A and B": a comma before the last "and".)
-  return xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')}${xs.some((x) => / and /.test(x)) ? ',' : ''} and ${xs[xs.length - 1]}`;
+  const out = xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')}${xs.some((x) => / and /.test(x)) ? ',' : ''} and ${xs[xs.length - 1]}`;
+  // ("matches (20 left, in the bag)", not "(20 left) (in the bag)".)
+  return out.replace(/\) \(/g, ', ');
 };
 const NUMBER = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
 const pluralWord = (w: string) => (/(s|x|z|ch|sh)$/i.test(w) ? `${w}es` : /[^aeiou]y$/i.test(w) ? `${w.slice(0, -1)}ies` : /fe?$/i.test(w) && /(knife|wife|life)$/i.test(w) ? `${w.replace(/fe?$/i, '')}ves` : `${w}s`);
@@ -3388,11 +3395,14 @@ const pluralWord = (w: string) => (/(s|x|z|ch|sh)$/i.test(w) ? `${w}es` : /[^aei
 function several(x: string, k: number): string[] {
   // ("a receipt (in the bag)": the where stays as it is.)
   const where = / \([^)]*\)$/.exec(x)?.[0] ?? '';
-  const m = /^(?:a|an|the) (.+)$/i.exec(where ? x.slice(0, -where.length) : x);
-  // (No "a" to count by, or a detail after a comma: listed as many times as there are.)
-  if (!m || m[1].includes(',')) return Array(k).fill(x);
+  const bare = where ? x.slice(0, -where.length) : x;
+  const m = /^(?:a|an|the) (.+)$/i.exec(bare);
+  // (Money, or a detail after a comma or in brackets: listed as many times as there are.)
+  if (/^[$\d]/.test(bare) || bare.includes(',') || bare.includes('(') || / (in|with|from) /.test(bare)) return Array(k).fill(x);
+  // (No "a" to count by: "two pepper sprays", "two sets of house keys".)
+  if (!m) return [/[^s]s$/i.test(bare) ? `${NUMBER[k] ?? k} ${/keys$/i.test(bare) ? 'sets' : 'lots'} of ${bare}${where}` : `${NUMBER[k] ?? k} ${bare.replace(/(\S+)$/, (w) => pluralWord(w))}${where}`];
   const body = m[1];
-  const of = body.search(/ (of|in|with|from) /);
+  const of = body.search(/ of /);
   const head = of >= 0 ? body.slice(0, of) : body;
   const rest = of >= 0 ? body.slice(of) : '';
   const words = head.split(' ');

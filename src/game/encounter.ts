@@ -11,6 +11,7 @@ import { gunOf } from './guns';
 import { freeHand, lootLabel, take, type Inventory } from './inventory';
 import {
   STAT_NAMES,
+  toughnessResist,
   accuracyBonus,
   ambushBonus,
   gripBonus,
@@ -165,6 +166,8 @@ export interface Marks {
   jaw?: boolean;
   /** Fingers broken (torture), a crushed hand. */
   fingers?: number;
+  /** Which fingers ("left thumb", "right ring finger"...). */
+  fingerList?: string[];
   hand?: boolean;
   scars?: string[];
 }
@@ -470,9 +473,10 @@ function yieldedOptions(e: Encounter): Option[] {
   if (e.canAsk && !asked.includes('thief')) out.push({ id: 'ask-thief', label: '"Seen anyone with my things?"', hint: 'What you had, before', cat: 'threaten' });
   // Hurting them, for the truth or for the fun of it.
   const fingers = T.marks?.fingers ?? 0;
-  out.push({ id: 't-finger', label: 'Bend a finger back', hint: fingers >= 10 ? 'None left to break' : 'Until it snaps', disabled: fingers >= 10, cat: 'torture' });
-  // (Only someone on the floor has a hand under your heel.)
-  if (T.down) out.push({ id: 't-stamp', label: 'Stomp on their hand', cat: 'torture' });
+  const handsDone = (['left', 'right'] as const).filter((sd) => T.broken.includes(`${sd} hand` as Part));
+  out.push({ id: 't-finger', label: 'Bend a finger back', hint: fingers >= 10 ? 'Every finger’s broken' : `${fingers ? `${fingers} of 10 broken. ` : ''}Until it snaps`, disabled: fingers >= 10, cat: 'torture' });
+  // (Only someone on the floor has a hand under your heel; and only two hands to break.)
+  if (T.down) out.push({ id: 't-stamp', label: 'Stomp on their hand', hint: handsDone.length >= 2 ? 'Both hands are broken' : handsDone.length ? 'The other hand' : undefined, disabled: handsDone.length >= 2, cat: 'torture' });
   // A knife in your hand.
   const blade = heldBlade(e);
   if (blade) {
@@ -480,7 +484,9 @@ function yieldedOptions(e: Encounter): Option[] {
     const cheeks = (T.marks?.scars ?? []).filter((x) => x === 'cheek').length;
     if (cheeks < 2) out.push({ id: 't-cut', label: cheeks ? 'Cut their other cheek' : 'Cut their cheek', hint: 'A scar they’ll carry', cat: 'torture' });
   }
-  if (arms(T)) out.push({ id: 't-twist', label: 'Twist the broken arm', cat: 'torture' });
+  // A broken arm twisted, once each (doing it again is just doing it again).
+  const twistable = T.broken.filter((x) => /arm$/.test(x) && !asked.includes(`twist:${x}`));
+  if (arms(T)) out.push({ id: 't-twist', label: 'Twist the broken arm', hint: twistable.length ? undefined : 'You’ve done that', disabled: !twistable.length, cat: 'torture' });
   out.push({ id: 'punch', label: 'Hit them anyway', hint: 'It turns back into a fight', cat: 'attack' });
   out.push({ id: 'let-go', label: 'Let them go', hint: e.robbed ? 'With what you took' : undefined });
   return out;
@@ -798,10 +804,12 @@ function rawOptions(e: Encounter): Option[] {
       const stomps = (why?: string, t = tired(COST.kick)): Option[] => [
         { id: 'stomp-head', label: 'Stomp: head', hint: t ? 'Too tired' : (why ?? 'Can knock them out'), disabled: t, cat: 'stomp' },
         { id: 'stomp-stomach', label: 'Stomp: stomach', hint: t ? 'Too tired' : (why ?? 'Winds them'), disabled: t, cat: 'stomp' },
-        { id: 'stomp-ribs', label: 'Stomp: ribs', hint: t ? 'Too tired' : (why ?? 'Can break them'), disabled: t, cat: 'stomp' },
+        e.them.broken.includes('ribs') && e.them.lung
+          ? { id: 'stomp-ribs', label: 'Stomp: ribs', hint: 'Broken, and a lung with them', disabled: true, cat: 'stomp' }
+          : { id: 'stomp-ribs', label: 'Stomp: ribs', hint: t ? 'Too tired' : (why ?? (e.them.broken.includes('ribs') ? 'Already broken: a lung next' : 'Can break them')), disabled: t, cat: 'stomp' },
       ];
       // On them while they're down: knee drop, ground and pound, wrenching an arm.
-      const ground = (): Option[] => learned(e, GROUND.map((t) => ({ id: t.id, label: t.name, hint: tired(t.cost) ? 'Too tired' : t.kind === 'punch' ? (armHint ?? t.hint) : t.hint, level: t.level, style: t.style, disabled: tired(t.cost) })), 'stomp');
+      const ground = (): Option[] => learned(e, GROUND.map((t) => ({ id: t.id, label: t.name, hint: brokenAlready(e.them, t) ?? (tired(t.cost) ? 'Too tired' : t.kind === 'punch' ? (armHint ?? t.hint) : t.hint), level: t.level, style: t.style, disabled: tired(t.cost) || !!brokenAlready(e.them, t) })), 'stomp');
       if (y.down) {
         return [
           { id: 'punch', label: 'Punch', hint: armHint ?? 'From the floor', cat: 'attack' },
@@ -829,7 +837,7 @@ function rawOptions(e: Encounter): Option[] {
         { id: 'grapple', label: 'Grapple', hint: tired(COST.grapple) ? 'Too tired' : (armHint ?? 'Take them down'), disabled: tired(COST.grapple), cat: 'attack' },
         ...learned(
           e,
-          TECHNIQUES.map((t) => ({ id: t.id, label: t.name, hint: tired(t.cost) ? 'Too tired' : t.kind === 'kick' ? (legHint ?? t.hint) : (armHint ?? t.hint), level: t.level, style: t.style, disabled: tired(t.cost) })),
+          TECHNIQUES.map((t) => ({ id: t.id, label: t.name, hint: brokenAlready(e.them, t) ?? (tired(t.cost) ? 'Too tired' : t.kind === 'kick' ? (legHint ?? t.hint) : (armHint ?? t.hint)), level: t.level, style: t.style, disabled: tired(t.cost) || !!brokenAlready(e.them, t) })),
           'attack',
         ),
         ...weaponOptions(e, 'attack', tired),
@@ -848,8 +856,7 @@ function rawOptions(e: Encounter): Option[] {
       return [
         ...(e.them.dead ? searchOptions(e) : []),
         ...(e.them.dead ? [{ id: 'leave-body', label: e.resident ? 'Step over them' : 'Walk away', hint: e.resident ? 'Back to the rest of the house' : 'Leave the body where it lies' }] : []),
-        // (In someone's house, there's no lurking: the rest of the house, or the door.)
-        ...(e.resident ? [] : [{ id: 'lurk', label: 'Lurk' }, { id: 'rest', label: 'Rest', hint: 'Let time pass and heal' }]),
+        // (Beside a body: going through their pockets, or walking away. Nothing else.)
       ];
     default:
       return [];
@@ -1367,6 +1374,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
     }
     const tech = ALL_MOVES().find((t) => t.id === id);
     if (tech && tech.level > styleLevel(stats, tech.style)) return impacts;
+    if (tech && brokenAlready(e.them, tech)) return impacts;
     // Each kind of move only where it makes sense.
     if (tech && GROUND.includes(tech) && (!e.them.down || y.down)) return impacts;
     if (tech && FLOOR.includes(tech) && (!y.down || e.them.down)) return impacts;
@@ -2135,7 +2143,14 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   const sharp = how === 'cut' || how === 'jab';
   // (A needle barely bleeds: it's what's in it that counts.)
   if (how === 'cut') D.blood = Math.max(0, D.blood - ml);
-  D.awake = Math.max(-120, (D.awake ?? 100) - Math.round((dmg * AWAKE_HIT[loc] * (sharp ? 0.3 : how === 'fall' ? 0.6 : 1) * (d === 'you' ? 0.75 : 1) * 100) / D.toughness));
+  // (Toughness: a hard head takes it better.)
+  const tough = d === 'you' ? 1 - toughnessResist(you.stats) : 1;
+  D.awake = Math.max(-120, (D.awake ?? 100) - Math.round((dmg * AWAKE_HIT[loc] * (sharp ? 0.3 : how === 'fall' ? 0.6 : 1) * (d === 'you' ? 0.75 : 1) * tough * 100) / D.toughness));
+  // Taking a beating is what makes you tough: the worse off you are when it lands, the more it teaches.
+  if (d === 'you' && dmg > 0) {
+    const worse = 1 + 2 * (1 - D.blood / D.maxBlood) + 1.5 * (1 - Math.max(0, D.awake) / 100) + 0.3 * D.broken.length + (D.down ? 0.5 : 0);
+    you.gain('toughness', Math.max(1, Math.round((1 + dmg * 0.15) * worse)));
+  }
   const out: string[] = [how === 'cut' ? `(−${ml}\u00a0ml)` : ''];
   const re = N.oRe;
   let severe = ml >= 450;
@@ -2148,7 +2163,7 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   const lost = 1 - D.blood / D.maxBlood;
   const knockOut = (chance: number) => {
     // At the end of it, or a lucky one before that.
-    if (!D.out && (D.awake <= 0 || Math.random() < chance * 0.5)) {
+    if (!D.out && (D.awake <= 0 || Math.random() < chance * 0.5 * (d === 'you' ? 1 - toughnessResist(you.stats) : 1))) {
       D.out = true;
       D.down = true;
       D.awake = Math.min(D.awake, -20);
@@ -2819,6 +2834,32 @@ export const ALL_TECHNIQUES: { name: string; level: number; where: string; style
 /** Barely knows how to throw a punch yet (Unarmed 1–10): it shows. */
 const novice = () => (enc.unarmedLevel ?? 1) <= 10;
 
+/** A move whose whole point is breaking something that's already broken (both of them, for a pair): why not. */
+function brokenAlready(T: Body, t: Technique): string | undefined {
+  const pair = (what: string) => (['left', 'right'] as const).every((sd) => T.broken.includes(`${sd} ${what}` as Part));
+  switch (t.effect) {
+    case 'break-nose':
+      return T.broken.includes('nose') ? 'Already broken' : undefined;
+    case 'break-collarbone':
+      return T.broken.includes('collarbone') ? 'Already broken' : undefined;
+    case 'break-jaw':
+      return T.marks?.jaw ? 'Already broken' : undefined;
+    case 'break-hand':
+      return pair('hand') ? 'Both hands broken' : undefined;
+    case 'break-wrist':
+      return pair('wrist') ? 'Both wrists broken' : undefined;
+    case 'break-ankle':
+      return pair('ankle') ? 'Both ankles broken' : undefined;
+    case 'break-leg':
+      return pair('leg') ? 'Both legs broken' : undefined;
+    case 'break-arm':
+      return pair('arm') ? 'Both arms broken' : undefined;
+    case 'spine':
+      return T.broken.includes('spine') ? 'They’ll never walk again' : undefined;
+    default:
+      return undefined;
+  }
+}
 /** The chance a move meant to break something does: more as you get better at that style. */
 const breakOdds = (t: Technique, base: number) => clamp(base + ((enc.styleLevels?.[t.style] ?? enc.unarmedLevel ?? 1) - t.level) * 0.006 + (enc.them.out ? 0.15 : enc.them.dazed ? 0.08 : 0), 0.05, 0.9);
 /** What a technique does when it lands, beyond the blow itself. */
@@ -3434,14 +3475,39 @@ function torture(how: string) {
   switch (how) {
     case 'finger':
       // A finger really breaks (they'll have it splinted when you see them again).
-      if ((T.marks?.fingers ?? 0) >= 10) return;
-      text = oneOf(['You find their little finger and bend it back until it pops. They shriek.', 'You take one of their fingers and bend it back until it snaps. They scream into your hand.', "You grab their hand and bend a finger back, slowly. There's a wet crack. They howl."]);
-      (T.marks ??= {}).fingers = (T.marks.fingers ?? 0) + 1;
+      {
+        const m = (T.marks ??= {});
+        const done = (m.fingerList ??= []);
+        // (Counted before there was a list: those are broken, somewhere.)
+        const FINGERS = ['thumb', 'index finger', 'middle finger', 'ring finger', 'little finger'];
+        const all = (['left', 'right'] as const).flatMap((sd) => FINGERS.map((f) => `${sd} ${f}`));
+        const left = all.filter((f) => !done.includes(f)).slice(0, Math.max(0, 10 - Math.max(m.fingers ?? 0, done.length)));
+        if (!left.length) return;
+        // One hand at a time: finish one before starting on the other.
+        const hand = left.find((f) => done.some((d) => d.split(' ')[0] === f.split(' ')[0])) ?? left[0];
+        const fing = left.filter((f) => f.split(' ')[0] === hand.split(' ')[0]);
+        const f = fing[Math.floor(Math.random() * fing.length)];
+        done.push(f);
+        m.fingers = Math.max(m.fingers ?? 0, done.length);
+        const [sd, ...rest] = f.split(' ');
+        const name = rest.join(' ');
+        text = oneOf([`You take their ${sd} ${name} and bend it back until it pops. They shriek.`, `You take their ${sd} ${name} and bend it back until it snaps. They scream into your hand.`, `You grab their ${sd} hand and bend the ${name} back, slowly. There's a wet crack. They howl.`]);
+        // All five on that hand: that hand's done.
+        if (FINGERS.every((x) => done.includes(`${sd} ${x}`))) {
+          if (!T.broken.includes(`${sd} hand` as Part)) T.broken.push(`${sd} hand` as Part);
+          text += ` That's every finger on their ${sd} hand.`;
+        }
+      }
       break;
     case 'stamp':
-      if (!T.down) return;
-      text = T.marks?.hand ? 'You grind your heel into their broken hand.' : 'You put your heel on their hand and lean on it until the small bones crunch. Their hand is broken.';
-      (T.marks ??= {}).hand = true;
+      {
+        if (!T.down) return;
+        const sd = (['right', 'left'] as const).find((x) => !T.broken.includes(`${x} hand` as Part));
+        if (!sd) return;
+        T.broken.push(`${sd} hand` as Part);
+        (T.marks ??= {}).hand = true;
+        text = `You put your heel on their ${sd} hand and lean on it until the small bones crunch. Their ${sd} hand is broken.`;
+      }
       break;
     case 'blade': {
       const b = heldBlade(e);
@@ -3462,8 +3528,12 @@ function torture(how: string) {
       break;
     }
     case 'twist':
-      if (!arms(T)) return;
-      text = 'You take their broken arm and twist. The bone ends grind.';
+      {
+        const arm = T.broken.find((x) => /arm$/.test(x) && !(e.asked ?? []).includes(`twist:${x}`));
+        if (!arm) return;
+        (e.asked ??= []).push(`twist:${arm}`);
+        text = `You take their broken ${arm} and twist. The bone ends grind.`;
+      }
       break;
     default:
       return;

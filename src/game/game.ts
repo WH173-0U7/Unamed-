@@ -4,6 +4,7 @@ import { createTv } from './tv';
 import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf, randomName, type Loot } from './person';
 import { ENCOUNTER_VERSION, act, indoors, newEncounter, options as encounterOptions, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
+import { toughnessResist } from './stats';
 import { STAT_NAMES, lieBonus, persuadeBonus, train, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
 import { MEND_HOURS, CONCUSSION_HOURS } from './health';
 import { clampClock, cravingLine, useHabit, withdrawalEffects, HIGH_HOURS, LURK_HOURS, addCaffeine, caffeineNow, caffeineLevel, drunkLevel, soberUp, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
@@ -566,9 +567,12 @@ export class Game {
       this.renderShop();
     }
     const p = (l: string) => Object.assign(document.createElement('p'), { textContent: l });
-    // What happened with someone stays up until you move on: anything else
-    // that comes in meanwhile (the weather, a cigarette burning down) goes under it.
-    if (!sticky && this.noteSticky && !this.noteEl.hidden) {
+    // On the street, every note waits for a tap (you read it, then it goes):
+    // anything else that comes in meanwhile (the weather, a cigarette burning
+    // down) goes under it, and what happened with someone stays on top.
+    const head = sticky;
+    sticky = true;
+    if (!head && this.noteSticky && !this.noteEl.hidden) {
       this.noteEl.querySelector('.note-tap')?.before(...lines.map(p));
       // (Only the latest few of those: what happened with them stays on top.)
       const extra = [...this.noteEl.querySelectorAll('p:not(.note-tap):not(.note-head)')];
@@ -581,7 +585,7 @@ export class Game {
     else delete this.save.state.stickyNote;
     delete this.save.state.stickyExtra;
     this.noteEl.classList.toggle('sticky', sticky);
-    this.noteEl.replaceChildren(...lines.map((l) => (sticky ? Object.assign(p(l), { className: 'note-head' }) : p(l))), ...(sticky ? [Object.assign(p('Tap to go on'), { className: 'note-tap' })] : []));
+    this.noteEl.replaceChildren(...lines.map((l) => (head ? Object.assign(p(l), { className: 'note-head' }) : p(l))), Object.assign(p('Tap to dismiss'), { className: 'note-tap' }));
     this.noteEl.hidden = false;
     clearTimeout(this.noteFade);
     this.noteEl.classList.remove('fading');
@@ -5739,6 +5743,10 @@ export class Game {
         ...this.menaceRows(),
         ['Total, before who they are', `+${Math.round(this.menace())}`],
       ],
+      toughness: [
+        ['Blows rattle you toward going out', `−${pct(toughnessResist(st))}`],
+        ['A lucky one knocking you out cold', `−${pct(toughnessResist(st))}`],
+      ],
       speech: [
         ['Lies that land', `+${pct(lieBonus(st))}`],
         ['Talking them into handing it over', `+${pct(persuadeBonus(st.speech.level))}`],
@@ -5751,6 +5759,7 @@ export class Game {
       unarmed: 'Landing blows, ambushes and techniques. Each new level can teach you a new move.',
       agility: 'Landing blows, and dodging theirs.',
       stamina: "Fighting until you're exhausted.",
+      toughness: 'Only by getting hurt: every blow you take, and more the worse off you are when it lands (bleeding, rattled, broken, on the floor).',
       weapons: 'Using a weapon in a fight (and pepper spray). Take them off the people who carry them.',
       intimidation: 'Mugging, threatening, making people give up, and torture. Scared people hand it over, tell the truth, and give up mid-fight.',
     };

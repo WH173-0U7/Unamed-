@@ -21,13 +21,15 @@
  * - **Intimidation:** how scared people are of you: scared people give up
  *   without a fight, hand over what they've got, and tell you what you want
  *   to know. Trained by threatening, mugging and torturing.
+ * - **Toughness:** taking it: how hard it is to knock you out. Trained only
+ *   by being hurt, and the worse a state you're in when it happens, the more.
  * - **Speech:** talking, and above all lying: talking your way past the
  *   police, a clerk who doesn't think your ID is you, someone who's caught
  *   you following them; and talking people into handing things over.
  *   Trained by talking (more when the lie works).
  */
 
-export type StatName = 'sneak' | 'strength' | 'unarmed' | 'weapons' | 'agility' | 'stamina' | 'intimidation' | 'speech';
+export type StatName = 'sneak' | 'strength' | 'unarmed' | 'weapons' | 'agility' | 'stamina' | 'toughness' | 'intimidation' | 'speech';
 
 export interface Stat {
   level: number;
@@ -44,11 +46,12 @@ export const STAT_NAMES: Record<StatName, string> = {
   weapons: 'Weapons',
   agility: 'Agility',
   stamina: 'Stamina',
+  toughness: 'Toughness',
   intimidation: 'Intimidation',
   speech: 'Speech',
 };
 /** Shorter names for the stats along the top of a small screen. */
-export const STAT_SHORT: Record<StatName, string> = { sneak: 'Snk', strength: 'Str', unarmed: 'Fist', weapons: 'Wpn', agility: 'Agi', stamina: 'Stm', intimidation: 'Fear', speech: 'Talk' };
+export const STAT_SHORT: Record<StatName, string> = { sneak: 'Snk', strength: 'Str', unarmed: 'Fist', weapons: 'Wpn', agility: 'Agi', stamina: 'Stm', toughness: 'Tuf', intimidation: 'Fear', speech: 'Talk' };
 
 /** Levels go to 100, and each one takes longer than the last. */
 export const MAX_LEVEL = 100;
@@ -61,6 +64,7 @@ export function newStats(): Stats {
     weapons: { level: 1, xp: 0 },
     agility: { level: 1, xp: 0 },
     stamina: { level: 1, xp: 0 },
+    toughness: { level: 1, xp: 0 },
     intimidation: { level: 1, xp: 0 },
     speech: { level: 1, xp: 0 },
   };
@@ -119,3 +123,6 @@ export const fearBonus = (s: Stats) => Math.round((s.intimidation.level - 1) * 0
 export const lieBonus = (s: Stats) => ((s.speech?.level ?? 1) - 1) * 0.006;
 /** Speech: talking someone into handing it over (+0.2% a level, +20% at 100). */
 export const persuadeBonus = (level: number) => (level - 1) * 0.002;
+
+/** How much less a blow rattles you toward being knocked out, from Toughness (up to 40% less). */
+export const toughnessResist = (s: Stats) => Math.min(0.4, ((s.toughness?.level ?? 1) - 1) * 0.004);

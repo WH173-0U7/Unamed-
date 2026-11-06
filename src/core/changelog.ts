@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.91',
+    date: 'Nov 6',
+    items: [
+      'New stat, Toughness: it makes blows rattle you less and makes a lucky knockout less likely. The only way to raise it is getting hurt, and the worse off you are when a blow lands (bleeding, rattled, broken, on the floor), the more it teaches you.',
+      'Torture doesn’t repeat what can’t be done again. Fingers break one at a time and you’re told which one, on which hand, one hand at a time; when all five on a hand are gone, that hand’s broken, and after all ten there’s none left. Stomping a hand breaks one hand, then the other, then that’s it. A broken arm twisted once. Moves meant to break something that’s already broken are greyed out, and stomping ribs that are broken with a lung gone is too.',
+      'Messages on the street stay until you tap them away. Beside a body there’s no Lurk or Rest: you go through their pockets or walk away.',
+    ],
+  },
+  {
     v: '1.90',
     date: 'Nov 6',
     items: [

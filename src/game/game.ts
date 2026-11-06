@@ -507,7 +507,7 @@ export class Game {
   private get place(): Place {
     const p = (this.save.state.place as Place) ?? 'street';
     // (Saved inside a place that's hidden now: you're back outside.)
-    return HIDDEN_PLACES.has(p) || (p === 'home' && !this.homeById(this.save.state.homeAt)) || (p === 'car' && !this.carById(this.save.state.carAt) && !this.save.state.hunt) ? 'street' : p;
+    return HIDDEN_PLACES.has(p) || (p === 'home' && !this.homeById(this.save.state.homeAt)) || (p === 'car' && !this.carById(this.save.state.carAt) && !this.huntKeys()) ? 'street' : p;
   }
   private set place(p: Place) {
     this.save.state.place = p;
@@ -2204,6 +2204,18 @@ export class Game {
   private get atCar(): Car | undefined {
     return this.place === 'car' ? this.carById(this.save.state.carAt) : undefined;
   }
+  /** On the hunt, with the fob still on you. */
+  private huntKeys(): boolean {
+    const s = this.save.state.hunt as HuntState | undefined;
+    return !!s && this.inventory.items.some((x) => x.kind === 'car keys' && x.carId === s.car);
+  }
+  /** The keys to that car anywhere you've put them (pockets, the brick, your room, a trunk). */
+  private keysKept(id: string): boolean {
+    const st = this.save.state;
+    const stash = st.stash as { items: InvItem[] } | undefined;
+    const room = st.room as { items: InvItem[] } | undefined;
+    return [...this.inventory.items, ...(stash?.items ?? []), ...(room?.items ?? []), ...this.cars.flatMap((c) => c.items)].some((x) => x.kind === 'car keys' && x.carId === id);
+  }
   /** Walking the blocks with a fob (and the keys still on you). */
   private get hunt(): HuntState | undefined {
     const s = this.save.state.hunt as HuntState | undefined;
@@ -2219,6 +2231,8 @@ export class Game {
     const it = this.inventory.items[i];
     if (!it || it.kind !== 'car keys' || it.car || this.ending || this.save.state.policeStop) return;
     if (this.place !== 'street' || !this.canLurk) return;
+    // (Wherever the save last had you, you're on the street now.)
+    this.place = 'street';
     it.carId ??= Math.random().toString(36).slice(2, 10);
     it.hunt ??= rollHunt(it.takenAt, now());
     this.save.state.hunt = { car: it.carId, heard: false, presses: 0, blocks: 0 } satisfies HuntState;
@@ -2236,7 +2250,7 @@ export class Game {
     this.cars.push(c);
     // (Only so many: the oldest you've no keys to go first.)
     while (this.cars.length > 12) {
-      const k = this.cars.findIndex((x) => !this.keysFor(x.id));
+      const k = this.cars.findIndex((x) => !this.keysKept(x.id));
       if (k < 0) break;
       this.cars.splice(k, 1);
     }
@@ -2248,6 +2262,8 @@ export class Game {
     const c = this.carById(id);
     if (!c || !this.keysFor(id)) return;
     if (this.place === 'car' && this.save.state.carAt === id) return this.closeSheet();
+    // (Where the save has you, as it is: not a car that's gone.)
+    this.place = this.place;
     // (From one car to the next, or off the hunt: by way of the street.)
     if (this.place === 'car') {
       this.leaveCar();
@@ -2281,11 +2297,17 @@ export class Game {
   private checkCar(): string[] {
     const c = this.atCar;
     if (!c || now() < c.towAt) return [];
-    const lines = [`Where you left the ${c.make}, there’s ${c.home ? 'an empty space at the curb' : 'an empty space, and someone else’s car pulling into it'}. Towed, or found and taken home.`];
+    return this.towed(c, `Where you left the ${c.make}, there’s ${c.home ? 'an empty space at the curb' : 'an empty space, and someone else’s car pulling into it'}. Towed, or found and taken home.`);
+  }
+  /** The car's gone (towed, or the owner has it back), and so's what was in it. You're on the street. */
+  private towed(c: Car, line: string): string[] {
+    const lines = [line];
     if (c.items.length || c.cents) lines.push('Whatever you had in the trunk went with it.');
     this.cars.splice(this.cars.indexOf(c), 1);
     for (const x of this.inventory.items) if (x.carId === c.id) x.car = 'gone';
     delete this.save.state.carAt;
+    this.place = 'street';
+    this.refresh();
     return lines;
   }
 
@@ -2378,9 +2400,15 @@ export class Game {
   /** At the car: go through it, sleep in it, walk away. */
   private carAct(what: string) {
     const c = this.atCar;
-    if (!c || this.ending || this.save.state.policeStop || this.sheet === 'police' || !this.keysFor(c.id)) return;
+    if (!c || this.ending || this.save.state.policeStop || this.sheet === 'police') return;
     if (what === 'leave') {
       this.goTo('street');
+      return;
+    }
+    if (!this.keysFor(c.id)) return;
+    // Gone while you stood there.
+    if (now() >= c.towAt) {
+      this.note(this.towed(c, `A tow truck backs up to the ${c.make} and the driver gets out with a clipboard. You walk away before he looks at you.`));
       return;
     }
     if (this.copsAtCar(c)) return;
@@ -2406,6 +2434,12 @@ export class Game {
       c.towAt -= ms;
       const key = this.keysFor(c.id);
       if (key?.takenAt != null) key.takenAt -= ms;
+      // (Towed while you slept: you wake to it.)
+      if (now() >= c.towAt) {
+        this.unstick();
+        this.note([...lines, ...this.towed(c, 'You wake to a hammering on the glass: the tow truck driver. You climb out, and he hooks it up without a word to you.')]);
+        return;
+      }
       // Reported by now: someone's been looking for it.
       if (reported(c, now()) && Math.random() < 0.4) {
         lines.push('A flashlight on the glass. Someone is tapping on the window with a baton.');
@@ -3723,7 +3757,7 @@ export class Game {
     const st = this.save.state;
     const stash = st.stash as { items: InvItem[]; at: number } | undefined;
     const room = st.room as { until: number; items: InvItem[]; at: number } | undefined;
-    for (const x of [...this.inventory.items, ...(stash?.items ?? []), ...(room?.items ?? [])]) if (x.takenAt != null) x.takenAt -= ms;
+    for (const x of [...this.inventory.items, ...(stash?.items ?? []), ...(room?.items ?? []), ...this.cars.flatMap((c) => c.items)]) if (x.takenAt != null) x.takenAt -= ms;
     if (stash) stash.at -= ms;
     if (room) {
       room.until -= ms;
@@ -4752,7 +4786,7 @@ export class Game {
         : car
           ? `<div class="shop-head"><h2>The ${car.color} ${car.make}</h2><p>Parked ${car.street}. Their keys, in your hand.</p></div>`
           : huntKey
-            ? `<div class="shop-head"><h2>Looking for the ${makeOf(huntKey)}</h2><p>The fob in your hand. You took it ${((m) => (m < 60 ? `${Math.max(1, m)} minute${m === 1 ? '' : 's'} ago` : m < 48 * 60 ? `${Math.round(m / 60)} hour${Math.round(m / 60) === 1 ? '' : 's'} ago` : 'days ago'))(Math.round((now() - (huntKey.takenAt ?? now())) / 60_000))}.</p></div>`
+            ? `<div class="shop-head"><h2>Looking for the ${makeOf(huntKey)}</h2><p>The fob in your hand. You took it ${((m) => (m < 60 ? `${Math.max(1, m)} minute${m <= 1 ? '' : 's'} ago` : m < 48 * 60 ? `${Math.round(m / 60)} hour${Math.round(m / 60) === 1 ? '' : 's'} ago` : 'days ago'))(Math.round((now() - (huntKey.takenAt ?? now())) / 60_000))}.</p></div>`
             : `<div class="shop-head"><h2>${info.name}</h2><p>${info.blurb}</p>${info.hours ? `<p class="shop-hours">${hoursText(info.hours)}.</p>` : ''}</div>`) +
       this.noteHtml(this.shopNote, 'shop-note') +
       (home || hunt ? '' : `<p class="pocket-purse">${this.purseHtml()}</p>`) +

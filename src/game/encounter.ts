@@ -2515,7 +2515,8 @@ function endOfRound() {
   // minute (not if they've lost too much blood).
   const T0 = enc.them;
   for (const f of [enc.you, T0]) if (!f.dead) f.awake = f.out ? Math.min(-1, f.awake + 2) : Math.min(100, f.awake + 3);
-  if (T0.out && !T0.dead && canWake(enc) && Math.random() < (T0.awake > -15 ? 0.35 : T0.awake > -50 ? 0.12 : 0)) {
+  // (Not if this round's bleeding would only put them straight back under.)
+  if (T0.out && !T0.dead && canWake(enc) && T0.blood - BLEED_ML[T0.bleeding] > T0.maxBlood * (PASS_OUT + 0.03) && Math.random() < (T0.awake > -15 ? 0.35 : T0.awake > -50 ? 0.12 : 0)) {
     T0.out = false;
     T0.outNoted = false;
     T0.down = true;
@@ -2561,8 +2562,9 @@ function checkEnd(): boolean {
   // doesn't: they're helpless, and it's up to you what happens next.
   if (out(enc.you)) {
     if (enc.chase) enc.chaseOut = true;
+    const lying = enc.you.down;
     enc.you.down = true;
-    say('info', enc.you.out ? 'Everything goes black.' : enc.you.bleeding >= 3 ? 'Too much blood. Your legs give out, and everything goes dark.' : 'You hit the sidewalk. Everything goes dark.');
+    say('info', enc.you.out ? 'Everything goes black.' : lying ? 'Too much blood. Everything goes dark.' : enc.you.bleeding >= 3 ? 'Too much blood. Your legs give out, and everything goes dark.' : 'You hit the sidewalk. Everything goes dark.');
     end('lost');
     return true;
   }
@@ -2579,13 +2581,15 @@ function checkEnd(): boolean {
   // (Out before this move: knocked out by this very blow doesn't count.)
   const wasOut = outBefore;
   if (!T.out && T.blood <= T.maxBlood * PASS_OUT) {
+    // (Already lying there: nothing to fall from.)
+    const lying = T.down;
     T.out = true;
     T.down = true;
     T.awake = Math.min(T.awake, -40);
     if (enc.chase) {
       delete enc.chase;
       say('them', 'Ahead of you they stagger, and fold onto the sidewalk. They don\'t get up.');
-    } else say('you', T.bleeding >= 3 ? "They've lost too much blood. They slump to the floor, unconscious." : "They go down and don't get up. They're unconscious.");
+    } else say('you', lying ? "Their eyes roll back. They've lost too much blood: they're unconscious." : T.bleeding >= 3 ? "They've lost too much blood. They slump to the floor, unconscious." : "They go down and don't get up. They're unconscious.");
   }
   // However they went out, they're under now.
   for (const f of [enc.you, T]) if (f.out && f.awake > 0) f.awake = -25;

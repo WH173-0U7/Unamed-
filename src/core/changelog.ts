@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.50',
+    date: 'Nov 6',
+    items: [
+      'Someone already lying on the floor who passes out from blood loss doesn’t “slump to the floor” again; their eyes roll back. The same for you.',
+      'Someone out cold and bleeding hard doesn’t come round only to pass out again the same moment.',
+      'Cars: a towed car is gone for good, including while you’re at it or asleep in it. Car keys left in a trunk age like any others. Keys you’ve hidden keep their car on file. Throwing the fob away mid-search no longer leaves you on a dead screen.',
+    ],
+  },
+  {
     v: '1.49',
     date: 'Nov 6',
     items: [

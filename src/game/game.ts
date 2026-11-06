@@ -3908,8 +3908,12 @@ export class Game {
     );
     // The car's out front when they are, mostly.
     // (The car you've got the spare to, still where they left it.)
-    const mine = this.cars.find((c) => c.home === h.id);
-    if (mine) out.push(`Their ${mine.color} ${mine.make} still parked out front, and you’ve got the keys to it.`);
+    // (Not once it's been towed, or the keys have gone from you.)
+    const mine = this.cars.find((c) => c.home === h.id && now() < c.towAt && this.keysKept(c.id));
+    if (mine) {
+      out.push(`Their ${mine.color} ${mine.make} still parked out front, and you’ve got the keys to it.`);
+      if (this.copsAtCar(mine) && !this.policeThere(h)) out.push(`A patrol car pulled up behind the ${mine.make}, and an officer walking round it with a flashlight.`);
+    } else if (this.cars.some((c) => c.home === h.id) && big) out.push('Nothing parked out front.');
     else if (h.car && big) out.push((p.owner !== 'out' || h.works === 'home' || h.deadAt ? steady(h, now(), 9) < 0.9 : steady(h, now(), 9) < 0.2) ? `A ${h.car} parked out front.` : 'Nothing parked out front.');
     if (h.sign) out.push(h.type === 'house' ? 'A security company sign in the flowerbed.' : 'A security company sticker on the door.');
     if (h.cam) out.push('A doorbell camera by the front door. It sees whoever comes up the steps.');

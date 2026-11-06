@@ -11,6 +11,13 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.49',
+    date: 'Nov 6',
+    items: [
+      'A cut brow that was stitched heals to a faint line, and the Marks card says so instead of calling it a face scar people will remember.',
+    ],
+  },
+  {
     v: '1.48',
     date: 'Nov 6',
     items: [

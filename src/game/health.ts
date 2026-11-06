@@ -618,10 +618,12 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
   if (m.scars?.length) {
     // Where each one actually is (a face scar shows; one on the forearm doesn't, much).
     const places = [...new Set(m.scars)];
-    const face = places.filter((p) => /cheek|eyebrow|lip|jaw|face/.test(p));
+    // (A stitched brow heals to a faint line: there, but nobody's going to remember you by it.)
+    const faint = places.filter((p) => /^faint/.test(p));
+    const face = places.filter((p) => !faint.includes(p) && /cheek|eyebrow|lip|jaw|face/.test(p));
     out.push({
       mark: true, name: `Scar${places.length > 1 ? 's' : ''}: ${places.join(', ')}`,
-      effects: [`On your ${andList([...(face.length ? [`face${face.some((p) => p !== 'face') ? ` (${face.filter((p) => p !== 'face').join(', ')})` : ''}`] : []), ...places.filter((p) => !face.includes(p))])}.${face.length ? ' A scar on the face is what people remember.' : ''} It doesn't slow you in a fight.`],
+      effects: [`On your ${andList([...(face.length ? [`face${face.some((p) => p !== 'face') ? ` (${face.filter((p) => p !== 'face').join(', ')})` : ''}`] : []), ...places.filter((p) => !face.includes(p) && !faint.includes(p)), ...(faint.length ? ['eyebrow (a faint line, where it was stitched)'] : [])])}.${face.length ? ' A scar on the face is what people remember.' : ''} It doesn't slow you in a fight.`],
       heals: 'For good.',
     });
   }

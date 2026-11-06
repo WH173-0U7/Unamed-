@@ -5743,3 +5743,32 @@ body:has(.lockup) #pause-btn {
     min-height: 0;
   }
 }
+@media (orientation: landscape) and (max-height: 560px) {
+  /* (The last row scrolls fully into view, clear of the fade at the bottom.) */
+  #shop > .shop-body {
+    padding-bottom: 28px;
+  }
+}
+/* Lying down: how far back you've come. */
+.lockup .rest-bar {
+  width: min(280px, 80%);
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.lockup .rest-bar i {
+  display: block;
+  height: 100%;
+  background: #8fa7b8;
+  transition: width 1s linear;
+}
+.lockup .rest-line {
+  font-style: italic;
+  font-size: 13px;
+}
+@media (max-height: 420px) {
+  .lockup .rest-line {
+    display: none;
+  }
+}

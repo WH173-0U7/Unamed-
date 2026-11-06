@@ -8,6 +8,14 @@ import { BLEEDING, DEATH, PASS_OUT, STRESS_NAMES, stressLevel, type Body, type M
  * and get up once it's over).
  */
 export interface Health {
+  /** How worn down you are, 0 (fresh) .. 100 (spent): fights, lurking, walking. Wears off in real time. */
+  fatigue?: number;
+  /** When fatigue was last brought up to date (ms). */
+  fatigueAt?: number;
+  /** Lying down since then (real time, ms), and where. */
+  restingSince?: number;
+  restWhere?: 'street' | 'room' | 'car';
+  restCar?: string;
   blood: number;
   maxBlood: number;
   /** 0 none .. 4 severe. */
@@ -172,8 +180,9 @@ export function bodyFrom(h: Health, stamina: number): Body {
     // Broken ribs: you can't fill your lungs, so you start the fight short of breath.
     // Cold stiffens you; cocaine gives you more than you've got.
     // (In withdrawal, you've less in you, and your hands shake.)
-    stamina: Math.round(stamina * (h.lung ? 0.3 : h.broken.includes('ribs') ? 0.5 : 1) * (1 - (h.cold ?? 0) * 0.1) * (h.wired ? 1.25 : 1) * (1 - withdrawalEffects(h).stamina)),
-    shakes: withdrawalEffects(h).hit,
+    // (Worn out, you've less to give: at the end of your rope, 60% of it.)
+    stamina: Math.round(stamina * (h.lung ? 0.3 : h.broken.includes('ribs') ? 0.5 : 1) * (1 - (h.cold ?? 0) * 0.1) * (h.wired ? 1.25 : 1) * (1 - withdrawalEffects(h).stamina) * (1 - fatigueNow(h) * 0.004)),
+    shakes: withdrawalEffects(h).hit + fatigueOdds(h),
     maxStamina: Math.round(stamina * (h.wired ? 1.25 : 1)),
     lung: h.lung,
     stress: h.stress ?? 0,
@@ -437,6 +446,31 @@ export function clampClock(h: Health, t = Date.now()) {
 }
 
 /** One injury, for the stats sheet: what it is, what it does to you, how long it lasts. */
+/** Fatigue off an hour, lying down (exhausted to fresh: about 8 hours) and on your feet (a quarter of that). */
+export const FATIGUE_REST_PER_HOUR = 12.5;
+export const FATIGUE_IDLE_PER_HOUR = 3.125;
+/** Too worn out to do anything but lie down. */
+export const FATIGUE_SPENT = 90;
+export const FATIGUE_NAMES = ['Fresh', 'Tired', 'Worn out', 'Exhausted', 'Spent'];
+export const fatigueLevel = (f: number) => (f >= FATIGUE_SPENT ? 4 : f >= 70 ? 3 : f >= 45 ? 2 : f >= 20 ? 1 : 0);
+/** Fatigue now, the real time since it was last looked at taken off it. */
+export function fatigueNow(h: Health, t = Date.now()): number {
+  const at = h.fatigueAt ?? t;
+  if (h.fatigue && t > at) {
+    const rate = h.restingSince != null ? FATIGUE_REST_PER_HOUR : FATIGUE_IDLE_PER_HOUR;
+    h.fatigue = Math.max(0, h.fatigue - ((t - at) / 3_600_000) * rate);
+  }
+  h.fatigueAt = t;
+  return h.fatigue ?? 0;
+}
+export function addFatigue(h: Health, n: number) {
+  h.fatigue = Math.min(100, fatigueNow(h) + n);
+}
+/** How much worse your odds are, worn out: up to 15% at the end of your rope. */
+export const fatigueOdds = (h: Health) => Math.min(0.15, fatigueNow(h) * 0.0015);
+/** Real time until you're fresh, lying down (ms). */
+export const restLeft = (h: Health) => (fatigueNow(h) / FATIGUE_REST_PER_HOUR) * 3_600_000;
+
 export interface InjuryInfo {
   name: string;
   /** What it does to you, line by line. */
@@ -479,6 +513,21 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
       effects: [`Your blows land: −${p}%`, `Dodging their blows: −${p}%`, ...(sl >= 3 ? ['Your hands shake; the world narrows'] : [])],
       heals: `Eases about ${STRESS_EASE} an hour (faster at rest), and quicker with a cigarette, a drink or painkillers.`,
     });
+  }
+  // Worn down.
+  {
+    const f = fatigueNow(h);
+    if (f >= 1) {
+      const lv = fatigueLevel(f);
+      const left = restLeft(h) / 3_600_000;
+      out.push({
+        name: `Fatigue: ${FATIGUE_NAMES[lv].toLowerCase()}`,
+        status: true,
+        meter: { k: Math.min(1, f / 100), text: `${Math.round(f)} / 100` },
+        effects: [`Stamina in a fight: −${Math.round(f * 0.4)}%`, `Your blows, and the odds on everything you try: −${Math.round(Math.min(15, f * 0.15))}%`, ...(lv >= 4 ? ['Too worn out to lurk: you need to lie down'] : [])],
+        heals: `Lying down (Rest, your room, a car): fresh in about ${left < 1 ? `${Math.max(1, Math.round(left * 60))} minutes` : `${Math.round(left * 10) / 10} hours`}, real time. On your feet it wears off at a quarter of that.`,
+      });
+    }
   }
   // Hooked on something, and withdrawal.
   out.push(...habitCards(h));

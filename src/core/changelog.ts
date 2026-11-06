@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.99',
+    date: 'Nov 6',
+    items: [
+      'Fatigue. Every move in a fight wears you down, and so do lurking, walking across town, working a house and running from the police. It builds up from fight to fight: Fresh, Tired, Worn out, Exhausted, Spent.',
+      'Worn down, you’ve less stamina in a fight (down to 60% at the end of your rope), your blows land less, and everything you try is a little less likely to work: talking your way out, forcing a door, outrunning the police, the van. Spent, you can’t lurk at all until you lie down.',
+      'Rest is real time now. Lie down in a doorway, your motel room or the back seat of a car, and a screen counts down to fresh: about 8 real hours from exhausted. Get up early if you want, with whatever you’ve got back. Healing a wound is still instant, as before. On your feet, fatigue wears off at a quarter of that speed.',
+      'Fatigue has its own card on the You tab, with how long a rest will take.',
+      'After a kill, a note that comes in goes into the fight log instead of over the body screen. Who you were shows as wanted if they helped with a breakout. Wording on the cell screen and give-up screen matches what you can do now.',
+    ],
+  },
+  {
     v: '1.98',
     date: 'Nov 6',
     items: [

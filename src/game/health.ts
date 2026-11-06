@@ -108,7 +108,7 @@ export function soberUp(h: Health, t = Date.now()) {
 export const HIGH_HOURS = { heroin: 2, fentanyl: 2, meth: 4, tranq: 1 } as const;
 
 /** Hours for each kind of break to heal. */
-const MEND_HOURS: Record<Part, number> = {
+export const MEND_HOURS: Record<Part, number> = {
   nose: 8,
   ribs: 16,
   'left arm': 24,
@@ -116,7 +116,7 @@ const MEND_HOURS: Record<Part, number> = {
   'left leg': 24,
   'right leg': 24,
 };
-const CONCUSSION_HOURS = 6;
+export const CONCUSSION_HOURS = 6;
 /** Blood lost per hour at each level of bleeding. */
 const BLEED_PER_HOUR = [0, 60, 200, 600, 1200];
 /** Chance per hour that bleeding eases by a level, by level. */

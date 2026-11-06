@@ -2,7 +2,7 @@ import { addCaffeine, caffeineNow } from './health';
 import { knifeOf } from './knives';
 import type { Loot, LootKind } from './person';
 import type { Health } from './health';
-import { DENOMS, addTo, cents, emptyPurse, fewest, kgOf, mlOf, money, purseText, type Purse } from './money';
+import { DENOMS, cents, emptyPurse, fewest, kgOf, mlOf, money, purseText, type Purse } from './money';
 
 /**
  * What you carry, and where. You wear clothes like everyone else, and things
@@ -254,6 +254,13 @@ export function cashWhere(inv: Inventory, p: Purse = inv.purse): { spot: Spot; s
 }
 /** Whether all of this cash fits on you (with what you're carrying). */
 export const cashFits = (inv: Inventory, p: Purse = inv.purse) => cashWhere(inv, p) !== null;
+/** How much of all your pockets' room your cash takes up, 0 to 1 (by bulk or by weight). */
+export function cashBulk(inv: Inventory, p: Purse = inv.purse): number {
+  const spots = cashSpots(inv);
+  const ml = spots.reduce((s, sp) => s + ML_PER_KG[sp.fits] * sp.maxKg, 0);
+  const kg = spots.reduce((s, sp) => s + sp.maxKg, 0);
+  return Math.max(ml ? mlOf(p) / ml : 0, kg ? kgOf(p) / kg : 0);
+}
 /** How full your pockets are with cash, 0 to 1 (more than 1: it doesn't fit). */
 export function cashFill(inv: Inventory, p: Purse = inv.purse): number {
   const ml = mlOf(p);
@@ -288,21 +295,9 @@ export function pocketCash(inv: Inventory, p: Purse): Purse {
 }
 /** The most cash, in as few bills as it'll go, that would still fit (for a teller counting it out). */
 export function roomForCents(inv: Inventory, want: number): number {
-  if (cashFits(inv, sumPurse(inv.purse, fewest(want)))) return want;
-  let lo = 0;
-  let hi = want;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    if (cashFits(inv, sumPurse(inv.purse, fewest(mid)))) lo = mid;
-    else hi = mid - 1;
-  }
-  return lo;
+  const trial: Inventory = { ...inv, purse: { ...inv.purse } };
+  return want - cents(pocketCash(trial, fewest(want)));
 }
-const sumPurse = (a: Purse, b: Purse): Purse => {
-  const p: Purse = { ...a };
-  addTo(p, b);
-  return p;
-};
 
 /** Where something would go: the smallest place it fits that has room. */
 export function findRoom(inv: Inventory, size: Size, kg: number, x?: { kind: string; name: string; cuts?: boolean }): Spot | null {
@@ -317,7 +312,7 @@ export function noRoomWhy(inv: Inventory, size: Size): string {
   if (!inv.spots.some((s) => SIZE_RANK[s.fits] >= SIZE_RANK[size])) {
     return size === 'large' ? 'Too big to carry without a backpack.' : size === 'medium' ? "Won't fit in a pocket. You'd need a bag." : 'You have no pockets.';
   }
-  return cashFill(inv) > 0.5 ? 'Your pockets are stuffed with cash.' : 'There is no room left.';
+  return cashBulk(inv) > 0.35 ? 'Your pockets are stuffed with cash.' : 'There is no room left.';
 }
 
 /** Puts something into the first place it fits. Returns null if there's no room. */
@@ -385,7 +380,7 @@ export function take(inv: Inventory, l: Loot): { ok: boolean; text: string; cent
     const took = cents(p) - left;
     l.purse = rest;
     l.cash = left / 100;
-    return { ok: false, cents: took, text: took ? `You stuff ${money(took)} of ${what} in wherever it’ll go. There’s no room on you for the other ${money(left)}.` : `There’s no room on you for any more cash. Your pockets are full of it.` };
+    return { ok: false, cents: took, text: took ? `You stuff ${money(took)} of ${what} in wherever it’ll go. There’s no room on you for the other ${money(left)}.` : cashBulk(inv) > 0.35 ? `There’s no room on you for any more cash. Your pockets are full of it.` : `There’s no room on you for it. Your pockets are full.` };
   }
   // Loose cigarettes go in with the loose ones you already have.
   if (/^loose cigarettes$/i.test(l.name)) {

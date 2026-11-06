@@ -36,6 +36,7 @@ export type LootGlyph =
   | 'bottle'
   | 'bag'
   | 'plug'
+  | 'ammo'
   | 'box';
 
 export interface LootMark {
@@ -165,6 +166,11 @@ const GLYPHS: Record<LootGlyph, { line: string; tint?: string }> = {
     line: 'M9 2.5v4.5 M15 2.5v4.5 M7 7h10v3a5 5 0 0 1-10 0z M12 15v6.5',
     tint: 'M7 7h10v3a5 5 0 0 1-10 0z',
   },
+  // Three rounds, standing.
+  ammo: {
+    line: 'M5.5 20.5V11l1.75-4.5L9 11v9.5z M10.25 20.5V11L12 6.5l1.75 4.5v9.5z M15 20.5V11l1.75-4.5L18.5 11v9.5z M5.5 17h3.5 M10.25 17h3.5 M15 17h3.5',
+    tint: 'M5.5 17h3.5v3.5H5.5z M10.25 17h3.5v3.5h-3.5z M15 17h3.5v3.5H15z',
+  },
   // A cardboard box, taped down the middle.
   box: {
     line: 'M3.5 7.5L12 3.5l8.5 4v9L12 20.5l-8.5-4z M3.5 7.5L12 11.5l8.5-4 M12 11.5v9 M7.75 5.5l8.5 4',
@@ -200,6 +206,9 @@ export function lootMark(x: { kind: string; name: string; weapon?: number; spray
   if (x.kind === 'credit card' || x.kind === 'debit card') return { icon: 'card', tone: 'card' };
   if (x.kind === 'id') return { icon: 'id', tone: 'card' };
   if (x.kind === 'phone') return { icon: 'phone', tone: 'value' };
+  if (/syringe/i.test(x.name)) return { icon: 'syringe', tone: 'drug' };
+  if (x.kind === 'ammo' || /rounds$|shells$/i.test(x.name)) return { icon: 'ammo', tone: 'weapon' };
+  if (x.kind === 'med') return /bandage|gauze|splint|kit/i.test(x.name) ? { icon: 'bandage', tone: 'drug' } : { icon: 'pill', tone: 'drug' };
   if (x.secret && x.secret !== 'empty') return { icon: /syringe/i.test(x.name) ? 'syringe' : 'baggie', tone: 'drug' };
   if (x.spray) return { icon: 'spray', tone: 'weapon' };
   if (x.kind === 'weapon' || x.weapon) return { icon: /gun|pistol|revolver|rifle|shotgun|9mm|\.38/i.test(x.name) ? 'gun' : /bottle/i.test(x.name) ? 'bottle' : 'knife', tone: 'weapon' };

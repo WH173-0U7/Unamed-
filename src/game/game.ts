@@ -5,6 +5,7 @@ import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf, random
 import { ENCOUNTER_VERSION, act, indoors, newEncounter, options as encounterOptions, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
 import { STAT_NAMES, lieBonus, persuadeBonus, train, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
+import { MEND_HOURS, CONCUSSION_HOURS } from './health';
 import { clampClock, cravingLine, useHabit, withdrawalEffects, HIGH_HOURS, LURK_HOURS, addCaffeine, caffeineNow, caffeineLevel, drunkLevel, soberUp, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
 import { ALL_TECHNIQUES, PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
@@ -1522,9 +1523,18 @@ export class Game {
   private payLine(price: number): string {
     sound.coin();
     const inv = this.inventory;
+    const fitBefore = cashFits(inv);
     const r = pay(inv.purse, price)!;
     const back = count(r.change) ? ` and get ${money(Object.entries(r.change).reduce((s, [d, n]) => s + Number(d) * n, 0))} back (${purseText(r.change)})` : '';
-    return `You hand over ${purseText(r.gave)}${back}. ${money(Math.round(cashOf(inv) * 100))} left.`;
+    // (Change you've nowhere to put: they keep it.)
+    let kept = '';
+    if (fitBefore && !cashFits(inv)) {
+      const all = inv.purse;
+      inv.purse = {};
+      const rest = cents(pocketCash(inv, all));
+      if (rest) kept = ` You’ve no room for all the change: you tell them to keep ${money(rest)}.`;
+    }
+    return `You hand over ${purseText(r.gave)}${back}.${kept} ${money(Math.round(cashOf(inv) * 100))} left.`;
   }
 
   /** Sell something to the pawn shop or the fence. */
@@ -1925,13 +1935,14 @@ export class Game {
       if (!Number.isFinite(want) || want <= 0) return;
         const asked = Math.min(acct.cents, want);
         // (No more than you can carry.)
-        const c = roomForCents(inv, asked);
-        if (c <= 0) {
+        if (roomForCents(inv, asked) <= 0) {
           this.note(['"Where are you going to put it?" Your pockets are full of cash already.']);
           return;
         }
+        // (The big bills first, as many as will go; the rest stays in the account.)
+        const back = cents(pocketCash(inv, fewest(asked)));
+        const c = asked - back;
         acct.cents -= c;
-        addTo(p, fewest(c));
         sound.coin();
         line = c < asked ? `The teller counts out ${money(c)}, all you’ve got room for on you. ${money(acct.cents)} left in your account.` : `The teller counts out ${money(c)}. ${money(acct.cents)} left in your account.`;
       }
@@ -1991,9 +2002,15 @@ export class Game {
       const credit = card.kind === 'credit card';
       const avail = credit ? 2 + Math.floor(Math.random() * 19) : 1 + Math.floor(Math.random() * 15);
       // (As many twenties as you can stuff in your pockets.)
+      const room = { ...inv, purse: { ...inv.purse } };
+      const can = avail - (pocketCash(room, { 2000: avail })[2000] ?? 0);
+      if (!can) {
+        this.note(['You type the PIN, and then stop. You’ve nowhere to put any more cash. You take the card back out before it asks.']);
+        return;
+      }
       const twenties = avail - (pocketCash(inv, { 2000: avail })[2000] ?? 0);
       card.drained = true;
-      lines.push(`You type ${card.pin}. It works. You take out ${money(twenties * 2000)}${credit ? ' on a cash advance' : ', all that was in there'}, in twenties.`);
+      lines.push(`You type ${card.pin}. It works. You take out ${money(twenties * 2000)}${twenties < avail ? ', all you can carry: the rest stays in the machine' : credit ? ' on a cash advance' : ', all that was in there'}, in twenties.`);
       lines.push("By morning they'll have stopped the card.");
       f.heat = Math.min(100, f.heat + 10 * (1 - anon));
     }
@@ -2866,7 +2883,7 @@ export class Game {
     };
     if (sting && choice !== 'run') {
       takeMarked();
-      lines.push('The cuffs go on. The twenty you took is marked; the bag is already in an evidence envelope.');
+      lines.push(((this.save.state.stingCash as number) ?? 0) > 0 ? 'The cuffs go on. The twenty you took is marked; the bag is already in an evidence envelope.' : 'The cuffs go on. The bag is already in an evidence envelope.');
       arrested = true;
       charges.push('Selling a controlled substance');
     }
@@ -3605,9 +3622,9 @@ export class Game {
     // Their money, out of their pockets and into yours.
     // (A cop pays with a marked twenty from the department, not their own pocket.)
     if (d.kind === 'sting') {
-      pocketCash(inv, fewest(d.price));
+      const notIn = cents(pocketCash(inv, fewest(d.price)));
       this.save.state.policeStop = 'sting';
-      this.save.state.stingCash = d.price;
+      this.save.state.stingCash = d.price - notIn;
       return;
     }
     let need = d.price;
@@ -3627,7 +3644,10 @@ export class Game {
       }
     // (What you've no room for, they keep: they put it back in their pocket.)
     const back = cents(pocketCash(inv, cashLike(got, 'small')));
-    if (back) e.person.clothes[0]?.loot.push({ kind: 'cash', name: 'Cash', cash: back / 100, where: 'pocket' });
+    if (back) {
+      e.person.clothes[0]?.loot.push({ kind: 'cash', name: 'Cash', cash: back / 100, where: 'pocket' });
+      (e.log ??= []).push({ by: 'info', text: `You’ve no room on you for ${money(back)} of it. They shrug and put it back in their pocket.` });
+    }
     // Word gets around: to buyers, and to the police.
     f.rep += 1;
     f.heat = Math.min(100, f.heat + 2);
@@ -5105,8 +5125,12 @@ export class Game {
         const b = e.you;
         now_.blood = b.blood;
         now_.bleeding = b.bleeding;
-        for (const p of b.broken) if (!now_.broken.includes(p)) now_.broken.push(p);
-        if (b.concussed && now_.concussion <= 0) now_.concussion = 1;
+        for (const p of b.broken)
+          if (!now_.broken.includes(p)) {
+            now_.broken.push(p);
+            now_.mending[p] = MEND_HOURS[p];
+          }
+        if (b.concussed && now_.concussion <= 0) now_.concussion = CONCUSSION_HOURS;
         if (b.lung) now_.lung = true;
         now_.stress = b.stress ?? now_.stress;
         if (b.marks) now_.marks = b.marks;

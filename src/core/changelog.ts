@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.77',
+    date: 'Nov 6',
+    items: [
+      'Cash and room: change you’ve no room for, you tell them to keep; the ATM won’t take a card if you can’t carry the money (and says when some stays in the machine); the teller gives you all you can actually carry, big bills first; a buyer you’ve no room to pay you says so.',
+      '“Your pockets are stuffed with cash” only when it really is the cash filling them.',
+      'The mid-fight You screen shows real healing times. Ammo and medicine get their own symbols, and a syringe always shows as one.',
+    ],
+  },
+  {
     v: '1.76',
     date: 'Nov 6',
     items: [

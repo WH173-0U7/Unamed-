@@ -299,6 +299,10 @@ export interface Encounter {
   start?: { blood: number; broken: Part[] };
   /** It came to blows (a round of a fight was fought). */
   fought?: boolean;
+  /** How many on the street saw the violence (set once, when it starts). */
+  witnessed?: number;
+  /** How many others are on the street right now (for the screen). */
+  watchers?: number;
   /** You went through their pockets / stamped on them while they were down. */
   robbed?: boolean;
   stomped?: boolean;

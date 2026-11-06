@@ -74,9 +74,9 @@ const VIG_DAYS = 14;
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 /** At an address: outside, or in, and what's happened so far. */
 /** Everything in the save that's this character's (not the world's). */
-const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'laterLines', 'restLines', 'connect', 'work', 'workLines', 'plasma', 'gig', 'bins'];
+const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'laterLines', 'restLines', 'connect', 'work', 'workLines', 'plasma', 'gig', 'bins', 'crowd'];
 /** What only makes sense in the moment (a stop, a fight, a door you're at): not kept when you stop being them. */
-const MOMENT_KEYS = ['work', 'workLines', 'laterLines', 'restLines', 'encounter', 'policeStop', 'policeResult', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow'];
+const MOMENT_KEYS = ['work', 'workLines', 'laterLines', 'restLines', 'crowd', 'encounter', 'policeStop', 'policeResult', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow'];
 /**
  * Someone you used to be: kept whole (stats, body, pockets, record), inside
  * or out on the streets, to free, to meet, and to go on as again.
@@ -105,6 +105,8 @@ type Self = {
   at?: number;
   metAt?: number;
 };
+/** Someone else on the street: who, as you'd meet them, and when they walk on (real time, ms). */
+type Bystander = { e: Encounter; leaveAt: number; saw?: boolean };
 /** Your supplier: known (someone vouched for you), how much he trusts you (−40..100), who vouched, when he cut you off. */
 type Connect = { known: boolean; trust: number; via?: string; cutOff?: number; metBig?: boolean };
 /** What Dez sells, by how far he trusts you: [name, detail, points, cash $, fronted $, days to pay, tier]. */
@@ -669,7 +671,7 @@ export class Game {
     const low = this.encounter?.stage === 'seen';
     this.noteEl.classList.toggle('low', low);
     // (Below the card and Lurk, whichever is lower.)
-    const top = low ? Math.max(...[this.seenEl.querySelector('button'), this.lurkBtn.hidden ? null : this.lurkBtn].map((x) => x?.getBoundingClientRect().bottom ?? 0)) : 0;
+    const top = low ? Math.max(...[this.seenEl.hidden ? null : this.seenEl, this.lurkBtn.hidden ? null : this.lurkBtn].map((x) => x?.getBoundingClientRect().bottom ?? 0)) : 0;
     const vr = this.view.getBoundingClientRect();
     this.noteEl.style.top = top ? `${Math.round(top - vr.top + 8)}px` : '';
     this.fitStreet();
@@ -693,7 +695,7 @@ export class Game {
     };
     const hits = (a: DOMRect, b: DOMRect | null, pad = 4) => !!b && a.left < b.right + pad && a.right > b.left - pad && a.top < b.bottom + pad && a.bottom > b.top - pad;
     // The card: never up under the clock.
-    const card = this.seenEl.querySelector('button');
+    const card = this.seenEl.hidden ? null : this.seenEl;
     this.seenEl.style.marginTop = '';
     this.seenEl.classList.remove('compact');
     const idleBar = document.getElementById('idle-bar');
@@ -1001,6 +1003,7 @@ export class Game {
   /** Lurk: the signal cuts out while you wait for whoever comes. */
   lurk() {
     if (!this.canLurk) return;
+    this.save.state.crowd = [];
     // Known around here: his people come to you.
     if (!this.connect.known && !this.connect.cutOff && this.infamy.rep >= 30 && Math.random() < 0.05) {
       this.note(['A kid on a bike slows down beside you and doesn’t look at you. "Dez wants to meet you. The alley behind the laundromat, after dark." Then he’s gone.', ...this.learnConnect('a kid on a bike')]);
@@ -1161,6 +1164,9 @@ export class Game {
     }
     const stageBefore = e.stage;
     const impacts = act(e, id, this.stats, this.inventory, (this.save.state.moves ??= {}) as Record<string, number>);
+    this.witness(e);
+    // Walking up to someone with others about: you know they'd see.
+    if (id === 'open' && this.crowd.length && e.stage !== 'over') e.log.push({ by: 'info', text: this.crowd.length === 1 ? 'Someone else is on the street. They’d see anything you do.' : `${this.crowd.length === 2 ? 'Two others are' : 'Others are'} on the street. They’d see anything you do.` });
     // Fighting wears you down: every move (more for a chase, a lot more for being beaten senseless).
     if (!wasOver && stageBefore !== 'seen' && stageBefore !== 'menu' && stageBefore !== 'surveil' && !id.startsWith('search') && !id.startsWith('take')) {
       addFatigue(this.health, 1.3 + (e.chase ? 1 : 0) + (e.stage === 'over' && e.result === 'lost' ? 10 : 0));
@@ -1204,7 +1210,7 @@ export class Game {
         addStress(e.you, 30);
         // Was anyone watching? A face in a window, a car going past.
         const anon = anonymity(this.inventory);
-        if (Math.random() < 0.3) {
+        if (e.witnessed || Math.random() < 0.3) {
           const f = this.infamy;
           f.rep += 15 * (1 - anon * 0.7);
           f.heat = Math.min(100, f.heat + 35 * (1 - anon * 0.6));
@@ -1808,6 +1814,7 @@ export class Game {
       this.note(['He sees you through the glass and shakes his head. The door stays locked.']);
       return;
     }
+    if (p !== 'street') this.save.state.crowd = [];
     // (On foot, across town: it adds up, more with a heavy load, which builds you up a little too.)
     {
       const inv = this.inventory;
@@ -4772,9 +4779,9 @@ export class Game {
       e.person.clothes[0]?.loot.push({ kind: 'cash', name: 'Cash', cash: back / 100, where: 'pocket' });
       (e.log ??= []).push({ by: 'info', text: `You’ve no room on you for ${money(back)} of it. They shrug and put it back in their pocket.` });
     }
-    // Word gets around: to buyers, and to the police.
+    // Word gets around: to buyers, and to the police (more with people watching).
     f.rep += 1;
-    f.heat = Math.min(100, f.heat + 2);
+    f.heat = Math.min(100, f.heat + 2 + this.crowd.length * 2);
     this.save.state.sales = ((this.save.state.sales as number) ?? 0) + 1;
     // A regular who likes you: where to get more.
     if (!this.connect.known && e.regular && Math.random() < 0.35) {
@@ -5230,6 +5237,116 @@ export class Game {
     this.refresh();
     this.note([...lines, ...meanwhile]);
     buzz(8);
+  }
+  /** The others on the street, besides whoever you're looking at (each walks on after a while). */
+  private get crowd(): Bystander[] {
+    return (this.save.state.crowd ??= []) as Bystander[];
+  }
+  /** How many others are about, by the hour, the weather (and up to two). */
+  private gatherCrowd() {
+    if (this.place !== 'street') return;
+    const hr = new Date(now()).getHours();
+    const w: number[] = hr >= 1 && hr < 5 ? [0.85, 0.13, 0.02] : hr >= 22 || hr < 1 ? [0.6, 0.3, 0.1] : hr >= 7 && hr < 20 ? [0.3, 0.4, 0.3] : [0.45, 0.35, 0.2];
+    // (Rain and snow keep people in.)
+    if (WET_AMOUNT[this.weather.now] > 0) {
+      w[0] += (w[1] + w[2]) * 0.5;
+      w[1] *= 0.5;
+      w[2] *= 0.5;
+    }
+    let r = Math.random();
+    const n = r < w[0] ? 0 : (r -= w[0]) < w[1] ? 1 : 2;
+    const list: Bystander[] = [];
+    const inv = this.inventory;
+    for (let i = 0; i < n; i++) {
+      const p = makePerson();
+      const x = newEncounter(p, this.yourBody());
+      x.conspicuous = conspicuous(inv);
+      x.start = { blood: x.them.blood, broken: [...x.them.broken] };
+      this.lurkState.seen[p.kind]++;
+      this.lurkState.races[p.race]++;
+      list.push({ e: x, leaveAt: now() + (20 + Math.random() * 70) * 1000 });
+    }
+    this.save.state.crowd = list;
+  }
+  /** Going over to one of the others instead: whoever you were looking at becomes one of them. */
+  private approachOther(i: number) {
+    const e = this.encounter;
+    const c = this.crowd;
+    const b = c[i];
+    if (!b || !e || e.stage !== 'seen' || !this.canLurk) return;
+    c.splice(i, 1);
+    c.unshift({ e, leaveAt: now() + (15 + Math.random() * 40) * 1000 });
+    // (Straight across: not settled or remembered, they're still there.)
+    this.save.state.encounter = b.e;
+    this.act('open');
+  }
+  /** The others walk on, a while later; with nobody being looked at, the next is. */
+  private tickCrowd() {
+    const c = this.save.state.crowd as Bystander[] | undefined;
+    if (!c?.length) return;
+    const t = now();
+    const e = this.encounter;
+    const gone = c.filter((b) => b.leaveAt <= t);
+    if (gone.length) {
+      this.save.state.crowd = c.filter((b) => b.leaveAt > t);
+      const who = (b: Bystander) => (b.e.person.title ?? NAMES[b.e.person.kind]).toLowerCase();
+      const line = e?.witnessed || gone.every((b) => b.saw)
+        ? gone.length > 1 ? 'The ones who saw it are gone.' : `The ${who(gone[0])} who saw it is gone.`
+        : gone.length > 1 ? 'The others walk on.' : `The ${who(gone[0])} walks on.`;
+      if (e && e.stage !== 'seen' && e.stage !== 'over') {
+        e.log.push({ by: 'info', text: line });
+        e.watchers = this.crowd.length;
+      } else if (this.place === 'street' && this.tvState.on && !e?.witnessed && !gone.every((b) => b.saw)) this.note([line], false, 'crowd');
+      this.refresh();
+      return;
+    }
+    // Nobody you're looking at, but someone's still about: they're the one in front of you now.
+    // (Not someone who just watched you hurt somebody: they're leaving.)
+    if (!e && this.place === 'street' && this.phase === 'idle' && this.running && this.tvState.on && !this.ending && c.some((b) => !b.saw)) {
+      const b = c.splice(c.findIndex((x) => !x.saw), 1)[0];
+      b.e.you = this.yourBody();
+      this.save.state.encounter = b.e;
+      this.refresh();
+    }
+  }
+  /** Violence, with others on the street: they see it. Once per encounter. */
+  private witness(e: Encounter) {
+    const c = this.crowd;
+    e.watchers = e.stage === 'seen' ? 0 : c.length;
+    if (!c.length || e.witnessed || e.resident || this.place !== 'street') return;
+    const violent = !!e.fought || !!e.mugged || (e.tortured ?? 0) > 0 || e.them.down || e.them.out || e.them.dead || e.stage === 'combat' || e.stage === 'violence';
+    if (!violent || (e.stage === 'violence' && !e.fought)) return;
+    const n = c.length;
+    e.witnessed = n;
+    const f = this.infamy;
+    const anon = anonymity(this.inventory);
+    const say = (text: string) => e.log.push({ by: 'info', text });
+    say(n === 1 ? 'Someone on the street sees it.' : 'The others on the street see it.');
+    f.heat = Math.min(100, f.heat + 5 * n);
+    if (Math.random() < 0.3 + 0.15 * n) {
+      say(oneOf(['One of them has a phone out. They’re calling it in.', 'Someone’s on the phone already, backing away, looking right at you.']));
+      f.heat = Math.min(100, f.heat + 15);
+    }
+    // A good look at your face: what they'll tell the police.
+    if (Math.random() > anon && Math.random() < 0.6) {
+      f.reports = (f.reports ?? 0) + 1;
+      say('They got a good look at you.');
+    }
+    // Now and then, someone steps in: once, and they don't stick around.
+    if (!e.them.dead && !e.them.out && Math.random() < 0.12 * n) {
+      const b = c.shift()!;
+      const who = (b.e.person.title ?? NAMES[b.e.person.kind]).toLowerCase();
+      say(oneOf([`The ${who} across the street shouts: "HEY! Get off them!"`, `The ${who} comes halfway over, shouting. "Leave them alone! I'm calling the cops!"`]));
+      e.them.fear = Math.max(0, (e.them.fear ?? 0) - 25);
+      e.them.stamina = Math.min(e.them.maxStamina, e.them.stamina + 20);
+      say('It gives them a breath, and some nerve back.');
+    }
+    // Then everyone who saw it gets out of there.
+    for (const b of this.crowd) {
+      b.leaveAt = Math.min(b.leaveAt, now() + (3 + Math.random() * 6) * 1000);
+      b.saw = true;
+    }
+    e.watchers = this.crowd.length;
   }
   /** Who Dez sends: big, calm, and carrying. Bigger each time you send one back. */
   private enforcerFor(d: { strikes?: number }): import('./person').Person {
@@ -6980,6 +7097,23 @@ export class Game {
       btn.append(k, r, tap);
       btn.onclick = () => this.act('open');
       this.seenEl.append(btn);
+      // Others on the street, too: tap one to go over to them instead.
+      const crowd = this.crowd;
+      if (crowd.length) {
+        const row = document.createElement('div');
+        row.className = 'seen-others';
+        crowd.forEach((b, i) => {
+          const o = document.createElement('button');
+          o.type = 'button';
+          o.className = 'seen-other';
+          o.dataset.kind = b.e.person.kind;
+          const pp = b.e.person;
+          o.innerHTML = `<b>${pp.title ?? NAMES[pp.kind]}</b><small>${pp.build} ${pp.sex === 'Male' ? 'man' : 'woman'}</small>`;
+          o.onclick = () => this.approachOther(i);
+          row.append(o);
+        });
+        this.seenEl.append(row);
+      }
     }
     this.fitStreet();
     if (e) this.prime(e);
@@ -7304,6 +7438,8 @@ export class Game {
           return;
         }
         this.phase = 'idle';
+        // Not always alone: up to two others on the street (more by day, fewer at night and in the rain).
+        this.gatherCrowd();
         // Whoever it is takes the middle of the screen: the note moves under them.
         this.noteEl.classList.add('low');
         this.refresh();
@@ -7529,6 +7665,7 @@ export class Game {
   update(dt: number) {
     // (The body first: hours spent inside or lying down heal as that, before the door opens or you get up.)
     this.healOnClock();
+    this.tickCrowd();
     if (this.jail && !this.dead) this.tickJail();
     else if (this.health.restingSince != null && !this.dead) this.tickRest();
     else if (this.work && !this.dead) this.tickWork();

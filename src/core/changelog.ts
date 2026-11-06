@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.22',
+    date: 'Nov 6',
+    items: [
+      'The street isn’t always empty. A lurk can turn up two or three people at once: more by day, fewer late at night and in the rain. Whoever’s in front of you is the big card; the others sit under it, and you can tap one to go over to them instead. They don’t stay: each walks on after a while.',
+      'Witnesses. Start something with others on the street and they see it: more heat, someone may call it in, they may get a good look at your face, and now and then one shouts and steps in, which gives whoever you’re on a breath and some nerve back. Then they get out of there. A kill in front of people is always seen. The fight says when you’re being watched.',
+      'An empty street at night is the safe time to start trouble, and the rarest. Selling in front of people draws a little more attention too.',
+    ],
+  },
+  {
     v: '2.21',
     date: 'Nov 6',
     items: [

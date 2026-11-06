@@ -225,14 +225,14 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
   /** How awake someone is, in words (the bar shows the rest). */
   const awakeWord = (f: Body) => (f.dead ? 'Dead' : f.out ? 'Out cold' : (f.awake ?? 100) > 70 ? 'Clear' : (f.awake ?? 100) > 40 ? 'Rattled' : (f.awake ?? 100) > 15 ? 'Wobbly' : 'Fading');
   /** Awake, blood, stamina, and conditions (standing or on the floor, injuries). */
-  const fighter = (name: string, f: Body, cls: string) =>
+  const fighter = (name: string, f: Body, cls: string, extra: string[] = []) =>
     `<div class="enc-fighter ${cls}"><div class="enc-name">${name}</div>` +
     bar('Awake', f.dead ? 0 : Math.max(0, f.awake ?? 100), 100, 'awake', awakeWord(f)) +
     bar('Blood', f.blood, f.maxBlood, 'blood', `${ml(f.blood)}<span class="of"> / ${ml(f.maxBlood)}</span>`) +
     bar('Stamina', f.stamina, f.maxStamina, 'stamina') +
     (cls === 'them' && f.fear != null && !f.dead ? bar('Fear', f.fear, 100, 'fear', FEAR_NAMES[fearLevel(f.fear)]) : '') +
-    `<div class="enc-conds">${((cs) => (cs.length > 4 ? [...cs.slice(0, 3), `+${cs.length - 3} more`] : cs))(conditions(f))
-      .map((c) => `<span class="${c === 'Standing' ? 'ok' : c === 'On the floor' ? 'floor' : ''}">${c}</span>`)
+    `<div class="enc-conds">${((cs) => (cs.length > 4 ? [...cs.slice(0, 3), `+${cs.length - 3} more`] : cs))([...extra, ...conditions(f)])
+      .map((c) => `<span class="${c === 'Standing' ? 'ok' : c === 'On the floor' ? 'floor' : /^Watched/.test(c) ? 'watched' : ''}">${c}</span>`)
       .join('')}</div></div>`;
 
   return {
@@ -294,7 +294,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       // The fight view once there's been a fight (your own old injuries don't count).
       const fought = e.stage === 'combat' || e.stage === 'over';
       q('.enc-status').innerHTML = fought
-        ? `<div class="enc-fighters">${fighter('You', e.you, 'you')}${fighter('Them', e.them, 'them')}</div>`
+        ? `<div class="enc-fighters">${fighter('You', e.you, 'you', e.watchers ? [`Watched (${e.watchers})`] : [])}${fighter('Them', e.them, 'them')}</div>`
         : `<div class="enc-note">${distanceLabel(e)}</div>` + bar('Noticed', Math.min(100, Math.round(e.suspicion)), 100, 'notice');
 
       // New log lines.

@@ -129,7 +129,7 @@ export function robKnockedOut(w: World, inv: Inventory, e: Encounter, brute: boo
     it.kind === 'phone' || it.kind === 'weapon' || it.kind === 'credit card' || it.kind === 'debit card' || it.kind === 'car keys' || (it.kind === 'id' && !it.own) || (!!it.secret && it.secret !== 'empty');
   const took = inv.items.filter(worth);
   const c = cents(inv.purse);
-  if (!took.length && c <= 0) return 'When you come to, your pockets have been turned out. There was nothing worth taking.';
+  if (!took.length && c <= 0) return 'Your pockets have been turned out. There was nothing worth taking.';
   const loot: Loot[] = [];
   if (c > 0) loot.push({ kind: 'cash', name: 'Your cash', cash: c / 100, purse: { ...inv.purse }, where: 'stuffed in a pocket', yours: true });
   for (const it of took) loot.push({ kind: it.kind, name: it.name, detail: it.detail, med: it.med, secret: it.secret, known: it.known, doses: it.doses, pin: it.pin, pinOk: it.pinOk, drained: it.drained, weapon: it.weapon, cuts: it.cuts, spray: it.spray, drink: it.drink, car: it.car, carSearched: it.carSearched, takenAt: it.takenAt, card: it.card, homeInfo: it.homeInfo, opens: it.opens, hot: it.hot, carOf: it.carOf, carId: it.carId, hunt: it.hunt, tookAt: it.tookAt, where: 'stuffed in a pocket', yours: true });
@@ -147,6 +147,6 @@ export function robKnockedOut(w: World, inv: Inventory, e: Encounter, brute: boo
   thief.person = p;
   for (const g of p.clothes) g.searched = false;
   while (w.thieves.length > MAX_THIEVES) w.thieves.shift();
-  const names = [...(c > 0 ? ['your cash'] : []), ...took.map((x) => withA(x.name.replace(/^[A-Z][a-z]/, (m) => m.toLowerCase())))];
-  return `When you come to, your pockets have been turned out. Gone: ${list(names)}.`;
+  const names = [...(c > 0 ? ['your cash'] : []), ...took.map((x) => withA(x.name.replace(/^[A-Z][a-z]/, (m) => m.toLowerCase())).replace(/^(an? [^,]+), ([^,]+)$/, '$1 ($2)'))];
+  return `Your pockets have been turned out. Gone: ${list(names)}.`;
 }

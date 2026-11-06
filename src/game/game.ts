@@ -21,7 +21,7 @@ import { knifeOf } from './knives';
 import { gunOf } from './guns';
 import { HEAT_NAMES, applyTo, comeBack, heal, fade, heatLevel, historyText, injuriesText, meet, newInfamy, recognises, remember, repName, type Infamy, type Known } from './people';
 import { anonymity, conspicuous, describe, hasHood, lookClothes, wearing } from './look';
-import { marksText } from './encounter';
+import { marksText, list as listOf, a as aOf } from './encounter';
 import { MEDS, take, freeHand, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
 
 /**
@@ -957,10 +957,10 @@ export class Game {
       // Short, and they take what's worth taking too (that's for the trouble).
       const took = dz && dz.owed ? inv.items.filter((x) => x.kind === 'phone' || x.kind === 'weapon' || (x.secret && x.secret !== 'empty')) : [];
       inv.items = inv.items.filter((x) => !took.includes(x));
-      const gone = [...(c ? [money(c)] : []), ...took.map((x) => lc(x.name))];
+      const gone = [...(c ? [money(c)] : []), ...took.map((x) => aOf(lc(x.name)).replace(/^(an? [^,]+), ([^,]+)$/, '$1 ($2)'))];
       lines = [
         ...lines,
-        gone.length ? `When you come to, your pockets are empty. Gone to Dez: ${gone.join(', ')}.` : 'When you come to, they\'ve been through your pockets and found nothing.',
+        gone.length ? `Your pockets are empty. Gone to Dez: ${listOf(gone)}.` : 'They’ve been through your pockets and found nothing.',
         dz && dz.owed ? `You still owe ${money(dz.owed)}.` : c > owed ? "That's the debt paid. Dez's man kept the rest, for the trouble." : "That's the debt paid.",
       ];
       if (dz && !dz.owed) delete this.save.state.debt;

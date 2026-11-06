@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.62',
+    date: 'Nov 6',
+    items: [
+      'Only the person in the house who actually saw your face remembers it: someone who only ever saw you masked doesn’t.',
+      'No breaking in while an officer is out front walking round their car.',
+      'A car fob from a past life doesn’t bring back a car that was towed long ago.',
+    ],
+  },
+  {
     v: '1.61',
     date: 'Nov 6',
     items: [

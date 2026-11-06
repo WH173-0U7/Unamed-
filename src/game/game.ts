@@ -64,6 +64,9 @@ const dueText = (t: number) => (new Date(t).getFullYear() === new Date(now()).ge
 const VIG_DAYS = 14;
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 /** At an address: outside, or in, and what's happened so far. */
+/** Whether this one in the house (the owner, or whoever else lives there) has seen your face. */
+const sawFace = (j: { faceSeen?: boolean | { owner?: boolean; other?: boolean } } | undefined, owner: boolean) =>
+  !!j && typeof j.faceSeen === 'object' && !!(owner ? j.faceSeen.owner : j.faceSeen.other);
 interface HomeJob {
   home: string;
   in: boolean;
@@ -85,7 +88,7 @@ interface HomeJob {
   /** Someone saw your face; the doorbell camera got you (and whether your face showed). */
   seen?: boolean;
   /** Your face as it was when they came on you (a mask pulled up after doesn't take it back). */
-  faceSeen?: boolean;
+  faceSeen?: boolean | { owner?: boolean; other?: boolean };
   filmed?: boolean;
   faceFilmed?: boolean;
   called?: boolean;
@@ -754,7 +757,7 @@ export class Game {
       e.conspicuous = conspicuous(inv);
       const k = e.person.known ? this.people.find((x) => x.id === e.person.known) : undefined;
       // (In their house, a face they've already seen stays seen.)
-      const anon = e.resident && (this.save.state.job as HomeJob | undefined)?.faceSeen ? Math.min(anonymity(inv), 0.3) : anonymity(inv);
+      const anon = e.resident && sawFace(this.save.state.job as HomeJob | undefined, e.resident.owner) ? Math.min(anonymity(inv), 0.3) : anonymity(inv);
       const clothes = lookClothes(inv).join('|');
       const was = e.lookAt;
       if (!was || was.anon !== anon || was.clothes !== clothes) {
@@ -3735,7 +3738,11 @@ export class Game {
         const h = this.homeById(x.carOf);
         if (h) h.car = null;
         // (And it's out front, where they left it: a car you know about.)
-        if (this.inventory.items.includes(x)) this.ensureCar(x);
+        // (A fob from before, its car long gone: it's gone.)
+        if (this.inventory.items.includes(x)) {
+          if (!x.carId) this.ensureCar(x);
+          else if (!this.carById(x.carId)) x.car = 'gone';
+        }
       }
     }
   }
@@ -3833,7 +3840,7 @@ export class Game {
     const j = this.save.state.job as HomeJob | undefined;
     if (j?.confront && j.home === this.save.state.homeAt) {
       this.offLines = ['You walk straight out past them, and keep going.'];
-      if (anonymity(this.inventory) < 0.6 || j.faceSeen) this.offLines.push('They saw your face. They’ll be telling the police what you look like.');
+      if (anonymity(this.inventory) < 0.6 || sawFace(j, j.confront.owner)) this.offLines.push('They saw your face. They’ll be telling the police what you look like.');
     }
     if (this.encounter?.resident) this.afterResidentFight(this.encounter);
     this.leaveHome();
@@ -3847,6 +3854,10 @@ export class Game {
     if (h.addAlarm) h.alarm = h.sign = true;
     delete h.addCam;
     delete h.addAlarm;
+  }
+  /** An officer out front, walking round the car of theirs you've got the keys to. */
+  private copsOutFront(h: Home): boolean {
+    return this.cars.some((c) => c.home === h.id && now() < c.towAt && this.copsAtCar(c));
   }
   /** The police are at the address (after an alarm, a call, a body). */
   private policeThere(h: Home): boolean {
@@ -3965,7 +3976,7 @@ export class Game {
     }
     const legs = health.broken.filter((p) => p.endsWith('leg')).length;
     const key = this.hasKeyTo(h);
-    const cops = this.policeThere(h) && 'Police outside';
+    const cops = (this.policeThere(h) || this.copsOutFront(h)) && 'Police outside';
     const dog = cops || (h.dogKnown && h.dog === 'big' && 'The dog');
     const knocked = j?.knocked || (h.knockedAt != null && now() - h.knockedAt < 30 * 60_000);
     const tried = j?.tried || (h.triedAt != null && now() - h.triedAt < 6 * 3_600_000);
@@ -4000,7 +4011,7 @@ export class Game {
     };
     if (j.confront && what === 'flee') {
       lines.push(j.how === 'window' || (j.how === 'try' && h.type !== 'room') ? 'You go back out the way you came in, fast, and don’t stop for three blocks.' : oneOf(['You go back out the way you came, fast, and don’t stop for three blocks.', 'You’re out the door and gone before they can get it shut behind you.']));
-      const face = anon < 0.6 || !!j.faceSeen;
+      const face = anon < 0.6 || sawFace(j, j.confront.owner);
       if (face) lines.push('They saw your face. They’ll be telling the police what you look like.');
       j.seen ||= face;
       j.called = true;
@@ -4014,7 +4025,7 @@ export class Game {
     if (j.confront) return;
     // ---- Outside ----
     if (!j.in) {
-      if (this.policeThere(h)) return;
+      if (this.policeThere(h) || this.copsOutFront(h)) return;
       if (what === 'knock' && !j.knocked && !(h.knockedAt != null && now() - h.knockedAt < 30 * 60_000)) {
         j.knocked = true;
         h.knockedAt = now();
@@ -4198,8 +4209,9 @@ export class Game {
     // (What happened is at the top of the card: show it.)
     this.shopAt = '';
     const p = this.presence(h);
-    j.faceSeen ||= anonymity(this.inventory) < 0.6;
     const owner = how === 'home' ? !!ownerHome : !j.metOwner && p.owner !== 'out' && (j.metOther || p.other === 'out' || p.other == null || Math.random() < 0.6);
+    // (Who saw your face: this one, as you were when they came on you.)
+    if (anonymity(this.inventory) < 0.6) j.faceSeen = { ...(typeof j.faceSeen === 'object' ? j.faceSeen : {}), [owner ? 'owner' : 'other']: true };
     const sex: 'Male' | 'Female' = owner ? h.sex : h.household === 'partner' ? (Math.random() < 0.8 ? (h.sex === 'Male' ? 'Female' : 'Male') : h.sex) : Math.random() < 0.5 ? 'Male' : 'Female';
     const [He, he, his] = sex === 'Male' ? ['He', 'he', 'his'] : ['She', 'she', 'her'];
     const who = owner ? h.owner.split(' ')[0] : sex === 'Male' ? 'a man' : 'a woman';
@@ -4314,7 +4326,7 @@ export class Game {
     if (k) {
       applyTo(k, e.them);
       // (A mask pulled up once they've already seen your face doesn't hide it.)
-      const anon = j.faceSeen ? Math.min(anonymity(inv), 0.3) : anonymity(inv);
+      const anon = sawFace(j, c.owner) ? Math.min(anonymity(inv), 0.3) : anonymity(inv);
       e.recognised = recognises(k, anon, lookClothes(inv));
       e.lookAt = { anon, clothes: lookClothes(inv).join('|') };
       e.grudge = k.memory.grudge;
@@ -4354,7 +4366,7 @@ export class Game {
     // You ran: you're gone, and they saw you. (Walking away from them where they lie, you're still in the house.)
     if (e.result === 'you-fled') {
       j.called = true;
-      j.seen ||= anonymity(this.inventory) < 0.6 || !!j.faceSeen;
+      j.seen ||= anonymity(this.inventory) < 0.6 || sawFace(j, !!e.resident?.owner);
       this.leaveHome();
       this.place = 'street';
     }
@@ -4400,7 +4412,7 @@ export class Game {
     if (e?.resident && e.them.dead) j.killed = true;
     // Walked off in the middle of being seen: that's running, and they saw you.
     if (j.confront) {
-      j.seen ||= anonymity(this.inventory) < 0.6 || !!j.faceSeen;
+      j.seen ||= anonymity(this.inventory) < 0.6 || sawFace(j, j.confront.owner);
       j.called = true;
     }
     // Their car keys gone with you, and they know you were in: the car goes on the report too.
@@ -5157,7 +5169,7 @@ export class Game {
     // Face to face and awake, they see you as you are now (the least covered you've been is what sticks).
     if (e.facedYou && e.stage !== 'seen' && !e.them.out && !e.them.dead && !e.chase) {
       // (In their house, a face they've already seen stays seen, mask or not.)
-      const anon = e.resident && (this.save.state.job as HomeJob | undefined)?.faceSeen ? Math.min(anonymity(inv), 0.3) : anonymity(inv);
+      const anon = e.resident && sawFace(this.save.state.job as HomeJob | undefined, e.resident.owner) ? Math.min(anonymity(inv), 0.3) : anonymity(inv);
       if (!e.seenAs || anon < e.seenAs.anon) e.seenAs = { anon, looked: describe(inv), clothes: lookClothes(inv) };
     }
     e.flame = !!this.flame();

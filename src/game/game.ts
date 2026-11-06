@@ -26,6 +26,7 @@ import { marksText, list as listOf, a as aOf } from './encounter';
 import { cashFill, cashFits, cashWhere, pocketCash, roomForCents, spotMl } from './inventory';
 import { mlOf } from './money';
 import { lootIcon, lootMark } from './lootIcon';
+import { PLACE_AT, PLACE_ICON, addressAt, blocksBetween, mapHtml, type MapMark } from './map';
 import { MEDS, take, freeHand, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
 
 /**
@@ -190,6 +191,8 @@ export class Game {
   private readonly shopEl: HTMLElement;
   private readonly sheetEl: HTMLElement;
   private sheet: 'places' | 'pockets' | 'stats' | 'police' | null = null;
+  /** On the map: what you've tapped (its card shows under the map). */
+  private mapPick: string | null = null;
   private noteTimer = 0;
   private readonly clockEl: HTMLElement;
   private clockShown = '';
@@ -1331,6 +1334,7 @@ export class Game {
     // Your stats can be looked at any time, even mid-fight; the police don't ask.
     if (kind === 'stats' || kind === 'police' ? !this.tvState.on || this.dead || this.ending : !this.canOpenSheet) return;
     this.sheet = kind;
+    if (kind === 'places') this.mapPick = null;
     this.renderSheet();
     // Where to go comes in from the left, pockets from the right.
     this.sheetEl.classList.toggle('from-left', kind === 'places');
@@ -1382,7 +1386,10 @@ export class Game {
   /** A sheet button: what it does. */
   private sheetAction(b: HTMLButtonElement) {
     if (b.dataset.close !== undefined) this.closeSheet();
-    else if (b.dataset.place) this.goTo(b.dataset.place as Place);
+    else if (b.dataset.mappick) {
+      this.mapPick = b.dataset.mappick;
+      this.renderSheet();
+    } else if (b.dataset.place) this.goTo(b.dataset.place as Place);
     else if (b.dataset.home) this.goHome(b.dataset.home);
     else if (b.dataset.use) this.useMed(Number(b.dataset.use));
     else if (b.dataset.drop) this.drop(Number(b.dataset.drop));
@@ -2008,7 +2015,7 @@ export class Game {
       const avail = Math.floor(Math.min(behind, cap) / 2000);
       if (avail <= 0) {
         card.drained = true;
-        lines.push(`You type ${card.pin}. It works. You ask for $20, and the screen says INSUFFICIENT FUNDS. ${credit ? 'Maxed out.' : 'There’s nothing in there.'}`);
+        lines.push(`You type ${card.pin}. It works. You ask for $20, and the screen says INSUFFICIENT FUNDS. ${credit ? 'Maxed out.' : 'There’s nothing in there.'} The card’s no use to you now.`);
         f.heat = Math.min(100, f.heat + 4 * (1 - anon));
         this.refresh();
         this.note(lines);
@@ -4869,6 +4876,42 @@ export class Game {
   }
 
   /** Your bills and coins, as little chips: "$20 ×2". */
+  /** Where to?: the map, everything you can go to on it, and the card for what you've tapped. */
+  private mapSheetHtml(): string {
+    type Spot = { key: string; x: number; y: number; icon: string; tone: MapMark['tone']; name: string; small: string; go: string; extra?: string };
+    const spots: Spot[] = [];
+    for (const p of PLACES) {
+      const at = PLACE_AT[p.id];
+      if (!at || HIDDEN_PLACES.has(p.id)) continue;
+      const shut = !!p.hours && !isOpen(p.hours);
+      const hours = p.id === 'street' ? '' : p.hours ? `<i class="${shut ? 'shut' : 'open'}">${hoursText(p.hours)}</i>` : '<i class="open">Open all hours</i>';
+      spots.push({ key: `place:${p.id}`, x: at.x, y: at.y, icon: PLACE_ICON[p.id] ?? PLACE_ICON.street, tone: shut ? 'shut' : 'place', name: p.id === 'street' ? 'Your corner' : p.name, small: `${at.addr}. ${p.desc}${hours}`, go: `data-place="${p.id}"` });
+    }
+    for (const h of this.homes) {
+      const at = addressAt(h.addr);
+      spots.push({ key: `home:${h.id}`, x: at.x, y: at.y, icon: PLACE_ICON.home, tone: 'home', name: h.addr, small: `${h.owner}’s place${h.hitAt ? ` · you broke in ${dueText(h.hitAt) === dueText(now()) ? 'today' : dueText(h.hitAt)}` : ''}${this.hasKeyTo(h) ? ' · you have their keys' : ''}`, go: `data-home="${h.id}"` });
+    }
+    for (const c of this.myCars) {
+      const h = c.home ? this.homeById(c.home) : undefined;
+      const at = h ? ((a) => ({ x: a.x + 9, y: a.y + 9 }))(addressAt(h.addr)) : addressAt(c.street.replace(/^on /, ''), c.id);
+      const notes = [`Parked ${c.street}`, ...(reported(c, now()) ? ['reported by now'] : []), ...(c.items.length || c.cents ? ['your things in the trunk'] : [])];
+      spots.push({ key: `car:${c.id}`, x: at.x, y: at.y, icon: PLACE_ICON.car, tone: 'car', name: `The ${c.color} ${c.make}`, small: notes.join(' · '), go: `data-car="${c.id}"` });
+    }
+    // Where you are now.
+    const hereKey = this.place === 'home' && this.atHome ? `home:${this.atHome.id}` : this.place === 'car' && this.atCar ? `car:${this.atCar.id}` : `place:${this.place === 'car' || this.place === 'home' ? 'street' : this.place}`;
+    const here = spots.find((x) => x.key === hereKey) ?? spots.find((x) => x.key === 'place:street')!;
+    const picked = spots.find((x) => x.key === this.mapPick) ?? here;
+    const marks: MapMark[] = spots.map((x) => ({ key: x.key, x: x.x, y: x.y, icon: x.icon, tone: x.tone, label: x.name, here: x === here, picked: x === picked && x !== here }));
+    const isHere = picked === here;
+    const far = blocksBetween(here, picked);
+    const card =
+      `<div class="map-card" data-tone="${picked.tone}">` +
+      `<div class="map-card-head"><span class="map-card-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${picked.icon}"/></svg></span><div><b>${picked.name}</b><small>${isHere ? 'You’re here.' : far ? `${far} block${far === 1 ? '' : 's'} from you.` : 'Just round the corner.'}</small></div></div>` +
+      `<p>${picked.small}</p>` +
+      (isHere ? '' : `<button type="button" class="map-go" ${picked.go}>${picked.key === 'place:street' ? 'Back out to your corner' : 'Walk there'}</button>`) +
+      `</div>`;
+    return `${mapHtml(marks)}${card}<p class="map-hint">Tap a place on the map.</p>`;
+  }
   /** The You sheet. */
   private renderStatsSheet(card: HTMLElement, close: string) {
     const h = this.health;
@@ -5001,7 +5044,7 @@ export class Game {
       const usable = cards.filter(({ x }) => x.pin && !x.drained);
       body += usable.length
         ? usable.map(({ x, i }) => li(named(x, `Cash machine · ${x.name}`), `${x.detail ? `${x.detail}'s card · ` : ''}PIN ${x.pin}. There's a camera over the screen.`, btn('atm', i, 'Withdraw'))).join('')
-        : li('Cash machine', cards.some(({ x }) => x.drained) && !cards.some(({ x }) => !x.drained && !x.pin) ? "The cards you had PINs for have been stopped." : cards.length ? "You've got cards, but no PIN for them. Someone would have to tell you." : 'Any hour. You need a card, and its PIN.', btn('atm', -1, 'Use', 'No card with a PIN'));
+        : li('Cash machine', cards.some(({ x }) => x.drained) && !cards.some(({ x }) => !x.drained && !x.pin) ? "The cards you had PINs for have been stopped." : cards.every(({ x }) => x.noPin && x.pinAsked) ? 'The cards you have don’t have PINs: no use at a machine.' : cards.length ? "You've got cards, but no PIN for them. Someone would have to tell you." : 'Any hour. You need a card, and its PIN.', btn('atm', -1, 'Use', 'No card with a PIN'));
       body += `</ul>`;
     } else if (place === 'room') {
       // The Hotel Marlow: a room by the week.
@@ -5159,32 +5202,7 @@ export class Game {
       return;
     }
     if (this.sheet === 'places') {
-      card.innerHTML =
-        `<div class="sheet-head"><h2>Where to?</h2>${close}</div><div class="sheet-body places">` +
-        PLACES.filter((p) => !HIDDEN_PLACES.has(p.id) && p.id !== 'home' && p.id !== 'car').map(
-          (p) =>
-            `<button type="button" class="place ${p.id === this.place ? 'here' : ''}" data-place="${p.id}"><b>${p.name}</b><small>${p.id === this.place ? "You're here" : p.desc}${p.id !== this.place && p.id !== 'street' ? (p.hours ? `<i class="${isOpen(p.hours) ? 'open' : 'shut'}">${hoursText(p.hours)}</i>` : '<i class="open">Open all hours</i>') : ''}</small></button>`,
-        ).join('') +
-        (this.homes.length
-          ? `<p class="places-sub">Addresses you know</p>` +
-            this.homes
-              .map((h) => {
-                const here = this.atHome === h;
-                return `<button type="button" class="place ${here ? 'here' : ''}" data-home="${h.id}"><b>${h.addr}</b><small>${here ? "You're here" : `${h.owner}’s place${h.hitAt ? ` · you broke in ${dueText(h.hitAt) === dueText(now()) ? 'today' : dueText(h.hitAt)}` : ''}${this.hasKeyTo(h) ? ' · you have their keys' : ''}`}</small></button>`;
-              })
-              .join('')
-          : '') +
-        (this.myCars.length
-          ? `<p class="places-sub">Cars you have the keys to</p>` +
-            this.myCars
-              .map((c) => {
-                const here = this.atCar === c;
-                const notes = [`Parked ${c.street}`, ...(reported(c, now()) ? ['reported by now'] : []), ...(c.items.length || c.cents ? ['your things in the trunk'] : [])];
-                return `<button type="button" class="place ${here ? 'here' : ''}" data-car="${c.id}"><b>The ${c.color} ${c.make}</b><small>${here ? "You're here" : notes.join(' · ')}</small></button>`;
-              })
-              .join('')
-          : '') +
-        `</div>`;
+      card.innerHTML = `<div class="sheet-head"><h2>Where to?</h2>${close}</div><div class="sheet-body places">${this.mapSheetHtml()}</div>`;
       return;
     }
     const inv = this.inventory;
@@ -5362,7 +5380,7 @@ export class Game {
     }
     e.flame = !!this.flame();
     e.cardsHeld = e.holder
-      ? inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind) && x.detail === e.holder && !x.pin).map(({ x, i }) => ({ i, name: x.name }))
+      ? inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind) && x.detail === e.holder && !x.pin && !x.pinAsked).map(({ x, i }) => ({ i, name: x.name }))
       : [];
     e.canAsk = this.world.thieves.length > 0 && !e.person.thief;
     e.weapons = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'weapon').map(({ x, i }) => ({ i, name: x.name, weapon: x.weapon, cuts: x.cuts, spray: x.spray, doses: x.doses, loaded: x.secret && x.secret !== 'empty' && x.secret !== 'cocaine' ? x.secret : undefined, known: x.known, hand: x.hand, ...(gunOf(x.name) ? { gun: true, ammo: inv.items.filter((y) => y.name === gunOf(x.name)!.ammo).reduce((n, y) => n + (y.doses ?? 0), 0) } : {}) }));

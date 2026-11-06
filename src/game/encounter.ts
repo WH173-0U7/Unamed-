@@ -444,7 +444,7 @@ function yieldedOptions(e: Encounter): Option[] {
   if (e.emptied && !patted && !asked.includes('rest')) out.push({ id: 'ask-rest', label: '"Is that everything?"', hint: 'Are they holding out on you?', cat: 'threaten' });
   e.person.clothes.forEach((g, gi) =>
     g.loot.forEach((l, li) => {
-      if (g.searched && !l.hidden && /card/.test(l.kind) && !l.pin && !l.pinAsked) out.push({ id: `pin:${gi}:${li}`, label: '"What\'s the PIN?"', hint: `Their ${l.name.toLowerCase()}`, cat: 'threaten' });
+      if (g.searched && !l.hidden && /card/.test(l.kind) && !l.pin && !l.pinAsked && !l.yours) out.push({ id: `pin:${gi}:${li}`, label: '"What\'s the PIN?"', hint: `Their ${l.name.toLowerCase()}`, cat: 'threaten' });
     }),
   );
   for (const c of e.cardsHeld ?? []) out.push({ id: `pin-mine:${c.i}`, label: '"What\'s the PIN?"', hint: `The ${c.name.toLowerCase()} you took`, cat: 'threaten' });

@@ -5132,3 +5132,206 @@ body[data-drug='withdrawal'] #game {
   border-top: 0;
   font-weight: 400;
 }
+
+/* ================= The map (Where to?) ================= */
+.sheet-body.places .map {
+  position: relative;
+  width: 100%;
+  /* (Never wider than the sheet; on a short landscape screen, short enough to see the card under it.) */
+  max-width: min(100%, calc((100dvh - 210px) * 300 / 420));
+  margin: 4px auto 0;
+  aspect-ratio: 300 / 420;
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 50% 40%, rgba(236, 235, 230, 0.05), transparent 70%),
+    rgba(8, 8, 8, 0.85);
+  box-shadow: inset 0 0 0 1px var(--line), inset 0 0 40px rgba(0, 0, 0, 0.8);
+}
+.map-streets {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0.6px 0 rgba(255, 36, 72, 0.35)) drop-shadow(-0.6px 0 rgba(0, 224, 255, 0.3));
+}
+.map-streets .lines line {
+  stroke: rgba(236, 235, 230, 0.2);
+  stroke-width: 5;
+  stroke-linecap: square;
+}
+.map-streets .lines line.road {
+  stroke: rgba(236, 235, 230, 0.13);
+  stroke-width: 4;
+}
+.map-streets .lines line.stub {
+  stroke: rgba(236, 235, 230, 0.13);
+  stroke-width: 3;
+}
+.map-streets .labels text {
+  font: 600 6.4px var(--font-ui);
+  letter-spacing: 0.12em;
+  fill: rgba(236, 235, 230, 0.34);
+}
+.map-streets .park {
+  fill: rgba(127, 216, 143, 0.06);
+  stroke: rgba(127, 216, 143, 0.2);
+  stroke-width: 0.8;
+}
+.map-streets .river {
+  fill: rgba(127, 182, 255, 0.08);
+  stroke: rgba(127, 182, 255, 0.22);
+  stroke-width: 0.8;
+}
+.map-streets .area {
+  font: 700 5px var(--font-ui);
+  letter-spacing: 0.2em;
+  fill: rgba(127, 216, 143, 0.4);
+}
+.map-pin {
+  position: absolute;
+  /* (Smaller on a smaller map, so they don't pile up.) */
+  width: min(30px, 10.5%);
+  height: auto;
+  aspect-ratio: 1;
+  margin: 0;
+  padding: 5px;
+  translate: -50% -50%;
+  border: 0;
+  border-radius: 50%;
+  color: var(--pin);
+  background: radial-gradient(circle, color-mix(in srgb, var(--pin) 22%, #000) 0 55%, color-mix(in srgb, var(--pin) 8%, #000) 56%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pin) 55%, transparent), 0 0 10px color-mix(in srgb, var(--pin) 25%, transparent);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.map-pin svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0.6px 0 rgba(255, 36, 72, 0.5)) drop-shadow(-0.6px 0 rgba(0, 224, 255, 0.45));
+}
+.map-pin[data-tone='place'] { --pin: var(--ink); }
+.map-pin[data-tone='shut'] { --pin: rgba(236, 235, 230, 0.38); }
+.map-pin[data-tone='home'] { --pin: var(--loot-keys); }
+.map-pin[data-tone='car'] { --pin: var(--loot-card); }
+.map-pin.picked {
+  z-index: 2;
+  box-shadow: 0 0 0 2px var(--pin), 0 0 16px color-mix(in srgb, var(--pin) 55%, transparent);
+}
+/* You are here: a slow pulse. */
+.map-pin.here {
+  z-index: 3;
+  --pin: #ff6b7f;
+}
+.map-pin.here::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 107, 127, 0.7);
+  animation: map-here 2.2s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes map-here {
+  0% { opacity: 0.9; scale: 0.7; }
+  100% { opacity: 0; scale: 1.5; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-pin.here::after { animation: none; opacity: 0.6; }
+}
+.map-card {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(16, 16, 16, 0.7);
+  box-shadow: inset 0 0 0 1px var(--line);
+  --pin: var(--ink);
+}
+.map-card[data-tone='shut'] { --pin: rgba(236, 235, 230, 0.5); }
+.map-card[data-tone='home'] { --pin: var(--loot-keys); }
+.map-card[data-tone='car'] { --pin: var(--loot-card); }
+.map-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.map-card-head > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.map-card-head b {
+  display: block;
+  color: var(--pin);
+}
+.map-card-head small {
+  display: block;
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+.map-card-ic {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 6px;
+  border-radius: 8px;
+  color: var(--pin);
+  background: color-mix(in srgb, var(--pin) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pin) 35%, transparent);
+}
+.map-card-ic svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.map-card p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+  overflow-wrap: anywhere;
+}
+.map-card p i {
+  display: block;
+  margin-top: 4px;
+  font-style: normal;
+}
+.map-card p i.open { color: #7fd88f; }
+.map-card p i.shut { color: var(--danger); }
+.map-go {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+}
+.map-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  text-align: center;
+  color: var(--ink-faint);
+}
+
+/* A short landscape screen: the map down the side, the card beside it. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .sheet-body.places:has(.map) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    align-items: start;
+    column-gap: 14px;
+  }
+  .sheet-body.places .map {
+    grid-row: 1 / span 2;
+    width: auto;
+    height: calc(100dvh - 130px);
+    max-height: 62vw;
+    max-width: none;
+    margin: 0;
+  }
+  .sheet-body.places .map-card {
+    margin: 0;
+  }
+  .sheet-body.places .map-hint {
+    text-align: left;
+  }
+}

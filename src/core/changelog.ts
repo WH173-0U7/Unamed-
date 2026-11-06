@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.80',
+    date: 'Nov 6',
+    items: [
+      'Where to? is a map of the city now: five avenues, seven streets, Wexford Rd and Tanner Rd cutting across, a park and the river. Every place has its own spot on it (the pharmacy on Grand and Larkin, the alley behind the laundromat off Ninth, the hotel on Cobb…), marked with its own symbol, dimmed when it’s shut.',
+      'Addresses you know sit on their own street, by house number, and cars where they’re parked. You’re the pulsing red mark. Tap anything for what it is, how far it is in blocks, its hours, and Walk there.',
+      'A thief won’t give you the PIN of a card they stole off you, and once someone’s told you a card has no PIN you aren’t asked again. Cash in a coffee can is cash.',
+    ],
+  },
+  {
     v: '1.79',
     date: 'Nov 6',
     items: [

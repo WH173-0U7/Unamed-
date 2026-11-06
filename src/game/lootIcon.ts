@@ -252,7 +252,7 @@ const WEAR: Record<string, LootGlyph> = { top: 'shirt', bottom: 'pants', bag: 'b
 export function lootMark(x: { kind: string; name: string; weapon?: number; spray?: boolean; secret?: string; slot?: string }): LootMark {
   if (x.slot && WEAR[x.slot]) return { icon: WEAR[x.slot], tone: 'wear' };
   if (x.kind === 'wear') return { icon: /backpack|bag|fanny/i.test(x.name) ? 'backpack' : /mask|bandana|balaclava/i.test(x.name) ? 'mask' : /cap|beanie|hat|hood/i.test(x.name) ? 'cap' : /glasses|shades/i.test(x.name) ? 'glasses' : /sheath|holster/i.test(x.name) ? 'sheath' : /pants|jeans|chinos|trousers/i.test(x.name) ? 'pants' : 'shirt', tone: 'wear' };
-  if (/coffee|tea$/i.test(x.name)) return { icon: 'cup', tone: 'junk' };
+  if (x.kind !== 'cash' && /coffee|tea$/i.test(x.name)) return { icon: 'cup', tone: 'junk' };
   if (/zip bags/i.test(x.name)) return { icon: 'baggie', tone: 'drug' };
   if (x.kind === 'cash') return { icon: /change|cup holder|coins/i.test(x.name) ? 'coins' : 'cash', tone: 'cash' };
   if (x.kind === 'car keys') return { icon: 'key', tone: 'keys' };

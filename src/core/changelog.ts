@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.71',
+    date: 'Nov 6',
+    items: [
+      'Cash takes up room now, the way it really does. A bill weighs about a gram and takes about as much room as a folded receipt; coins are heavy. Pockets shows which pockets your money is in and how full they are.',
+      'Carry enough and you run out of room: jeans and a hoodie hold a couple of thousand in small bills, a backpack tens of thousands. Big bills take far less room than small ones, and the bank will change them up.',
+      'When there’s no room: you take what fits and leave the rest, the teller only counts out what you can carry, and the fence and pawn shop won’t buy if you can’t carry the money. A pocket full of cash leaves less room for everything else.',
+    ],
+  },
+  {
     v: '1.70',
     date: 'Nov 6',
     items: [

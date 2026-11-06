@@ -1693,7 +1693,8 @@ body.in-game #menu {
 }
 
 /* Each pocket or bag, and how full it is. */
-.pocket-wear {
+.pocket-wear,
+.pocket-where {
   margin: 10px 2px 0;
   font-size: 12px;
   line-height: 1.45;

@@ -22,6 +22,7 @@ import { gunOf } from './guns';
 import { HEAT_NAMES, applyTo, comeBack, heal, fade, heatLevel, historyText, injuriesText, meet, newInfamy, recognises, remember, repName, type Infamy, type Known } from './people';
 import { anonymity, conspicuous, describe, hasHood, lookClothes, wearing } from './look';
 import { marksText, list as listOf, a as aOf } from './encounter';
+import { cashFill, cashFits, cashWhere, pocketCash, roomForCents } from './inventory';
 import { MEDS, take, freeHand, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
 
 /**
@@ -128,7 +129,7 @@ const TORTURE_COST = 3;
 const MUG_COST = 0.5;
 
 import { chargeOf, COIN_MACHINE_FEE, ER_PRICES, ROOM_RENT, DEZ_CASH, DEZ_FRONT, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place } from './shops';
-import { BILLS, COINS, addTo, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
+import { BILLS, COINS, addTo, cents, type Purse, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
 import { hoursText, isOpen } from './clock';
 import { anyoneIn, idText, nameFor, ROOM_DESC, ROOM_SEARCH, roomLoot, roomName, roomsOf, steady, whoIsIn, type Home, type Presence, type RoomId } from './homes';
 import { createHitUi } from '../fx/hitUi';
@@ -1512,15 +1513,23 @@ export class Game {
     const o = offer(place, it);
     if (!('cents' in o)) return;
     const lines: string[] = [];
+    // The pawn shop pays from the till; the fence peels small bills off a roll.
+    // (A car pays in a roll of twenties.)
+    const got = place === 'pawn' ? fewest(o.cents) : it.kind === 'car keys' ? ((p) => ((p[2000] = (p[2000] ?? 0) + Math.floor(o.cents / 2000)), p))(fewest(o.cents % 2000)) : cashLike(o.cents, 'small');
+    // (Nowhere to put the money once the thing's off you: no sale.)
+    const without = { ...inv, items: inv.items.filter((x) => x !== it) };
+    const after: Purse = { ...inv.purse };
+    addTo(after, got);
+    if (!cashFits(without, after)) {
+      this.note([`${place === 'pawn' ? 'He counts it out on the counter' : 'He peels it off the roll'}, and you’ve nowhere to put it. Your pockets are full of cash already.`]);
+      return;
+    }
     if (place === 'pawn') {
       const check = this.showId('pawn');
       if (!check) return;
       lines.push(check);
     }
     inv.items.splice(i, 1);
-    // The pawn shop pays from the till; the fence peels small bills off a roll.
-    // (A car pays in a roll of twenties.)
-    const got = place === 'pawn' ? fewest(o.cents) : it.kind === 'car keys' ? ((p) => ((p[2000] = (p[2000] ?? 0) + Math.floor(o.cents / 2000)), p))(fewest(o.cents % 2000)) : cashLike(o.cents, 'small');
     addTo(inv.purse, got);
     sound.coin();
     lines.push(`You sell the ${lc(it.name)} for ${money(o.cents)} (${purseText(got)}).`);
@@ -1891,12 +1900,17 @@ export class Game {
       } else {
         const want = what === 'w:all' ? acct.cents : Math.round(Number(what.slice(2)));
       if (!Number.isFinite(want) || want <= 0) return;
-        const c = Math.min(acct.cents, want);
-        if (c <= 0) return;
+        const asked = Math.min(acct.cents, want);
+        // (No more than you can carry.)
+        const c = roomForCents(inv, asked);
+        if (c <= 0) {
+          this.note(['"Where are you going to put it?" Your pockets are full of cash already.']);
+          return;
+        }
         acct.cents -= c;
         addTo(p, fewest(c));
         sound.coin();
-        line = `The teller counts out ${money(c)}. ${money(acct.cents)} left in your account.`;
+        line = c < asked ? `The teller counts out ${money(c)}, all you’ve got room for on you. ${money(acct.cents)} left in your account.` : `The teller counts out ${money(c)}. ${money(acct.cents)} left in your account.`;
       }
       this.refresh();
       this.note([line]);
@@ -1919,7 +1933,13 @@ export class Game {
       line = JSON.stringify(p) === before ? 'The teller looks at what you’ve got and slides it back. “Nothing to change.”' : `The teller counts it all twice and slides back ${purseText(p)}.`;
     } else if (what.startsWith('break:')) {
       const d = Number(what.slice(6));
-      if (!breakBill(p, d)) return;
+      const trial = { ...p };
+      if (!breakBill(trial, d)) return;
+      if (!cashFits(inv, trial)) {
+        this.note(['You’ve no room on you for that many more bills.']);
+        return;
+      }
+      breakBill(p, d);
       line = `You hand over a ${denomName(d)} and get back ${purseText(breaksInto(d))}.`;
     }
     this.refresh();
@@ -1946,8 +1966,9 @@ export class Game {
       f.heat = Math.min(100, f.heat + 4 * (1 - anon));
     } else {
       const credit = card.kind === 'credit card';
-      const twenties = credit ? 2 + Math.floor(Math.random() * 19) : 1 + Math.floor(Math.random() * 15);
-      addTo(inv.purse, { 2000: twenties });
+      const avail = credit ? 2 + Math.floor(Math.random() * 19) : 1 + Math.floor(Math.random() * 15);
+      // (As many twenties as you can stuff in your pockets.)
+      const twenties = avail - (pocketCash(inv, { 2000: avail })[2000] ?? 0);
       card.drained = true;
       lines.push(`You type ${card.pin}. It works. You take out ${money(twenties * 2000)}${credit ? ' on a cash advance' : ', all that was in there'}, in twenties.`);
       lines.push("By morning they'll have stopped the card.");
@@ -2181,7 +2202,14 @@ export class Game {
     if (!it || !this.canOpenSheet) return;
     const to = nextSpot(inv, it);
     if (!to) return;
+    const from = it.spot;
+    const fitBefore = cashFits(inv);
     it.spot = to.id;
+    if (fitBefore && !cashFits(inv)) {
+      it.spot = from;
+      this.note(['There’s no room there: your cash is in the way.']);
+      return;
+    }
     const where = `${to.on.toLowerCase()}, ${to.name.toLowerCase()}`;
     const v = showing(inv, it);
     this.refresh();
@@ -3131,8 +3159,9 @@ export class Game {
     train(this.stats, 'speech', 4);
     // Your bail back, for turning up.
     if (c.bailPaid && !inCustody) {
-      addTo(this.inventory.purse, fewest(c.bailPaid));
+      const rest = cents(pocketCash(this.inventory, fewest(c.bailPaid)));
       lines.push(`You get your ${money(c.bailPaid)} bail back.`);
+      if (rest) lines.push(`You’ve no room for ${money(rest)} of it. The clerk shrugs and keeps it for the court’s fees.`);
     }
     delete this.save.state.case;
     if (Math.random() < Math.max(0.03, Math.min(0.6, 0.38 - sev * 0.04 + talk * 0.5 - priors * 0.06))) {
@@ -3553,7 +3582,7 @@ export class Game {
     // Their money, out of their pockets and into yours.
     // (A cop pays with a marked twenty from the department, not their own pocket.)
     if (d.kind === 'sting') {
-      addTo(inv.purse, fewest(d.price));
+      pocketCash(inv, fewest(d.price));
       this.save.state.policeStop = 'sting';
       this.save.state.stingCash = d.price;
       return;
@@ -3573,7 +3602,9 @@ export class Game {
           l.purse = fewest(left);
         } else g.loot.splice(g.loot.indexOf(l), 1);
       }
-    addTo(inv.purse, fewest(got));
+    // (What you've no room for, they keep: they put it back in their pocket.)
+    const back = cents(pocketCash(inv, cashLike(got, 'small')));
+    if (back) e.person.clothes[0]?.loot.push({ kind: 'cash', name: 'Cash', cash: back / 100, where: 'pocket' });
     // Word gets around: to buyers, and to the police.
     f.rep += 1;
     f.heat = Math.min(100, f.heat + 2);
@@ -4173,10 +4204,14 @@ export class Game {
       for (const l of picks) {
         const r = take(inv, l);
         lines.push(r.text);
-        if (!r.ok) continue;
+        // (Cash, even some of it, is taken.)
+        if (l.kind === 'cash' && r.cents) j.cash = (j.cash ?? 0) + r.cents;
+        if (!r.ok) {
+          if (l.kind === 'cash' && r.cents) j.took = (j.took ?? 0) + 1;
+          continue;
+        }
         there.splice(there.indexOf(l), 1);
         j.took = (j.took ?? 0) + 1;
-        if (l.kind === 'cash') j.cash = (j.cash ?? 0) + Math.round((l.cash ?? 0) * 100);
       }
       return this.homeNote(h, j, lines, picks.length > 1 ? 0.08 : 0.03, room);
     }
@@ -4666,6 +4701,11 @@ export class Game {
     if (dir === 'in') {
       const c = Math.round(cashOf(inv) * 100);
       if (!c) return;
+      // (The same bills you put there: a roll of small bills stays a roll of small bills.)
+      const w = where as { purse?: Purse };
+      const prev = w.purse && cents(w.purse) === where.cents ? w.purse : cashLike(where.cents, 'small');
+      w.purse = { ...prev };
+      addTo(w.purse, inv.purse);
       where.cents += c;
       inv.purse = {};
       const lines = [`You leave ${money(c)}, rolled tight, ${kind === 'stash' ? 'behind the brick' : kind === 'trunk' ? 'under the spare tire' : 'under the mattress'}.`];
@@ -4680,9 +4720,19 @@ export class Game {
       this.refresh();
       this.note(lines);
     } else if (where.cents) {
-      addTo(inv.purse, fewest(where.cents));
-      this.note([`You take the ${money(where.cents)}.`]);
-      where.cents = 0;
+      // (The bills as you left them, if they're all still there.)
+      const kept = (where as { purse?: Purse }).purse;
+      const p = kept && cents(kept) === where.cents ? kept : cashLike(where.cents, 'small');
+      const rest = pocketCash(inv, p);
+      const left = cents(rest);
+      const took = where.cents - left;
+      if (!took) {
+        this.note(['You’ve no room on you for any of it. Your pockets are full of cash already.']);
+        return;
+      }
+      this.note([left ? `You take ${money(took)}, all you can fit on you. ${money(left)} stays where it is.` : `You take the ${money(took)}.`]);
+      where.cents = left;
+      (where as { purse?: Purse }).purse = left ? rest : undefined;
       this.refresh();
     }
   }
@@ -4761,6 +4811,17 @@ export class Game {
   }
 
   /** Your bills and coins, as little chips: "$20 ×2". */
+  /** Where the cash is on you, and how much room it's taking. */
+  private cashWhereHtml(): string {
+    const inv = this.inventory;
+    if (!cents(inv.purse)) return '';
+    const at = cashWhere(inv) ?? [];
+    const fill = cashFill(inv);
+    const spots = at.map((x) => `${x.spot.on.toLowerCase()} (${x.spot.name.toLowerCase()})`);
+    const where = spots.length ? `In your ${spots.length > 2 ? `${spots.slice(0, -1).join(', ')} and ${spots.at(-1)}` : spots.join(' and ')}` : 'On you';
+    const how = fill > 0.9 ? ' Every pocket you’ve got is stuffed with it: there’s no room for more.' : fill > 0.6 ? ' It’s getting bulky: there isn’t much room left for more.' : '';
+    return `<p class="pocket-where">${where}, ${kgLabel(purseKg(inv))}.${how}</p>`;
+  }
   private purseHtml(): string {
     const p = this.inventory.purse;
     const ds = [...BILLS, ...COINS].filter((d) => p[d]);
@@ -5047,6 +5108,7 @@ export class Game {
     let body =
       `<div class="pocket-cash"><span>Cash</span><b>${money(Math.round(cashOf(inv) * 100))}</b></div>` +
       `<p class="pocket-purse">${this.purseHtml()}</p>` +
+      this.cashWhereHtml() +
       `<p class="pocket-wear">Wearing ${[...inv.clothes, ...(inv.gear ?? [])].map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total + purseKg(inv))}.</p>` +
       // What anyone looking at you can see you're carrying.
       (inv.items.some((x) => x.kind === 'weapon')
@@ -5069,15 +5131,20 @@ export class Game {
     }
     // Every pocket and bag with something in it: how full, and what's there.
     // The empty ones are listed small at the end.
-    const empty = inv.spots.filter((sp) => !inv.items.some((x) => x.spot === sp.id));
+    // (Your cash, and which pockets it's in.)
+    const cashAt = new Map((cashWhere(inv) ?? []).map((x) => [x.spot.id, x.share]));
+    const allCash = Math.round(cashOf(inv) * 100);
+    const empty = inv.spots.filter((sp) => !inv.items.some((x) => x.spot === sp.id) && !cashAt.has(sp.id));
     for (const sp of inv.spots) {
       const xs = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.spot === sp.id);
-      if (!xs.length) continue;
-      const used = usedKg(inv, sp.id);
+      const share = cashAt.get(sp.id) ?? 0;
+      if (!xs.length && !share) continue;
+      const used = usedKg(inv, sp.id) + share * purseKg(inv);
       const fill = Math.min(100, (100 * used) / sp.maxKg);
       body +=
         `<div class="spot"><h3><span>${sp.on} · ${sp.name}</span><em>${sp.fits} · ${hideWord(concealOf(sp, inv.clothes[0]))}</em></h3>` +
         `<div class="spot-bar"><i style="width:${fill}%"></i><span>${kgLabel(used)} / ${sp.maxKg} kg</span></div>` +
+        (share ? `<p class="pocket-empty">${share > 0.999 ? 'Your cash' : `About ${money(Math.round((allCash * share) / 100) * 100 || allCash)} of your cash`}, folded in here.</p>` : '') +
         (xs.length
           ? `<ul class="pocket-list">${xs
               .map(({ x, i }) => {

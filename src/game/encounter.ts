@@ -3327,6 +3327,7 @@ function search(id: string, inv?: Inventory) {
   const grab = (g: (typeof clothes)[number], l: Loot) => {
     const r = take(inv, l);
     say('you', r.text);
+    if (r.cents) enc.robbed = true;
     if (r.ok) {
       g.loot.splice(g.loot.indexOf(l), 1);
       enc.robbed = true;
@@ -3340,12 +3341,16 @@ function search(id: string, inv?: Inventory) {
       if (!g.searched) continue;
       for (const l of [...g.loot]) {
         if (l.hidden && enc.them.yielded) continue;
-        if (!take(inv, l).ok) {
-          left.push(named(l.name));
+        const r = take(inv, l);
+        if (l.kind === 'cash' && r.cents) {
+          cash += r.cents / 100;
+          enc.robbed = true;
+        }
+        if (!r.ok) {
+          left.push(l.kind === 'cash' ? lootWords(l) : named(l.name));
           continue;
         }
-        if (l.kind === 'cash') cash += l.cash ?? 0;
-        else lines.push(named(l.name));
+        if (l.kind !== 'cash') lines.push(named(l.name));
         g.loot.splice(g.loot.indexOf(l), 1);
         enc.robbed = true;
       }

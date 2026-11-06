@@ -2,7 +2,7 @@ import { addCaffeine, caffeineNow } from './health';
 import { knifeOf } from './knives';
 import type { Loot, LootKind } from './person';
 import type { Health } from './health';
-import { addTo, cents, emptyPurse, fewest, kgOf, money, purseText, type Purse } from './money';
+import { DENOMS, addTo, cents, emptyPurse, fewest, kgOf, mlOf, money, purseText, type Purse } from './money';
 
 /**
  * What you carry, and where. You wear clothes like everyone else, and things
@@ -218,6 +218,92 @@ export function measure(x: { kind: string; name: string; med?: MedId }): { size:
 
 export const usedKg = (inv: Inventory, spot: string) => inv.items.filter((i) => i.spot === spot).reduce((s, i) => s + i.kg, 0);
 
+// ---------- Cash takes room ----------
+
+/** How much a pocket or bag holds, in mL per kg it's rated for (a jeans pocket, 0.4 kg: about 140 mL). */
+const ML_PER_KG: Record<Size, number> = { small: 350, medium: 1200, large: 1700 };
+/** Where cash can go: anywhere but a sheath or a holster. */
+const cashSpots = (inv: Inventory) => inv.spots.filter((s) => !bladeOnly(s) && !gunOnly(s));
+/** The room left in each pocket once your things are in: [mL, kg]. */
+function freeRoom(inv: Inventory): { spot: Spot; ml: number; kg: number }[] {
+  return cashSpots(inv).map((spot) => {
+    const used = usedKg(inv, spot.id);
+    const left = Math.max(0, 1 - used / spot.maxKg);
+    return { spot, ml: ML_PER_KG[spot.fits] * spot.maxKg * left, kg: Math.max(0, spot.maxKg - used) };
+  });
+}
+/**
+ * Where your cash is: each pocket's share of it, the snug pockets first
+ * (a wad in your front pocket before the backpack). Empty if it doesn't all fit.
+ */
+export function cashWhere(inv: Inventory, p: Purse = inv.purse): { spot: Spot; share: number }[] | null {
+  const ml = mlOf(p);
+  const kg = kgOf(p);
+  if (ml <= 0 && kg <= 0) return [];
+  const rooms = freeRoom(inv).sort((a, b) => SIZE_RANK[a.spot.fits] - SIZE_RANK[b.spot.fits] || a.spot.maxKg - b.spot.maxKg);
+  const out: { spot: Spot; share: number }[] = [];
+  let left = 1;
+  for (const r of rooms) {
+    if (left <= 1e-9) break;
+    const can = Math.min(ml > 0 ? r.ml / ml : Infinity, kg > 0 ? r.kg / kg : Infinity);
+    const share = Math.min(left, can);
+    if (share > 1e-6) out.push({ spot: r.spot, share });
+    left -= share;
+  }
+  return left > 1e-6 ? null : out;
+}
+/** Whether all of this cash fits on you (with what you're carrying). */
+export const cashFits = (inv: Inventory, p: Purse = inv.purse) => cashWhere(inv, p) !== null;
+/** How full your pockets are with cash, 0 to 1 (more than 1: it doesn't fit). */
+export function cashFill(inv: Inventory, p: Purse = inv.purse): number {
+  const ml = mlOf(p);
+  const kg = kgOf(p);
+  const rooms = freeRoom(inv);
+  const room = rooms.reduce((s, r) => s + Math.min(ml > 0 ? r.ml / ml : Infinity, kg > 0 ? r.kg / kg : Infinity), 0);
+  return ml <= 0 && kg <= 0 ? 0 : room <= 0 ? Infinity : 1 / room;
+}
+/**
+ * Puts what cash will fit into your pockets, the big bills first, and gives
+ * back what won't.
+ */
+export function pocketCash(inv: Inventory, p: Purse): Purse {
+  const rest: Purse = {};
+  const trial: Purse = { ...inv.purse };
+  for (const d of DENOMS) {
+    const n = p[d] ?? 0;
+    if (!n) continue;
+    // (As many of these as will go.)
+    let lo = 0;
+    let hi = n;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (cashFits(inv, { ...trial, [d]: (trial[d] ?? 0) + mid })) lo = mid;
+      else hi = mid - 1;
+    }
+    if (lo) trial[d] = (trial[d] ?? 0) + lo;
+    if (n - lo) rest[d] = n - lo;
+  }
+  inv.purse = trial;
+  return rest;
+}
+/** The most cash, in as few bills as it'll go, that would still fit (for a teller counting it out). */
+export function roomForCents(inv: Inventory, want: number): number {
+  if (cashFits(inv, sumPurse(inv.purse, fewest(want)))) return want;
+  let lo = 0;
+  let hi = want;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (cashFits(inv, sumPurse(inv.purse, fewest(mid)))) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
+}
+const sumPurse = (a: Purse, b: Purse): Purse => {
+  const p: Purse = { ...a };
+  addTo(p, b);
+  return p;
+};
+
 /** Where something would go: the smallest place it fits that has room. */
 export function findRoom(inv: Inventory, size: Size, kg: number, x?: { kind: string; name: string; cuts?: boolean }): Spot | null {
   const ok = inv.spots
@@ -231,7 +317,7 @@ export function noRoomWhy(inv: Inventory, size: Size): string {
   if (!inv.spots.some((s) => SIZE_RANK[s.fits] >= SIZE_RANK[size])) {
     return size === 'large' ? 'Too big to carry without a backpack.' : size === 'medium' ? "Won't fit in a pocket. You'd need a bag." : 'You have no pockets.';
   }
-  return 'There is no room left.';
+  return cashFill(inv) > 0.5 ? 'Your pockets are stuffed with cash.' : 'There is no room left.';
 }
 
 /** Puts something into the first place it fits. Returns null if there's no room. */
@@ -243,7 +329,13 @@ export function stow(inv: Inventory, it: Omit<InvItem, 'spot' | 'size' | 'kg'> &
   const spot = it.kind === 'weapon' ? hidingSpot(inv, size, kg, it) : findRoom(inv, size, kg, it);
   if (!spot) return null;
   const item: InvItem = { ...it, size, kg, spot: spot.id };
+  const fitBefore = cashFits(inv);
   inv.items.push(item);
+  // (Not if it means your cash has nowhere to go.)
+  if (fitBefore && !cashFits(inv)) {
+    inv.items.pop();
+    return null;
+  }
   return item;
 }
 
@@ -267,6 +359,7 @@ export function wear(inv: Inventory, slot: 'top' | 'bottom' | 'bag', name: strin
     if (!spot) return { ok: false, why: `You'd have nowhere to put the ${it.name.toLowerCase()}.` };
     trial.items.push({ ...it, spot: spot.id });
   }
+  if (cashFits(inv) && !cashFits(trial)) return { ok: false, why: "You'd have nowhere to put all your cash." };
   inv.clothes = clothes;
   inv.spots = spots;
   inv.items = trial.items;
@@ -280,12 +373,19 @@ export const kgLabel = (kg: number) => (kg <= 0 ? '0\u00a0kg' : kg < 0.01 ? '<0.
  * Puts something you took into your pockets. `ok` is false (and it stays
  * where it was) if there's nowhere for it.
  */
-export function take(inv: Inventory, l: Loot): { ok: boolean; text: string } {
+export function take(inv: Inventory, l: Loot): { ok: boolean; text: string; cents?: number } {
   const once = l.yours ? ' It was yours once.' : '';
   if (l.kind === 'cash') {
     const p = l.purse ?? fewest(Math.round((l.cash ?? 0) * 100));
-    addTo(inv.purse, p);
-    return { ok: true, text: `You pocket ${/^your /i.test(l.name) ? 'your cash' : `the ${l.name.toLowerCase()}`}: ${money(cents(p))} (${purseText(p)}).${once}` };
+    const what = /^your /i.test(l.name) ? 'your cash' : `the ${l.name.toLowerCase()}`;
+    const rest = pocketCash(inv, p);
+    const left = cents(rest);
+    if (!left) return { ok: true, cents: cents(p), text: `You pocket ${what}: ${money(cents(p))} (${purseText(p)}).${once}` };
+    // Only some of it goes in: the rest stays where it was.
+    const took = cents(p) - left;
+    l.purse = rest;
+    l.cash = left / 100;
+    return { ok: false, cents: took, text: took ? `You stuff ${money(took)} of ${what} in wherever it’ll go. There’s no room on you for the other ${money(left)}.` : `There’s no room on you for any more cash. Your pockets are full of it.` };
   }
   // Loose cigarettes go in with the loose ones you already have.
   if (/^loose cigarettes$/i.test(l.name)) {

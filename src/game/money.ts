@@ -24,6 +24,13 @@ export function denomName(d: number, n = 1): string {
 export const emptyPurse = (): Purse => ({});
 export const cents = (p: Purse) => DENOMS.reduce((s, d) => s + d * (p[d] ?? 0), 0);
 export const dollarsOf = (p: Purse) => cents(p) / 100;
+/**
+ * How much room it takes, in millilitres. A bill is 156 × 66 × 0.11 mm
+ * (about 1.1 mL); folded and stuffed in a pocket, call it 1.4. Coins by
+ * their size, with the gaps between them.
+ */
+const ML: Record<number, number> = { 25: 1.1, 10: 0.5, 5: 1, 1: 0.5 };
+export const mlOf = (p: Purse) => DENOMS.reduce((s, d) => s + (p[d] ?? 0) * (isBill(d) ? 1.4 : ML[d]), 0);
 export const kgOf = (p: Purse) => DENOMS.reduce((s, d) => s + (p[d] ?? 0) * (GRAMS[d] ?? 1), 0) / 1000;
 export const count = (p: Purse, ds = DENOMS) => ds.reduce((s, d) => s + (p[d] ?? 0), 0);
 

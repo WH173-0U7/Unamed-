@@ -637,7 +637,8 @@ export class Game {
       }
       // Someone else who lived there, dead: one fewer in the house.
       if (old.them.dead && old.resident && !old.resident.owner) {
-        const h = this.atHome;
+        // (Wherever you are now: it's the house you were at.)
+        const h = this.homeById(this.save.state.homeAt);
         if (h) h.household = 'alone';
       }
       if (old.enforcer && old.result !== 'lost' && this.debt) this.debt.strikes = (this.debt.strikes ?? 0) + 1;
@@ -1367,8 +1368,11 @@ export class Game {
     this.closeSheet();
     if (p === this.place || HIDDEN_PLACES.has(p)) return;
     if (p === 'home' && !this.homeById(this.save.state.homeAt)) return;
-    // Walking away from an address: if you were in, it's done.
-    if (this.place === 'home') this.leaveHome();
+    // Walking away from an address: if you were in, it's done (and a fight in there counts for what it was).
+    if (this.place === 'home') {
+      if (this.encounter?.resident) this.afterResidentFight(this.encounter);
+      this.leaveHome();
+    }
     this.shopAt = '';
     // A new trip to the ER is a new wait.
     this.erSeen = false;
@@ -2382,6 +2386,7 @@ export class Game {
     // (Out of the house either way; whether you got away is settled below.)
     const atHouse = this.place === 'home';
     if (atHouse) {
+      if (this.encounter?.resident) this.afterResidentFight(this.encounter);
       this.place = 'street';
       // (What was said in the house stays in the house.)
       this.unstick();
@@ -3915,7 +3920,8 @@ export class Game {
   private afterResidentFight(e: Encounter) {
     const j = this.job;
     const h = this.atHome;
-    if (!j || !h) return;
+    if (!j || !h || e.afterDone) return;
+    e.afterDone = true;
     if (e.them.dead) j.killed = true;
     else if (e.them.out || e.result === 'won' || e.result === 'walked' || e.them.broken.length > (e.start?.broken.length ?? 0) || e.them.blood < (e.start?.blood ?? e.them.blood) - 1) j.beat = true;
     // Cash you took off them in there: from the house, as far as the police are concerned.

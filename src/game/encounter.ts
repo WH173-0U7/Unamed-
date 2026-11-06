@@ -244,6 +244,8 @@ export interface Encounter {
   enforcer?: boolean;
   /** You were arrested for what happened, there and then. */
   charged?: boolean;
+  /** What a fight in a house means for the rest of it has been worked out. */
+  afterDone?: boolean;
   /** Someone in their own home, and you broke in: theirs (or someone who lives there), how they found you, and whether they'd called it in. */
   resident?: {
     owner: boolean;

@@ -5843,3 +5843,240 @@ body:has(.lockup) #pause-btn {
   gap: 6px;
   justify-content: flex-end;
 }
+
+/* ================= Fight screen polish (v2.12) ================= */
+/* The result, and what's happening (they're out, they gave up, you're down, a
+   chase), stays as the title even on short screens; only the plain "Fight"
+   and "What now?" give their room to the log. */
+@media (max-height: 600px) {
+  #enc[data-state] .enc-title {
+    display: block !important;
+    font-size: 17px;
+    margin: 0 0 4px;
+  }
+  #enc.facts-open[data-state]:not([data-state='over']) .enc-title {
+    display: none !important;
+  }
+}
+/* Upright: the log always has room for a few whole lines; the options take at most half. */
+@media (orientation: portrait) {
+  #enc .enc-log,
+  #enc:not(.log-open) .enc-log {
+    min-height: calc(4 * 1.45em + 20px);
+  }
+  #enc .enc-actions,
+  #enc:not(.log-open) .enc-actions {
+    max-height: 50%;
+    min-height: 120px;
+  }
+}
+/* Phones on their side: the options get the whole left column; who, the fight
+   and the log stack on the right. */
+@media (orientation: landscape) and (max-height: 560px) {
+  #enc,
+  #enc:not(.log-open) {
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+  #enc .enc-card {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+  }
+  #enc .enc-status {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+  }
+  #enc .enc-log,
+  #enc:not(.log-open) .enc-log {
+    grid-column: 2;
+    grid-row: 3;
+    align-self: stretch;
+    min-height: 0;
+    max-height: none;
+  }
+  #enc .enc-actions,
+  #enc:not(.log-open) .enc-actions {
+    grid-column: 1;
+    grid-row: 1 / 4;
+    align-self: stretch;
+    max-height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  #enc .enc-opts:not(.enc-extra) {
+    display: grid;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  #enc.facts-open .enc-card {
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+}
+/* Very short landscape: the bars keep a real length. */
+@media (max-height: 340px) {
+  /* (Folded: just the bars, a real length; tap for the numbers.) */
+  #enc:not(.status-open) .enc-fighter .enc-bar {
+    grid-template-columns: 34px minmax(40px, 1fr) !important;
+  }
+  #enc:not(.status-open) .enc-fighter .enc-bar em {
+    display: none !important;
+  }
+}
+/* The end screen: how it ended, and the one way on, plainly the way on. */
+#enc[data-state='over'] .enc-extra button[data-id='done'],
+body[data-buttons] #enc[data-state='over'] .enc-extra button[data-id='done'] {
+  color: var(--ink);
+  border: 1px solid var(--ink-dim) !important;
+  border-radius: 10px;
+  font-size: 15px;
+  min-height: 48px;
+}
+/* A greyed-out choice still says why, in words you can read. */
+#enc .enc-opts button:disabled,
+body[data-buttons] #enc .enc-opts button:disabled {
+  opacity: 1;
+  color: var(--ink-faint);
+}
+#enc .enc-opts button:disabled svg {
+  opacity: 0.45;
+}
+body[data-buttons='lines'] #enc .enc-opts button small {
+  font-size: 11.5px;
+  color: var(--ink-dim);
+}
+#enc .enc-opts button:disabled small,
+body[data-buttons] #enc .enc-opts button:disabled small {
+  color: #c9a77a;
+  opacity: 1;
+}
+/* Folded, the fight still shows what matters: on the floor, dazed (not
+   "Standing"), and a thin line of how much you've got left in you. */
+#enc:not(.status-open)[data-stage] .enc-fighter .enc-conds {
+  display: flex;
+  margin-top: 3px;
+}
+#enc:not(.status-open)[data-stage] .enc-fighter .enc-conds span.ok,
+#enc:not(.status-open)[data-stage] .enc-fighter .enc-conds span:nth-child(n + 3) {
+  display: none;
+}
+#enc:not(.status-open)[data-stage] .enc-fighter .enc-conds span {
+  font-size: 10px;
+  padding: 1px 6px;
+}
+#enc:not(.status-open)[data-stage] .enc-fighter .enc-bar.stamina {
+  display: grid;
+}
+#enc:not(.status-open)[data-stage] .enc-fighter .enc-bar.stamina i {
+  height: 2px;
+}
+#enc:not(.status-open)[data-stage] .enc-fighter .enc-bar.stamina em {
+  display: none;
+}
+/* Getting up, and a chase: the thing to do, looking like it. */
+#enc .enc-extra button[data-id='getup'],
+#enc .enc-extra button[data-id='chase'],
+body[data-buttons] #enc .enc-extra button[data-id='getup'],
+body[data-buttons] #enc .enc-extra button[data-id='chase'] {
+  color: var(--ink);
+  border: 1px solid var(--ink-dim) !important;
+  border-radius: 10px;
+}
+#enc .enc-extra button[data-id='chase'] small {
+  font-size: 12px;
+  color: #d8c48a;
+}
+/* Group names stay put at the top as a long list scrolls. */
+#enc .enc-opts .enc-group {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 4px 0 2px;
+  background: rgba(12, 12, 12, 0.94);
+}
+/* Lines: the hint under the name, not squeezed beside it; a long list in two columns. */
+body[data-buttons='lines'] #enc .enc-opts button {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  min-height: 44px;
+  padding: 7px 4px;
+}
+body[data-buttons='lines'] #enc .enc-opts button small {
+  text-align: left;
+}
+body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  column-gap: 14px;
+}
+#enc .enc-opts.dense .enc-group,
+#enc .enc-opts.dense .enc-pick {
+  grid-column: 1 / -1;
+}
+/* Room to tap. */
+#enc .enc-opts.compact button,
+#enc .enc-tabs button {
+  min-height: 44px;
+}
+/* The buttons along the bottom keep to one line. */
+#enc .enc-extra button {
+  white-space: nowrap;
+  letter-spacing: 0;
+  font-size: 13px;
+}
+/* Before a fight, on a tall enough screen, what you know shows without a tap. */
+@media (orientation: portrait) and (min-height: 640px) {
+  #enc[data-stage='menu']:not(.facts-open) .enc-facts,
+  #enc[data-stage='surveil']:not(.facts-open) .enc-facts,
+  #enc[data-stage='violence']:not(.facts-open) .enc-facts {
+    display: grid;
+  }
+}
+#enc .enc-who::after {
+  font-size: 14px;
+  color: var(--ink-dim);
+}
+#enc[data-state='over'] .enc-extra button[data-id='done'] {
+  justify-content: center;
+  text-align: center;
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  /* (Both columns may shrink: nothing pushes the right one off the screen.) */
+  #enc,
+  #enc:not(.log-open) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  /* (The right column starts clear of the clock, at the top right.) */
+  #enc .enc-card {
+    margin-top: 30px;
+  }
+  #enc .enc-status {
+    margin-top: 0;
+  }
+}
+/* (The buttons along the bottom may wrap after all: a cut-off word is worse.) */
+#enc .enc-extra button {
+  white-space: normal;
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  /* (Three tabs and a count fit the narrow column.) */
+  #enc .enc-tabs button {
+    min-width: 0;
+    padding: 4px 2px;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+/* (Folded, a condition stays one short tag: never two lines cut off at the bottom.) */
+#enc:not(.status-open)[data-stage] .enc-fighter .enc-conds span {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

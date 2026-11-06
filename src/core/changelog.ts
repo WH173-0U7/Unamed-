@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.14',
+    date: 'Nov 6',
+    items: [
+      'The fight screen, polished: the result (“You walked away”, “They’re out cold”) always shows, even sideways; the log never cuts a line in half and keeps room for a few lines; the end screen is just what happened and a clear Leave.',
+      'Folded, the fight panel still shows stamina and whether either of you is down or dazed. Greyed-out moves say why in a readable colour. Get up and Chase stand out.',
+      'Bigger buttons, tabs that stay in the same order, group headings only when there are enough moves to need them, and the list starts back at the top when the fight changes.',
+    ],
+  },
+  {
     v: '2.13',
     date: 'Nov 6',
     items: [

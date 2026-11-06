@@ -10,7 +10,11 @@ const STAGE_TITLE: Record<string, string> = {
   combat: 'Fight',
   helpless: "They're out cold",
   yielded: 'They gave up',
+  down: "They're down",
+  youDown: "You're on the floor",
 };
+/** The tabs always in the same order, whatever the moment (so a thumb learns where they are). */
+const TAB_ORDER: Category[] = ['surveil', 'violence', 'attack', 'stomp', 'torture', 'search', 'threaten', 'move'];
 
 export const RESULT: Record<string, string> = {
   won: "They're down.",
@@ -99,10 +103,27 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     const more = log.querySelector<HTMLElement>('.log-more');
     const bar = more && !more.hidden ? more.getBoundingClientRect().height : 0;
     log.scrollTop += turnStart.getBoundingClientRect().top - log.getBoundingClientRect().top - bar - 2;
-    // A small box and a long turn: the newest line matters most.
-    const last = log.lastElementChild;
+    // A small box and a long turn: the newest lines matter most, from the
+    // start of a line (never one sliced in half at the top).
+    const last = log.lastElementChild as HTMLElement | null;
     const below = last ? last.getBoundingClientRect().bottom - log.getBoundingClientRect().bottom : 0;
-    if (below > 0) log.scrollTop += below + 2;
+    if (below > 0 && last) {
+      const ps = [...log.querySelectorAll<HTMLElement>('p:not(.log-more):not(.old)')];
+      const room = log.clientHeight - bar - 6;
+      const top = log.getBoundingClientRect().top;
+      const end = last.getBoundingClientRect().bottom;
+      // The earliest line from which the rest still fits.
+      const from = ps.find((p) => end - p.getBoundingClientRect().top <= room) ?? last;
+      log.scrollTop += from.getBoundingClientRect().top - top - bar - 4;
+    }
+    // (And no line half under the "earlier lines" bar: one cut in two scrolls out of sight.)
+    const limit = more && !more.hidden ? more.getBoundingClientRect().bottom : log.getBoundingClientRect().top + parseFloat(getComputedStyle(log).paddingTop || '0');
+    for (const p of log.querySelectorAll<HTMLElement>('p:not(.log-more):not(.old)')) {
+      const r = p.getBoundingClientRect();
+      if (r.bottom <= limit + 1) continue;
+      if (r.top < limit - 1) log.scrollTop += r.bottom - limit + 2;
+      break;
+    }
   };
   // More of the log below what shows: a fade at the bottom.
   const logMore = () => log.classList.toggle('more', log.scrollTop + log.clientHeight < log.scrollHeight - 4);
@@ -125,7 +146,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       if (tab !== b.dataset.tab) {
         tab = b.dataset.tab as Category;
         drawOptions(true);
-        uiGlitch(q('.enc-opts'), 0.25);
+        uiGlitch(q('.enc-opts'), 0.15);
       }
       return;
     }
@@ -138,12 +159,16 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     `<button type="button" data-id="${o.id}" ${o.cat && HARM.has(o.cat) ? 'data-tone="harm"' : ''} ${o.tone ? `data-loot="${o.tone}"` : ''} ${o.disabled ? 'disabled' : ''}>${o.icon && o.tone ? glyphSvg(o.icon, o.tone) : ''}${o.label}${o.hint ? `<small>${o.hint}</small>` : ''}</button>`;
 
   /** The tab bar, the options under the chosen tab, and the ones always shown. */
+  /** Which options were showing last time (a new list starts at its top). */
+  let shownKey = '';
   function drawOptions(switched = false) {
-    const cats = [...new Set(opts.filter((o) => o.cat).map((o) => o.cat!))];
+    const cats = [...new Set(opts.filter((o) => o.cat).map((o) => o.cat!))].sort((a, b) => TAB_ORDER.indexOf(a) - TAB_ORDER.indexOf(b));
     const tabs = q('.enc-tabs');
+    // It's over: no tabs and no greyed-out moves, just how it ended and the way on.
+    const done = !!current?.finished;
     // Just the one choice of tab: no bar, it's open.
     if (cats.length === 1) tab = cats[0];
-    tabs.hidden = cats.length <= 1;
+    tabs.hidden = cats.length <= 1 || done;
     tabs.innerHTML = cats
       .map((c) => {
         const n = opts.filter((o) => o.cat === c && !o.disabled).length;
@@ -153,9 +178,14 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     const panel = q('.enc-opts');
     // Loot lists get long: smaller buttons.
     panel.classList.toggle('compact', tab === 'search');
-    const shown = tab ? opts.filter((o) => o.cat && o.cat === tab) : [];
-    // Sections (Strikes, Weapons, On the ground, Torture) when there's more than one.
-    const sections = new Set(shown.map((o) => o.group).filter(Boolean)).size > 1;
+    const shown = done ? [] : tab ? opts.filter((o) => o.cat && o.cat === tab) : [];
+    // Sections (Strikes, Weapons, On the ground, Torture) when there's more than
+    // one, and they're worth it: a list long enough, or a group with a few moves in it.
+    const groups = shown.map((o) => o.group).filter(Boolean);
+    const sizes = [...new Set(groups)].map((g) => groups.filter((x) => x === g).length);
+    const sections = sizes.length > 1 && (shown.length > 10 || sizes.filter((n) => n >= 2).length >= 2);
+    // A long list: two columns, where there's the width.
+    panel.classList.toggle('dense', shown.length >= 8);
     let lastGroup: string | undefined;
     panel.innerHTML = tab
       ? shown
@@ -165,10 +195,16 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
             return head + button(o);
           })
           .join('')
-      : cats.length
+      : cats.length && !done
         ? `<p class="enc-pick">Choose what to do.</p>`
         : '';
     panel.hidden = !panel.innerHTML;
+    // (A different list: from its top, not wherever the last one was scrolled to.)
+    const key = `${tab}|${shown.map((o) => o.id).join()}`;
+    if (key !== shownKey) {
+      shownKey = key;
+      panel.scrollTop = 0;
+    }
     if (switched) {
       panel.classList.remove('swap');
       void panel.offsetWidth;
@@ -177,7 +213,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     // More than fits: a fade at the bottom says there's more to scroll to.
     requestAnimationFrame(() => panel.classList.toggle('more', panel.scrollHeight > panel.clientHeight + 4 && panel.scrollTop + panel.clientHeight < panel.scrollHeight - 4));
     const extra = q('.enc-extra');
-    extra.innerHTML = opts.filter((o) => !o.cat).map(button).join('');
+    extra.innerHTML = opts.filter((o) => !o.cat && !(done && o.disabled)).map(button).join('');
     extra.hidden = !extra.innerHTML;
   }
 
@@ -219,9 +255,14 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       }
       // Something new on screen: it glitches in.
       if (root.hidden) uiGlitch(root, 0.4);
-      else if (root.dataset.stage !== e.stage) uiGlitch(q('.enc-actions'), 0.3);
+      else if (root.dataset.stage !== e.stage) uiGlitch(q('.enc-actions'), 0.15);
       root.hidden = false;
       root.dataset.stage = e.stage;
+      // The moment within the fight (so the title can say it, even on a short screen).
+      const state =
+        e.stage === 'over' ? 'over' : e.stage !== 'combat' ? '' : e.chase ? 'chase' : e.them.out ? 'out' : e.them.yielded ? 'yielded' : e.you.down ? 'you-down' : e.them.down ? 'down' : '';
+      if (state) root.dataset.state = state;
+      else delete root.dataset.state;
       root.classList.toggle('chasing', !!e.chase);
       const p = e.person;
       q('.enc-kind').textContent = e.resident ? 'Lives here' : (p.title ?? NAMES[p.kind]);
@@ -280,7 +321,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       logMore();
 
       q('.enc-title').textContent =
-        e.stage === 'over' ? (e.resident && e.result === 'walked' ? 'You leave them where they lie.' : RESULT[e.result ?? 'left']) : e.stage === 'combat' && e.chase ? "They're running" : e.stage === 'combat' && e.them.out ? STAGE_TITLE.helpless : e.stage === 'combat' && e.them.yielded ? STAGE_TITLE.yielded : STAGE_TITLE[e.stage];
+        e.stage === 'over' ? (e.resident && e.result === 'walked' ? 'You leave them where they lie.' : RESULT[e.result ?? 'left']) : e.stage === 'combat' && e.chase ? "They're running" : e.stage === 'combat' && e.them.out ? STAGE_TITLE.helpless : e.stage === 'combat' && e.them.yielded ? STAGE_TITLE.yielded : e.stage === 'combat' && e.you.down ? STAGE_TITLE.youDown : e.stage === 'combat' && e.them.down ? STAGE_TITLE.down : STAGE_TITLE[e.stage];
       opts = options(e);
       const cats = [...new Set(opts.filter((o) => o.cat).map((o) => o.cat!))];
       const key = cats.join(',');

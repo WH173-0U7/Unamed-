@@ -11,6 +11,13 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.52',
+    date: 'Nov 6',
+    items: [
+      'Someone bleeding too hard to stay awake can’t be slapped awake (the option says they’re too far gone), instead of coming to and passing out again in the same breath.',
+    ],
+  },
+  {
     v: '1.51',
     date: 'Nov 6',
     items: [

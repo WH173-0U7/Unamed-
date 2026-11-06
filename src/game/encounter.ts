@@ -2515,8 +2515,7 @@ function endOfRound() {
   // minute (not if they've lost too much blood).
   const T0 = enc.them;
   for (const f of [enc.you, T0]) if (!f.dead) f.awake = f.out ? Math.min(-1, f.awake + 2) : Math.min(100, f.awake + 3);
-  // (Not if this round's bleeding would only put them straight back under.)
-  if (T0.out && !T0.dead && canWake(enc) && T0.blood - BLEED_ML[T0.bleeding] > T0.maxBlood * (PASS_OUT + 0.03) && Math.random() < (T0.awake > -15 ? 0.35 : T0.awake > -50 ? 0.12 : 0)) {
+  if (T0.out && !T0.dead && canWake(enc) && Math.random() < (T0.awake > -15 ? 0.35 : T0.awake > -50 ? 0.12 : 0)) {
     T0.out = false;
     T0.outNoted = false;
     T0.down = true;
@@ -2901,7 +2900,8 @@ function mugSurprise(e: Encounter) {
 }
 
 /** Knocked out, but not bled out: a slap can bring them round. */
-const canWake = (e: Encounter) => !!e.them.out && !e.them.dead && e.them.blood > e.them.maxBlood * (PASS_OUT + 0.03) && e.them.awake > -60;
+// (Not if one more round of their bleeding would only put them straight back under.)
+const canWake = (e: Encounter) => !!e.them.out && !e.them.dead && e.them.blood - (BLEED_ML[e.them.bleeding] * e.them.maxBlood) / 5000 > e.them.maxBlood * (PASS_OUT + 0.03) && e.them.awake > -60;
 
 /** "Wallet. Now." Before any blows: they give it up, run, or fight. */
 function mug() {

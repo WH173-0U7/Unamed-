@@ -1,7 +1,7 @@
 import { makePerson, type Loot, type Person } from './person';
 import type { Inventory } from './inventory';
 import { cents } from './money';
-import type { Encounter } from './encounter';
+import { a as withA, list, type Encounter } from './encounter';
 
 /**
  * What outlives you. When you die, whoever finds your body goes through your
@@ -147,6 +147,6 @@ export function robKnockedOut(w: World, inv: Inventory, e: Encounter, brute: boo
   thief.person = p;
   for (const g of p.clothes) g.searched = false;
   while (w.thieves.length > MAX_THIEVES) w.thieves.shift();
-  const names = [...(c > 0 ? ['your cash'] : []), ...took.map((x) => x.name.replace(/^[A-Z][a-z]/, (m) => m.toLowerCase()))];
-  return `When you come to, your pockets have been turned out. Gone: ${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]}.`;
+  const names = [...(c > 0 ? ['your cash'] : []), ...took.map((x) => withA(x.name.replace(/^[A-Z][a-z]/, (m) => m.toLowerCase())))];
+  return `When you come to, your pockets have been turned out. Gone: ${list(names)}.`;
 }

@@ -3379,8 +3379,29 @@ const plural = (s: string) => {
 };
 /** Lower-case the first letter only ("state ID", not "state id"). */
 const lc = (s: string) => s.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase());
-const a = (s: string) => (/^(pepper spray|cash|loose|folded|groceries|house keys|car keys|cigarettes|headphones|matches|some |your |bills|bandages|gauze|iron tablets|painkillers)/.test(s) || plural(s) ? s : /^[aeiou]/.test(s) ? `an ${s}` : `a ${s}`);
-const list = (xs0: string[]) => {
+export const a = (s: string) => (/^(pepper spray|cash|loose|folded|groceries|house keys|car keys|cigarettes|headphones|matches|some |your |bills|bandages|gauze|iron tablets|painkillers)/.test(s) || plural(s) ? s : /^[aeiou]/.test(s) ? `an ${s}` : `a ${s}`);
+export const list = (xs1: string[]) => {
+  // (Money of the same kind, different amounts: one sum. "$30 of your cash" and "$50 of your cash" are $80 of it.)
+  const xs0: string[] = [];
+  const sums = new Map<string, { i: number; c: number; k: number }>();
+  for (const x of xs1) {
+    const m = /^\$([\d,]+(?:\.\d+)?) ((?:in|of) [^(]+?)( \([^)]*\))?$/.exec(x);
+    if (!m) {
+      xs0.push(x);
+      continue;
+    }
+    const key = m[2] + (m[3] ?? '');
+    const v = Math.round(Number(m[1].replace(/,/g, '')) * 100);
+    const had = sums.get(key);
+    if (had) {
+      had.c += v;
+      had.k++;
+    } else {
+      sums.set(key, { i: xs0.length, c: v, k: 1 });
+      xs0.push(x);
+    }
+  }
+  for (const [key, { i, c, k }] of sums) if (k > 1) xs0[i] = `$${(c / 100).toLocaleString('en-US', { minimumFractionDigits: c % 100 ? 2 : 0, maximumFractionDigits: 2 })} ${key}`;
   // (The same thing twice is "two receipts", not "a receipt and a receipt".)
   const n = new Map<string, number>();
   for (const x of xs0) n.set(x, (n.get(x) ?? 0) + 1);
@@ -3406,9 +3427,9 @@ function several(x: string, k: number): string[] {
     return [`$${total.toLocaleString('en-US', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: 2 })} ${sum[2]} ${sum[3]}${where}`];
   }
   // (Money, or a detail after a comma or in brackets: listed as many times as there are.)
-  if (/^[$\d]/.test(bare) || bare.includes(',') || bare.includes('(') || / (in|with|from) /.test(bare)) return Array(k).fill(x);
+  if (/^\$/.test(bare) || bare.includes(',') || bare.includes('(') || / (in|with|from) /.test(bare)) return Array(k).fill(x);
   // (No "a" to count by: "two sets of house keys", "two cans of pepper spray"; anything else, listed as many times as there are.)
-  if (!m) return /keys$/i.test(bare) ? [`${NUMBER[k] ?? k} sets of ${bare}${where}`] : /spray$/i.test(bare) ? [`${NUMBER[k] ?? k} cans of ${bare}${where}`] : [x];
+  if (!m) return /(rounds|shells)$/i.test(bare) ? [`${NUMBER[k] ?? k} boxes of ${bare}${where}`] : /keys$/i.test(bare) ? [`${NUMBER[k] ?? k} sets of ${bare}${where}`] : /spray$/i.test(bare) ? [`${NUMBER[k] ?? k} cans of ${bare}${where}`] : [x];
   const body = m[1];
   if (/spray$/i.test(body)) return [`${NUMBER[k] ?? k} cans of ${body}${where}`];
   const of = body.search(/ of /);

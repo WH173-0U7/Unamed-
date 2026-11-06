@@ -857,6 +857,11 @@ export class Game {
       delete this.save.state.endLines;
       return this.closeEncounter([], true);
     }
+    // Walking up to them: whatever note was waiting goes (it's the fight's screen now).
+    if (e.stage === 'seen') {
+      this.unstick();
+      this.noteEl.hidden = true;
+    }
     // Approaching someone: bring your body as it is now (and lose the cigarette).
     if (e.stage === 'seen' && id === 'ambushed') e.you = this.yourBody();
     else if (e.stage === 'seen') {

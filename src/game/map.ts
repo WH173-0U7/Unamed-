@@ -134,7 +134,7 @@ function decorSvg(): string {
   const trees = Array.from({ length: 9 }, (_, k) => `<circle cx="${(160 + rnd(k, 1) * 40).toFixed(1)}" cy="${(214 + rnd(k, 2) * 36).toFixed(1)}" r="${(1.6 + rnd(k, 3) * 1.4).toFixed(1)}"/>`).join('');
   const park = `<rect class="park" x="155" y="210" width="50" height="45" rx="3"/><path class="park-path" d="M155 250 Q170 236 182 238 T205 214"/><ellipse class="pond" cx="190" cy="243" rx="7" ry="4"/><g class="trees">${trees}</g>`;
   // The river, its ripples, and the bridge Grand Ave crosses it on.
-  const river = `<path class="river" d="M0 398 C60 388 120 410 180 400 S260 392 300 404 L300 420 L0 420Z"/>` + `<path class="ripple" d="M20 409 q6 -2 12 0 M70 412 q6 -2 12 0 M120 408 q6 -2 12 0 M205 410 q6 -2 12 0 M255 413 q6 -2 12 0"/>` + `<rect class="bridge" x="143" y="392" width="14" height="22" rx="1"/>`;
+  const river = `<text class="area river-name" x="120" y="414" text-anchor="middle">THE RIVER</text><path class="river" d="M0 398 C60 388 120 410 180 400 S260 392 300 404 L300 420 L0 420Z"/>` + `<path class="ripple" d="M20 409 q6 -2 12 0 M70 412 q6 -2 12 0 M120 408 q6 -2 12 0 M205 410 q6 -2 12 0 M255 413 q6 -2 12 0"/>` + `<rect class="bridge" x="143" y="392" width="14" height="22" rx="1"/>`;
   // The rail line along the top, with its ties.
   const ties = Array.from({ length: 31 }, (_, k) => `M${k * 10 + 2} 10v6`).join(' ');
   const rail = `<path class="rail" d="M0 11.5h300 M0 14.5h300"/><path class="ties" d="${ties}"/>`;
@@ -144,7 +144,6 @@ function decorSvg(): string {
     [62, 186, 'THE FLATS'],
     [236, 248, 'OLD TOWN'],
     [86, 352, 'SOUTHSIDE'],
-    [240, 415, 'THE DOCKS'],
   ]
     .map(([x, y, t]) => `<text class="district" x="${x}" y="${y}" text-anchor="middle">${t}</text>`)
     .join('');

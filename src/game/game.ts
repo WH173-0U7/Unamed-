@@ -207,6 +207,8 @@ export class Game {
   dead = false;
   /** Called the moment you die (to save: the world goes on without you). */
   onDeath?: () => void;
+  /** Something changed (a screen, a move, a purchase): main.ts saves shortly after. */
+  onChanged?: () => void;
   private readonly tv;
   private readonly powerBtn: HTMLButtonElement;
   /** "Shake your phone to wake up", on the dark screen after a knockout. */
@@ -6364,6 +6366,8 @@ export class Game {
 
   /** Redraws the person button and the encounter screen from the saved state. */
   private refresh() {
+    // (Anything that changed what's on screen changed the game: it's saved a moment later.)
+    this.onChanged?.();
     this.learnHomes();
     this.syncButtons();
     const e = this.encounter;

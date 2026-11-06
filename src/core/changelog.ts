@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.07',
+    date: 'Nov 6',
+    items: [
+      'The game saves as you play: a moment after anything changes (a new screen, a move in a fight, a purchase, lying down). You don’t need to pause to save, and closing the app, or the phone closing it for you, loses nothing.',
+      'Pausing doesn’t stop anything any more either: the world, your body and every timer run on the real clock. The pause menu is just there for settings, updates and quitting.',
+    ],
+  },
+  {
     v: '2.06',
     date: 'Nov 6',
     items: [

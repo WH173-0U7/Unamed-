@@ -206,6 +206,14 @@ function hideMenu() {
   menuFadeTimer = window.setTimeout(() => (menuVisible = false), FADE_MS);
 }
 
+let saveTimer = 0;
+/** A save shortly after a change (a burst of changes is one save). */
+function saveSoon() {
+  clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(() => {
+    if (game && !game.dead && state !== 'menu') save();
+  }, 600);
+}
 function save(): boolean {
   if (!game) return false;
   const ok = game.saveNow();
@@ -253,6 +261,9 @@ function startGame(fresh: boolean) {
   }
   // Dying saves at once: that character is gone, and you go on as someone new.
   game.onDeath = () => save();
+  // Saved as you play: a moment after anything changes (a new screen, a move, a
+  // purchase), so closing the app, or the phone closing it, loses nothing.
+  game.onChanged = saveSoon;
   game.setSize(innerWidth, innerHeight, pixelRatio);
   // (In the Android app: may it tell you when you're rested, out, due in court?)
   void askPermission();
@@ -284,7 +295,8 @@ function pause() {
   game.pause();
   document.body.classList.add('paused');
   // The save point.
-  if (save()) menu.toast('Progress saved');
+  // (It's been saving as you go: this is just one more.)
+  save();
   // The glass is stored once the menu is up (it takes a moment).
   window.setTimeout(() => glass.persist(), 450);
   updatePauseInfo();
@@ -428,8 +440,7 @@ menu.setSaveInfo(loadSave());
 showMenu('main');
 enforceFullscreen();
 
-// Autosave: every 15 seconds while you play, quietly, so nothing is lost if
-// the phone closes the page without warning (pausing still saves too).
+// (And every 15 seconds while you play as well, for the real clock's sake.)
 setInterval(() => {
   if (state === 'playing' && game && !game.dead) game.saveNow();
 }, 15_000);

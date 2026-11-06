@@ -5640,3 +5640,80 @@ button.tapped:not(:disabled) {
     font-size: 10px;
   }
 }
+
+/* Inside: a cell, a countdown, and the one way out that isn't the door. */
+#jail {
+  position: fixed;
+  inset: 0;
+  /* (Under the pause menu: you can still pause, change settings or quit.) */
+  z-index: 23;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  gap: 12px;
+  padding: var(--pad-top, 16px) 24px var(--pad-bot, 16px);
+  overflow-y: auto;
+  text-align: center;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 calc(12.5% - 5px), rgba(120, 130, 140, 0.16) calc(12.5% - 5px) 12.5%),
+    radial-gradient(ellipse at center, rgba(14, 18, 22, 0.97), rgba(0, 0, 0, 1));
+  animation: death-in 1.6s ease both;
+}
+#jail h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(40px, 12vw, 76px);
+  line-height: 1;
+  color: #9aa4ad;
+}
+#jail p {
+  max-width: 400px;
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+#jail .jail-left {
+  font-size: clamp(18px, 6vw, 26px);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+#jail .jail-how {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+#jail .jail-quit {
+  margin-top: 8px;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px 22px;
+  border: 1px solid var(--ink-faint);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+@media (max-height: 420px) {
+  #jail {
+    gap: 6px;
+  }
+  #jail h2 {
+    font-size: 30px;
+  }
+  #jail .jail-left {
+    font-size: 20px;
+  }
+  #jail .jail-how {
+    display: none;
+  }
+}
+body:has(#jail) #pause-btn {
+  position: fixed;
+  z-index: 24;
+}

@@ -71,6 +71,8 @@ const dueText = (t: number) => (new Date(t).getFullYear() === new Date(now()).ge
 const VIG_DAYS = 14;
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 /** At an address: outside, or in, and what's happened so far. */
+/** Held: since when, until when (real time), what for, and what's said when the door opens. */
+type Jail = { from: number; until: number; what: string; after?: string[] };
 /** Whether this one in the house (the owner, or whoever else lives there) has seen your face. */
 type FaceSeen = boolean | { owner?: boolean | number; other?: boolean | number };
 const sawFace = (j: { faceSeen?: FaceSeen } | undefined, owner: boolean) =>
@@ -1286,12 +1288,13 @@ export class Game {
    * takes everything on it (see legacy.ts), and you go on as someone new,
    * with nothing. The world remembers.
    */
-  private die(lines: string[], title = 'You bled out.') {
+  private die(lines: string[], title = 'You bled out.', jailed = false) {
     if (this.dead) return;
     this.dead = true;
     this.running = false;
     this.closeSheet();
-    this.fx.impact(true, 900, true);
+    document.getElementById('jail')?.remove();
+    if (!jailed) this.fx.impact(true, 900, true);
     buzz([120, 80, 200, 120, 400]);
     const h = this.humanity;
     const lvl = humanityLevel(h.lost);
@@ -1306,7 +1309,7 @@ export class Game {
     const inEr = this.place === 'hospital';
     // (In someone's house counts: nobody goes through your pockets on their hallway floor.)
     const indoors = this.inside || (this.place === 'home' && !!this.job?.in);
-    const robbed = indoors ? false : robBody(w, this.inventory, e);
+    const robbed = indoors || jailed ? false : robBody(w, this.inventory, e);
     // (Whoever has your things now: their thief record and what you remember of them are one person.)
     const tid = e?.person.thief;
     const th = tid ? w.thieves.find((t) => t.id === tid) : undefined;
@@ -1320,7 +1323,7 @@ export class Game {
     this.noteEl.hidden = true;
     // A new you: nothing carried over but the world.
     // (Your name, your ID and your bank account were that character's.)
-    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported']) delete this.save.state[k];
+    for (const k of ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail']) delete this.save.state[k];
     // Nobody knows this face. The people the old you hurt are still out there
     // (and your things on some of them), but they'd be looking for someone else.
     this.world.infamy = newInfamy();
@@ -1342,7 +1345,9 @@ export class Game {
       `<div><dt>Cash</dt><dd>${money(Math.round(cash * 100))}</dd></div>` +
       `</dl>` +
       `<p class="death-after">${
-        robbed
+        jailed
+          ? 'What you came in with is in a plastic bag with your name on it, on a shelf. Nobody comes for it.'
+          : robbed
           ? 'Someone went through your pockets before you were cold. Whatever you had is out there now, on somebody.'
           : indoors && !inEr
             ? 'Somebody called it in. What you had on you went into a plastic bag with your name on it, and nobody comes for it.'
@@ -3241,7 +3246,7 @@ export class Game {
       lines.push(`You're arrested.${took ? ` They keep ${took === 1 ? 'the evidence' : `${took === 2 ? 'both' : `all ${took}`} things they took off you`}.` : ''}`);
       lines.push(...custodyCare(h));
       delete h.smokingUntil;
-      lines.push('You spend the night in a holding cell that smells of bleach and piss.', ...passHours(h, 8, true));
+      lines.push('You spend the night in a holding cell that smells of bleach and piss.', ...passHours(h, 8, true, false));
       rec.nights = (rec.nights ?? 0) + 1;
       h.cold = 0;
       if (h.dead) return this.die(lines);
@@ -3276,10 +3281,11 @@ export class Game {
       f.rep += 5;
       h.stress = Math.min(100, (h.stress ?? 0) + 15);
     }
-    // What happened stays on the screen until you've read it.
+    // What happened stays on the screen until you've read it (once they let you out).
     this.save.state.policeResult = lines;
     this.refresh();
     this.renderSheet();
+    if (arrested) this.lockUp(8, 'A night in a holding cell');
     buzz(arrested ? [80, 60, 120] : 12);
   }
 
@@ -3324,8 +3330,9 @@ export class Game {
     if (!c) return;
     const h = this.health;
     delete this.save.state.bailOffer;
-    const lines = [...custodyCare(h), 'A day and a half in County: a bunk, a toilet with no seat, and the noise that never stops.', ...passHours(h, 36, true)];
+    const lines = [...custodyCare(h), 'A day and a half in County: a bunk, a toilet with no seat, and the noise that never stops.', ...passHours(h, 36, true, false)];
     this.record.heldHours = (this.record.heldHours ?? 0) + 36;
+    this.lockUp(36, 'In County, waiting for your hearing');
     if (h.dead) return this.die(lines);
     h.stress = Math.min(100, (h.stress ?? 0) + 20);
     lines.push(...this.verdict(true));
@@ -3410,11 +3417,13 @@ export class Game {
     rec.daysServed = (rec.daysServed ?? 0) + days;
     rec.longest = Math.max(rec.longest ?? 0, days);
     if (days >= 365) rec.prison = (rec.prison ?? 0) + 1;
-    rec.lastOut = now();
+    // (Real time: you're inside until the day they let you out.)
+    this.lockUp(days * 24, days >= 365 ? `Serving ${prisonTerm(days)} in state prison` : `Serving ${days} days in County`);
+    rec.lastOut = this.jail?.until ?? now();
     // (They don't let you bleed out inside: the wound's seen to first.)
-    const lines = [...custodyCare(h), `You serve ${days >= 365 ? (prisonTerm(days) === 'a year' ? 'the year' : prisonTerm(days)) : `your ${days} days`}. The food is gray, the nights are loud, and you learn who not to look at.`, ...passHours(h, Math.min(days * 24, 96), true)];
+    const lines = [...custodyCare(h), `You serve ${days >= 365 ? (prisonTerm(days) === 'a year' ? 'the year' : prisonTerm(days)) : `your ${days} days`}. The food is gray, the nights are loud, and you learn who not to look at.`, ...passHours(h, Math.min(days * 24, 96), true, false)];
     // (The rest of the term goes by too: habits fade, bones and faces mend.)
-    if (!h.dead && days * 24 > 96) passHours(h, days * 24 - 96, true);
+    if (!h.dead && days * 24 > 96) passHours(h, days * 24 - 96, true, false);
     if (h.dead) return lines;
     h.stress = Math.min(100, (h.stress ?? 0) + 25);
     h.nerve = Math.min(100, (h.nerve ?? 0) + 5);
@@ -3466,12 +3475,102 @@ export class Game {
     lines.push(...this.verdict(false));
     if (this.health.dead) return this.die(lines);
     this.refresh();
-    this.note(lines);
+    if (this.jailed) this.jail!.after = lines;
+    else this.note(lines);
     buzz(10);
+  }
+  /** Where you're held, and until when (real time: the game's clock is yours). */
+  private get jail(): Jail | undefined {
+    return this.save.state.jail as Jail | undefined;
+  }
+  private get jailed(): boolean {
+    const j = this.jail;
+    return !!j && now() < j.until;
+  }
+  /** Held: that many more real hours behind a door you can't open. */
+  private lockUp(hours: number, what: string) {
+    const t = now();
+    const j = this.jail;
+    const live = !!j && j.until > t;
+    this.save.state.jail = { from: live ? j!.from : t, until: (live ? j!.until : t) + hours * 3_600_000, what, ...(live && j!.after ? { after: j!.after } : {}) } satisfies Jail;
+    this.running = false;
+    this.showJail();
+  }
+  /** The cell: how long, and the one way out that isn't the door. */
+  private showJail() {
+    const j = this.jail;
+    if (!j) return;
+    document.getElementById('jail')?.remove();
+    const el = document.createElement('div');
+    el.id = 'jail';
+    const c = this.case;
+    el.innerHTML =
+      `<h2>Inside</h2>` +
+      `<p class="jail-what">${j.what}</p>` +
+      `<p class="jail-left"></p>` +
+      `<p class="jail-out"></p>` +
+      (c?.charges.length ? `<p class="jail-charges">Charged with ${c.charges.map((x) => x.toLowerCase()).join(', ')}.</p>` : '') +
+      `<p class="jail-how">Time inside is real time. Your body mends while you wait, and the streets, your room and what you owe run on without you. Come back when they let you out.</p>` +
+      `<button type="button" class="jail-quit">Give up on this life</button>`;
+    const btn = el.querySelector('button')!;
+    let armed = 0;
+    btn.addEventListener('click', () => {
+      if (performance.now() - armed < 4000) return this.giveUp();
+      armed = performance.now();
+      btn.textContent = 'Tap again: they stay in here for good';
+      window.setTimeout(() => {
+        if (btn.isConnected) btn.textContent = 'Give up on this life';
+      }, 4000);
+    });
+    // (In the game's layer, so the pause button stays on top of it.)
+    this.view.append(el);
+    this.jailTick = -1;
+    this.tickJail();
+  }
+  private jailTick = -1;
+  /** Once a second: the countdown, and the door when it's time. */
+  private tickJail() {
+    const j = this.jail;
+    if (!j) return;
+    const left = j.until - now();
+    if (left <= 0) return this.release();
+    const el = document.getElementById('jail');
+    if (!el) return this.showJail();
+    const sec = Math.ceil(left / 1000);
+    if (sec === this.jailTick) return;
+    this.jailTick = sec;
+    const d = Math.floor(sec / 86_400);
+    const hh = Math.floor((sec % 86_400) / 3600);
+    const mm = Math.floor((sec % 3600) / 60);
+    const ss = sec % 60;
+    const two = (n: number) => String(n).padStart(2, '0');
+    el.querySelector('.jail-left')!.textContent = `${d ? `${d} day${d === 1 ? '' : 's'}, ` : ''}${two(hh)}:${two(mm)}:${two(ss)} left`;
+    const out = new Date(j.until);
+    el.querySelector('.jail-out')!.textContent = `Out ${dueText(j.until)} at ${out.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  }
+  /** The door opens. */
+  private release() {
+    const j = this.jail;
+    delete this.save.state.jail;
+    document.getElementById('jail')?.remove();
+    if (!j || this.dead) return;
+    this.running = !this.paused;
+    this.refresh();
+    if (this.save.state.policeResult) {
+      if (this.tvState.on) this.openSheet('police');
+    } else if (this.tvState.on) this.note(j.after?.length ? j.after : ['They give you back your things in a plastic bag and open the door. You’re out.']);
+    else if (j.after?.length) this.save.state.wokeLines = j.after;
+    buzz([40, 30, 40]);
+  }
+  /** Stopped counting the days: this one stays inside, and you go on as someone new. */
+  private giveUp() {
+    document.getElementById('jail')?.remove();
+    this.die(['You stop counting the days.', 'Whoever you were, they stay in here. Nobody comes.'], 'Gone inside.', true);
   }
   /** A night held after turning yourself in. */
   private passCell(): string[] {
-    const lines = [...custodyCare(this.health), 'You spend the night in a holding cell.', ...passHours(this.health, 8, true)];
+    const lines = [...custodyCare(this.health), 'You spend the night in a holding cell.', ...passHours(this.health, 8, true, false)];
+    this.lockUp(8, 'A night in a holding cell');
     this.health.cold = 0;
     delete this.health.smokingUntil;
     return lines;
@@ -5379,9 +5478,9 @@ export class Game {
         (this.save.state.bailOffer === 'bail'
           ? ((have) =>
               `<button type="button" class="place" data-police="bail" ${have < (this.case?.bail ?? 0) * 100 ? 'disabled' : ''}><b>Pay bail: ${money((this.case?.bail ?? 0) * 100)}</b><small>${have < (this.case?.bail ?? 0) * 100 ? `You've only got ${money(have)}, cash and bank together` : 'Cash first, then your bank account. You get it back if you show up to court.'}</small></button>` +
-              `<button type="button" class="place" data-police="custody"><b>Wait in jail for the hearing</b><small>A day and a half in County, then the judge.</small></button>`)(Math.round(cashOf(this.inventory) * 100) + (this.account?.cents ?? 0))
+              `<button type="button" class="place" data-police="custody"><b>Wait in jail for the hearing</b><small>36 real hours in County, then the judge.</small></button>`)(Math.round(cashOf(this.inventory) * 100) + (this.account?.cents ?? 0))
           : this.save.state.bailOffer === 'custody'
-            ? `<button type="button" class="place" data-police="custody"><b>Wait for the hearing</b><small>A day and a half in County, then the judge.</small></button>`
+            ? `<button type="button" class="place" data-police="custody"><b>Wait for the hearing</b><small>36 real hours in County, then the judge.</small></button>`
             : `<button type="button" class="place" data-police="done"><b>Go on</b><small>${this.record.arrests ? 'It’s on your record (You: Criminal record).' : 'Back to the street.'}</small></button>`) +
         `</div>`;
       return;
@@ -5996,6 +6095,7 @@ export class Game {
   /** Rebuilds the scene exactly as it was saved, then waits paused. */
   restorePaused() {
     this.running = false;
+    this.paused = true;
     this.view.classList.add('active');
     this.showSavedScene();
   }
@@ -6018,6 +6118,12 @@ export class Game {
           if (extra.length) this.note(extra);
         }, 600),
       );
+    }
+    // Closed while inside: you still are (or the door opens now).
+    document.getElementById('jail')?.remove();
+    if (this.jail && typeof this.save.state.deathScreen !== 'string') {
+      this.running = false;
+      this.showJail();
     }
     // Closed on the death screen: it's still there.
     if (typeof this.save.state.deathScreen === 'string') {
@@ -6097,8 +6203,11 @@ export class Game {
     }, 350));
   }
 
+  /** The pause menu's up. */
+  private paused = false;
   pause() {
     this.running = false;
+    this.paused = true;
     // A lurk cut short by pausing just ends (the save holds no half-lurk).
     if (this.phase !== 'idle') {
       this.phase = 'idle';
@@ -6107,7 +6216,8 @@ export class Game {
   }
 
   resume() {
-    if (this.dead) return;
+    this.paused = false;
+    if (this.dead || this.jail) return;
     this.running = true;
     // (Paused, or reloaded, before what happened while you were out was shown.)
     if (this.tvState.on && !this.koLines) this.showWoke();
@@ -6175,6 +6285,7 @@ export class Game {
   }
 
   update(dt: number) {
+    if (this.jail && !this.dead) this.tickJail();
     if (this.running) {
       this.tickSmoke(dt);
       // Withdrawal: stress that won't settle.
@@ -6186,7 +6297,7 @@ export class Game {
       this.weatherTimer = 2;
       // Missed your court date: a warrant.
       const cs = this.case;
-      if (cs && !cs.warrant && !this.save.state.bailOffer && now() > cs.courtAt) {
+      if (cs && !cs.warrant && !this.save.state.bailOffer && !this.jail && now() > cs.courtAt) {
         cs.warrant = true;
         delete cs.warrantFor;
         cs.bailPaid = 0;

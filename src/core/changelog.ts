@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.95',
+    date: 'Nov 6',
+    items: [
+      'Jail is real time now. A night in a holding cell is 8 real hours, County while you wait for the judge is 36, and a sentence is its real length in days. A cell screen shows how long is left and when you get out.',
+      'You can still pause, change settings or quit while you’re inside. Close the game and come back when they let you out.',
+      'If you can’t wait it out, you can give up on that life and start over as someone new. Whoever you were stays inside.',
+      'Your body still mends while you’re inside, and the world keeps going without you.',
+    ],
+  },
+  {
     v: '1.94',
     date: 'Nov 6',
     items: [

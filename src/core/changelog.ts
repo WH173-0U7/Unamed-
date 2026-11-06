@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.44',
+    date: 'Nov 6',
+    items: [
+      'Someone out cold doesn’t have their eyes “go blank for a moment”, and a punch that knocks someone out doesn’t say it only dazed them for a moment.',
+      'A knife to the ribs opens the skin over them, not the bone. The Marks card names every scar, not just the one on your face.',
+    ],
+  },
+  {
     v: '1.43',
     date: 'Nov 6',
     items: [

@@ -1710,7 +1710,8 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   const scarsBefore = enc[d].marks?.scars?.length ?? 0;
   let after = wound(d, loc, dmg, how);
   // (A cut to the body is opened where the blow was said to land: not "in the chest. It nicks your side.")
-  const spot = how === 'cut' && loc === 'body' ? text.match(/\b(ribs|side|chest)\b/)?.[1] : undefined;
+  // (A blade opens skin over the ribs, not the ribs: that's "side".)
+  const spot = how === 'cut' && loc === 'body' && /\bchest\b/.test(text) ? 'chest' : undefined;
   if (spot) {
     after = after.replace(/\b(your|their) side\b/g, `$1 ${spot}`);
     // (And the scar is where the cut was.)
@@ -1872,7 +1873,7 @@ function asUnconscious(text: string, d: Side): string {
     [/They gasp and clutch their stomach\.\s?/g, ''],
     [/They curl up[^.]*\.\s?/g, ''],
     [/Their eyes water\.\s?/g, ''],
-    [/It lands flush, and their eyes go blank for a moment\./g, 'It lands flush. Their head rocks with it.'],
+    [/That one connects, and their eyes go blank for a moment\./g, 'That one connects. Their head rocks with it.'],
     [/They taste copper\.\s?/g, ''],
     [/They (?:howl|scream|groan|moan|whimper|sob|wince|flinch)[^.]*\.\s?/g, ''],
     [/(?:It knocks the wind out of them|The wind's knocked out of them)\.\s?/g, 'The air goes out of them.'],
@@ -2213,7 +2214,7 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   // "dazed" isn't worth saying).
   knockOut(0);
   // (Going down, or out, with this very blow: no line about staying up.)
-  if (g && ((D.down && !wasDown) || (D.out && !outAtStart)) && /stagger|back a step|barely stay standing|knees dip|nearly gives out|hop back|limp a step|shake out/i.test(g)) out.splice(out.indexOf(g), 1);
+  if (g && (((D.down && !wasDown) || (D.out && !outAtStart)) && /stagger|back a step|barely stay standing|knees dip|nearly gives out|hop back|limp a step|shake out/i.test(g) || (D.out && !outAtStart && /for a moment/.test(g)))) out.splice(out.indexOf(g), 1);
   if (!outAtStart && D.out) {
     const i = out.indexOf(`${re} dazed.`);
     if (i >= 0) out.splice(i, 1);
@@ -2307,7 +2308,7 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
         ...(m.eye ? ([] as Line[]) : ([[`${Pc} eye swells shut.`, () => (m.eye = true)]] as Line[])),
       ],
       [
-        [`A clean shot, and ${P} eyes go blank for a moment.`, daze],
+        [`That one connects, and ${P} eyes go blank for a moment.`, daze],
         ...(m.jaw ? ([] as Line[]) : ([[`There's a crack, and ${P} jaw hangs wrong: it's broken.`, () => ((m.jaw = true), fx.bleed(1))]] as Line[])),
         ...(fx.wasDown ? ([[`${Pc} head bounces off the sidewalk.`, daze]] as Line[]) : []),
         ...(teeth < 8 ? ([[`Teeth go. ${S} spit them out with a mouthful of blood.`, () => ((m.teeth = Math.min(12, teeth + 2 + Math.floor(Math.random() * 2))), fx.bleed(1))]] as Line[]) : []),
@@ -2352,6 +2353,8 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
   if (fx.outAtStart || fx.wasDown) {
     const standing = /stagger|step back|back a step|limp|hop back|knees dip|blink hard|shake out|stumble|gives out|barely stay standing|knee buckles|leg folds|head snaps back|head rocks|double over|sag,|fold over it|fold around it|bent over|knocks .* back/i;
     pool = pool?.filter(([t]) => !standing.test(t));
+    // (Out cold: nothing goes blank, nothing drops for a moment.)
+    if (fx.outAtStart) pool = pool?.filter(([t]) => !/eyes go blank|eyes lose focus|drops? (to|for a moment)/i.test(t));
     const lying: Line[] = fx.outAtStart
       ? [[`${Pc} body jerks with it.`], [`${S} don't react. ${S === 'You' ? "You're" : "They're"} out.`], [`${Pc} limp body rocks with the blow.`]]
       : [...(loc === 'stomach' ? [] : ([[`${S} curl up on the sidewalk around it.`]] as Line[])), [`${S} writhe on the ground.`], [`${S} try to cover up, and can't.`]];

@@ -455,6 +455,8 @@ const litres = (ml: number) => `${(ml / 1000).toFixed(2).replace(/\.?0+$/, '')}\
  * and the police chase in game.ts). Hours are game hours: a lurk is one,
  * resting is four, and resting heals half as fast again.
  */
+/** "a", "a and b", "a, b and c". */
+const andList = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
   const out: InjuryInfo[] = [];
   // Stress: on edge, stressed, panicking.
@@ -619,7 +621,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
     const face = places.filter((p) => /cheek|eyebrow|lip|jaw|face/.test(p));
     out.push({
       mark: true, name: `Scar${places.length > 1 ? 's' : ''}: ${places.join(', ')}`,
-      effects: [face.length ? `On your face${face.some((p) => p !== 'face') ? ` (${face.filter((p) => p !== 'face').join(', ')})` : ''}: people will remember it. It doesn't slow you in a fight.` : `On your ${places.join(' and ')}. It doesn't slow you in a fight.`],
+      effects: [`On your ${andList([...(face.length ? [`face${face.some((p) => p !== 'face') ? ` (${face.filter((p) => p !== 'face').join(', ')})` : ''}`] : []), ...places.filter((p) => !face.includes(p))])}.${face.length ? ' A scar on the face is what people remember.' : ''} It doesn't slow you in a fight.`],
       heals: 'For good.',
     });
   }

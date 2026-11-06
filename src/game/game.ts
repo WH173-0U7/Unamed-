@@ -2206,7 +2206,8 @@ export class Game {
   }
   /** Cars you've the keys to (without them, a car's no use to you). */
   private get myCars(): Car[] {
-    return this.cars.filter((c) => this.keysFor(c.id));
+    // (Not one that's been towed: you'd only find an empty space.)
+    return this.cars.filter((c) => this.keysFor(c.id) && now() < c.towAt);
   }
   /** The car you're at. */
   private get atCar(): Car | undefined {
@@ -5155,7 +5156,8 @@ export class Game {
     e.dealer = ((this.save.state.sales as number) ?? 0) > 0;
     // Face to face and awake, they see you as you are now (the least covered you've been is what sticks).
     if (e.facedYou && e.stage !== 'seen' && !e.them.out && !e.them.dead && !e.chase) {
-      const anon = anonymity(inv);
+      // (In their house, a face they've already seen stays seen, mask or not.)
+      const anon = e.resident && (this.save.state.job as HomeJob | undefined)?.faceSeen ? Math.min(anonymity(inv), 0.3) : anonymity(inv);
       if (!e.seenAs || anon < e.seenAs.anon) e.seenAs = { anon, looked: describe(inv), clothes: lookClothes(inv) };
     }
     e.flame = !!this.flame();

@@ -323,7 +323,7 @@ export function guilt(e: Encounter, what: 'mug' | 'beat' | 'torture', lost: numb
   const who = L.name && L.sawName ? `${L.name}. It said so on the ${L.nameOn ?? 'card'}.` : e.person.kind === 'homeless' ? 'Someone with nothing.' : 'A person. Just a person.';
   if (lost >= 80) {
     return {
-      lines: [what === 'torture' ? 'You replay their screaming as you walk away, and smile.' : 'You feel good. Better than you have in days.'],
+      lines: [what === 'torture' ? 'You replay their screaming in your head, and smile.' : 'You feel good. Better than you have in days.'],
       stress: -6,
     };
   }
@@ -358,7 +358,7 @@ export function guilt(e: Encounter, what: 'mug' | 'beat' | 'torture', lost: numb
     : [...(bled ? ["You look at your knuckles. The blood on them isn't yours."] : []), "They were someone's kid. You left them lying there.", 'You keep seeing them lying there, not moving.'];
   const lines =
     what === 'torture'
-      ? ["Your hands won't stop shaking. You can still feel it: the give, the sound they made.", `${who}`, 'You throw up in the gutter as you walk away.']
+      ? ["Your hands won't stop shaking. You can still feel it: the give, the sound they made.", `${who}`, 'You turn away and throw up in the gutter.']
       : what === 'mug'
         ? [
             oneOf(['Your hands are shaking. You stuff them in your pockets, around their money.', 'You can still see their face. The way they looked at you.']),

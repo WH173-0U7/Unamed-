@@ -134,7 +134,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
   /** Violence looks and feels different from everything else. */
   const HARM = new Set(['violence', 'attack', 'stomp', 'torture']);
   const button = (o: Option) =>
-    `<button type="button" data-id="${o.id}" ${o.cat && HARM.has(o.cat) ? 'data-tone="harm"' : ''} ${o.disabled ? 'disabled' : ''}>${o.label}${o.hint ? `<small>${o.hint}</small>` : ''}</button>`;
+    `<button type="button" data-id="${o.id}" ${o.cat && HARM.has(o.cat) ? 'data-tone="harm"' : ''} ${o.tone ? `data-loot="${o.tone}"` : ''} ${o.disabled ? 'disabled' : ''}>${o.icon ? `<span class="loot-ic" data-tone="${o.tone}" aria-hidden="true">${o.icon}</span>` : ''}${o.label}${o.hint ? `<small>${o.hint}</small>` : ''}</button>`;
 
   /** The tab bar, the options under the chosen tab, and the ones always shown. */
   function drawOptions(switched = false) {

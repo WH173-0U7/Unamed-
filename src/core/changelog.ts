@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.72',
+    date: 'Nov 6',
+    items: [
+      'Loot is easier to read at a glance: everything you can take has a symbol and a colour. Green 💵 money, gold for what sells (phones, laptops, watches), blue 💳 cards and ID, amber 🔑 keys, red 🔪 weapons, violet 💊 drugs and medicine, grey for the rest.',
+      'Searching someone, and going through a house or a car, both show it.',
+    ],
+  },
+  {
     v: '1.71',
     date: 'Nov 6',
     items: [

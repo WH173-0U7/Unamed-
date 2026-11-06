@@ -2,6 +2,7 @@ import { AMBUSH_TEXT, TECH_TEXT, kickText, missText, punchText, stompText, tierO
 import { AWARENESS, BUILDS, NAMES, personalityOf, type Item, type Loot, type Person } from './person';
 import { money } from './money';
 import { indoors, isBrute, voice, type Moment } from './voices';
+import { lootMark, type LootTone } from './lootIcon';
 import { caffeineEdge } from './health';
 import { partOfDay } from './clock';
 import { knifeOf, type Knife } from './knives';
@@ -326,6 +327,9 @@ export interface Option {
   cat?: Category;
   /** A section within the tab (Strikes, Weapons, On the ground, Torture...). */
   group?: string;
+  /** Something to take: its symbol, and what kind of thing it is (see lootIcon.ts). */
+  icon?: string;
+  tone?: LootTone;
 }
 
 /** The tabs the options are sorted into. */
@@ -369,13 +373,13 @@ function searchOptions(e: Encounter): Option[] {
       if (!e.them.yielded) todo.push({ id: `search:${gi}`, label: `Search their ${g.name.toLowerCase()}`, cat: 'search' });
     } else
       g.loot.forEach((l, li) => {
-        if (!l.hidden || !e.them.yielded) found.push({ id: `take:${gi}:${li}`, label: lootLabel(l), hint: l.where === 'wallet' ? 'In their wallet' : `${g.name}, ${l.where}`, cat: 'search' });
+        if (!l.hidden || !e.them.yielded) found.push({ id: `take:${gi}:${li}`, label: lootLabel(l), hint: l.where === 'wallet' ? 'In their wallet' : `${g.name}, ${l.where}`, cat: 'search', ...lootMark(l) });
       });
   });
   // What they were carrying to hurt you with: in their hand, or on the ground by them.
   e.person.carrying.forEach((it, ci) => {
     if ((it.weapon || it.spray) && (!e.them.yielded || e.emptied))
-      found.push({ id: `takec:${ci}`, label: it.name, hint: e.them.weaponOut === it.name || it.dropped ? 'On the ground by them' : 'They were carrying it', cat: 'search' });
+      found.push({ id: `takec:${ci}`, label: it.name, hint: e.them.weaponOut === it.name || it.dropped ? 'On the ground by them' : 'They were carrying it', cat: 'search', ...lootMark({ kind: 'weapon', ...it }) });
   });
   const all: Option[] = found.length > 1 ? [{ id: 'take-all', label: 'Take everything', hint: `${found.length} things`, cat: 'search' }] : [];
   const out = [...all, ...found, ...todo];

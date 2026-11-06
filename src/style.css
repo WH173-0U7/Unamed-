@@ -5013,3 +5013,68 @@ body[data-drug='withdrawal'] #game {
 #enc .enc-status {
   overflow-x: clip !important;
 }
+
+/* ================= Loot: a symbol and a colour for each kind of thing =================
+   Green money, gold for what sells, blue cards and ID, amber keys, red weapons,
+   violet drugs and medicine, grey for the rest (see src/game/lootIcon.ts). */
+:root {
+  --loot-cash: #7fd88f;
+  --loot-value: #f2c66d;
+  --loot-card: #7fb6ff;
+  --loot-keys: #f0a35e;
+  --loot-weapon: #ff7f8c;
+  --loot-drug: #c79bff;
+  --loot-junk: rgba(236, 235, 230, 0.5);
+}
+.loot-ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.6em;
+  height: 1.6em;
+  margin-right: 0.45em;
+  border-radius: 6px;
+  font-size: 0.95em;
+  line-height: 1;
+  vertical-align: -0.25em;
+  font-style: normal;
+  background: color-mix(in srgb, var(--tone, var(--loot-junk)) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone, var(--loot-junk)) 55%, transparent);
+}
+[data-tone='cash'],
+[data-loot='cash'] { --tone: var(--loot-cash); }
+[data-tone='value'],
+[data-loot='value'] { --tone: var(--loot-value); }
+[data-tone='card'],
+[data-loot='card'] { --tone: var(--loot-card); }
+[data-tone='keys'],
+[data-loot='keys'] { --tone: var(--loot-keys); }
+[data-tone='weapon'],
+[data-loot='weapon'] { --tone: var(--loot-weapon); }
+[data-tone='drug'],
+[data-loot='drug'] { --tone: var(--loot-drug); }
+[data-tone='junk'],
+[data-loot='junk'] { --tone: var(--loot-junk); }
+/* The name in its colour (not the junk: that stays plain). */
+.loot-name:not([data-tone='junk']),
+#enc .enc-opts button[data-loot]:not([data-loot='junk']):not(:disabled) {
+  color: color-mix(in srgb, var(--tone) 70%, var(--ink));
+}
+#enc .enc-opts button[data-loot]:not(:disabled) {
+  border-left: 3px solid color-mix(in srgb, var(--tone) 75%, transparent);
+}
+.loot-name {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* (Symbol and name together on the left, where it is on the right.) */
+#enc .enc-opts button[data-loot] {
+  justify-content: flex-start;
+}
+#enc .enc-opts button[data-loot] small {
+  margin-left: auto;
+  padding-left: 10px;
+}

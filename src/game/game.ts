@@ -23,6 +23,7 @@ import { HEAT_NAMES, applyTo, comeBack, heal, fade, heatLevel, historyText, inju
 import { anonymity, conspicuous, describe, hasHood, lookClothes, wearing } from './look';
 import { marksText, list as listOf, a as aOf } from './encounter';
 import { cashFill, cashFits, cashWhere, pocketCash, roomForCents } from './inventory';
+import { lootIcon, lootMark } from './lootIcon';
 import { MEDS, take, freeHand, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
 
 /**
@@ -2598,7 +2599,7 @@ export class Game {
     const rows = found.map(({ l, at, where }) => {
       const m = measure(l);
       const what = l.kind === 'cash' ? money(Math.round((l.cash ?? 0) * 100)) : `${l.detail ? `${l.detail} · ` : ''}${m.size}, ${kgLabel(m.kg)}`;
-      return li(l.name, `${what} · ${where}`, btn(attr, `take:${at}`, 'Take'));
+      return li(`<span class="loot-name" data-tone="${lootMark(l).tone}">${lootIcon(l)}${l.name}</span>`, `${what} · ${where}`, btn(attr, `take:${at}`, 'Take'));
     });
     // (Everything from one place, in one go: quicker, and noisier.)
     const places = [...new Set(found.map((f) => f.at.split(':')[0]))];

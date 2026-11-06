@@ -242,6 +242,8 @@ export interface Encounter {
   regular?: boolean;
   /** Sent by Dez, for the money you owe him. */
   enforcer?: boolean;
+  /** You were arrested for what happened, there and then. */
+  charged?: boolean;
   /** Someone in their own home, and you broke in: theirs (or someone who lives there), how they found you, and whether they'd called it in. */
   resident?: {
     owner: boolean;

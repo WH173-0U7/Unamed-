@@ -475,7 +475,8 @@ export class Game {
     if (k.memory.sawFace && !before) f.rep += k.memory.grudge / 8;
     // Who goes to the police: most civilians, few junkies.
     const reports = { civilian: 0.7, drunk: 0.4, homeless: 0.25, junkie: 0.15 }[k.person.kind];
-    if (e.result !== 'sold' && !e.enforcer && Math.random() < reports) {
+    // (Charged for it on the spot: their statement is that charge, not a report for later.)
+    if (e.result !== 'sold' && !e.enforcer && !e.charged && Math.random() < reports) {
       f.heat = Math.min(100, f.heat + (k.memory.grudge / 5) * (k.memory.sawFace ? 1 : 0.4));
       if (k.memory.sawFace && e.fought) f.reports = (f.reports ?? 0) + 1;
     }
@@ -2588,7 +2589,15 @@ export class Game {
       }
     }
     // Caught at the house, or got away past them (then the break-in, and any body, are on file like any other).
-    if (atHouse) this.leaveHome(undefined, burglary && arrested);
+    if (atHouse) {
+      this.leaveHome(undefined, burglary && arrested);
+      // Whoever you fought in there is remembered now, before the clock jumps (and their report is this arrest).
+      const fought = this.encounter;
+      if (fought?.resident) {
+        if (arrested) fought.charged = true;
+        this.encounter = null;
+      }
+    }
     if (arrested && pending?.stingPending) {
       if (pending.warrantFor === 'sting') lines.push('At the station they run your name. There\'s a warrant out for you: the buy you ran from.');
       serveStings();

@@ -67,11 +67,12 @@ const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n 
 /** Whether this one in the house (the owner, or whoever else lives there) has seen your face. */
 type FaceSeen = boolean | { owner?: boolean | number; other?: boolean | number };
 const sawFace = (j: { faceSeen?: FaceSeen } | undefined, owner: boolean) =>
-  !!j && typeof j.faceSeen === 'object' && (owner ? j.faceSeen.owner : j.faceSeen.other) != null && (owner ? j.faceSeen.owner : j.faceSeen.other) !== false;
+  !!j && (j.faceSeen === true || (typeof j.faceSeen === 'object' && (owner ? j.faceSeen.owner : j.faceSeen.other) != null && (owner ? j.faceSeen.owner : j.faceSeen.other) !== false));
 /** How covered you were when they saw your face (what they'll remember, mask or not since). */
 const faceAnon = (j: { faceSeen?: FaceSeen } | undefined, owner: boolean, now: number): number => {
   if (!sawFace(j, owner)) return now;
-  const v = (j!.faceSeen as { owner?: boolean | number; other?: boolean | number })[owner ? 'owner' : 'other'];
+  // (An older save's plain "seen": whoever it was.)
+  const v = j!.faceSeen === true ? true : (j!.faceSeen as { owner?: boolean | number; other?: boolean | number })[owner ? 'owner' : 'other'];
   return Math.min(now, typeof v === 'number' ? v : 0.3);
 };
 interface HomeJob {
@@ -2266,7 +2267,12 @@ export class Game {
     if (it.kind !== 'car keys' || it.car !== 'found') return undefined;
     const had = this.carById(it.carId);
     if (had) return had;
-    it.carId ??= Math.random().toString(36).slice(2, 10);
+    // (Keys to a car you'd found before, and it's not there now: it's gone.)
+    if (it.carId) {
+      it.car = 'gone';
+      return undefined;
+    }
+    it.carId = Math.random().toString(36).slice(2, 10);
     const home = this.homeById(it.carOf);
     const c = makeCar({ id: it.carId, make: makeOf(it), takenAt: it.takenAt ?? now(), t: now(), at: home, of: home });
     this.cars.push(c);
@@ -2298,8 +2304,13 @@ export class Game {
   /** "Go to it", from Pockets. */
   private goCarKey(i: number) {
     const it = this.inventory.items[i];
-    const c = it && this.ensureCar(it);
+    if (!it) return;
+    const c = this.ensureCar(it);
     if (c) this.goCar(c.id);
+    else if (it.car === 'gone') {
+      this.note(['You walk back to where the car was. It isn’t there any more.']);
+      this.refresh();
+    }
   }
   /** Walking off from the car (or giving up looking). */
   private leaveCar() {
@@ -3747,10 +3758,9 @@ export class Game {
         // (And it's out front, where they left it: a car you know about.)
         // (A fob from before, its car long gone: it's gone.)
         if (this.inventory.items.includes(x)) {
-          if (!x.carId) this.ensureCar(x);
-          else if (!this.carById(x.carId)) x.car = 'gone';
+          this.ensureCar(x);
         }
-      }
+      } else if (x.kind === 'car keys' && x.car === 'found' && x.carId && !this.carById(x.carId) && this.inventory.items.includes(x)) x.car = 'gone';
     }
   }
 
@@ -3932,6 +3942,11 @@ export class Game {
     if (mine) {
       out.push(`Their ${mine.color} ${mine.make} still parked out front, and you’ve got the keys to it.`);
       if (this.copsAtCar(mine) && !this.policeThere(h)) out.push(`A patrol car pulled up behind the ${mine.make}, and an officer walking round it with a flashlight.`);
+    } else if (this.cars.some((c) => c.home === h.id && now() < c.towAt)) {
+      // (Still there, the keys gone from you.)
+      const c = this.cars.find((x) => x.home === h.id && now() < x.towAt)!;
+      out.push(`Their ${c.color} ${c.make} parked out front.`);
+      if (this.copsAtCar(c) && !this.policeThere(h)) out.push(`A patrol car pulled up behind the ${c.make}, and an officer walking round it with a flashlight.`);
     } else if (this.cars.some((c) => c.home === h.id) && big) out.push('Nothing parked out front.');
     else if (h.car && big) out.push((p.owner !== 'out' || h.works === 'home' || h.deadAt ? steady(h, now(), 9) < 0.9 : steady(h, now(), 9) < 0.2) ? `A ${h.car} parked out front.` : 'Nothing parked out front.');
     if (h.sign) out.push(h.type === 'house' ? 'A security company sign in the flowerbed.' : 'A security company sticker on the door.');

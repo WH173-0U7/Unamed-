@@ -344,7 +344,7 @@ export function guilt(e: Encounter, what: 'mug' | 'beat' | 'torture', lost: numb
         oneOf([
           'You tell yourself they had it coming. You almost believe it.',
           "You tell yourself it's just how it is out here. Everyone does it.",
-          "You walk faster than you need to, and don't look back.",
+          "You don't let yourself look at them again.",
         ]),
       ],
       stress: victim ? 6 : 3,

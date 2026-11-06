@@ -3733,6 +3733,8 @@ export class Game {
       if (x.kind === 'car keys' && x.carOf && x.car === 'found') {
         const h = this.homeById(x.carOf);
         if (h) h.car = null;
+        // (And it's out front, where they left it: a car you know about.)
+        if (this.inventory.items.includes(x)) this.ensureCar(x);
       }
     }
   }

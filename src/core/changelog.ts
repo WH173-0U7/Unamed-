@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.57',
+    date: 'Nov 6',
+    items: [
+      'Take the spare car keys off their hook and the car is out front of the house and in Where to? straight away, not only after you’ve walked to it.',
+      'A guilty thought after a fight no longer has you walking away while you’re still inside.',
+    ],
+  },
+  {
     v: '1.56',
     date: 'Nov 6',
     items: [

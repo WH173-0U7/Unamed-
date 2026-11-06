@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.18',
+    date: 'Nov 6',
+    items: [
+      'Where you rest matters: a bed in your motel room takes you from exhausted to fresh in about 6 hours, the back seat of a car about 8, a doorway about 10.',
+      'Not resting at all, fatigue still wears off by itself, game open or closed: about a day from exhausted to fresh.',
+    ],
+  },
+  {
     v: '2.17',
     date: 'Nov 6',
     items: ['Weapons in a fight: take it out first (a turn), then use it. While it’s still in your pocket, taking it out is the only option; once it’s in your hand you can use it or put it away. That goes for pepper spray too (spraying someone as you jump them is still one move).'],

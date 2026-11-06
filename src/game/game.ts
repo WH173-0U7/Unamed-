@@ -863,7 +863,7 @@ export class Game {
       `<div class="rest-bar"><i></i></div>` +
       `<p class="jail-left"></p>` +
       `<p class="jail-out"></p>` +
-      `<p class="jail-how">Rest is real time. Come back later, or get up now with what you’ve got back so far.</p>` +
+      `<p class="jail-how">Rest is real time. Come back later, or get up now with what you’ve got back so far.${h.restWhere === 'room' ? '' : ' A bed in a motel room gets you there quicker.'}</p>` +
       `<button type="button" class="jail-quit">Get up</button>`;
     const shown = performance.now();
     el.querySelector('button')!.addEventListener('click', () => performance.now() - shown > 800 && this.getUp(false));

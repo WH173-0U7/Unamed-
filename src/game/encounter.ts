@@ -847,6 +847,8 @@ let outBefore = false;
 let landed: Side | null = null;
 /** They refused to give it up this very move (they don't then cave on the same turn). */
 let refusedNow = false;
+/** They gave up this move: not turning on you in the same breath. */
+let yieldedNow = false;
 /** Where this move's lines start in the log. */
 let actLogStart = 0;
 export { indoors };
@@ -880,6 +882,7 @@ export function act(e: Encounter, id: string, stats: Stats, inv?: Inventory, mov
   practice = moves ?? {};
   actLogStart = e.log.length;
   refusedNow = false;
+  yieldedNow = false;
   invNow = inv;
   e.you.awake ??= 100;
   e.them.awake ??= e.them.out ? -25 : 100;
@@ -2419,7 +2422,7 @@ function theirTurn(started = false) {
     if (Math.random() < getUpChance(T)) {
       T.down = false;
       say('them', legs(T) ? 'They drag themselves up on one good leg.' : oneOf(['They get back on their feet.', 'They scramble back up.', 'They push themselves up off the sidewalk.']));
-    } else say('them', legs(T) >= 2 ? vary(['Neither leg will hold them. They stay down, and throw whatever they can reach at you.', 'They can\'t get up. They scream for help instead.', 'They grab for the edge of something and can\'t pull themselves up.']) : legs(T) ? 'They try to stand, but their leg gives way.' : oneOf(['They try to get up, and fall back down.', 'They get halfway up, and their legs fold.']));
+    } else say('them', legs(T) >= 2 ? vary([arms(T) >= 2 ? 'Neither leg will hold them, and their arms are no use. They lie there.' : 'Neither leg will hold them. They stay down, and throw whatever they can reach at you.', 'They can\'t get up. They scream for help instead.', 'They grab for the edge of something and can\'t pull themselves up.']) : legs(T) ? 'They try to stand, but their leg gives way.' : oneOf(['They try to get up, and fall back down.', 'They get halfway up, and their legs fold.']));
     return;
   }
   // Losing badly: some try to run for it (much harder on a broken leg).
@@ -2434,8 +2437,8 @@ function theirTurn(started = false) {
     return;
   }
   // Pepper spray, once.
-  const spray = p.carrying.find((i) => i.spray && ((i as { doses?: number }).doses ?? 3) > 0);
-  if (spray && !T.sprayed && !e.emptied && Math.random() < 0.6) {
+  const spray = p.carrying.find((i) => i.spray && !i.dropped && ((i as { doses?: number }).doses ?? 3) > 0);
+  if (spray && arms(T) < 2 && !T.sprayed && !e.emptied && Math.random() < 0.6) {
     T.sprayed = true;
     (spray as { doses?: number }).doses = Math.max(0, ((spray as { doses?: number }).doses ?? 3) - 1);
     e.you.blinded = 99;
@@ -2457,7 +2460,7 @@ function theirTurn(started = false) {
   }
   // Pulling a weapon.
   // (Not what they dropped at your feet.)
-  const weapon: Item | undefined = e.emptied ? undefined : p.carrying.find((i) => i.weapon);
+  const weapon: Item | undefined = e.emptied ? undefined : p.carrying.find((i) => i.weapon && !i.dropped);
   if (weapon && !T.weaponOut && arms(T) < 2 && Math.random() < 0.5) {
     T.weaponOut = weapon.name;
     // A bottle: some break it first, for the edge. It doesn't always go.
@@ -2498,6 +2501,8 @@ function theirTurn(started = false) {
   // (Both arms broken: whatever they had in their hand goes, and they can't swing.)
   if (T.weaponOut && arms(T) >= 2) {
     say('them', `Their hand won’t hold the ${lc(T.weaponOut)} any more. It drops.`);
+    const w = p.carrying.find((i) => i.name === T.weaponOut);
+    if (w) w.dropped = true;
     T.weaponOut = null;
     return;
   }
@@ -2989,7 +2994,8 @@ function yieldTurn() {
   const fear = T.fear;
   const P = personalityOf(e.person);
   const nerve = 40 - P.yield * 100;
-  if (fear < nerve && Math.random() < (nerve - fear) / 70) {
+  // (Not in the same breath as giving up, and not with no arms to swing.)
+  if (!yieldedNow && fear < nerve && Math.random() < (nerve - fear) / 70) {
     if (!T.down && legs(T) === 0 && Math.random() < clamp(0.55 * P.flee - P.fight, 0.05, 0.95)) {
       if (e.you.down || Math.random() < fleeChance(T, e.you, 0.1)) {
         say('them', e.you.down ? 'You\'re on the ground. They see their chance and bolt.' : 'They see their chance and bolt.');
@@ -3000,6 +3006,7 @@ function yieldTurn() {
       }
       return;
     }
+    if (arms(T) >= 2) return;
     T.yielded = false;
     say('them', T.down ? 'Something changes in their face. They lash out at you from the ground.' : oneOf(['Something changes in their face. They come at you.', '"Screw this." They swing at you.']));
     strike('them', 'punch');
@@ -3045,6 +3052,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     const blade = heldBlade(e);
     if (Math.random() < yieldChance(e, blade ? KNIFE_EDGE : 0)) {
       T.yielded = true;
+      yieldedNow = true;
       say('you', blade ? `You let them see the ${lc(blade.name)} in your hand. "Give it up. Now."` : oneOf(['"Give it up," you tell them. "Or this gets worse."', '"Stop. Look at you. Just give me what you\'ve got."']));
       say('them', speak(T.down ? 'giveUpDown' : 'giveUp'));
       you.gain('intimidation', 8);
@@ -3102,7 +3110,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     const shown = all.filter((l) => !l.hidden).map((l) => lootWords(l));
     say('them', shown.length ? `They turn out their pockets${isBrute(e.person.personality) ? '' : ' with shaking hands'}: ${list(shown)}.` : "They turn out their pockets. There's nothing in them.");
     if (shown.length) maybeSay('emptied', 0.85);
-    const arms_ = e.person.carrying.filter((it) => it.weapon || it.spray);
+    const arms_ = e.person.carrying.filter((it) => (it.weapon || it.spray) && !it.dropped);
     if (arms_.length) {
       say('them', `They drop ${list(arms_.map((it) => `the ${lc(it.name)}`))} at your feet.`);
       e.them.weaponOut = null;
@@ -3124,7 +3132,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
         }
     }
     const all = e.person.clothes.flatMap((g) => g.loot);
-    const arms_ = e.person.carrying.filter((it) => it.weapon || it.spray);
+    const arms_ = e.person.carrying.filter((it) => (it.weapon || it.spray) && !it.dropped);
     say(
       'you',
       hid.length
@@ -3377,15 +3385,19 @@ const NUMBER = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eigh
 const pluralWord = (w: string) => (/(s|x|z|ch|sh)$/i.test(w) ? `${w}es` : /[^aeiou]y$/i.test(w) ? `${w.slice(0, -1)}ies` : /fe?$/i.test(w) && /(knife|wife|life)$/i.test(w) ? `${w.replace(/fe?$/i, '')}ves` : `${w}s`);
 /** "a receipt", 3 → "three receipts"; "a pack of gum", 2 → "two packs of gum". */
 function several(x: string, k: number): string {
-  const m = /^(?:a|an|the) (.+)$/i.exec(x);
-  if (!m) return x;
+  // ("a receipt (in the bag)": the where stays as it is.)
+  const where = / \([^)]*\)$/.exec(x)?.[0] ?? '';
+  const m = /^(?:a|an|the) (.+)$/i.exec(where ? x.slice(0, -where.length) : x);
+  // (No "a" to count by, or a detail after a comma: listed as many times as there are.)
+  if (!m || m[1].includes(',')) return Array(k).fill(x).join(', ');
   const body = m[1];
   const of = body.search(/ (of|in|with|from) /);
   const head = of >= 0 ? body.slice(0, of) : body;
   const rest = of >= 0 ? body.slice(of) : '';
   const words = head.split(' ');
-  words[words.length - 1] = pluralWord(words[words.length - 1]);
-  return `${NUMBER[k] ?? k} ${words.join(' ')}${rest}`;
+  const last = words[words.length - 1];
+  if (!/[^s]s$/i.test(last)) words[words.length - 1] = pluralWord(last);
+  return `${NUMBER[k] ?? k} ${words.join(' ')}${rest}${where}`;
 }
 
 function end(result: Result) {

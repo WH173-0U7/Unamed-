@@ -59,6 +59,8 @@ export const BUILDS: Record<Build, BuildStats> = {
 /** Things people carry. Some can be used as weapons. */
 export interface Item {
   name: string;
+  /** Dropped in the fight (a hand that can't hold it): on the ground, not on them. */
+  dropped?: boolean;
   /** Extra damage when used to hit you. */
   weapon?: number;
   /** A blade or a point: it cuts, so it causes bleeding. */

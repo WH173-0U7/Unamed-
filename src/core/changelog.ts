@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.59',
+    date: 'Nov 6',
+    items: [
+      'With both arms broken, nobody pepper sprays you or turns on you with a punch after giving up, and a weapon they dropped stays on the ground, not back in their pocket.',
+      'Someone who gives up doesn’t turn on you in the same moment.',
+      'Fight text: “two receipts (in the bag)”, not “two receipt (in the bag)s”.',
+    ],
+  },
+  {
     v: '1.58',
     date: 'Nov 6',
     items: [

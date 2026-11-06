@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.30',
+    date: 'Nov 6',
+    items: ['The card for who you’ve seen no longer gives away their build or whether they’re a man or a woman: you find that out by sizing them up or getting a look at them.'],
+  },
+  {
     v: '2.29',
     date: 'Nov 6',
     items: [

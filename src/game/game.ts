@@ -7036,7 +7036,9 @@ export class Game {
       r.className = 'seen-race';
       // From here you can't make out who they are: only their size, and whether it's a man or a woman.
       const p = e.person;
-      r.textContent = e.resident || e.enforcer || p.title ? 'Across the street' : `${p.build} ${p.sex === 'Male' ? 'man' : 'woman'}, across the street`;
+      // (Only what you've found out: their build and sex wait for you to size them up or get a look.)
+      const what = [e.known.build ? p.build : '', e.known.sex ? (p.sex === 'Male' ? 'man' : 'woman') : ''].filter(Boolean).join(' ');
+      r.textContent = e.resident || e.enforcer || p.title || !what ? 'Across the street' : `${what.replace(/^./, (x) => x.toUpperCase())}, across the street`;
       const tap = document.createElement('span');
       tap.className = 'seen-tap';
       tap.textContent = 'Tap to approach';
@@ -7054,7 +7056,7 @@ export class Game {
           o.className = 'seen-other';
           o.dataset.kind = b.e.person.kind;
           const pp = b.e.person;
-          o.innerHTML = `<b>${pp.title ?? NAMES[pp.kind]}</b><small>${pp.build} ${pp.sex === 'Male' ? 'man' : 'woman'}</small>`;
+          o.innerHTML = `<b>${pp.title ?? NAMES[pp.kind]}</b><small>Passing by</small>`;
           o.onclick = () => this.approachOther(i);
           row.append(o);
         });

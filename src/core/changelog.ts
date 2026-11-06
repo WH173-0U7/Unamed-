@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.05',
+    date: 'Nov 6',
+    items: [
+      'Something that happened while you were knocked out is still there when you come to, under how you woke.',
+      'Waking in a car to the tow truck or the police tells you everything that happened while you slept, too.',
+      'Getting up from a rest repeats what happened as you lay down (the bleeding stopping, a bone setting), which short screens had no room to show.',
+      'In a place, a line that comes in by itself (the weather, a cigarette) goes under what’s there instead of replacing it.',
+      'The rest screen says where you are as it is (a doorway in the rain, a wall when it’s dry), the motel no longer promises “eight hours” before a countdown, and the fatigue word always matches its number.',
+    ],
+  },
+  {
     v: '2.04',
     date: 'Nov 6',
     items: [

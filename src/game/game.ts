@@ -74,7 +74,7 @@ const VIG_DAYS = 14;
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 /** At an address: outside, or in, and what's happened so far. */
 /** Everything in the save that's this character's (not the world's). */
-const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'laterLines'];
+const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'laterLines', 'restLines'];
 /** What only makes sense in the moment (a stop, a fight, a door you're at): not kept when you stop being them. */
 const MOMENT_KEYS = ['encounter', 'policeStop', 'policeResult', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow'];
 /**
@@ -307,6 +307,7 @@ export class Game {
     this.powerBtn.onclick = () => this.turnOn();
     this.lurkBtn.onclick = () => performance.now() >= this.tapsFrom && this.lurk();
     this.lurkBtn.hidden = true;
+    document.addEventListener('pointerdown', this.onTap, { capture: true });
     this.refresh();
   }
 
@@ -611,7 +612,11 @@ export class Game {
       return;
     }
     if (this.place !== 'street' && this.tvState.on && !this.encounter) {
-      this.shopNote = lines;
+      // (Something else a moment later goes under what's there: the weather doesn't wipe how you woke.)
+      // (What you did just now replaces it, though.)
+      const yours = performance.now() - this.lastTap < 1500;
+      this.shopNote = !yours && performance.now() - this.shopNoteAt < 15_000 ? [...this.shopNote, ...lines].slice(-8) : lines;
+      this.shopNoteAt = performance.now();
       this.renderShop();
     }
     const p = (l: string) => Object.assign(document.createElement('p'), { textContent: l });
@@ -823,12 +828,14 @@ export class Game {
     h.restWhere = where;
     if (car) h.restCar = car;
     else delete h.restCar;
-    this.restLines = lines;
+    this.save.state.restLines = lines;
     this.running = false;
     this.showRest();
   }
-  /** What happened as you lay down (shown on the rest screen). */
-  private restLines: string[] = [];
+  /** What happened as you lay down (on the rest screen, and said again when you get up). */
+  private get restLines(): string[] {
+    return (this.save.state.restLines as string[] | undefined) ?? [];
+  }
   private restTick = -1;
   private showRest() {
     const h = this.health;
@@ -837,7 +844,7 @@ export class Game {
     const el = document.createElement('div');
     el.id = 'rest';
     el.className = 'lockup';
-    const where = h.restWhere === 'room' ? 'In your room at the motel, the door wedged shut.' : h.restWhere === 'car' ? 'In the back seat, doors locked, windows fogged.' : 'In a doorway, your back to the wall.';
+    const where = h.restWhere === 'room' ? 'In your room at the motel, the door wedged shut.' : h.restWhere === 'car' ? 'In the back seat, doors locked, windows fogged.' : WET_AMOUNT[this.weather.now] > 0 ? 'In a doorway, out of the weather, your back to the wall.' : 'Against a wall, out of the way, your eyes shut.';
     const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
     el.innerHTML =
       `<h2>Resting</h2>` +
@@ -870,7 +877,7 @@ export class Game {
     const two = (n: number) => String(n).padStart(2, '0');
     (el.querySelector('.rest-bar i') as HTMLElement).style.width = `${Math.max(0, 100 - f)}%`;
     el.querySelector('.jail-left')!.textContent = `${two(hh)}:${two(mm)}:${two(ss)} to fresh`;
-    el.querySelector('.jail-out')!.textContent = `${FATIGUE_NAMES[fatigueLevel(f)]} (${Math.round(f)} / 100) · rested by ${clockText(now() + restLeft(h))}`;
+    el.querySelector('.jail-out')!.textContent = `${FATIGUE_NAMES[fatigueLevel(Math.round(f))]} (${Math.round(f)} / 100) · rested by ${clockText(now() + restLeft(h))}`;
   }
   /** Up again: rested, or not quite. */
   private getUp(rested: boolean) {
@@ -884,28 +891,32 @@ export class Game {
     delete h.restWhere;
     delete h.restCar;
     document.getElementById('rest')?.remove();
-    this.restLines = [];
+    const lay = this.restLines;
+    delete this.save.state.restLines;
     this.running = !this.paused && !this.jail && !this.dead;
     const f = Math.round(fatigueNow(h));
     const meanwhile = (this.save.state.laterLines as string[] | undefined) ?? [];
     delete this.save.state.laterLines;
+    // (What happened as you lay down, after the first line of it, which the screen led with.)
+    const said = lay.slice(1);
     const lines = [rested ? (where === 'room' ? 'You wake up in the motel room, rested. The street’s still out there.' : where === 'car' ? 'You wake up in the back seat, stiff, but rested.' : 'You wake up against the wall, rested. Nobody bothered you.') : `You get up${slept < 10 * 60_000 ? ' after a few minutes' : ''}. ${f >= 20 ? `Still ${FATIGUE_NAMES[fatigueLevel(f)].toLowerCase()}.` : 'Good enough.'}`];
     // (Towed while you slept: you wake to it.)
     const c = car ? this.carById(car) : undefined;
     if (c && now() >= c.towAt) {
       this.refresh();
-      this.note([...lines, ...this.towed(c, 'You wake to a hammering on the glass: the tow truck driver. You climb out, and he hooks it up without a word to you.')]);
+      this.note([...said, ...lines, ...this.towed(c, 'You wake to a hammering on the glass: the tow truck driver. You climb out, and he hooks it up without a word to you.'), ...meanwhile]);
       return;
     }
     // (Reported by now: someone's been looking for it.)
     if (c && this.place === 'car' && slept > 30 * 60_000 && reported(c, now()) && Math.random() < 0.4) {
-      lines.push('A flashlight on the glass. Someone is tapping on the window with a baton.');
+      lines.unshift(...said);
+      lines.push(...meanwhile, 'A flashlight on the glass. Someone is tapping on the window with a baton.');
       this.infamy.heat = Math.min(100, this.infamy.heat + 10);
       this.refresh();
       return this.carCops(c, lines, 'asleep');
     }
     this.refresh();
-    this.note([...lines, ...meanwhile]);
+    this.note([...said, ...lines, ...meanwhile]);
     buzz(rested ? [30, 20, 30] : 8);
   }
 
@@ -3699,7 +3710,7 @@ export class Game {
     const xs = this.save.state.laterLines as string[] | undefined;
     if (!xs?.length) return;
     const e = this.encounter;
-    if (!this.running || !this.tvState.on || this.ending || this.dead || this.jail || this.health.restingSince != null || this.sheet || (e && e.stage !== 'seen')) return;
+    if (!this.running || !this.tvState.on || !this.tv.showingPicture || this.koLines || this.save.state.koLines || this.ending || this.dead || this.jail || this.health.restingSince != null || this.sheet || (e && e.stage !== 'seen')) return;
     delete this.save.state.laterLines;
     this.note(xs);
   }
@@ -5571,7 +5582,7 @@ export class Game {
       (r as { slept?: number }).slept = now();
       const was = h.cold ?? 0;
       const lieAfter = fatigueNow(h) >= 3;
-      const lines = ['You lock the door, wedge the chair under the handle, and sleep. Eight hours. Nobody comes.', ...passHours(h, 8, true, !lieAfter)];
+      const lines = [lieAfter ? 'You lock the door, wedge the chair under the handle, and lie down. Nobody comes.' : 'You lock the door, wedge the chair under the handle, and sleep. Eight hours. Nobody comes.', ...passHours(h, 8, true, !lieAfter)];
       if (h.dead) return this.die(lines);
       h.cold = 0;
       h.stress = Math.max(0, (h.stress ?? 0) - 30);
@@ -6024,6 +6035,10 @@ export class Game {
   private shopAt = '';
   /** The last thing that happened in this shop / sheet, shown inside it. */
   private shopNote: string[] = [];
+  private shopNoteAt = -Infinity;
+  /** When you last touched the screen (what a note is a reply to). */
+  private lastTap = -Infinity;
+  private readonly onTap = () => (this.lastTap = performance.now());
   private sheetNote: string[] = [];
   private noteHtml(lines: string[], cls: string) {
     return lines.length ? `<div class="${cls}">${lines.map((l) => `<p>${l}</p>`).join('')}</div>` : '';
@@ -6826,6 +6841,8 @@ export class Game {
   /** Closes the game view (back to the menu). */
   close() {
     this.closed = true;
+    for (const id of ['rest', 'jail', 'choose']) document.getElementById(id)?.remove();
+    document.removeEventListener('pointerdown', this.onTap, { capture: true });
     clearTimeout(this.noteFade);
     this.koListen?.abort();
     this.koHint.remove();

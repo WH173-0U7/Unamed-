@@ -535,6 +535,8 @@ export function conditions(f: Body): string[] {
 }
 
 const legs = (f: Body) => f.broken.filter((p) => p.endsWith('leg')).length;
+/** A blow taken where they stand firm (or against a wall): no stepping back or staggering. */
+const unmoved = (t: string) => t.replace(/[^.]*\b(?:stagger|back a step|barely stay standing|knees dip)[^.]*\.\s?/gi, '').trim();
 const arms = (f: Body) => f.broken.filter((p) => p.endsWith('arm')).length;
 /** Broken ribs make every breath hurt, and a punctured lung is worse. */
 const ribs = (f: Body) => (f.lung ? 2.4 : f.broken.includes('ribs') ? 1.8 : 1);
@@ -1225,7 +1227,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           say('you', `${amb('bumrush')} It takes them clean off their feet. ${fell}${/\bhit the (sidewalk|floor|ground)\b/.test(fell) ? '' : " They're on the floor."}`);
         } else {
           // (They stay up: a shoulder in the ribs, not a fall.)
-          say('you', `${amb('bumrush')} They're heavy and hold their ground. ${wound('them', 'body', dmg, 'punch')}`);
+          say('you', `${amb('bumrush')} They're heavy and hold their ground. ${unmoved(wound('them', 'body', dmg, 'punch'))}`);
           if (Math.random() < 0.35) {
             e.you.down = true;
             say('them', "You bounce off them and land on your back. You're on the floor.");
@@ -1234,8 +1236,9 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
       } else {
         const dmg = Math.round(roll(4, 8) * str);
         // (The wall first; the floor only if they go down.)
-        say('you', `${amb('shove')} They crash back into the wall. ${wound('them', 'body', dmg, 'punch')}`);
-        if (Math.random() < 0.7) {
+        const w = unmoved(wound('them', 'body', dmg, 'punch')).replace(/[^.]*\bthud\b[^.]*\.\s?/gi, '');
+        say('you', `${amb('shove')} They crash back into the wall. ${w}`);
+        if (!e.them.down && Math.random() < 0.7) {
           e.them.down = true;
           say('them', "They lose their footing and go down. They're on the floor.");
         } else e.them.offBalance = true;
@@ -2203,6 +2206,8 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   // Rattled past the point of staying awake, wherever it landed (and then
   // "dazed" isn't worth saying).
   knockOut(0);
+  // (Going down, or out, with this very blow: no line about staying up.)
+  if (g && ((D.down && !wasDown) || (D.out && !outAtStart)) && /stagger|back a step|barely stay standing|knees dip|nearly gives out|hop back|limp a step|shake out/i.test(g)) out.splice(out.indexOf(g), 1);
   if (!outAtStart && D.out) {
     const i = out.indexOf(`${re} dazed.`);
     if (i >= 0) out.splice(i, 1);
@@ -2251,7 +2256,7 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
   const bleeding = D.bleeding > 0;
   const brokeArm = fx.newBreaks.some((p) => p.endsWith('arm'));
   const brokeLeg = fx.newBreaks.some((p) => p.endsWith('leg'));
-  const ribsBroken = D.broken.includes('ribs');
+  const ribsBroken = D.broken.includes('ribs') && !fx.newBreaks.includes('ribs');
   if (how === 'cut') {
     // A blade always opens skin (the bleeding is applied with it).
     const where = { head: 'face', body: 'side', stomach: 'belly', arm: 'arm', leg: 'leg' }[loc];
@@ -2296,7 +2301,7 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
         ...(m.eye ? ([] as Line[]) : ([[`${Pc} eye swells shut.`, () => (m.eye = true)]] as Line[])),
       ],
       [
-        [`It lands flush, and ${P} eyes go blank for a moment.`, daze],
+        [`A clean shot, and ${P} eyes go blank for a moment.`, daze],
         ...(m.jaw ? ([] as Line[]) : ([[`There's a crack, and ${P} jaw hangs wrong: it's broken.`, () => ((m.jaw = true), fx.bleed(1))]] as Line[])),
         ...(fx.wasDown ? ([[`${Pc} head bounces off the sidewalk.`, daze]] as Line[]) : []),
         ...(teeth < 8 ? ([[`Teeth go. ${S} spit them out with a mouthful of blood.`, () => ((m.teeth = Math.min(12, teeth + 2 + Math.floor(Math.random() * 2))), fx.bleed(1))]] as Line[]) : []),
@@ -2482,8 +2487,9 @@ function theirTurn(started = false) {
     return;
   }
   if (T.weaponOut && Math.random() < 0.7) strike('them', 'weapon');
-  else if (e.you.down && T.stamina >= cost(T, COST.kick) && Math.random() < 0.75) strike('them', 'stomp');
-  else if (!e.you.down && T.stamina >= cost(T, COST.kick) && Math.random() < 0.3) strike('them', 'kick');
+  // (Nobody kicks off a broken leg.)
+  else if (e.you.down && !legs(T) && T.stamina >= cost(T, COST.kick) && Math.random() < 0.75) strike('them', 'stomp');
+  else if (!e.you.down && !legs(T) && T.stamina >= cost(T, COST.kick) && Math.random() < 0.3) strike('them', 'kick');
   else strike('them', 'punch');
 }
 

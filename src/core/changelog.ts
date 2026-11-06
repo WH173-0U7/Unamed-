@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.41',
+    date: 'Nov 6',
+    items: [
+      'Fight text tidied: a hard punch to the head doesn’t “land” twice; ribs don’t grind before they’ve broken; nobody “barely stays standing” in the same breath as they drop.',
+      'Someone shoved into a wall or standing firm against a rush isn’t knocked back a step, and a person with a broken leg no longer tries to kick you.',
+    ],
+  },
+  {
     v: '1.40',
     date: 'Nov 6',
     items: [

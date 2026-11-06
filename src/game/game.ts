@@ -1418,6 +1418,8 @@ export class Game {
         home: this.atHome?.type === 'room' ? `You walk to ${this.atHome.addr}. The street door’s propped open with a brick; you go up to their floor.` : `You walk to ${this.atHome?.addr ?? 'the address'}, and take a look at it from across the street.`,
       }[p] ?? '',
     ];
+    lines.unshift(...this.offLines);
+    this.offLines = [];
     this.exposure = 0;
     this.wasInside = inside;
     this.insideAt = p;
@@ -2226,7 +2228,10 @@ export class Game {
   }
   /** The police are by it, after someone called it in. */
   private copsAtCar(c: Car): boolean {
-    return c.copsUntil != null && now() < c.copsUntil;
+    if (c.copsUntil != null && now() < c.copsUntil) return true;
+    // (Parked out front of a house the police are at: they're by it too.)
+    const h = c.home ? this.homeById(c.home) : undefined;
+    return !!h && this.policeThere(h);
   }
 
   /** Car keys, and no idea where the car is: out on the street, pressing the fob. */
@@ -3814,8 +3819,16 @@ export class Game {
     const ok = st.idOk as { until: number } | undefined;
     if (ok) ok.until -= ms;
   }
+  /** What walking off from a confrontation looked like (said on arriving wherever you went). */
+  private offLines: string[] = [];
   /** Out of the house you're at: a fight in there counts for what it was, and the job's done. */
   private walkOutOfHome() {
+    // Walking off while they stand there looking at you: that's running, and they saw you.
+    const j = this.save.state.job as HomeJob | undefined;
+    if (j?.confront && j.home === this.save.state.homeAt) {
+      this.offLines = ['You walk straight out past them, and keep going.'];
+      if (anonymity(this.inventory) < 0.6) this.offLines.push('They saw your face. They’ll be telling the police what you look like.');
+    }
     if (this.encounter?.resident) this.afterResidentFight(this.encounter);
     this.leaveHome();
     // (Cleared while this is still the address, so a death in there stays with this house.)

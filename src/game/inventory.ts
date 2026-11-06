@@ -510,23 +510,24 @@ export const MEDS: Med[] = [
     id: 'painkillers',
     name: 'Painkillers',
     price: 6,
-    desc: 'Takes the edge off the pain, and so the stress. Heals nothing.',
+    desc: 'Dulls the pain for about four hours: broken ribs, a concussion and broken bones get in your way less, and stress eases. Heals nothing.',
     blocked: (h) => (h.concussion > 0 || h.broken.length || h.bleeding || h.blood < h.maxBlood * 0.9 ? null : 'Nothing hurts enough'),
     use(h) {
       h.stress = Math.max(0, (h.stress ?? 0) - 12);
-      return 'You dry-swallow a couple of pills. After a while the pain dulls to an ache.';
+      h.numbUntil = Date.now() + 4 * 3_600_000;
+      return 'You dry-swallow a couple of pills. After a while the pain dulls to an ache you can work around.';
     },
   },
   {
     id: 'splint',
     name: 'Splint',
     price: 22,
-    desc: 'Holds a broken arm or leg still so it can knit straight. Left loose, a break takes twice as long.',
+    desc: 'Holds a broken arm or leg still so it can knit straight: it heals in a third of the time it would left loose.',
     blocked: (h) => (limbs(h).length ? null : h.splinted?.length ? 'Already splinted' : 'No broken arm or leg'),
     use(h) {
       // The limb that will take longest to heal.
       const p = limbs(h).sort((a, b) => (h.mending[b] ?? 0) - (h.mending[a] ?? 0))[0];
-      h.mending[p] = Math.ceil((h.mending[p] ?? 24) / 2);
+      h.mending[p] = Math.ceil((h.mending[p] ?? 12) / 3);
       (h.splinted ??= []).push(p);
       return `You splint your ${p}, biting down through the pain.`;
     },

@@ -33,6 +33,8 @@ export interface Health {
   lung?: boolean;
   /** Broken limbs already set in a splint (a second splint does nothing). */
   splinted?: Part[];
+  /** Painkillers in you until then (ms): the pain's dulled, so an injury gets in your way less. */
+  numbUntil?: number;
   /** You bled out. The run is over. */
   dead?: boolean;
   /** Soaked and cold from the rain: 0 fine, 1 chilled, 2 cold, 3 freezing. */
@@ -67,7 +69,7 @@ export interface Health {
 
 type HealingMark = 'lip' | 'cheek' | 'eye' | 'brow' | 'jaw';
 /** Hours for a mark to heal (game time). A cut brow leaves a scar. */
-export const MARK_HOURS: Record<HealingMark, number> = { lip: 24, cheek: 36, eye: 72, brow: 96, jaw: 400 };
+export const MARK_HOURS: Record<HealingMark, number> = { lip: 12, cheek: 18, eye: 36, brow: 48, jaw: 200 };
 
 /** Stress lost per hour of game time (more when resting). */
 const STRESS_EASE = 6;
@@ -121,28 +123,28 @@ export const HIGH_HOURS = { heroin: 2, fentanyl: 2, meth: 4, tranq: 1 } as const
 
 /** Hours for each kind of break to heal. */
 export const MEND_HOURS: Record<Part, number> = {
-  nose: 8,
-  ribs: 16,
-  'left arm': 24,
-  'right arm': 24,
-  'left leg': 24,
-  'right leg': 24,
-  'left hand': 10,
-  'right hand': 10,
-  'left wrist': 12,
-  'right wrist': 12,
-  'left ankle': 16,
-  'right ankle': 16,
-  collarbone: 18,
+  nose: 4,
+  ribs: 8,
+  'left arm': 12,
+  'right arm': 12,
+  'left leg': 12,
+  'right leg': 12,
+  'left hand': 5,
+  'right hand': 5,
+  'left wrist': 6,
+  'right wrist': 6,
+  'left ankle': 8,
+  'right ankle': 8,
+  collarbone: 9,
   spine: 100000,
 };
-export const CONCUSSION_HOURS = 6;
+export const CONCUSSION_HOURS = 3;
 /** Blood lost per hour at each level of bleeding. */
 const BLEED_PER_HOUR = [0, 60, 200, 600, 1200];
 /** Chance per hour that bleeding eases by a level, by level. */
 const CLOT = [0, 0.6, 0.45, 0.3, 0.15];
 /** Blood your body makes back per hour (when not bleeding). */
-const REGEN_PER_HOUR = 140;
+const REGEN_PER_HOUR = 280;
 /** Each lurk passes this many hours; resting passes `REST_HOURS`. */
 export const LURK_HOURS = 1;
 export const REST_HOURS = 4;
@@ -177,7 +179,7 @@ export function healthConditions(h: Health): string[] {
 export function bodyFrom(h: Health, stamina: number): Body {
   return {
     // Concussed, you're already part of the way there.
-    awake: h.concussion > 0 ? 80 : 100,
+    awake: h.concussion > 0 ? ((h.numbUntil ?? 0) > Date.now() ? 92 : 80) : 100,
     blood: h.blood,
     maxBlood: h.maxBlood,
     toughness: 100,
@@ -185,8 +187,9 @@ export function bodyFrom(h: Health, stamina: number): Body {
     // Cold stiffens you; cocaine gives you more than you've got.
     // (In withdrawal, you've less in you, and your hands shake.)
     // (Worn out, you've less to give: at the end of your rope, 60% of it.)
-    stamina: Math.round(stamina * (h.lung ? 0.3 : h.broken.includes('ribs') ? 0.5 : 1) * (1 - (h.cold ?? 0) * 0.1) * (h.wired ? 1.25 : 1) * (1 - withdrawalEffects(h).stamina) * (1 - fatigueNow(h) * 0.004)),
+    stamina: Math.round(stamina * (h.lung ? 0.3 : h.broken.includes('ribs') ? ((h.numbUntil ?? 0) > Date.now() ? 0.8 : 0.5) : 1) * (1 - (h.cold ?? 0) * 0.1) * (h.wired ? 1.25 : 1) * (1 - withdrawalEffects(h).stamina) * (1 - fatigueNow(h) * 0.004)),
     shakes: withdrawalEffects(h).hit + fatigueOdds(h),
+    numb: (h.numbUntil ?? 0) > Date.now(),
     // (Worn out, there's less to get back, too: catching your breath tops you up to that.)
     maxStamina: Math.round(stamina * (h.wired ? 1.25 : 1) * (1 - fatigueNow(h) * 0.004)),
     lung: h.lung,
@@ -544,6 +547,11 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
   }
   // Hooked on something, and withdrawal.
   out.push(...habitCards(h));
+  // Painkillers: the pain dulled, for a while.
+  if ((h.numbUntil ?? 0) > Date.now()) {
+    const left = ((h.numbUntil ?? 0) - Date.now()) / 60000;
+    out.push({ name: 'On painkillers', status: true, meter: { k: Math.min(1, left / 240), text: left >= 60 ? `${Math.round(left / 6) / 10} h left` : `${Math.ceil(left)} min left` }, effects: ['Broken bones hamper your blows half as much', 'Broken ribs leave you less short of breath', 'A concussion fogs you less'], heals: 'Wears off by itself. It heals nothing: the injuries are all still there.' });
+  }
   // Smoking: a cigarette burning.
   if ((h.smokingUntil ?? 0) > Date.now()) {
     const left = ((h.smokingUntil ?? 0) - Date.now()) / 60000;
@@ -603,7 +611,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
       effects,
       heals:
         `Heals in about ${hrs(left)}.` +
-        (/(arm|leg|wrist|ankle|hand)$/.test(p) ? (splinted ? '' : ' Left loose, it takes twice as long to heal: a splint holds it still.') : ''),
+        (/(arm|leg|wrist|ankle|hand)$/.test(p) ? (splinted ? '' : ' Left loose, it heals slowly: a splint gets it done in a third of the time, a cast at the ER in a quarter.') : ''),
     });
   }
   if (h.lung) {

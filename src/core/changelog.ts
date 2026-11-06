@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.28',
+    date: 'Nov 6',
+    items: [
+      'You heal twice as fast: a broken arm or leg knits in about 12 hours (6 lying down), blood comes back twice as quick, a concussion clears in 3 hours, a black eye in a day and a half.',
+      'Treatment pays off more: a splint gets a break healed in a third of the time it would left loose, and a cast at the ER in a quarter. A set nose, and stitches on a split lip, heal faster too.',
+      'Painkillers now dull the pain for about four hours: broken bones hamper your blows half as much, broken ribs leave you less short of breath, and a concussion fogs you less. They heal nothing, and the You tab shows how long they’ve got left.',
+    ],
+  },
+  {
     v: '2.27',
     date: 'Nov 6',
     items: [

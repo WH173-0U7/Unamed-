@@ -2208,20 +2208,21 @@ export class Game {
         if (h.marks?.brow) (h.stitched ??= {}).brow = true;
         if (h.marks?.lip) {
           (h.stitched ??= {}).lip = true;
-          (h.markHours ??= {}).lip = Math.min(h.markHours.lip ?? 24, 12);
+          (h.markHours ??= {}).lip = Math.min(h.markHours.lip ?? 12, 4);
         }
         lines.push(was ? 'A tired resident cleans you up, numbs it and sews you shut. The bleeding stops.' : 'They clean the cut out, glue it and tape it. It stings like hell.');
         if (h.marks?.brow) lines.push('Stitched, the cut over your eye will heal to a faint line.');
         break;
       }
       case 'nose':
-        h.mending.nose = Math.ceil((h.mending.nose ?? 8) / 2);
+        h.mending.nose = Math.ceil((h.mending.nose ?? 4) / 3);
         h.noseSet = true;
         lines.push('A doctor puts both thumbs on your nose and pushes it straight. You see white. Packing, tape, and a sheet of instructions.');
         break;
       case 'cast':
         for (const p of need.cast) {
-          h.mending[p] = Math.ceil((h.mending[p] ?? 24) / 2);
+          // (Set properly and cast: the quickest a break can knit.)
+          h.mending[p] = Math.ceil((h.mending[p] ?? 12) / 4);
           (h.splinted ??= []).push(p);
         }
         lines.push(`An X-ray, then they set the ${need.cast.join(' and the ')} and put ${need.cast.length > 1 ? 'them' : 'it'} in a cast. ${need.cast.some((p) => p.endsWith('leg')) ? 'They give you crutches and a lecture.' : 'They give you a sling.'}`);

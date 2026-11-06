@@ -119,6 +119,8 @@ export interface Body {
   blinded: number;
   /** Withdrawal: hands that won't keep still (off your chance to land a blow). */
   shakes?: number;
+  /** On painkillers: broken bones hamper you less. */
+  numb?: boolean;
   /** Something injected that hasn't hit yet (a needle takes a minute to work). */
   dosing?: { drug: Exclude<import('./person').Drug, 'empty'>; in: number };
   /** Knocked unconscious. */
@@ -1701,8 +1703,10 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   const offHand = a === 'you' && kind === 'weapon' && mine?.hand === 'left';
   if (offHand) hit -= 0.1;
   hit -= d === 'you' ? dodgeBonus(you.stats) - stressPenalty(D) : b.guard;
-  if (kind === 'kick' || kind === 'stomp') hit -= legs(A) * 0.2;
-  else hit -= arms(A) * 0.2; // punches and weapons need your arms
+  // (On painkillers, a broken limb gets in your way less.)
+  const hamper = A.numb ? 0.1 : 0.2;
+  if (kind === 'kick' || kind === 'stomp') hit -= legs(A) * hamper;
+  else hit -= arms(A) * hamper; // punches and weapons need your arms
   if (A.dazed) hit -= 0.2;
   if (A.concussed) hit -= 0.1;
   if (A.blinded > 0) hit -= 0.35;

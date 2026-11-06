@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.19',
+    date: 'Nov 6',
+    items: [
+      'Dez doesn’t sell to strangers anymore: someone has to vouch for you. Ask around on the street (“Know anyone selling?”: junkies are your best bet, and some want twenty for it), or a regular customer, someone inside, or your own reputation will point you to him.',
+      'Dez’s trust: buy from him, move his product quietly and pay fronts on time, and it grows. Pay late, beat up the man he sends, or get picked up holding, and it drops; too low and he’s done with you, and you need a new introduction.',
+      'With his trust come better prices and bigger amounts: a quarter ounce, and at the top an ounce from his own supplier, fronted on a week.',
+    ],
+  },
+  {
     v: '2.18',
     date: 'Nov 6',
     items: [

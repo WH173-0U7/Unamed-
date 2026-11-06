@@ -74,7 +74,7 @@ const VIG_DAYS = 14;
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 /** At an address: outside, or in, and what's happened so far. */
 /** Everything in the save that's this character's (not the world's). */
-const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'laterLines', 'restLines'];
+const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'laterLines', 'restLines', 'connect'];
 /** What only makes sense in the moment (a stop, a fight, a door you're at): not kept when you stop being them. */
 const MOMENT_KEYS = ['laterLines', 'restLines', 'encounter', 'policeStop', 'policeResult', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow'];
 /**
@@ -105,6 +105,14 @@ type Self = {
   at?: number;
   metAt?: number;
 };
+/** Your supplier: known (someone vouched for you), how much he trusts you (−40..100), who vouched, when he cut you off. */
+type Connect = { known: boolean; trust: number; via?: string; cutOff?: number; metBig?: boolean };
+/** What Dez sells, by how far he trusts you: [name, detail, points, cash $, fronted $, days to pay, tier]. */
+const DEZ_DEALS: { id: string; name: string; detail: string; doses: number; cash: [number, number, number]; front: number; days: number; tier: 1 | 2 | 3; desc: string }[] = [
+  { id: 'ball', name: 'Eight-ball', detail: 'Rocky powder in the knotted corner of a sandwich bag', doses: 35, cash: [180, 160, 150], front: 280, days: 3, tier: 1, desc: 'Three and a half grams. Bag it up: about 35 points.' },
+  { id: 'quarter', name: 'Quarter ounce', detail: 'Seven grams, pressed, in a taped-up baggie', doses: 70, cash: [0, 320, 300], front: 500, days: 5, tier: 2, desc: 'Seven grams. About 70 points.' },
+  { id: 'ounce', name: 'Ounce', detail: 'A full ounce, in a vacuum-sealed brick wrapped in tape', doses: 280, cash: [0, 0, 1100], front: 1600, days: 7, tier: 3, desc: 'Twenty-eight grams, from Dez’s own supplier. About 280 points.' },
+];
 /** Held: since when, until when (real time), what for, and what's said when the door opens. */
 type Jail = { from: number; until: number; what: string; after?: string[] };
 /** Whether this one in the house (the owner, or whoever else lives there) has seen your face. */
@@ -170,7 +178,7 @@ const STOMP_HELPLESS_COST = 1;
 const TORTURE_COST = 3;
 const MUG_COST = 0.5;
 
-import { chargeOf, COIN_MACHINE_FEE, ER_PRICES, ROOM_RENT, DEZ_CASH, DEZ_FRONT, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place, type Stock } from './shops';
+import { chargeOf, COIN_MACHINE_FEE, ER_PRICES, ROOM_RENT, DEZ_FRONT, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place, type Stock } from './shops';
 import { BILLS, COINS, addTo, cents, type Purse, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
 import { hoursText, isOpen } from './clock';
 import { anyoneIn, idText, nameFor, ROOM_DESC, ROOM_SEARCH, roomLoot, roomName, roomsOf, steady, whoIsIn, type Home, type Presence, type RoomId } from './homes';
@@ -959,7 +967,11 @@ export class Game {
         const h = this.homeById(this.save.state.homeAt);
         if (h) h.household = 'alone';
       }
-      if (old.enforcer && old.result !== 'lost' && this.debt) this.debt.strikes = (this.debt.strikes ?? 0) + 1;
+      if (old.enforcer && old.result !== 'lost' && this.debt) {
+        this.debt.strikes = (this.debt.strikes ?? 0) + 1;
+        const t = this.trustDez(-30);
+        if (t) this.later([t]);
+      }
       // (Remembered first: the thief record then knows who they are, and the two stay one person.)
       if (old.stage !== 'seen') this.rememberThem(old);
       settle(this.world, old);
@@ -981,6 +993,11 @@ export class Game {
   /** Lurk: the signal cuts out while you wait for whoever comes. */
   lurk() {
     if (!this.canLurk) return;
+    // Known around here: his people come to you.
+    if (!this.connect.known && !this.connect.cutOff && this.infamy.rep >= 30 && Math.random() < 0.05) {
+      this.note(['A kid on a bike slows down beside you and doesn’t look at you. "Dez wants to meet you. The alley behind the laundromat, after dark." Then he’s gone.', ...this.learnConnect('a kid on a bike')]);
+      return;
+    }
     if (fatigueNow(this.health) >= FATIGUE_SPENT) {
       this.note(['You’re spent. Your eyes keep closing on their own and the street swims. You need to lie down: Rest.']);
       return;
@@ -1112,6 +1129,12 @@ export class Game {
     const shotsBefore = e.shots ?? 0;
     const downBefore = !!e.you?.down;
     const logFrom = e.log.length;
+    if (id === 'connect') {
+      if (e.asked?.includes('connect')) return;
+      this.askConnect(e);
+      this.refresh();
+      return;
+    }
     const stageBefore = e.stage;
     const impacts = act(e, id, this.stats, this.inventory, (this.save.state.moves ??= {}) as Record<string, number>);
     // Fighting wears you down: every move (more for a chase, a lot more for being beaten senseless).
@@ -3518,6 +3541,8 @@ export class Game {
         delete c.jumped;
         this.save.state.case = c;
         lines.push(`In the morning you're charged: ${charges.map((x) => x.toLowerCase()).join(', ')}.`);
+        // Picked up holding his product: Dez hears about it, and wonders what you said.
+        if (this.connect.known && charges.some((x) => /intent to distribute|Selling/.test(x))) lines.push(this.trustDez(-15) ?? 'Word will get back to Dez that you were picked up holding. He won’t like it.');
         if (noBail) {
           lines.push(revoked ? 'No bail this time. You\'re held until your hearing.' : now() < ((this.save.state.probationUntil as number) ?? 0) ? 'You were on probation. The judge doesn\'t even look up: no bail. You\'re held for your hearing.' : 'No bail. You\'re held until your hearing.');
           this.save.state.bailOffer = 'custody';
@@ -3896,6 +3921,8 @@ export class Game {
   /** The door opens. */
   private release() {
     const j = this.jail;
+    // Inside, people talk: sometimes about who's selling.
+    if (j && !this.connect.known && Math.random() < 0.5) j.after = [...(j.after ?? []), 'On your way out, the man from the next bunk catches your sleeve. "You need work? Dez. The alley behind the laundromat, after dark. Tell him Rook sent you."', ...this.learnConnect('Rook')];
     delete this.save.state.jail;
     document.getElementById('jail')?.remove();
     if (!j || this.dead) return;
@@ -4708,6 +4735,17 @@ export class Game {
     f.rep += 1;
     f.heat = Math.min(100, f.heat + 2);
     this.save.state.sales = ((this.save.state.sales as number) ?? 0) + 1;
+    // A regular who likes you: where to get more.
+    if (!this.connect.known && e.regular && Math.random() < 0.35) {
+      (e.log ??= []).push({ by: 'them', text: '"You\'re gonna run out, way you\'re going. Talk to Dez. The alley behind the laundromat, nights. Say I sent you."' });
+      for (const l of this.learnConnect(e.person.name ?? 'a regular')) e.log.push({ by: 'info', text: l });
+    } else if (this.connect.known) {
+      // (Moving his product without trouble: it gets back to him.)
+      if (((this.save.state.sales as number) ?? 0) % 5 === 0) {
+        const t = this.trustDez(4);
+        if (t) (e.log ??= []).push({ by: 'info', text: t });
+      }
+    }
   }
 
   /** Splitting powder into little bags to sell, a point in each. */
@@ -4741,8 +4779,8 @@ export class Game {
    * What you owe Dez, if anything: how much, when it was due, and how often
    * you've beaten the people he sent. Late, it grows a fifth a day (the vig).
    */
-  private get debt(): { owed: number; due: number; vigAt?: number; strikes?: number; vigDays?: number } | undefined {
-    const d = this.save.state.debt as { owed: number; due: number; vigAt?: number; strikes?: number; vigDays?: number } | undefined;
+  private get debt(): { owed: number; base?: number; due: number; vigAt?: number; strikes?: number; vigDays?: number } | undefined {
+    const d = this.save.state.debt as { owed: number; base?: number; due: number; vigAt?: number; strikes?: number; vigDays?: number } | undefined;
     if (!d) return undefined;
     const t = now();
     if (t > d.due) {
@@ -4757,10 +4795,80 @@ export class Game {
       }
     }
     // (A debt that ran away before the vig stopped: no more than two weeks of it.)
-    d.owed = Math.min(d.owed, Math.round(DEZ_FRONT * 100 * Math.pow(1.2, VIG_DAYS)));
+    d.owed = Math.min(d.owed, Math.round((d.base ?? DEZ_FRONT * 100) * Math.pow(1.2, VIG_DAYS)));
     return d;
   }
 
+  /**
+   * Your connection: whether Dez will deal with you at all (someone has to
+   * vouch for you), and how far he trusts you. Trust buys bigger amounts and
+   * better prices; lose it and he cuts you off.
+   */
+  private get connect(): Connect {
+    const st = this.save.state;
+    // (From before there were introductions: you'd dealt with him already.)
+    return (st.connect ??= { known: ((st.sales as number) ?? 0) >= 1 || !!st.debt, trust: 0 }) as Connect;
+  }
+  private get tier(): 1 | 2 | 3 {
+    const t = this.connect.trust;
+    return t >= 70 ? 3 : t >= 30 ? 2 : 1;
+  }
+  /** Trust up or down; too low and he's done with you. Returns a line to say, if there is one. */
+  private trustDez(n: number): string | null {
+    const c = this.connect;
+    if (!c.known) return null;
+    const was = this.tier;
+    c.trust = Math.max(-40, Math.min(100, c.trust + n));
+    if (c.trust <= -20) {
+      c.known = false;
+      c.trust = 0;
+      c.cutOff = now();
+      return 'Word comes back from the alley: Dez is done with you. You’d need someone to vouch for you all over again.';
+    }
+    const t = this.tier;
+    if (t > was) return t === 3 ? 'Dez trusts you now, as much as he trusts anyone. There’s someone he wants you to meet.' : 'Dez is starting to trust you. Better prices, and more if you want it.';
+    if (t < was) return 'Dez doesn’t trust you like he did.';
+    return null;
+  }
+  /** Learning who supplies: a name, and where (once). */
+  private learnConnect(via: string): string[] {
+    const c = this.connect;
+    if (c.known) return [];
+    c.known = true;
+    c.via = via;
+    c.trust = 0;
+    return ['You know a supplier now: Dez, in the alley behind the laundromat, after dark (Go: The alley).'];
+  }
+  /** Asking someone on the street if they know anyone selling. */
+  private askConnect(e: Encounter) {
+    (e.asked ??= []).push('connect');
+    const k = e.person.kind;
+    const talk = lieBonus(this.stats);
+    const odds = Math.max(0.03, Math.min(0.85, ({ junkie: 0.5, homeless: 0.3, drunk: 0.25, civilian: 0.05 } as Record<string, number>)[k] + (e.regular ? 0.35 : 0) + talk * 0.5 - e.suspicion / 200 - fatigueOdds(this.health)));
+    const say = (by: 'you' | 'them' | 'info', text: string) => e.log.push({ by, text });
+    say('you', oneOf(['You keep your voice low. "You know anyone selling? Weight, not a bag."', '"Who\'s holding around here? I mean real amounts."', 'You lean in. "I\'m looking for a connect. Who do you go to?"']));
+    train(this.stats, 'speech', 2);
+    if (Math.random() < odds) {
+      // Some want paying for it.
+      const want = k === 'junkie' && Math.random() < 0.5 ? 2000 : 0;
+      if (want && Math.round(cashOf(this.inventory) * 100) < want) {
+        say('them', '"Maybe. What\'s it worth to you?" They hold out a hand. "Twenty. Come back when you got it."');
+        e.asked = e.asked.filter((x) => x !== 'connect');
+        e.suspicion = Math.min(100, e.suspicion + 10);
+        return;
+      }
+      const paid = want ? this.payLine(want) : '';
+      const name = e.person.name ?? (k === 'junkie' ? 'the skinny one' : 'a friend');
+      say('them', `${want ? 'They pocket the twenty. ' : ''}${oneOf(['They look up and down the street. "Dez. The alley behind the laundromat, after dark. Tell him', '"You didn\'t hear it from me. Dez, out back of the laundromat, nights. Say', '"Dez. Behind the laundromat, where the steam comes out. Late. Tell him'])} ${name.split(' ')[0]} sent you."`);
+      for (const l of this.learnConnect(name)) say('info', l);
+      if (paid) say('info', paid);
+    } else {
+      say('them', oneOf(['"I don\'t know nothing about that." They\'re already moving off.', 'They look at you a long second. "You a cop?"', '"Wrong person, man."', '"Get away from me."']));
+      e.suspicion = Math.min(100, e.suspicion + 25);
+      // (A straight citizen might mention it to someone in a uniform.)
+      if (k === 'civilian' && Math.random() < 0.3) this.infamy.heat = Math.min(100, this.infamy.heat + 4);
+    }
+  }
   /** Who Dez sends: big, calm, and carrying. Bigger each time you send one back. */
   private enforcerFor(d: { strikes?: number }): import('./person').Person {
     const p = makePerson();
@@ -4780,15 +4888,27 @@ export class Game {
     const btn = (attr: string, v: string, label: string, no?: string | false) => `<button type="button" data-${attr}="${v}" ${no ? `disabled title="${no}"` : ''}>${label}${no ? `<small>${no}</small>` : ''}</button>`;
     const li = (name: string, small: string, button: string) => `<li><div><b>${name}</b><small>${small}</small></div><span class="li-btns">${button}</span></li>`;
     const c = Math.round(cashOf(this.inventory) * 100);
-    const sales = (this.save.state.sales as number) ?? 0;
     const d = this.debt;
     const late = !!d && now() > d.due;
-    const stranger = sales < 1 && !d;
+    const con = this.connect;
     let rows = '';
     if (d)
       rows += li('What you owe Dez', `${money(d.owed)}, ${late ? `late: it was due ${dueText(d.due)}, ${(d.vigDays ?? 0) >= VIG_DAYS ? 'and he’s done adding to it. Now he wants it, or you.' : 'and it grows a fifth every day.'}` : `due ${dateText(d.due)}.`}`, btn('dez', 'pay', c >= d.owed ? 'Pay it all' : 'Pay what you have', !c && 'No cash'));
-    rows += li('An eight-ball', 'Three and a half grams. Bag it up and it comes to about 35 points. Cash.', btn('dez', 'cash', money(DEZ_CASH * 100), (stranger && '"I don\'t know you."') || (late && '"Not till you pay me."') || (c < DEZ_CASH * 100 && 'Not enough cash')));
-    rows += li('Fronted', `He gives it to you now, you pay him ${money(DEZ_FRONT * 100)} in three days. Don't be late.`, btn('dez', 'front', 'Front me', (sales < 5 && '"Move some first. Then we talk."') || (!!d && '"You owe me already."')));
+    // Nobody's vouched for you: he doesn't know you.
+    if (!con.known) {
+      rows += li('A man by the dumpsters', con.cutOff ? 'Dez. He looks straight through you. He’s done with you: you’d need someone to vouch for you again.' : 'He watches you come, hands in his pockets. "I don’t know you." Nobody sells to a stranger: someone has to vouch for you. Ask around on the street.', '');
+      return `<p class="shop-sub">Dez, by the dumpsters</p><ul class="shop-list">${rows}</ul>`;
+    }
+    const tier = this.tier;
+    const hot = this.infamy.heat >= 70;
+    const standing = ['', 'He knows you. Barely.', 'He trusts you, some.', 'He trusts you. His supplier knows your face.'][tier];
+    const next = tier === 1 ? 'Pay what he fronts you, on time, and keep your head down: better prices, and more.' : tier === 2 ? 'Keep it up and he’ll take you to his own supplier.' : '';
+    rows += li('Dez', `${standing}${con.via ? ` (${con.via.split(' ')[0]} vouched for you.)` : ''} ${next}`, '');
+    for (const deal of DEZ_DEALS.filter((x) => x.tier <= tier)) {
+      const price = deal.cash[tier - 1];
+      const why = (hot && '"You\'re hot. Come back when it cools down."') || (late && '"Not till you pay me."') || false;
+      rows += li(deal.tier === 3 ? `An ${deal.name.toLowerCase()}, from his supplier` : `${withA(deal.name).replace(/^./, (x) => x.toUpperCase())}`, `${deal.desc} Cash, or fronted: ${money(deal.front * 100)} in ${deal.days} days.`, (price ? btn('dez', `cash:${deal.id}`, money(price * 100), why || (c < price * 100 && 'Not enough cash')) : '') + btn('dez', `front:${deal.id}`, 'Front me', why || (!!d && '"You owe me already."') || (con.trust < 10 && deal.tier === 1 && '"Buy from me first. Then we talk."')));
+    }
     return `<p class="shop-sub">Dez, by the dumpsters</p><ul class="shop-list">${rows}</ul>`;
   }
 
@@ -4798,37 +4918,50 @@ export class Game {
     const inv = this.inventory;
     const c = Math.round(cashOf(inv) * 100);
     const d = this.debt;
-    const sales = (this.save.state.sales as number) ?? 0;
     const late = !!d && now() > d.due;
-    const ball = () => stow(inv, { kind: 'misc', name: 'Eight-ball', detail: 'Rocky powder in the knotted corner of a sandwich bag', secret: 'cocaine', known: true, doses: 35 });
+    const con = this.connect;
+    const tier = this.tier;
     if (what === 'pay' && d && c) {
       const amount = Math.min(c, d.owed);
       const paid = this.payLine(amount);
       d.owed -= amount;
       const done = d.owed <= 0;
       if (done) delete this.save.state.debt;
+      // Paid up on time: he remembers. Late: he remembers that too.
+      const t = done ? this.trustDez(now() <= d.due ? 12 : -10) : null;
       this.refresh();
-      this.note([done ? 'Dez counts it twice, slowly, and puts it away. "We\'re good."' : `Dez takes it without counting. "That's a start. ${money(d.owed)} to go."`, paid]);
+      this.note([done ? (now() <= d.due ? 'Dez counts it twice, slowly, and puts it away. "We\'re good. You\'re all right."' : 'Dez counts it twice and puts it away. "Late. Don\'t be late again."') : `Dez takes it without counting. "That's a start. ${money(d.owed)} to go."`, paid, ...(t ? [t] : [])]);
       return;
     }
-    if (what === 'cash' && !late && (sales >= 1 || d) && c >= DEZ_CASH * 100) {
-      if (!ball()) {
+    const [how, id] = what.split(':');
+    const deal = DEZ_DEALS.find((x) => x.id === (id ?? 'ball'));
+    if (!deal || !con.known || deal.tier > tier || late || this.infamy.heat >= 70) return;
+    const bag = () => stow(inv, { kind: 'misc', name: deal.name, detail: deal.detail, secret: 'cocaine', known: true, doses: deal.doses });
+    // The first time at the top: his supplier, in a car at the mouth of the alley.
+    const meet = deal.tier === 3 && !con.metBig ? 'Dez walks you out to a car idling at the mouth of the alley. The window comes down a few inches. Nobody says a name. A brick wrapped in tape comes out through the gap.' : '';
+    if (how === 'cash') {
+      const price = deal.cash[tier - 1] * 100;
+      if (!price || c < price) return;
+      if (!bag()) {
         this.note([`Nowhere to put it. ${noRoomWhy(inv, 'small')}`]);
         return;
       }
-      const paid = this.payLine(DEZ_CASH * 100);
+      if (deal.tier === 3) con.metBig = true;
+      const paid = this.payLine(price);
+      const t = this.trustDez(3);
       this.refresh();
-      this.note(['Dez looks up and down the alley, then presses something small and hard into your hand. "Don\'t open it here."', paid]);
+      this.note([meet || (deal.tier === 1 ? 'Dez looks up and down the alley, then presses something small and hard into your hand. "Don\'t open it here."' : 'Dez takes your money and comes back from the dark with it wrapped in a paper bag. "Careful with that."'), paid, ...(t ? [t] : [])]);
       return;
     }
-    if (what === 'front' && sales >= 5 && !d) {
-      if (!ball()) {
+    if (how === 'front' && !d && (con.trust >= 10 || deal.tier > 1)) {
+      if (!bag()) {
         this.note([`Nowhere to put it. ${noRoomWhy(inv, 'small')}`]);
         return;
       }
-      this.save.state.debt = { owed: DEZ_FRONT * 100, due: now() + 3 * 86_400_000, strikes: 0 };
+      if (deal.tier === 3) con.metBig = true;
+      this.save.state.debt = { owed: deal.front * 100, base: deal.front * 100, due: now() + deal.days * 86_400_000, strikes: 0 };
       this.refresh();
-      this.note([`Dez puts it in your hand and doesn't let go straight away. "${money(DEZ_FRONT * 100)}. Three days. I know where you sleep."`]);
+      this.note([meet, `Dez puts it in your hand and doesn't let go straight away. "${money(deal.front * 100)}. ${['', 'One day', 'Two days', 'Three days', 'Four days', 'Five days', 'Six days', 'A week'][deal.days]}. I know where you sleep."`].filter(Boolean));
     }
   }
 
@@ -6419,6 +6552,8 @@ export class Game {
   /** What the encounter needs to know about you to offer its options (see Encounter.flame). */
   private prime(e: Encounter) {
     const inv = this.inventory;
+    // Looking for a supplier: anyone on the street might know one (not Dez's own people, not the police).
+    e.askConnect = !this.connect.known && !e.enforcer && !e.deal && ['junkie', 'homeless', 'drunk', 'civilian'].includes(e.person.kind);
     // Bags to sell (a point each), and powder not bagged up yet.
     const coke = inv.items.filter((x) => x.secret === 'cocaine' && x.known && (x.doses ?? 0) > 0);
     e.product = coke.filter((x) => x.doses === 1).length;

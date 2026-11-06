@@ -49,7 +49,7 @@ weather all keep going whether you're playing or not.
 
 ### Places
 - A **map** of the city with set locations: pharmacy, gas station, liquor store, pawn shop, the fence, bank, ER, Records Office, the County Courthouse, a motel room you can rent, and Dez, who'll front you product and wants paying.
-- **Dealing**: bag up and sell; watch for stings.
+- **Dealing**: get introduced to a supplier, earn his trust for bigger amounts and better prices, bag up and sell; watch for stings and debts.
 - **Break-ins**: addresses from IDs and keys, people at home, alarms, dogs, locks that get changed.
 - **Cars**: find the car for a stolen fob, search it, sleep in it, get it towed.
 

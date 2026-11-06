@@ -255,6 +255,8 @@ export interface Encounter {
   heat?: number;
   /** They've bought from you before. */
   regular?: boolean;
+  /** You don't know a supplier yet: you can ask them if they know one. */
+  askConnect?: boolean;
   /** Sent by Dez, for the money you owe him. */
   enforcer?: boolean;
   /** You were arrested for what happened, there and then. */
@@ -805,6 +807,8 @@ function rawOptions(e: Encounter): Option[] {
         ...(e.suspicion >= 35 && !e.recognised ? [{ id: 'bluff', label: 'Act natural', hint: 'Speech: look like you belong here', cat: 'surveil' as Category }] : []),
         ...(e.known.sex && e.known.race ? [] : [{ id: 'sex', label: 'Get a look at them', hint: e.distance < 1 ? 'Hard to tell from here' : 'Their face, their build', cat: 'surveil' as Category }]),
         ...(e.known.personality ? [] : [{ id: 'read', label: 'Read them', hint: e.distance < 1 ? 'Need to be closer' : 'What kind of person?', disabled: e.distance < 1, cat: 'surveil' as Category }]),
+        // Looking for a supplier: someone like this might know one.
+        ...(e.askConnect && !(e.asked ?? []).includes('connect') ? [{ id: 'connect', label: '"Know anyone selling?"', hint: e.distance < 1 ? 'Need to be closer' : 'Who supplies around here', disabled: e.distance < 1, cat: 'surveil' as Category }] : []),
         // Selling: only with something bagged up to sell, and only the once.
         ...((e.product ?? 0) > 0 || (e.bulk ?? 0) > 0
           ? (e.asked ?? []).includes('sell')

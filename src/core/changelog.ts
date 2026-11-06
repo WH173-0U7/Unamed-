@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.87',
+    date: 'Nov 6',
+    items: [
+      'Take things off: your cap, sunglasses, mask, jacket (you’re in your T-shirt) or bag, from Pockets under What you’ve got on. They go in your pockets or your bag if there’s room, and Put on puts them back. Taking your jacket off changes what witnesses remember you wearing.',
+      'The bank greys out what wouldn’t do anything: changing up when you’re already in the biggest bills, breaking a bill you’ve no room for the change from, the coin machine with less than a dollar in coins, withdrawing with nowhere to put it.',
+      'Running away and chasing go by who’s faster: your Agility against theirs, and both of you as you are (legs, breath, drink). Running, even when you don’t get away, trains Agility and Stamina.',
+      'The cash machine says what’s wrong with each of your cards.',
+    ],
+  },
+  {
     v: '1.86',
     date: 'Nov 6',
     items: [

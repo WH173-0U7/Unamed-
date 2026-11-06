@@ -558,6 +558,10 @@ export const staminaCap = (f: Body) => f.maxStamina * (f.lung ? 0.3 : f.broken.i
 function fleeChance(f: Body, other: Body, bonus = 0) {
   if (f.down) return 0;
   let c = 0.6 + bonus + (other.down ? 0.25 : 0) + (other.dazed ? 0.15 : 0);
+  // Who's faster: your Agility (and both of you as you are now, legs, breath and all) against theirs.
+  const fSide: Side = f === enc.you ? 'you' : 'them';
+  const oSide: Side = fSide === 'you' ? 'them' : 'you';
+  if (!other.down) c += (speed(f, fSide) - speed(other, oSide)) * 1.2;
   c *= [1, 0.35, 0.08][legs(f)];
   if (f.dazed) c -= 0.15;
   if (f.stamina < cost(f, COST.run)) c -= 0.25;
@@ -1457,11 +1461,15 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         // (Someone on the floor can't chase you: only your own legs can stop you.)
         if ((e.them.down && !legs(y)) || Math.random() < fleeChance(y, e.them, accuracyBonus(stats))) {
           say('you', legs(y) ? 'You limp away as fast as you can, and somehow lose them.' : e.them.down ? (e.resident ? 'You leave them on the floor and run, out the door and up the road.' : 'You leave them on the ground and run.') : e.resident ? oneOf(['You break away and run, out the door and up the road, and don\'t look back.', 'You run, out the back and over the fence. Nobody follows.']) : oneOf(['You break away and run, and don\'t look back until they\'re gone.', 'You run, and duck down a side street. They don\'t follow.', 'You break away and run. You lose them a block later.']));
-          you.gain('agility', 2);
+          you.gain('agility', 3);
+          you.gain('stamina', 2);
           end('you-fled');
           return impacts;
         }
         say('you', e.them.down ? "You try to run, but your leg won't take it. You don't get far." : legs(y) ? "You try to run, but your leg won't take it. They're on you." : "You try to run, but they're on you.");
+        // (Trying is running too.)
+        you.gain('agility', 1);
+        you.gain('stamina', 1);
         break;
       case 'getup':
         spend('you', COST.getUp);

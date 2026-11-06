@@ -158,7 +158,7 @@ export interface Person {
 }
 
 /** Things you can take off someone. */
-export type LootKind = 'cash' | 'phone' | 'car keys' | 'id' | 'credit card' | 'debit card' | 'weapon' | 'misc';
+export type LootKind = 'cash' | 'phone' | 'car keys' | 'id' | 'credit card' | 'debit card' | 'weapon' | 'wear' | 'misc';
 
 export interface Loot {
   kind: LootKind | 'med';
@@ -197,6 +197,8 @@ export interface Loot {
   pinAsked?: boolean;
   /** Nothing in it: the machine said so. */
   empty?: boolean;
+  /** Something to wear, taken off: where it goes when you put it back on. */
+  slot?: 'top' | 'bottom' | 'bag' | 'head' | 'face' | 'eyes';
 
   /** Something to drink (uses in `doses`). */
   drink?: 'beer' | 'liquor' | 'energy';

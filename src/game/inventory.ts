@@ -41,6 +41,8 @@ export interface InvItem {
   pinAsked?: boolean;
   /** Nothing in it: the machine said so. */
   empty?: boolean;
+  /** Something to wear, taken off: where it goes when you put it back on. */
+  slot?: 'top' | 'bottom' | 'bag' | 'head' | 'face' | 'eyes';
   /** Your own ID (which life it's for: see World.lives). Never evidence. */
   own?: number;
   /** Something to drink (beer, liquor, an energy drink), swigs in `doses`. */
@@ -211,6 +213,17 @@ export function measure(x: { kind: string; name: string; med?: MedId }): { size:
   if (/^games console$/i.test(n)) return { size: 'large', kg: 3.2 };
   if (/^(gold chain|wedding ring|watch|earrings|class ring|bracelet)$/i.test(n)) return { size: 'small', kg: /watch/i.test(n) ? 0.12 : 0.02 };
   if (x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card') return { size: 'small', kg: 0.005 };
+  // Clothes, off: rolled up, a cap folded, glasses in a pocket.
+  if (x.kind === 'wear') {
+    if (/backpack/.test(n)) return { size: 'large', kg: 0.9 };
+    if (/shoulder bag|tote/.test(n)) return { size: 'medium', kg: 0.5 };
+    if (/fanny/.test(n)) return { size: 'small', kg: 0.25 };
+    if (/coat|puffer|parka|leather/.test(n)) return { size: 'large', kg: 1.4 };
+    if (/jacket|hoodie|windbreaker|flannel|shirt/.test(n)) return { size: 'medium', kg: 0.6 };
+    if (/jeans|pants|chinos|trousers/.test(n)) return { size: 'medium', kg: 0.7 };
+    if (/glasses|shades/.test(n)) return { size: 'small', kg: 0.04 };
+    return { size: 'small', kg: 0.08 };
+  }
   if (/groceries/.test(n)) return { size: 'large', kg: 3.5 };
   if (/water bottle/.test(n)) return { size: 'medium', kg: 0.6 };
   if (/lunch/.test(n)) return { size: 'medium', kg: 0.5 };
@@ -401,7 +414,7 @@ export function take(inv: Inventory, l: Loot): { ok: boolean; text: string; cent
       return { ok: true, text: `You pocket ${(l.doses ?? 1) === 1 ? 'the loose cigarette' : `the ${l.doses} loose cigarettes`} with the others.${once}` };
     }
   }
-  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained, ...(l.balance != null ? { balance: l.balance, limit: l.limit } : {}), ...(l.noPin ? { noPin: true } : {}), ...(l.pinAsked ? { pinAsked: true } : {}), ...(l.empty ? { empty: true } : {}), weapon: l.weapon, cuts: l.cuts, spray: l.spray, drink: l.drink, ...(l.card ? { card: l.card } : {}), ...(l.homeInfo ? { homeInfo: l.homeInfo } : {}), ...(l.opens ? { opens: l.opens } : {}), ...(l.hot ? { hot: true } : {}), ...(l.carOf ? { carOf: l.carOf } : {}), ...(l.carId ? { carId: l.carId } : {}), ...(l.hunt ? { hunt: l.hunt } : {}), ...(l.tookAt != null ? { tookAt: l.tookAt } : {}), ...(l.kind === 'car keys' ? { takenAt: l.takenAt ?? Date.now(), car: l.car, carSearched: l.carSearched } : {}) });
+  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained, ...(l.balance != null ? { balance: l.balance, limit: l.limit } : {}), ...(l.noPin ? { noPin: true } : {}), ...(l.pinAsked ? { pinAsked: true } : {}), ...(l.empty ? { empty: true } : {}), ...(l.slot ? { slot: l.slot } : {}), weapon: l.weapon, cuts: l.cuts, spray: l.spray, drink: l.drink, ...(l.card ? { card: l.card } : {}), ...(l.homeInfo ? { homeInfo: l.homeInfo } : {}), ...(l.opens ? { opens: l.opens } : {}), ...(l.hot ? { hot: true } : {}), ...(l.carOf ? { carOf: l.carOf } : {}), ...(l.carId ? { carId: l.carId } : {}), ...(l.hunt ? { hunt: l.hunt } : {}), ...(l.tookAt != null ? { tookAt: l.tookAt } : {}), ...(l.kind === 'car keys' ? { takenAt: l.takenAt ?? Date.now(), car: l.car, carSearched: l.carSearched } : {}) });
   // ("the state ID (expired)": not "the state id, expired".)
   const nm = l.name.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase()).replace(/^([^,]+), ([^,]+)$/, '$1 ($2)');
   if (!it) return { ok: false, text: `No room for the ${nm}. ${noRoomWhy(inv, measure(l).size)}` };

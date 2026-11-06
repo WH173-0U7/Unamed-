@@ -1483,6 +1483,8 @@ export class Game {
     else if (b.dataset.fire) this.fire(Number(b.dataset.fire));
     else if (b.dataset.smoke) this.smoke(Number(b.dataset.smoke));
     else if (b.dataset.burn) this.burn(Number(b.dataset.burn));
+    else if (b.dataset.takeoff) this.takeOff(b.dataset.takeoff as 'head' | 'face' | 'eyes' | 'top' | 'bag');
+    else if (b.dataset.puton) this.putOn(Number(b.dataset.puton));
     else if (b.dataset.mask !== undefined) this.toggleCover('mask');
     else if (b.dataset.hood !== undefined) this.toggleCover('hood');
     else if (b.dataset.taste) this.identify(Number(b.dataset.taste), false);
@@ -3461,6 +3463,90 @@ export class Game {
   }
 
   /** Pull your mask or hood up or down. */
+  /** Take off a cap, glasses, a mask, your jacket or your bag: it goes in your pockets (or your bag), if there's room. */
+  private takeOff(slot: 'head' | 'face' | 'eyes' | 'top' | 'bag') {
+    const inv = this.inventory;
+    if (!this.canOpenSheet) return;
+    let name: string | undefined;
+    if (slot === 'head' || slot === 'face' || slot === 'eyes') {
+      const w = wearing(inv);
+      name = w[slot];
+      if (!name) return;
+      const it = stow(inv, { kind: 'wear', name, slot });
+      if (!it) {
+        this.note([`Nowhere to put the ${lc(name)}. ${noRoomWhy(inv, measure({ kind: 'wear', name }).size)}`]);
+        return;
+      }
+      delete w[slot];
+      if (slot === 'face') w.masked = false;
+      const sp = inv.spots.find((x) => x.id === it.spot);
+      this.refresh();
+      this.note([`You take off the ${lc(name)} and put ${/s$/i.test(name) ? 'them' : 'it'} in your ${sp ? `${sp.on.toLowerCase()}, ${sp.name.toLowerCase()}` : 'pocket'}.`]);
+      return;
+    }
+    // A jacket off: you're in your T-shirt. A bag off: what was in it has to fit on you.
+    const at = slot === 'top' ? 0 : 3;
+    name = inv.clothes[at];
+    if (!name || (slot === 'top' && /^t-shirt$/i.test(name))) return;
+    const r = wear(inv, slot, slot === 'top' ? 'T-shirt' : (null as unknown as string));
+    if (!r.ok) {
+      this.note([`If you take off the ${lc(name)}, ${lc(r.why)}`]);
+      return;
+    }
+    if (slot === 'bag') {
+      inv.clothes = inv.clothes.filter((c, i) => i !== 3 || c);
+      inv.spots = spotsFor(inv.clothes, inv.gear);
+    }
+    const it = stow(inv, { kind: 'wear', name, slot });
+    if (!it) {
+      // (Nowhere to carry it once it's off: put it back on.)
+      wear(inv, slot, name);
+      this.note([`If you take off the ${lc(name)}, you'd have nowhere to carry it.`]);
+      return;
+    }
+    const sp = inv.spots.find((x) => x.id === it.spot);
+    this.refresh();
+    this.note([`You take off the ${lc(name)}${slot === 'top' ? ' and roll it up' : ''}, and carry it in your ${sp ? `${sp.on.toLowerCase()}, ${sp.name.toLowerCase()}` : 'hands'}.`]);
+  }
+  /** Put something back on (and what you had on there comes off, into your pockets). */
+  private putOn(i: number) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    if (!it || it.kind !== 'wear' || !it.slot || !this.canOpenSheet) return;
+    const slot = it.slot;
+    inv.items.splice(i, 1);
+    if (slot === 'head' || slot === 'face' || slot === 'eyes') {
+      const w = wearing(inv);
+      const old = w[slot];
+      w[slot] = it.name;
+      if (slot === 'face') w.masked = false;
+      if (old && !stow(inv, { kind: 'wear', name: old, slot })) {
+        // (No room for the old one: back as you were.)
+        w[slot] = old;
+        inv.items.splice(i, 0, it);
+        this.note([`You'd have nowhere to put the ${lc(old)}.`]);
+        return;
+      }
+      this.refresh();
+      this.note([`You put on the ${lc(it.name)}${old ? ` and put the ${lc(old)} away` : ''}.${slot === 'face' ? ' It’s pulled down for now.' : ''}`]);
+      return;
+    }
+    const r = wear(inv, slot, it.name);
+    if (!r.ok) {
+      inv.items.splice(i, 0, it);
+      this.note([`If you put on the ${lc(it.name)}, ${lc(r.why)}`]);
+      return;
+    }
+    // (What you had on comes off: a T-shirt under a jacket stays on, of course.)
+    if (r.old && !(slot === 'top' && /^t-shirt$/i.test(r.old)) && !stow(inv, { kind: 'wear', name: r.old, slot })) {
+      wear(inv, slot, r.old);
+      inv.items.splice(i, 0, it);
+      this.note([`You'd have nowhere to put the ${lc(r.old)}.`]);
+      return;
+    }
+    this.refresh();
+    this.note([`You put on the ${lc(it.name)}${r.old && !/^t-shirt$/i.test(r.old) ? ` and carry the ${lc(r.old)}` : ''}.`]);
+  }
   private toggleCover(what: 'mask' | 'hood') {
     const inv = this.inventory;
     const w = wearing(inv);
@@ -5131,12 +5217,23 @@ export class Game {
     } else if (place === 'bank') {
       const p = inv.purse;
       const coins = count(p, COINS);
+      // (What would actually change: nothing to gain, the button says so before you try.)
+      const upped = { ...p };
+      changeUp(upped);
+      const canUp = JSON.stringify(upped) !== JSON.stringify(p);
+      const coinWorth = COINS.reduce((sum, d) => sum + d * (p[d] ?? 0), 0);
+      const canMachine = Math.floor(coinWorth * (1 - COIN_MACHINE_FEE)) >= 100;
+      const fitsBroken = (d: number) => {
+        const t = { ...p };
+        return breakBill(t, d) && cashFits(inv, t);
+      };
+      const room = roomForCents(inv, 2000) >= 2000;
       if (open) {
         body =
           `<h3>Teller</h3><ul class="shop-list">` +
-          li('Change up', 'Trade small bills and coins for the biggest bills they add up to', btn('bank', 'up', 'Change', !c && 'Nothing to change')) +
-          BILLS.filter((d) => p[d])
-            .map((d) => li(`Break a ${denomName(d)}`, `Into ${purseText(breaksInto(d))}`, btn('bank', `break:${d}`, 'Break')))
+          li('Change up', 'Trade small bills and coins for the biggest bills they add up to', btn('bank', 'up', 'Change', (!c && 'No cash on you') || (!canUp && 'Already in the biggest bills'))) +
+          BILLS.filter((d) => p[d] && breaksInto(d))
+            .map((d) => li(`Break a ${denomName(d)}`, `Into ${purseText(breaksInto(d))}`, btn('bank', `break:${d}`, 'Break', !fitsBroken(d) && 'No room for more bills')))
             .join('') +
           `</ul>`;
         // Your account (it takes your own ID).
@@ -5147,17 +5244,22 @@ export class Game {
           (!acct
             ? li('Open an account', mine ? 'Free. Keep your money where nobody can take it off you.' : 'You need your own ID: the City Records Office makes them.', btn('bank', 'open', 'Open', !mine && 'Need your own ID'))
             : li(`Balance: ${money(acct.cents)}`, 'Deposit what you carry; take some out when you need it.', btn('bank', 'deposit', 'Deposit all', (!c && 'No cash on you') || (!mine && 'Need your own ID'))) +
-              `<li class="bank-amt"><div><b>An amount</b><small>Type it in, then deposit it or take it out.</small></div><span class="li-btns"><label class="amt"><span>$</span><input id="bank-amt" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" aria-label="Amount in dollars"></label>${btn('bank', 'd:amt', 'Deposit', (!c && 'No cash on you') || (!mine && 'Need your ID'))}${btn('bank', 'w:amt', 'Withdraw', (!acct.cents && 'Nothing in the account') || (!mine && 'Need your ID'))}</span></li>` +
-              li('Withdraw', '$20, $100, or everything.', [2000, 10000].map((v) => btn('bank', `w:${v}`, money(v), (acct.cents < v && 'Balance too low') || (!mine && 'Need your ID'))).join('') + btn('bank', 'w:all', 'All', (!acct.cents && 'Nothing in the account') || (!mine && 'Need your ID')))) +
+              `<li class="bank-amt"><div><b>An amount</b><small>Type it in, then deposit it or take it out.</small></div><span class="li-btns"><label class="amt"><span>$</span><input id="bank-amt" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" aria-label="Amount in dollars"></label>${btn('bank', 'd:amt', 'Deposit', (!c && 'No cash on you') || (!mine && 'Need your ID'))}${btn('bank', 'w:amt', 'Withdraw', (!acct.cents && 'Nothing in the account') || (!mine && 'Need your ID') || (!room && 'No room on you'))}</span></li>` +
+              li('Withdraw', '$20, $100, or everything.', [2000, 10000].map((v) => btn('bank', `w:${v}`, money(v), (acct.cents < v && 'Balance too low') || (!mine && 'Need your ID') || (!room && 'No room on you'))).join('') + btn('bank', 'w:all', 'All', (!acct.cents && 'Nothing in the account') || (!mine && 'Need your ID') || (!room && 'No room on you')))) +
           `</ul>`;
       } else body = `<p class="shop-closed">The teller windows are dark.</p>`;
-      body += `<h3>Lobby</h3><ul class="shop-list">${li('Coin machine', `Turns coins into bills, any hour. Keeps ${COIN_MACHINE_FEE * 100}%.`, btn('bank', 'machine', 'Use', !coins && 'No coins'))}`;
+      body += `<h3>Lobby</h3><ul class="shop-list">${li('Coin machine', `Turns coins into bills, any hour. Keeps ${COIN_MACHINE_FEE * 100}%.`, btn('bank', 'machine', 'Use', (!coins && 'No coins') || (!canMachine && 'Not enough for a bill')))}`;
       // The cash machine: a card and its PIN (one someone gave you, if you made them).
       const cards = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind));
       const usable = cards.filter(({ x }) => x.pin && !x.drained);
       body += usable.length
         ? usable.map(({ x, i }) => li(named(x, `Cash machine · ${x.name}`), `${x.detail ? `${x.detail}'s card · ` : ''}PIN ${x.pin}. There's a camera over the screen.`, btn('atm', i, 'Withdraw'))).join('')
-        : li('Cash machine', cards.some(({ x }) => x.drained) && !cards.some(({ x }) => !x.drained && !x.pin) ? (cards.every(({ x }) => !x.drained || x.empty) ? 'The cards you had PINs for have nothing on them.' : 'The cards you had PINs for have been stopped.') : cards.length && cards.every(({ x }) => x.noPin && x.pinAsked) ? 'The cards you have don’t have PINs: no use at a machine.' : cards.length ? "You've got cards, but no PIN for them. Someone would have to tell you." : 'Any hour. You need a card, and its PIN.', btn('atm', -1, 'Use', 'No card with a PIN'));
+        : li('Cash machine', ((parts) => (parts.length ? parts.join(' ') : 'Any hour. You need a card, and its PIN.'))([
+            ...(cards.some(({ x }) => x.drained && !x.empty) ? ['The cards you had PINs for have been stopped.'] : []),
+            ...(cards.some(({ x }) => x.drained && x.empty) ? [cards.some(({ x }) => x.drained && !x.empty) ? 'One had nothing on it anyway.' : 'The cards you had PINs for have nothing on them.'] : []),
+            ...(cards.some(({ x }) => !x.drained && !x.pin && x.noPin && x.pinAsked) ? ['A credit card with no PIN is no use at a machine.'] : []),
+            ...(cards.some(({ x }) => !x.drained && !x.pin && !(x.noPin && x.pinAsked)) ? ['You’ve got a card with no PIN for it. Someone would have to tell you.'] : []),
+          ]), btn('atm', -1, 'Use', 'No card with a PIN'));
       body += `</ul>`;
     } else if (place === 'room') {
       // The Hotel Marlow: a room by the week.
@@ -5336,12 +5438,17 @@ export class Game {
       const anon = anonymity(inv);
       const row = (name: string, small: string, btn: string) => `<li><div><b>${name}</b><small>${small}</small></div><span class="acts">${btn}</span></li>`;
       const rows: string[] = [];
-      if (w.face) rows.push(row(named({ kind: 'wear', name: w.face, slot: 'face' }), w.masked ? 'Pulled up over your face' : 'Pulled down', `<button type="button" data-mask>${w.masked ? 'Pull down' : 'Pull up'}</button>`));
+      if (w.face) rows.push(row(named({ kind: 'wear', name: w.face, slot: 'face' }), w.masked ? 'Pulled up over your face' : 'Pulled down', `<button type="button" data-mask>${w.masked ? 'Pull down' : 'Pull up'}</button><button type="button" data-takeoff="face">Take off</button>`));
       if (hasHood(inv)) rows.push(row(named({ kind: 'wear', name: 'Hood', slot: 'head' }), w.hood ? 'Up' : 'Down', `<button type="button" data-hood>${w.hood ? 'Down' : 'Up'}</button>`));
-      if (w.head) rows.push(row(named({ kind: 'wear', name: w.head, slot: 'head' }), 'On', ''));
-      if (w.eyes) rows.push(row(named({ kind: 'wear', name: w.eyes, slot: 'eyes' }), 'On', ''));
+      if (w.head) rows.push(row(named({ kind: 'wear', name: w.head, slot: 'head' }), 'On', `<button type="button" data-takeoff="head">Take off</button>`));
+      if (w.eyes) rows.push(row(named({ kind: 'wear', name: w.eyes, slot: 'eyes' }), 'On', `<button type="button" data-takeoff="eyes">Take off</button>`));
+      // Your jacket and your bag, to take off (trousers and shoes stay on).
+      const top = inv.clothes[0];
+      const bag = inv.clothes[3];
+      if (top && !/^t-shirt$/i.test(top)) rows.push(row(named({ kind: 'wear', name: top, slot: 'top' }), 'On', `<button type="button" data-takeoff="top">Take off</button>`));
+      if (bag) rows.push(row(named({ kind: 'wear', name: bag, slot: 'bag' }), 'On your back', `<button type="button" data-takeoff="bag">Take off</button>`));
       body +=
-        `<div class="spot"><h3><span>Your face</span><em>${Math.round(anon * 100)}% hidden</em></h3>` +
+        `<div class="spot"><h3><span>What you’ve got on</span><em>Face ${Math.round(anon * 100)}% hidden</em></h3>` +
         (rows.length ? `<ul class="pocket-list">${rows.join('')}</ul>` : `<p class="pocket-empty">Nothing hides your face. Anyone who sees you will know you again.</p>`) +
         `</div>`;
     }
@@ -5417,6 +5524,7 @@ export class Game {
                 if (/^(lighter|matches)$/i.test(x.name)) acts += act('fire', 'Fire', this.fireBlocked());
                 if (/^(loose |pack of )?cigarettes$/i.test(x.name)) acts += act('smoke', this.smoking ? 'Smoking' : 'Smoke', (x.doses ?? 1) <= 0 ? 'Empty' : this.smokeBlocked());
                 if (x.drink) acts += act('drink', 'Drink', (x.doses ?? 0) <= 0 ? 'Empty' : this.canOpenSheet ? null : 'Not now');
+                if (x.kind === 'wear' && x.slot) acts += act('puton', 'Put on', this.canOpenSheet ? null : 'Not now');
                 // Loose ones into a pack with room in it.
                 if (/^loose cigarettes$/i.test(x.name) && inv.items.some((y) => /^(pack of )?cigarettes$/i.test(y.name) && (y.doses ?? 0) < 20))
                   acts += act('pack', 'Put in pack');

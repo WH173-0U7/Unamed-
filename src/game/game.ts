@@ -31,7 +31,7 @@ import { mlOf } from './money';
 import { lootIcon, lootMark } from './lootIcon';
 import { STYLES, STYLE_HOW, STYLE_NAMES, stylesOf } from './styles';
 import { PLACE_AT, PLACE_ICON, addressAt, blocksBetween, mapHtml, type MapMark } from './map';
-import { MEDS, take, freeHand, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, kgLabel, carriedKg, carryLimit, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
+import { MEDS, take, freeHand, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, wouldLeave, kgLabel, carriedKg, carryLimit, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
 
 /**
  * What's left of your humanity. Killing someone takes a lot of it; stamping
@@ -170,7 +170,7 @@ const STOMP_HELPLESS_COST = 1;
 const TORTURE_COST = 3;
 const MUG_COST = 0.5;
 
-import { chargeOf, COIN_MACHINE_FEE, ER_PRICES, ROOM_RENT, DEZ_CASH, DEZ_FRONT, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place } from './shops';
+import { chargeOf, COIN_MACHINE_FEE, ER_PRICES, ROOM_RENT, DEZ_CASH, DEZ_FRONT, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place, type Stock } from './shops';
 import { BILLS, COINS, addTo, cents, type Purse, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
 import { hoursText, isOpen } from './clock';
 import { anyoneIn, idText, nameFor, ROOM_DESC, ROOM_SEARCH, roomLoot, roomName, roomsOf, steady, whoIsIn, type Home, type Presence, type RoomId } from './homes';
@@ -318,6 +318,7 @@ export class Game {
       if (b.dataset.buy) this.buy(b.dataset.buy as MedId);
       else if (b.dataset.sell) this.sell(Number(b.dataset.sell));
       else if (b.dataset.stock) this.buyStock(b.dataset.stock);
+      else if (b.dataset.stockc) this.buyStock(b.dataset.stockc, 'carry');
       else if (b.dataset.bank) this.bank(b.dataset.bank);
       else if (b.dataset.atm) this.atm(Number(b.dataset.atm));
       else if (b.dataset.records) this.getId();
@@ -1940,12 +1941,27 @@ export class Game {
     return null;
   }
 
-  private buyStock(id: string) {
+  private buyStock(id: string, how: 'wear' | 'carry' = 'wear') {
     const place = this.place;
     const s = (place === 'gas' ? GAS_STOCK : place === 'liquor' ? LIQUOR_STOCK : place === 'guns' ? GUN_STOCK : PAWN_STOCK).find((x) => x.id === id);
     const inv = this.inventory;
     if (s && this.ownsWhy(s)) return;
     if (!s || (place !== 'pawn' && place !== 'gas' && place !== 'liquor' && place !== 'guns') || (place !== 'gas' && !isOpen(placeInfo(place).hours!)) || cashOf(inv) < s.price) return;
+    // Wearing it: everything moves into it, and what won't go anywhere, you're told about first (before any money or ID changes hands).
+    if (how === 'wear' && (s.slot === 'top' || s.slot === 'bottom' || s.slot === 'bag')) {
+      const w = wouldLeave(inv, s.slot, s.name);
+      if (w.cash) {
+        this.note([`If you swap to the ${lc(s.name)}, you'd have nowhere to put all your cash.`]);
+        return;
+      }
+      const armed = this.armedWear?.id === s.id && performance.now() - this.armedWear.at < 8000;
+      if (w.items.length && !armed) {
+        this.armedWear = { id: s.id, at: performance.now() };
+        this.note([`If you wear the ${lc(s.name)}, there’d be nowhere for ${list2(w.items.map((x) => `the ${lc(x.name)}`))}. Tap Wear again to wear it anyway and leave ${w.items.length > 1 ? 'them' : 'it'} here, or Carry it instead.`]);
+        return;
+      }
+      this.armedWear = null;
+    }
     // The pawn shop and the liquor store want to see ID first.
     let idLine = '';
     if (place === 'pawn' || place === 'liquor') {
@@ -2016,6 +2032,13 @@ export class Game {
       (inv.gear ??= []).push(s.name);
       inv.spots = spotsFor(inv.clothes, inv.gear);
       line = `You buy the ${lc(s.name)} and strap it on${s.id === 'anklesheath' ? ', under your pant leg' : ''}. Move ${s.id === 'holster' ? 'a handgun' : 'a knife'} into it from Pockets.`;
+    } else if (how === 'carry' && s.slot) {
+      // (Bought to carry: on later, from Pockets.)
+      if (!stow(inv, { kind: 'wear', name: s.name, slot: s.slot as 'top' | 'bottom' | 'bag' | 'head' | 'face' | 'eyes' })) {
+        this.note([`Nowhere to put it. ${noRoomWhy(inv, measure({ kind: 'wear', name: s.name }).size, measure({ kind: 'wear', name: s.name }).kg)}`]);
+        return;
+      }
+      line = `You buy the ${lc(s.name)} and put ${/s$/i.test(s.name) && s.slot !== 'bag' ? 'them' : 'it'} away. (Pockets: put ${/s$/i.test(s.name) && s.slot !== 'bag' ? 'them' : 'it'} on.)`;
     } else if (s.slot === 'head' || s.slot === 'face' || s.slot === 'eyes') {
       // Something for your face: worn (a mask starts pulled down; pull it up in Pockets).
       const w = wearing(inv);
@@ -2024,12 +2047,21 @@ export class Game {
       if (s.slot === 'face') w.masked = false;
       line = `You buy the ${lc(s.name)}${old ? ` and toss your old ${old.toLowerCase()}` : ''}.${s.slot === 'face' ? ' You keep it pulled down for now (Pockets: pull it up).' : /s$/i.test(s.name) ? ' You put them on.' : ' You put it on.'}`;
     } else if (s.slot) {
-      const r = wear(inv, s.slot, s.name);
+      const slot = s.slot as 'top' | 'bottom' | 'bag';
+      const r = wear(inv, slot, s.name, true);
       if (!r.ok) {
         this.note([`If you swap to the ${lc(s.name)}, ${lc(r.why)}`]);
         return;
       }
-      line = `You buy the ${lc(s.name)} and put it on${r.old ? `, and leave your old ${r.old.toLowerCase()} in the bin out front` : ''}.`;
+      // (The old one: in your bag if it'll go, or the bin out front.)
+      const old = r.old && !(slot === 'top' && /^t-shirt$/i.test(r.old)) ? r.old : null;
+      const kept = old ? stow(inv, { kind: 'wear', name: old, slot }) : null;
+      const it2 = slot === 'bottom' ? 'them' : 'it';
+      line = [
+        `You buy the ${lc(s.name)}, move your things into ${it2} and put ${it2} on.`,
+        r.left.length ? `You leave ${list2(r.left.map((x) => `the ${lc(x.name)}`))} behind.` : '',
+        old ? (kept ? `Your old ${old.toLowerCase()} goes in your ${lc(inv.spots.find((x) => x.id === kept.spot)?.on ?? 'bag')}.` : `Your old ${old.toLowerCase()} goes in the bin out front.`) : '',
+      ].filter(Boolean).join(' ');
     } else {
       const brand = s.id === 'cigs' ? ['Red Crest', 'Mayfair Lights', 'Dakota Menthols', 'Ridgeway Reds', 'Union Blues', 'Harbor 100s'][Math.floor(Math.random() * 6)] : undefined;
       if (!stow(inv, { kind: 'misc', name: s.name, ...(brand ? { detail: brand } : {}), ...(s.drinkType ? { drink: s.drinkType } : {}), ...(s.doses ? { doses: s.doses } : s.id === 'lighter' ? { doses: 100 } : {}) })) {
@@ -2044,6 +2076,14 @@ export class Game {
     buzz(8);
   }
 
+  /** Wear tapped once with things that wouldn't fit: a second tap goes ahead. */
+  private armedWear: { id: string; at: number } | null = null;
+  /** A shop row's buttons: clothes can be worn now or carried. */
+  private stockBtns(s: Stock, cents: number, btn: (attr: string, v: string | number, label: string, no?: string | false | null) => string): string {
+    const no = this.ownsWhy(s) || (cents < s.price * 100 && 'Not enough cash');
+    if (!s.slot || s.slot === 'gear') return btn('stock', s.id, money(s.price * 100), no);
+    return btn('stock', s.id, `Wear · ${money(s.price * 100)}`, no) + btn('stockc', s.id, `Carry · ${money(s.price * 100)}`, no);
+  }
   /** Who you are, this time round: a name (for your ID), and an age. */
   private get me(): { name: string; age: number } {
     return (this.save.state.me ??= { name: randomName(), age: 22 + Math.floor(Math.random() * 25) }) as { name: string; age: number };
@@ -4338,21 +4378,34 @@ export class Game {
       this.note([`You put on the ${lc(it.name)}${old ? ` and put the ${lc(old)} away` : ''}.${slot === 'face' ? ' It’s pulled down for now.' : ''}`]);
       return;
     }
-    const r = wear(inv, slot, it.name);
+    // (What won't go in it: said first; a second tap goes ahead and leaves it.)
+    const w = wouldLeave(inv, slot, it.name);
+    const armed = this.armedWear?.id === `on:${it.name}` && performance.now() - this.armedWear.at < 8000;
+    if (!w.cash && w.items.length && !armed) {
+      inv.items.splice(i, 0, it);
+      this.armedWear = { id: `on:${it.name}`, at: performance.now() };
+      this.note([`If you put on the ${lc(it.name)}, there’d be nowhere for ${list2(w.items.map((x) => `the ${lc(x.name)}`))}. Tap Put on again to leave ${w.items.length > 1 ? 'them' : 'it'} here.`]);
+      return;
+    }
+    this.armedWear = null;
+    const r = wear(inv, slot, it.name, true);
     if (!r.ok) {
       inv.items.splice(i, 0, it);
       this.note([`If you put on the ${lc(it.name)}, ${lc(r.why)}`]);
       return;
     }
+    const leftLine = r.left.length ? ` You leave ${list2(r.left.map((x) => `the ${lc(x.name)}`))} behind.` : '';
     // (What you had on comes off: a T-shirt under a jacket stays on, of course.)
     if (r.old && !(slot === 'top' && /^t-shirt$/i.test(r.old)) && !stow(inv, { kind: 'wear', name: r.old, slot })) {
-      wear(inv, slot, r.old);
+      // (Back as you were, with everything you had.)
+      inv.items.push(...r.left);
+      wear(inv, slot, r.old, true);
       inv.items.splice(i, 0, it);
       this.note([`You'd have nowhere to put the ${lc(r.old)}.`]);
       return;
     }
     this.refresh();
-    this.note([`You put on the ${lc(it.name)}${r.old && !/^t-shirt$/i.test(r.old) ? ` and carry the ${lc(r.old)}` : ''}.`]);
+    this.note([`You put on the ${lc(it.name)}${r.old && !/^t-shirt$/i.test(r.old) ? ` and carry the ${lc(r.old)}` : ''}.${leftLine}`]);
   }
   private toggleCover(what: 'mask' | 'hood') {
     const inv = this.inventory;
@@ -5932,7 +5985,7 @@ export class Game {
         (c < Math.min(...SOLD_MEDS().map((m) => m.price)) * 100 ? `<p class="shop-broke">You can't afford anything. Cash only.</p>` : '');
     } else if (place === 'guns') {
       body = open
-        ? `<ul class="shop-list">${GUN_STOCK.map((s) => li(named(stockThing(s)), s.gun ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.gun }))}, ${alarmStat(1)}.` : s.desc, btn('stock', s.id, money(s.price * 100), this.ownsWhy(s) || (c < s.price * 100 && 'Not enough cash')))).join('')}</ul>` +
+        ? `<ul class="shop-list">${GUN_STOCK.map((s) => li(named(stockThing(s)), s.gun ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.gun }))}, ${alarmStat(1)}.` : s.desc, this.stockBtns(s, c, btn))).join('')}</ul>` +
           `<p class="shop-broke">${this.ownId() ? (this.charged ? 'With a charge against you, the background check will come back denied.' : 'Your own ID, a form and a background check, and it’s yours.') : 'Nothing without your own ID: they run a background check on every buyer.'} Firing a gun is loud: someone always calls it in.</p>`
         : `<p class="shop-closed">The shutters are down and the alarm light blinks.</p>`;
     } else if (place === 'hospital') {
@@ -5968,7 +6021,7 @@ export class Game {
         : `<p class="shop-closed">The doors are locked. Open weekdays, 9 to 4.</p>`;
     } else if (place === 'liquor') {
       body = open
-        ? `<ul class="shop-list">${LIQUOR_STOCK.map((s) => li(named(stockThing(s)), s.desc, btn('stock', s.id, money(s.price * 100), this.ownsWhy(s) || (c < s.price * 100 && 'Not enough cash')))).join('')}</ul>` +
+        ? `<ul class="shop-list">${LIQUOR_STOCK.map((s) => li(named(stockThing(s)), s.desc, this.stockBtns(s, c, btn))).join('')}</ul>` +
           `<p class="shop-broke">${this.ownId() ? 'They know your face now.' : 'They’ll want to see ID.'}</p>`
         : `<p class="shop-closed">The grille is down.</p>`;
     } else if (place === 'gas') {
@@ -5976,7 +6029,7 @@ export class Game {
       body =
         `<ul class="shop-list">${GAS_STOCK.map((s) => {
           const n = s.med ? inv.items.filter((x) => x.med === s.med).length : s.slot || s.drink ? 0 : have(s.name);
-          return li(named(stockThing(s)), `${s.desc}${n ? ` · You have ${n}` : ''}`, btn('stock', s.id, money(s.price * 100), this.ownsWhy(s) || (c < s.price * 100 && 'Not enough cash')));
+          return li(named(stockThing(s)), `${s.desc}${n ? ` · You have ${n}` : ''}`, this.stockBtns(s, c, btn));
         }).join('')}</ul>` + (c < 100 ? `<p class="shop-broke">You can't afford anything. The clerk watches you anyway.</p>` : '');
     } else if (place === 'pawn' || place === 'fence') {
       if (!open) body = `<p class="shop-closed">${place === 'pawn' ? 'The shutter is down.' : "There's nobody back here right now."}</p>`;
@@ -5986,7 +6039,7 @@ export class Game {
           .map(({ x, i, o }) => li(named(x), 'cents' in o ? `${x.detail ? `${x.detail} · ` : ''}He'll give you ${money(o.cents)}` : o.why, 'cents' in o ? btn('sell', i, `Sell ${money(o.cents)}`) : ''));
         body = `<h3>Sell</h3>` + (sell.length ? `<ul class="shop-list">${sell.join('')}</ul>` : `<p class="shop-broke">You've got nothing to sell.</p>`);
         if (place === 'pawn') {
-          body += `<h3>For sale</h3><ul class="shop-list">${PAWN_STOCK.map((s) => li(named(stockThing(s)), s.slot === 'top' || s.slot === 'bottom' || s.slot === 'bag' ? `${s.desc} ${hidesWord(s.name)}.` : s.knife ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.knife }))}, ${alarmStat(alarmOf({ kind: 'weapon', name: s.knife }))}.` : s.desc, btn('stock', s.id, money(s.price * 100), this.ownsWhy(s) || (c < s.price * 100 && 'Not enough cash')))).join('')}</ul>`;
+          body += `<h3>For sale</h3><ul class="shop-list">${PAWN_STOCK.map((s) => li(named(stockThing(s)), s.slot === 'top' || s.slot === 'bottom' || s.slot === 'bag' ? `${s.desc} ${hidesWord(s.name)}.` : s.knife ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.knife }))}, ${alarmStat(alarmOf({ kind: 'weapon', name: s.knife }))}.` : s.desc, this.stockBtns(s, c, btn))).join('')}</ul>`;
         }
       }
     } else if (place === 'bank') {

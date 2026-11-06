@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.13',
+    date: 'Nov 6',
+    items: [
+      'Buying clothes: Wear or Carry. Wear moves everything you’ve got into the new clothes and puts them on; Carry puts them in your bag to put on later from Pockets.',
+      'If something wouldn’t fit in what you’re putting on, it tells you first, by name, and nothing changes. Tap Wear (or Put on) again to go ahead and leave it behind. Your old clothes go in your bag if there’s room, or the bin out front.',
+    ],
+  },
+  {
     v: '2.12',
     date: 'Nov 6',
     items: [

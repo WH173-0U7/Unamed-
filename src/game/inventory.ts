@@ -374,25 +374,39 @@ export function stow(inv: Inventory, it: Omit<InvItem, 'spot' | 'size' | 'kg'> &
  * all fit, nothing changes and you get back the reason. Returns what you
  * took off (or null if you had no bag) on success.
  */
-export function wear(inv: Inventory, slot: 'top' | 'bottom' | 'bag', name: string): { ok: true; old: string | null } | { ok: false; why: string } {
+export function wear(inv: Inventory, slot: 'top' | 'bottom' | 'bag', name: string, leave = false): { ok: true; old: string | null; left: InvItem[] } | { ok: false; why: string } {
   const clothes = [...inv.clothes];
   const at = slot === 'top' ? 0 : slot === 'bottom' ? 1 : 3;
   const old = clothes[at] ?? null;
   clothes[at] = name;
   const spots = spotsFor(clothes, inv.gear);
   // Pack it all again, biggest things first.
-  const trial: Inventory = { purse: inv.purse, items: [], clothes, spots };
+  const trial: Inventory = { purse: inv.purse, items: [], clothes, spots, maxKg: inv.maxKg };
   const order = [...inv.items].sort((a, b) => SIZE_RANK[b.size] - SIZE_RANK[a.size] || b.kg - a.kg);
+  const left: InvItem[] = [];
   for (const it of order) {
     const spot = it.kind === 'weapon' ? hidingSpot(trial, it.size, it.kg, it) : findRoom(trial, it.size, it.kg, it);
-    if (!spot) return { ok: false, why: `You'd have nowhere to put the ${it.name.toLowerCase()}.` };
+    if (!spot) {
+      // (Told to: what won't go anywhere stays behind.)
+      if (leave) {
+        left.push(it);
+        continue;
+      }
+      return { ok: false, why: `You'd have nowhere to put the ${it.name.toLowerCase()}.` };
+    }
     trial.items.push({ ...it, spot: spot.id });
   }
   if (cashFits(inv) && !cashFits(trial)) return { ok: false, why: "You'd have nowhere to put all your cash." };
   inv.clothes = clothes;
   inv.spots = spots;
   inv.items = trial.items;
-  return { ok: true, old };
+  return { ok: true, old, left };
+}
+/** What putting that on would leave with nowhere to go (nothing changes). */
+export function wouldLeave(inv: Inventory, slot: 'top' | 'bottom' | 'bag', name: string): { items: InvItem[]; cash: boolean } {
+  const copy: Inventory = { ...inv, items: [...inv.items], clothes: [...inv.clothes], spots: [...inv.spots] };
+  const r = wear(copy, slot, name, true);
+  return r.ok ? { items: r.left, cash: false } : { items: [], cash: true };
 }
 
 export const spotLabel = (s: Spot) => `${s.on}, ${s.name.toLowerCase()}`;

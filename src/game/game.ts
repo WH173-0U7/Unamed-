@@ -1561,7 +1561,7 @@ export class Game {
     document.getElementById('death')?.remove();
     delete this.save.state.deathScreen;
     this.dead = false;
-    this.running = true;
+    this.running = !this.paused;
     this.phase = 'idle';
     this.hitUi.clear();
     this.refresh();
@@ -2891,8 +2891,10 @@ export class Game {
       if (heals) h.restHealAt = now();
       lines.push(`${firstIn ? 'The fob unlocks it with a clunk. ' : ''}You climb into the back seat, lock the doors and curl up. The windows fog over.`, ...(heals ? passHours(h, REST_HOURS, true, !lieAfter) : []));
       if (h.dead) return this.die(lines);
-      h.cold = 0;
-      h.stress = Math.max(0, (h.stress ?? 0) - 15);
+      if (heals) {
+        h.cold = 0;
+        h.stress = Math.max(0, (h.stress ?? 0) - 15);
+      }
       // (Worn out: you stay down, in real time, and the world goes on meanwhile.)
       if (fatigueNow(h) >= 3) return this.lieDown('car', lines, c.id);
       // (Towed while you slept: you wake to it.)
@@ -3721,14 +3723,18 @@ export class Game {
       h.healedAt = t;
       return;
     }
-    // (Mid-fight, the fight's own body is the one that counts: it catches up after.)
+    // (Mid-fight, the fight's own body is the one that counts: it catches up after.
+    // On the menu, the power screen, out cold: it catches up once you're back, so you see it.)
     const e = this.encounter;
-    if (this.dead || (e && e.stage !== 'seen' && e.stage !== 'over')) return;
+    if (this.dead || this.paused || !this.tvState.on || this.koLines || this.save.state.koLines || (e && e.stage !== 'seen' && e.stage !== 'over')) return;
     const hours = Math.floor((t - h.healedAt) / 3_600_000);
     if (hours < 1) return;
     h.healedAt += hours * 3_600_000;
+    const away = hours >= 2 && !this.jail && h.restingSince == null;
     const lines = passHours(h, Math.min(hours, 24 * 120), h.restingSince != null || !!this.jail, false);
-    if (h.dead) return this.die(lines);
+    if (h.dead) return this.die(away ? ['While you were gone, you kept bleeding.', ...lines] : lines);
+    // (Collapsed from losing blood: whoever was across the street is long gone.)
+    if (lines.some((l) => /You collapse\./.test(l)) && e?.stage === 'seen') this.encounter = null;
     if (lines.length) {
       this.refresh();
       this.note(lines);
@@ -3736,7 +3742,9 @@ export class Game {
   }
   /** A rest's quick healing: once every few hours (after that, the rest takes time). */
   private get restHeals(): boolean {
-    return now() - (this.health.restHealAt ?? 0) >= 4 * 3_600_000;
+    const h = this.health;
+    if ((h.restHealAt ?? 0) > now()) h.restHealAt = 0;
+    return now() - (h.restHealAt ?? 0) >= 4 * 3_600_000;
   }
   /** Kept for later: what happened while you couldn't see it (saved, so a reload keeps it too). */
   private later(lines: string[]) {
@@ -6926,6 +6934,8 @@ export class Game {
   }
 
   update(dt: number) {
+    // (The body first: hours spent inside or lying down heal as that, before the door opens or you get up.)
+    this.healOnClock();
     if (this.jail && !this.dead) this.tickJail();
     else if (this.health.restingSince != null && !this.dead) this.tickRest();
     else this.flushLater();
@@ -6941,7 +6951,6 @@ export class Game {
       // Missed your court date: a warrant.
       const cs = this.case;
       this.settleSelves();
-      this.healOnClock();
       if (cs && !cs.warrant && !this.save.state.bailOffer && !this.jail && now() > cs.courtAt) {
         cs.warrant = true;
         delete cs.warrantFor;

@@ -899,8 +899,10 @@ canvas {
   height: 48px;
   display: flex;
   align-items: center;
+  /* The menu: three short lines (nothing pauses: the clock is the real one). */
+  flex-direction: column;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   border-radius: 50%;
   opacity: 0.4;
   transition: opacity 0.2s;
@@ -914,8 +916,8 @@ body.paused #pause-btn {
   opacity: 1;
 }
 #pause-btn span {
-  width: 4px;
-  height: 18px;
+  width: 20px;
+  height: 2.5px;
   border-radius: 2px;
   background: var(--ink);
 }

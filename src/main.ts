@@ -211,17 +211,22 @@ let saveTimer = 0;
 function saveSoon() {
   clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => {
-    if (game && !game.dead && state !== 'menu') save();
+    if (game && !game.dead && state !== 'menu') save(true);
   }, 600);
 }
-function save(): boolean {
+/** When saving last failed and said so (said once a minute at most, not after every tap). */
+let failSaid = -Infinity;
+function save(quiet = false): boolean {
   if (!game) return false;
   const ok = game.saveNow();
   if (!ok && staleWrite) {
     openedElsewhere();
     return false;
   }
-  if (!ok) menu.toast("Couldn't save: storage is full or blocked");
+  if (!ok && (!quiet || performance.now() - failSaid > 60_000)) {
+    failSaid = performance.now();
+    menu.toast("Couldn't save: storage is full or blocked");
+  }
   return ok;
 }
 

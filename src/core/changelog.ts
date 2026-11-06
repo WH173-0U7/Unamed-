@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.09',
+    date: 'Nov 6',
+    items: [
+      'The pause button is a menu button now (three lines), since nothing pauses: the clock is the real one. The menu it opens says Menu, with Back and Main menu.',
+      'Coming back after time away, your body catches up once you’re back in the game, not under the menu or on a dark screen, so you see what happened (and if you bled out while you were gone, it says so).',
+      'Time in jail or lying down heals at the faster rate even when the game was closed for it.',
+      'Collapsing from blood loss clears whoever was across the street. Setting the phone’s clock back no longer locks Rest’s quick healing for weeks. Sleeping in a car only warms and calms you when it’s a real night’s rest.',
+      'If saving ever fails (storage full), it tells you once a minute, not after every tap.',
+    ],
+  },
+  {
     v: '2.08',
     date: 'Nov 6',
     items: [

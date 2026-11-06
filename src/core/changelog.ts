@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.29',
+    date: 'Nov 6',
+    items: [
+      'Fatigue, eased again: exhausted to fresh in about 2 hours in a motel bed, under 3 in a car, about 3 in a doorway, 5 if you don’t rest. Fights, lurking and walking tire you a little less.',
+      'Healing, quicker again: a broken arm or leg in about 7 hours (under 5 lying down), ribs in 5, a concussion in 2, a black eye in under a day; blood comes back half again as fast.',
+    ],
+  },
+  {
     v: '2.28',
     date: 'Nov 6',
     items: [

@@ -69,7 +69,7 @@ export interface Health {
 
 type HealingMark = 'lip' | 'cheek' | 'eye' | 'brow' | 'jaw';
 /** Hours for a mark to heal (game time). A cut brow leaves a scar. */
-export const MARK_HOURS: Record<HealingMark, number> = { lip: 12, cheek: 18, eye: 36, brow: 48, jaw: 200 };
+export const MARK_HOURS: Record<HealingMark, number> = { lip: 8, cheek: 11, eye: 22, brow: 30, jaw: 120 };
 
 /** Stress lost per hour of game time (more when resting). */
 const STRESS_EASE = 6;
@@ -123,28 +123,28 @@ export const HIGH_HOURS = { heroin: 2, fentanyl: 2, meth: 4, tranq: 1 } as const
 
 /** Hours for each kind of break to heal. */
 export const MEND_HOURS: Record<Part, number> = {
-  nose: 4,
-  ribs: 8,
-  'left arm': 12,
-  'right arm': 12,
-  'left leg': 12,
-  'right leg': 12,
-  'left hand': 5,
-  'right hand': 5,
-  'left wrist': 6,
-  'right wrist': 6,
-  'left ankle': 8,
-  'right ankle': 8,
-  collarbone: 9,
+  nose: 3,
+  ribs: 5,
+  'left arm': 7,
+  'right arm': 7,
+  'left leg': 7,
+  'right leg': 7,
+  'left hand': 3,
+  'right hand': 3,
+  'left wrist': 4,
+  'right wrist': 4,
+  'left ankle': 5,
+  'right ankle': 5,
+  collarbone: 6,
   spine: 100000,
 };
-export const CONCUSSION_HOURS = 3;
+export const CONCUSSION_HOURS = 2;
 /** Blood lost per hour at each level of bleeding. */
 const BLEED_PER_HOUR = [0, 60, 200, 600, 1200];
 /** Chance per hour that bleeding eases by a level, by level. */
 const CLOT = [0, 0.6, 0.45, 0.3, 0.15];
 /** Blood your body makes back per hour (when not bleeding). */
-const REGEN_PER_HOUR = 280;
+const REGEN_PER_HOUR = 420;
 /** Each lurk passes this many hours; resting passes `REST_HOURS`. */
 export const LURK_HOURS = 1;
 export const REST_HOURS = 4;
@@ -461,10 +461,10 @@ export function clampClock(h: Health, t = Date.now()) {
 
 /** One injury, for the stats sheet: what it is, what it does to you, how long it lasts. */
 /** Fatigue off an hour, lying down (exhausted to fresh: about 8 hours) and on your feet (a quarter of that). */
-export const FATIGUE_REST_PER_HOUR = 25;
-export const FATIGUE_IDLE_PER_HOUR = 12.5;
+export const FATIGUE_REST_PER_HOUR = 37.5;
+export const FATIGUE_IDLE_PER_HOUR = 19;
 /** Lying down, by where: a bed is best (exhausted to fresh: about 6 h), a car (8 h), a doorway (10 h). */
-export const restRate = (h: Health) => (h.restingSince == null ? FATIGUE_IDLE_PER_HOUR : h.restWhere === 'room' ? 33.4 : h.restWhere === 'car' ? FATIGUE_REST_PER_HOUR : 20);
+export const restRate = (h: Health) => (h.restingSince == null ? FATIGUE_IDLE_PER_HOUR : h.restWhere === 'room' ? 50 : h.restWhere === 'car' ? FATIGUE_REST_PER_HOUR : 30);
 /** Too worn out to do anything but lie down. */
 export const FATIGUE_SPENT = 90;
 export const FATIGUE_NAMES = ['Fresh', 'Tired', 'Worn out', 'Exhausted', 'Spent'];
@@ -485,7 +485,7 @@ export function addFatigue(h: Health, n: number) {
 /** How much worse your odds are, worn out: up to 15% at the end of your rope. */
 export const fatigueOdds = (h: Health) => Math.min(0.15, fatigueNow(h) * 0.0015);
 /** Real time until you're fresh, lying down (ms). */
-export const restLeft = (h: Health) => (fatigueNow(h) / (h.restingSince != null ? restRate(h) : 33.4)) * 3_600_000;
+export const restLeft = (h: Health) => (fatigueNow(h) / (h.restingSince != null ? restRate(h) : 50)) * 3_600_000;
 
 export interface InjuryInfo {
   name: string;
@@ -541,7 +541,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
         status: true,
         meter: { k: Math.min(1, f / 100), text: `${Math.round(f)} / 100` },
         effects: [`Stamina in a fight: −${Math.round(f * 0.4)}%`, `Your blows, and the odds on everything you try: −${Math.round(Math.min(15, f * 0.15))}%`, ...(lv >= 4 ? ['Too worn out to lurk: you need to lie down'] : [])],
-        heals: `${h.restingSince != null ? 'Lying down: fresh' : 'In a bed (your motel room): fresh'} in about ${left < 1 ? `${Math.max(1, Math.round(left * 60))} minutes` : `${Math.round(left * 10) / 10} hours`}, real time. A car takes longer, a doorway longer still. Otherwise, game open or closed, it wears off by itself (about 8 hours from exhausted).`,
+        heals: `${h.restingSince != null ? 'Lying down: fresh' : 'In a bed (your motel room): fresh'} in about ${left < 1 ? `${Math.max(1, Math.round(left * 60))} minutes` : `${Math.round(left * 10) / 10} hours`}, real time. A car takes longer, a doorway longer still. Otherwise, game open or closed, it wears off by itself (about 5 hours from exhausted).`,
       });
     }
   }

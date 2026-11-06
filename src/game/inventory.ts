@@ -39,6 +39,8 @@ export interface InvItem {
   noPin?: boolean;
   /** You asked them for its PIN already. */
   pinAsked?: boolean;
+  /** Nothing in it: the machine said so. */
+  empty?: boolean;
   /** Your own ID (which life it's for: see World.lives). Never evidence. */
   own?: number;
   /** Something to drink (beer, liquor, an energy drink), swigs in `doses`. */

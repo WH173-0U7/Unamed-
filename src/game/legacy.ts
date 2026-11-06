@@ -53,7 +53,7 @@ export function robBody(w: World, inv: Inventory, e: Encounter | null): boolean 
   if (!loot.length) return false;
 
   let thief: Thief | undefined;
-  if (e && !e.them.out && !e.them.dead && e.stage !== 'seen') {
+  if (e && !e.them.out && !e.them.dead && e.stage !== 'seen' && !e.finished) {
     // The one who put you down.
     thief = e.person.thief ? w.thieves.find((t) => t.id === e.person.thief) : undefined;
     if (!thief) {

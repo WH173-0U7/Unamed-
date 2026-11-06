@@ -5335,3 +5335,55 @@ body[data-drug='withdrawal'] #game {
     text-align: left;
   }
 }
+
+/* ================= Nothing on top of anything (see fitStreet) ================= */
+#note.tight {
+  width: min(92vw, 640px);
+}
+#note.tight p {
+  font-size: 12px;
+  line-height: 1.35;
+  margin-bottom: 3px;
+}
+#note.tight p.note-title {
+  font-size: 18px;
+}
+#note.over {
+  z-index: 6;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.88);
+  box-shadow: 0 0 0 1px var(--line), 0 8px 24px rgba(0, 0, 0, 0.8);
+}
+/* The card for who you've seen: room between its two lines. */
+.seen-kind {
+  line-height: 1.12;
+}
+/* No room for the note and the full card: the card shrinks to just who it is. */
+#seen.compact .seen-kind {
+  font-size: clamp(24px, min(7vw, 8vh), 34px);
+}
+#seen.compact .seen-race,
+#seen.compact .seen-tap {
+  display: none;
+}
+#seen.compact .seen-btn {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+#seen.compact .seen-kind {
+  font-size: clamp(22px, min(6vw, 7vh), 30px);
+}
+@media (max-height: 420px) {
+  #lurk-btn,
+  #rest-btn {
+    gap: 4px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  #lurk-btn svg,
+  #rest-btn svg {
+    width: 32px;
+    height: 32px;
+  }
+}

@@ -817,7 +817,7 @@ function rawOptions(e: Encounter): Option[] {
       if (e.finished)
         return [
           ...(e.endOpts ?? []).map((o) => ({ ...o, disabled: true })),
-          { id: 'done', label: e.resident ? 'Back to the house' : 'Leave', hint: e.resident ? undefined : 'Back to the street' },
+          ...((inHouse) => [{ id: 'done', label: inHouse ? 'Back to the house' : 'Leave', hint: inHouse ? undefined : 'Back to the street' }])(!!e.resident && e.result !== 'you-fled'),
         ];
       return [
         ...(e.them.dead ? searchOptions(e) : []),

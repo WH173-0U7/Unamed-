@@ -591,10 +591,96 @@ export class Game {
     const top = low ? Math.max(...[this.seenEl.querySelector('button'), this.lurkBtn.hidden ? null : this.lurkBtn].map((x) => x?.getBoundingClientRect().bottom ?? 0)) : 0;
     const vr = this.view.getBoundingClientRect();
     this.noteEl.style.top = top ? `${Math.round(top - vr.top + 8)}px` : '';
+    this.fitStreet();
     this.noteEl.style.animation = 'none';
     void this.noteEl.offsetWidth;
     this.noteEl.style.animation = '';
     this.noteTimer = sticky ? 0 : 3 + lines.length * 1.2;
+  }
+  /**
+   * The street screen, laid out so nothing sits on anything else: the card
+   * for who you've seen clear of the clock, and the note wherever there's a
+   * gap for it (under the card, over it, under Lurk), smaller if it has to be.
+   */
+  private fitStreet() {
+    const vr = this.view.getBoundingClientRect();
+    if (!vr.height) return;
+    const box = (el: Element | null) => {
+      if (!el || (el as HTMLElement).hidden || !el.getClientRects().length) return null;
+      const r = el.getBoundingClientRect();
+      return r.width && r.height ? r : null;
+    };
+    const hits = (a: DOMRect, b: DOMRect | null, pad = 4) => !!b && a.left < b.right + pad && a.right > b.left - pad && a.top < b.bottom + pad && a.bottom > b.top - pad;
+    // The card: never up under the clock.
+    const card = this.seenEl.querySelector('button');
+    this.seenEl.style.marginTop = '';
+    this.seenEl.classList.remove('compact');
+    const idleBar = document.getElementById('idle-bar');
+    if (idleBar) idleBar.style.transform = '';
+    const clock = box(document.getElementById('clock'));
+    const statsEl = document.getElementById('stats');
+    const stats = box(statsEl);
+    const cb = box(card);
+    if (cb && clock && hits(cb, clock, 6)) this.seenEl.style.marginTop = `${Math.ceil(clock.bottom + 8 - cb.top)}px`;
+    // The note.
+    const note = this.noteEl;
+    if (note.hidden) return;
+    note.classList.remove('tight');
+    let fixed: DOMRect[] = [];
+    const measure = () => {
+      fixed = [stats, clock, box(card), ...[this.lurkBtn, this.restBtn, this.youBtn, this.goBtn, this.bagBtn].map((b) => box(b))].filter((x): x is DOMRect => !!x);
+    };
+    measure();
+    const clear = () => {
+      const nb = note.getBoundingClientRect();
+      return nb.bottom <= vr.bottom - 2 && !fixed.some((f) => hits(nb, f));
+    };
+    if (clear()) return;
+    // Somewhere else, top to bottom: under the clock and the stats, under the card, under Lurk.
+    // (Then smaller, then with the card cut down to just who it is.)
+    for (const step of ['', 'tight', 'compact']) {
+      if (step === 'tight') note.classList.add('tight');
+      if (step === 'compact' && card) {
+        this.seenEl.classList.add('compact');
+        this.seenEl.style.marginTop = '';
+        const c2 = box(card);
+        if (c2 && clock && hits(c2, clock, 6)) this.seenEl.style.marginTop = `${Math.ceil(clock.bottom + 8 - c2.top)}px`;
+        measure();
+      }
+      const tops = [Math.max(clock?.bottom ?? 0, stats?.bottom ?? 0) + 8, ...[box(card), box(this.lurkBtn), box(this.restBtn)].filter((x): x is DOMRect => !!x).map((x) => x.bottom + 8)];
+      for (const t of tops) {
+        note.style.top = `${Math.round(t - vr.top)}px`;
+        if (clear()) return;
+      }
+    }
+    const tops = [Math.max(clock?.bottom ?? 0, stats?.bottom ?? 0) + 8];
+    // Still nothing: the note up under the clock, and the card moved down under it, if there's room above Lurk.
+    if (card) {
+      note.style.top = `${Math.round(tops[0] - vr.top)}px`;
+      const nb = note.getBoundingClientRect();
+      this.seenEl.style.marginTop = '';
+      const c0 = card.getBoundingClientRect();
+      this.seenEl.style.marginTop = `${Math.ceil(nb.bottom + 6 - c0.top)}px`;
+      const c1 = card.getBoundingClientRect();
+      // (Lurk can drop down toward the You tab, if it has to.)
+      const bar = document.getElementById('idle-bar');
+      const lb = [box(this.lurkBtn), box(this.restBtn)].filter((x): x is DOMRect => !!x);
+      const you = box(this.youBtn);
+      if (bar && lb.length) {
+        const low = Math.max(...lb.map((x) => x.bottom));
+        const top = Math.min(...lb.map((x) => x.top));
+        const room = Math.max(0, (you ? you.top - 4 : vr.bottom - 4) - low);
+        const need = Math.max(0, c1.bottom + 4 - top);
+        if (need && need <= room) bar.style.transform = `translateY(${Math.ceil(need)}px)`;
+      }
+      const under = [box(this.lurkBtn), box(this.restBtn), box(this.youBtn)].filter((x): x is DOMRect => !!x);
+      if (!under.some((u) => hits(c1, u, 2)) && c1.bottom <= vr.bottom) return;
+      if (bar) bar.style.transform = '';
+      this.seenEl.style.marginTop = '';
+    }
+    // No gap anywhere: it goes over the rest on its own dark panel, so it still reads.
+    note.classList.add('tight', 'over');
+    note.style.top = `${Math.round((tops[0] ?? 40) - vr.top)}px`;
   }
   /** The note that waits for you (see note): up until you tap, lurk, rest or go somewhere. */
   private noteSticky = false;
@@ -919,8 +1005,8 @@ export class Game {
       const quietLeave = e.result === 'left' && !e.fought && !e.chased && !e.robbed && !e.mugged;
       if (!ko && e.deal?.kind !== 'sting' && !quietLeave) {
         // (Not again what the log already says, just above.)
-        const said = new Set(e.log.slice(Math.max(0, logFrom - 1), fightTo).map((l) => l.text));
-        e.log.splice(fightTo, 0, ...[lines[0], ...how.filter((t) => !said.has(t))].map((text) => ({ by: 'info' as const, text, end: true })));
+        const said = new Set(e.log.slice(0, fightTo).map((l) => l.text));
+        e.log.splice(fightTo, 0, ...[lines[0], ...how].filter((t, i) => i === 0 ? !e.log.slice(Math.max(0, logFrom), fightTo).some((l) => l.text === t) : !said.has(t)).map((text) => ({ by: 'info' as const, text, end: true })));
         e.finished = true;
         e.endOpts = optsBefore;
         this.save.state.endLines = lines;
@@ -2015,6 +2101,7 @@ export class Game {
       const avail = Math.floor(Math.min(behind, cap) / 2000);
       if (avail <= 0) {
         card.drained = true;
+        card.empty = true;
         lines.push(`You type ${card.pin}. It works. You ask for $20, and the screen says INSUFFICIENT FUNDS. ${credit ? 'Maxed out.' : 'There’s nothing in there.'} The card’s no use to you now.`);
         f.heat = Math.min(100, f.heat + 4 * (1 - anon));
         this.refresh();
@@ -2218,7 +2305,7 @@ export class Game {
     if (h.drunk >= 90) {
       lines.push('The street tips over. You sit down hard, and then you are somewhere else entirely.');
       // Hours go by, as with resting: whoever you were watching is long gone.
-      if (this.encounter?.stage === 'seen' || this.encounter?.stage === 'over') this.encounter = null;
+      this.dropEncounter();
       this.unstick();
       this.wipeBlood();
       lines.push(...passHours(h, 3));
@@ -3465,7 +3552,7 @@ export class Game {
     } else {
       const h = this.health;
       // (An hour by the fire: whoever was across the street is gone, and the moment's passed.)
-      if (this.encounter?.stage === 'seen' || this.encounter?.stage === 'over') this.encounter = null;
+      this.dropEncounter();
       this.unstick();
       lines.push(`You get a fire going in an old oil drum, with ${kindling} for kindling. You hold your hands over it until the feeling comes back.`);
       lines.push(...passHours(h, 1));
@@ -3561,7 +3648,7 @@ export class Game {
       }
       lines.push('Your breathing slows to almost nothing, and the world goes out.');
       // (Hours out: whoever was lying here is long gone.)
-      if (this.encounter?.stage === 'seen' || this.encounter?.stage === 'over') this.encounter = null;
+      this.dropEncounter();
       this.unstick();
       lines.push(...passHours(h, 4));
       if (h.dead) {
@@ -3597,7 +3684,7 @@ export class Game {
     } else {
       lines.push("A heavy, sick drowsiness pulls you down before you can get the needle out. You're out where you sit.");
       // (Hours out: whoever was lying here is long gone.)
-      if (this.encounter?.stage === 'seen' || this.encounter?.stage === 'over') this.encounter = null;
+      this.dropEncounter();
       this.unstick();
       lines.push(...passHours(h, 4));
       if (h.dead) return this.die(lines);
@@ -3959,6 +4046,13 @@ export class Game {
   }
   /** What walking off from a confrontation looked like (said on arriving wherever you went). */
   private offLines: string[] = [];
+  /** Blacked out or nodded off with someone across the street, or a fight just over: it's gone (and a fight in a house counts for what it was). */
+  private dropEncounter() {
+    const e = this.encounter;
+    if (!e || (e.stage !== 'seen' && e.stage !== 'over')) return;
+    if (e.stage === 'over' && e.resident) this.afterResidentFight(e);
+    this.encounter = null;
+  }
   /** Out of the house you're at: a fight in there counts for what it was, and the job's done. */
   private walkOutOfHome() {
     // Walking off while they stand there looking at you: that's running, and they saw you.
@@ -5044,7 +5138,7 @@ export class Game {
       const usable = cards.filter(({ x }) => x.pin && !x.drained);
       body += usable.length
         ? usable.map(({ x, i }) => li(named(x, `Cash machine · ${x.name}`), `${x.detail ? `${x.detail}'s card · ` : ''}PIN ${x.pin}. There's a camera over the screen.`, btn('atm', i, 'Withdraw'))).join('')
-        : li('Cash machine', cards.some(({ x }) => x.drained) && !cards.some(({ x }) => !x.drained && !x.pin) ? "The cards you had PINs for have been stopped." : cards.every(({ x }) => x.noPin && x.pinAsked) ? 'The cards you have don’t have PINs: no use at a machine.' : cards.length ? "You've got cards, but no PIN for them. Someone would have to tell you." : 'Any hour. You need a card, and its PIN.', btn('atm', -1, 'Use', 'No card with a PIN'));
+        : li('Cash machine', cards.some(({ x }) => x.drained) && !cards.some(({ x }) => !x.drained && !x.pin) ? (cards.every(({ x }) => !x.drained || x.empty) ? 'The cards you had PINs for have nothing on them.' : 'The cards you had PINs for have been stopped.') : cards.every(({ x }) => x.noPin && x.pinAsked) ? 'The cards you have don’t have PINs: no use at a machine.' : cards.length ? "You've got cards, but no PIN for them. Someone would have to tell you." : 'Any hour. You need a card, and its PIN.', btn('atm', -1, 'Use', 'No card with a PIN'));
       body += `</ul>`;
     } else if (place === 'room') {
       // The Hotel Marlow: a room by the week.
@@ -5297,7 +5391,7 @@ export class Game {
                             : x.opens
                             ? `${x.detail ? `${x.detail} · ` : ''}${((h) => (h ? `Opens ${h.addr}${this.atHome === h ? " (you're here)" : ''}` : 'Whose door, you’d need an address to know'))(this.homeById(x.opens))}`
                             : /card/.test(x.kind) && (x.pin || x.drained)
-                            ? `${x.detail ? `${x.detail} · ` : ''}${x.drained ? 'Stopped' : `PIN ${x.pin} (cash machine at the bank)`}`
+                            ? `${x.detail ? `${x.detail} · ` : ''}${x.drained ? (x.empty ? 'Nothing in the account' : 'Stopped') : `PIN ${x.pin} (cash machine at the bank)`}`
                             : x.detail;
                 const act = (attr: string, label: string, no?: string | null) => `<button type="button" data-${attr}="${i}" ${no ? `disabled title="${no}"` : ''}>${label}${no ? `<small>${no}</small>` : ''}</button>`;
                 let acts = m && m.id !== 'testkit' ? act('use', 'Use', why) : '';
@@ -5417,6 +5511,7 @@ export class Game {
       btn.onclick = () => this.act('open');
       this.seenEl.append(btn);
     }
+    this.fitStreet();
     if (e) this.prime(e);
     this.encView.render(this.tvState.on ? e : null);
     this.renderStats();

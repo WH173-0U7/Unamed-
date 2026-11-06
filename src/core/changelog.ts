@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.81',
+    date: 'Nov 6',
+    items: [
+      'Nothing sits on top of anything on the street screen any more: a note finds the gap (under the card, over it, under Lurk), goes smaller if it has to, and the card for who you’ve seen moves out of its way. The card never runs up under the clock.',
+      'After a fight: overdosing or blacking out on the end screen counts the fight properly (and nobody who left robs your body); running out of a house says Leave, not Back to the house; the ending doesn’t repeat what the log already said; an empty card says so, not “Stopped”.',
+    ],
+  },
+  {
     v: '1.80',
     date: 'Nov 6',
     items: [

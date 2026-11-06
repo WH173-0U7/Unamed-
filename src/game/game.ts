@@ -74,7 +74,7 @@ const VIG_DAYS = 14;
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 /** At an address: outside, or in, and what's happened so far. */
 /** Everything in the save that's this character's (not the world's). */
-const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail'];
+const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'laterLines'];
 /** What only makes sense in the moment (a stop, a fight, a door you're at): not kept when you stop being them. */
 const MOMENT_KEYS = ['encounter', 'policeStop', 'policeResult', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow'];
 /**
@@ -580,12 +580,11 @@ export class Game {
   /** A few lines shown in the middle of the screen for a while. */
   private note(lines: string[], sticky = false) {
     if (!lines.length) return;
-    // Mid-fight, it goes in the fight's log (not over the top of it).
     const fight = this.encounter;
-    // (And on the screen where it ended: under the last of the log, not on top of it.)
-    if (fight && fight.stage !== 'seen' && this.tvState.on) {
-      for (const text of lines) fight.log.push({ by: 'info', text });
-      this.refresh();
+    // The beat after a fight ends (the screen's about to change), lying down, inside:
+    // it waits, and shows once there's a screen to show it on.
+    if ((this.ending && fight) || (!this.running && (this.health.restingSince != null || this.jailed))) {
+      this.later(lines);
       return;
     }
     // In a shop, or with a sheet open, what happened shows right there (the
@@ -593,11 +592,22 @@ export class Game {
     if (this.sheet === 'stats' || this.sheet === 'pockets') {
       this.sheetNote = lines;
       this.renderSheet();
-      // (A note waiting on the street stays as it was.)
+      // (A note waiting on the street stays as it was; and mid-fight, the log has it too.)
+      if (fight && fight.stage !== 'seen' && this.tvState.on) {
+        for (const text of lines) fight.log.push({ by: 'info', text });
+        return;
+      }
       if (this.noteSticky && !this.noteEl.hidden) return;
     } else if (this.sheet) {
       // (Places and the police have no room for it: it waits until they close.)
       this.heldNote = [...this.heldNote, ...lines];
+      return;
+    }
+    // Mid-fight, it goes in the fight's log (not over the top of it).
+    // (And on the screen where it ended, or beside a body: under the last of the log.)
+    if (fight && fight.stage !== 'seen' && this.tvState.on) {
+      for (const text of lines) fight.log.push({ by: 'info', text });
+      this.refresh();
       return;
     }
     if (this.place !== 'street' && this.tvState.on && !this.encounter) {
@@ -785,7 +795,8 @@ export class Game {
     this.encounter = null;
     this.wipeBlood();
     const raining = WET_AMOUNT[this.weather.now] > 0;
-    const lines = [raining ? `You find a doorway out of the ${isSnow(this.weather.now) ? 'snow' : 'rain'} and rest for a few hours.` : 'You find somewhere quiet and rest for a few hours.', ...passHours(this.health, REST_HOURS, true)];
+    const lieAfter = fatigueNow(this.health) >= 3;
+    const lines = [raining ? `You find a doorway out of the ${isSnow(this.weather.now) ? 'snow' : 'rain'} and rest for a few hours.` : 'You find somewhere quiet and rest for a few hours.', ...passHours(this.health, REST_HOURS, true, !lieAfter)];
     if (this.health.dead) return this.die(lines);
     const h = this.health;
     if (h.cold) {
@@ -876,6 +887,8 @@ export class Game {
     this.restLines = [];
     this.running = !this.paused && !this.jail && !this.dead;
     const f = Math.round(fatigueNow(h));
+    const meanwhile = (this.save.state.laterLines as string[] | undefined) ?? [];
+    delete this.save.state.laterLines;
     const lines = [rested ? (where === 'room' ? 'You wake up in the motel room, rested. The street’s still out there.' : where === 'car' ? 'You wake up in the back seat, stiff, but rested.' : 'You wake up against the wall, rested. Nobody bothered you.') : `You get up${slept < 10 * 60_000 ? ' after a few minutes' : ''}. ${f >= 20 ? `Still ${FATIGUE_NAMES[fatigueLevel(f)].toLowerCase()}.` : 'Good enough.'}`];
     // (Towed while you slept: you wake to it.)
     const c = car ? this.carById(car) : undefined;
@@ -892,7 +905,7 @@ export class Game {
       return this.carCops(c, lines, 'asleep');
     }
     this.refresh();
-    this.note(lines);
+    this.note([...lines, ...meanwhile]);
     buzz(rested ? [30, 20, 30] : 8);
   }
 
@@ -1081,7 +1094,7 @@ export class Game {
     const stageBefore = e.stage;
     const impacts = act(e, id, this.stats, this.inventory, (this.save.state.moves ??= {}) as Record<string, number>);
     // Fighting wears you down: every move (more for a chase, a lot more for being beaten senseless).
-    if (!wasOver && stageBefore !== 'seen' && stageBefore !== 'menu' && stageBefore !== 'surveil') {
+    if (!wasOver && stageBefore !== 'seen' && stageBefore !== 'menu' && stageBefore !== 'surveil' && !id.startsWith('search') && !id.startsWith('take')) {
       addFatigue(this.health, 1.3 + (e.chase ? 1 : 0) + (e.stage === 'over' && e.result === 'lost' ? 10 : 0));
     }
     this.settleDeal(e);
@@ -1715,7 +1728,6 @@ export class Game {
     if (p === this.place || HIDDEN_PLACES.has(p)) return;
     if (p === 'home' && !this.homeById(this.save.state.homeAt)) return;
     // (On foot, across town: it adds up.)
-    if (p !== 'street') addFatigue(this.health, 0.8);
     if (p === 'car' && !this.carById(this.save.state.carAt) && !this.save.state.hunt) return;
     // Thrown out of the pawn shop: he won't let you back in for a while.
     // (Checked before anything else: turned away, you're still where you were.)
@@ -1724,6 +1736,8 @@ export class Game {
       this.note(['He sees you through the glass and shakes his head. The door stays locked.']);
       return;
     }
+    // (On foot, across town: it adds up.)
+    if (p !== 'street') addFatigue(this.health, 0.8);
     // Walking away from an address: if you were in, it's done (and a fight in there counts for what it was).
     if (this.place === 'home') this.walkOutOfHome();
     if (this.place === 'car') this.leaveCar();
@@ -2854,7 +2868,8 @@ export class Game {
       c.slept = now();
       this.unstick();
       const h = this.health;
-      lines.push(`${firstIn ? 'The fob unlocks it with a clunk. ' : ''}You climb into the back seat, lock the doors and curl up. The windows fog over.`, ...passHours(h, REST_HOURS, true));
+      const lieAfter = fatigueNow(h) >= 3;
+      lines.push(`${firstIn ? 'The fob unlocks it with a clunk. ' : ''}You climb into the back seat, lock the doors and curl up. The windows fog over.`, ...passHours(h, REST_HOURS, true, !lieAfter));
       if (h.dead) return this.die(lines);
       h.cold = 0;
       h.stress = Math.max(0, (h.stress ?? 0) - 15);
@@ -3379,6 +3394,12 @@ export class Game {
       if (pending.warrantFor === 'sting') lines.push('At the station they run your name. There\'s a warrant out for you: the buy you ran from.');
       serveStings();
     }
+    // (Caught running, wanted for an escape: that's what they book you on.)
+    if (arrested && pending?.warrant && pending.warrantFor === 'escape' && !charges.some((x) => /escape/i.test(x)) && pending.charges.some((x) => /escape/i.test(x))) {
+      lines.push('At the station they run your name. There\'s a warrant out for you: the escape.');
+      charges.push(...pending.charges.filter((x) => /escape/i.test(x)));
+      pending.charges = pending.charges.filter((x) => !/escape/i.test(x));
+    }
     if (arrested && pending?.warrant && pending.warrantFor !== 'sting' && pending.warrantFor !== 'escape' && !charges.includes('Failure to appear')) {
       lines.push('At the station they run your name. There\'s a warrant out for you, too.');
       charges.push('Failure to appear');
@@ -3601,12 +3622,13 @@ export class Game {
       lines.push('You give your name at the desk. The clerk looks at her screen, then at the deputy. You\'re cuffed in the hall: there\'s a warrant out for you.');
       const fta = c.warrantFor !== 'sting' && c.warrantFor !== 'escape';
       if (fta) c.charges.push('Failure to appear');
+      const escaped = c.warrantFor === 'escape';
       c.warrant = false;
       delete c.warrantFor;
       const rec = this.record;
       rec.arrests++;
       if (fta) rec.charges['Failure to appear'] = (rec.charges['Failure to appear'] ?? 0) + 1;
-      if (c.warrantFor === 'escape') for (const x of c.charges.filter((y) => /escape/i.test(y))) rec.charges[x] = (rec.charges[x] ?? 0) + 1;
+      if (escaped) for (const x of c.charges.filter((y) => /escape/i.test(y))) rec.charges[x] = (rec.charges[x] ?? 0) + 1;
       if (c.stingPending) rec.charges['Selling a controlled substance'] = (rec.charges['Selling a controlled substance'] ?? 0) + c.stingPending;
       delete c.stingPending;
       rec.last = now();
@@ -3664,9 +3686,22 @@ export class Game {
     this.selves.forEach((x, i) => {
       if (x.status !== 'inside' || i > 5) return;
       if (x.van != null && x.van > t) out.push({ id: 10 + i, at: x.van - 30 * 60_000, title: 'The van', body: `${x.name} gets moved in half an hour. The loading dock behind the County Courthouse.` });
-      else if (x.hearingAt == null && x.until > t) out.push({ id: 10 + i, at: x.until, title: 'Out', body: `${x.name} has done their time. They're out on the streets.` });
+      if (x.hearingAt == null && x.until > t) out.push({ id: 20 + i, at: x.until, title: 'Out', body: `${x.name} has done their time. They're out on the streets.` });
     });
     return out;
+  }
+  /** Kept for later: what happened while you couldn't see it (saved, so a reload keeps it too). */
+  private later(lines: string[]) {
+    this.save.state.laterLines = [...((this.save.state.laterLines as string[] | undefined) ?? []), ...lines].slice(-6);
+  }
+  /** Shown once there's a street to show it on. */
+  private flushLater() {
+    const xs = this.save.state.laterLines as string[] | undefined;
+    if (!xs?.length) return;
+    const e = this.encounter;
+    if (!this.running || !this.tvState.on || this.ending || this.dead || this.jail || this.health.restingSince != null || this.sheet || (e && e.stage !== 'seen')) return;
+    delete this.save.state.laterLines;
+    this.note(xs);
   }
   /** Where you're held, and until when (real time: the game's clock is yours). */
   private get jail(): Jail | undefined {
@@ -3979,10 +4014,9 @@ export class Game {
         c.bailPaid = 0;
         this.save.state.case = c;
         this.infamy.heat = 100;
-        if (lost) this.heldNote = [...this.heldNote, `The ${money(lost)} bail you put up for yourself is gone now.`];
         buzz([80, 40, 80, 40, 160]);
         this.refresh();
-        this.chooseSelf(x, [`You wait behind the dumpsters by the loading dock. The door clanks, and two deputies walk them out in a line, cuffed, toward the van.`, `You go. One deputy goes down hard; the other’s on the radio. ${x.name} is already running, and you’re running with them.`, 'By the time the sirens start, you’re four blocks away. There’ll be warrants out for both of you.']);
+        this.chooseSelf(x, [`You wait behind the dumpsters by the loading dock. The door clanks, and two deputies walk them out in a line, cuffed, toward the van.`, `You go. One deputy goes down hard; the other’s on the radio. ${x.name} is already running, and you’re running with them.`, `By the time the sirens start, you’re four blocks away. There’ll be warrants out for both of you.${lost ? ` The ${money(lost)} bail you put up for yourself is gone now.` : ''}`]);
       } else {
         // Caught: in there with them.
         const inv = this.inventory;
@@ -5526,14 +5560,18 @@ export class Game {
     }
     if (what === 'sleep' && this.roomRented) {
       const r = this.room!;
-      if (now() - ((r as { slept?: number }).slept ?? 0) < 4 * 3_600_000 && fatigueNow(h) < 3) {
+      const recent = now() - ((r as { slept?: number }).slept ?? 0) < 4 * 3_600_000;
+      if (recent && fatigueNow(h) < 3) {
         this.note(["You lie down, but you're not tired. You stare at the water stain on the ceiling until you give up."]);
         return;
       }
-      (r as { slept?: number }).slept = now();
       this.unstick();
+      // (Just slept: lying down again rests you, but the night's healing was had already.)
+      if (recent) return this.lieDown('room', ['You lock the door again and lie back down.']);
+      (r as { slept?: number }).slept = now();
       const was = h.cold ?? 0;
-      const lines = ['You lock the door, wedge the chair under the handle, and sleep. Eight hours. Nobody comes.', ...passHours(h, 8, true)];
+      const lieAfter = fatigueNow(h) >= 3;
+      const lines = ['You lock the door, wedge the chair under the handle, and sleep. Eight hours. Nobody comes.', ...passHours(h, 8, true, !lieAfter)];
       if (h.dead) return this.die(lines);
       h.cold = 0;
       h.stress = Math.max(0, (h.stress ?? 0) - 30);
@@ -6833,6 +6871,7 @@ export class Game {
   update(dt: number) {
     if (this.jail && !this.dead) this.tickJail();
     else if (this.health.restingSince != null && !this.dead) this.tickRest();
+    else this.flushLater();
     if (this.running) {
       this.tickSmoke(dt);
       // Withdrawal: stress that won't settle.
@@ -6850,7 +6889,9 @@ export class Game {
         delete cs.warrantFor;
         cs.bailPaid = 0;
         this.infamy.heat = Math.min(100, this.infamy.heat + 40);
-        if (this.running && this.tvState.on) this.note(['You missed your court date. There\'s a warrant out for you now, and your bail is gone.']);
+        const missed = ['You missed your court date. There\'s a warrant out for you now, and your bail is gone.'];
+        if (this.running && this.tvState.on) this.note(missed);
+        else this.later(missed);
       }
       const was = this.weather.now;
       if (updateWeather(this.weather) && this.running && this.tvState.on && this.weather.now !== was && !this.inside) {

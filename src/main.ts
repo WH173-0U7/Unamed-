@@ -413,7 +413,7 @@ if (!reloading) void checkForUpdates(true);
 if (isApp()) {
   void App.addListener('backButton', () => {
     if (state === 'playing') pause();
-    else if (menu.current === 'settings' || menu.current === 'confirm') menu.back();
+    else if (menu.current === 'settings' || menu.current === 'confirm' || menu.current === 'news') menu.back();
     else if (state === 'paused') resume();
     else void App.minimizeApp();
   });

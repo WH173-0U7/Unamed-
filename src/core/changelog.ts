@@ -11,6 +11,18 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.03',
+    date: 'Nov 6',
+    items: [
+      'Missing your court date while lying down or locked up now tells you so when you’re back up, instead of saying nothing. Anything else that happened while you couldn’t see the screen waits for you the same way, including the moment a fight ends.',
+      'Sleeping in your room or a car no longer makes highs, drink and cravings jump eight hours on top of the real time you lie there. Lying back down soon after a night’s sleep rests you, without healing you a second time.',
+      'Using something from Pockets beside a body shows what happened right there again.',
+      'Escape charges always reach your record: turning yourself in with an escape warrant, and getting caught running from a stop.',
+      'Broken arms and fatigue count against ambushes and shooting. With both arms broken you can’t torture anyone. Worn out, catching your breath only gets you back up to what you’ve got left.',
+      'Someone who bleeds out after you let them go no longer shows as still bleeding. Looting a body doesn’t tire you. A paralysed person doesn’t scream at an ankle they can’t feel.',
+    ],
+  },
+  {
     v: '2.02',
     date: 'Nov 6',
     items: [

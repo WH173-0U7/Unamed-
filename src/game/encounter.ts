@@ -488,6 +488,8 @@ function yieldedOptions(e: Encounter): Option[] {
   // A broken arm twisted, once each (doing it again is just doing it again).
   const twistable = T.broken.filter((x) => /arm$/.test(x) && !asked.includes(`twist:${x}`));
   if (T.broken.some((x) => /arm$/.test(x))) out.push({ id: 't-twist', label: 'Twist the broken arm', hint: twistable.length ? undefined : 'You’ve done that', disabled: !twistable.length, cat: 'torture' });
+  // (Both your arms broken: none of that is anything you can do.)
+  if (arms(e.you) >= 2) for (const o of out) if (['t-finger', 't-twist', 't-blade', 't-cut'].includes(o.id)) Object.assign(o, { disabled: true, hint: 'Your arms are broken' });
   out.push({ id: 'punch', label: 'Hit them anyway', hint: 'It turns back into a fight', cat: 'attack' });
   out.push({ id: 'let-go', label: 'Let them go', hint: e.robbed ? 'With what you took' : undefined });
   return out;
@@ -1248,7 +1250,10 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
     // Lands more often the sneakier you are, the less aware they are, and the
     // closer you got first. Bum rush and shove are easier to land than a punch.
     const extra = id === 'shove' ? 0.12 : id === 'bumrush' ? 0.06 : id === 'kneecap' ? 0.04 : id === 'slam' ? -0.02 : id === 'rear-choke' ? -0.08 : 0;
-    const chance = clamp([0.8, 0.65, 0.45, 0.3][aw] + e.distance * 0.06 + ambushBonus(stats) + extra - b.guard * 0.5 - (e.suspicion / 100) * 0.4, 0.05, 0.97);
+    // (Broken arms, a broken leg for the kick, worn out or shaking: it shows.)
+    const yb = e.you;
+    const hurt = (id === 'kneecap' ? legs(yb) * 0.25 : arms(yb) * 0.2) + (yb.shakes ?? 0);
+    const chance = clamp([0.8, 0.65, 0.45, 0.3][aw] + e.distance * 0.06 + ambushBonus(stats) + extra - hurt - b.guard * 0.5 - (e.suspicion / 100) * 0.4, 0.05, 0.97);
     if (e.distance === 0) say('you', oneOf(['You cross the street toward them.', 'You step off the curb and close in.', 'You cross over, straight at them.']));
     e.stage = 'combat';
     spend('you', COST.ambush);
@@ -1288,7 +1293,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         }
       } else if (id === 'rear-choke') {
         e.them.stamina = Math.max(0, e.them.stamina - 60);
-        if (Math.random() < 0.5 + (lvl - CHOKE_AMBUSH_LEVEL) * 0.01) {
+        if (Math.random() < 0.5 + (lvl - CHOKE_AMBUSH_LEVEL) * 0.01 - arms(e.you) * 0.2) {
           e.them.out = true;
           e.them.down = true;
           e.them.awake = -8; // choked out: back in seconds
@@ -1866,7 +1871,7 @@ function shoot(it: { name: string; doses?: number }) {
   scare(45);
   you.gain('weapons', 4);
   const bang = g.power > 1.5 ? 'The shotgun goes off with a boom that rolls down the street.' : first ? 'The gun goes off, deafening between the buildings.' : 'Another shot cracks off the walls.';
-  const hit = T.out || T.dead ? 0.97 : clamp(g.acc + weaponAccuracy(you.stats) - stressPenalty(y) - (y.dazed ? 0.2 : 0) - (y.blinded > 0 ? 0.35 : 0) - (y.drunk ?? 0) / 300 + (T.down ? 0.1 : 0), 0.08, 0.95);
+  const hit = T.out || T.dead ? 0.97 : clamp(g.acc + weaponAccuracy(you.stats) - stressPenalty(y) - arms(y) * 0.15 - (y.shakes ?? 0) - (y.dazed ? 0.2 : 0) - (y.blinded > 0 ? 0.35 : 0) - (y.drunk ?? 0) / 300 + (T.down ? 0.1 : 0), 0.08, 0.95);
   if (Math.random() >= hit) {
     say('you', `${bang} ${oneOf(['The shot goes wide. Somewhere glass breaks.', 'You miss. The bullet whines off the wall behind them.', 'It goes past them. Your ears are ringing.'])}`);
     return;
@@ -3011,7 +3016,7 @@ function techEffect(t: Technique, newBreaks: Part[] = []) {
           : what === 'wrist'
             ? `There's a pop, and their ${sd} wrist goes loose and wrong.${scream}`
             : what === 'ankle'
-              ? `Their ${sd} ankle rolls under them with a crack.${scream}`
+              ? T.broken.includes('spine') || T.down ? `Their ${sd} ankle snaps.${T.broken.includes('spine') ? ' They don’t feel it.' : scream}` : `Their ${sd} ankle rolls under them with a crack.${scream}`
               : `Their ${sd} knee bends sideways with a crack. The leg's broken.${scream}`,
       );
       // (What they had in that hand goes.)
@@ -3797,6 +3802,7 @@ function bleedOut() {
       T.dead = true;
       T.out = true;
       T.down = true;
+      T.bleeding = 0;
       T.blood = Math.round(blood);
       return;
     }

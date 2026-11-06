@@ -183,7 +183,8 @@ export function bodyFrom(h: Health, stamina: number): Body {
     // (Worn out, you've less to give: at the end of your rope, 60% of it.)
     stamina: Math.round(stamina * (h.lung ? 0.3 : h.broken.includes('ribs') ? 0.5 : 1) * (1 - (h.cold ?? 0) * 0.1) * (h.wired ? 1.25 : 1) * (1 - withdrawalEffects(h).stamina) * (1 - fatigueNow(h) * 0.004)),
     shakes: withdrawalEffects(h).hit + fatigueOdds(h),
-    maxStamina: Math.round(stamina * (h.wired ? 1.25 : 1)),
+    // (Worn out, there's less to get back, too: catching your breath tops you up to that.)
+    maxStamina: Math.round(stamina * (h.wired ? 1.25 : 1) * (1 - fatigueNow(h) * 0.004)),
     lung: h.lung,
     stress: h.stress ?? 0,
     smoking: (h.smokingUntil ?? 0) > Date.now(),

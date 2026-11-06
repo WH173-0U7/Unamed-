@@ -1,4 +1,6 @@
 import './style.css';
+import { installTapFeedback } from './ui/tap';
+installTapFeedback();
 import * as THREE from 'three';
 import { pixelRatioFor } from './core/quality';
 import { enforceFullscreen } from './core/fullscreen';

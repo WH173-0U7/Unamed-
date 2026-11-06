@@ -1475,7 +1475,10 @@ export class Game {
     else if (b.dataset.forget) this.forgetHome(b.dataset.forget);
     else if (b.dataset.mappick) {
       this.mapPick = b.dataset.mappick;
+      const fromList = !!b.closest('.map-list');
       this.renderSheet();
+      // (Picked from the list under the map: bring its card into view.)
+      if (fromList) this.sheetEl.querySelector('.map-card')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     } else if (b.dataset.place) this.goTo(b.dataset.place as Place);
     else if (b.dataset.home) this.goHome(b.dataset.home);
     else if (b.dataset.use) this.useMed(Number(b.dataset.use));
@@ -5109,7 +5112,14 @@ export class Game {
       (isHere ? '' : `<button type="button" class="map-go" ${picked.go}>${picked.key === 'place:street' ? 'Back out to your corner' : 'Walk there'}</button>`) +
       (isHere ? '' : (picked.extra ?? '')) +
       `</div>`;
-    return `${mapHtml(marks)}${card}<p class="map-hint">Tap a place on the map.</p>`;
+    // The addresses and cars you know, as buttons too: easier to tell apart than the pins.
+    const mine = spots.filter((x) => x.tone === 'home' || x.tone === 'car');
+    const list = mine.length
+      ? `<p class="map-list-head">Addresses and cars you know</p><div class="map-list">${mine
+          .map((x) => `<button type="button" data-mappick="${x.key}" data-tone="${x.tone}" class="${x === picked ? 'on' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${x.icon}"/></svg><span><b>${x.name}</b><small>${x === here ? 'You’re here' : `${blocksBetween(here, x)} block${blocksBetween(here, x) === 1 ? '' : 's'} away · ${x.small.replace(/<[^>]+>/g, '').split(' · ')[0]}`}</small></span></button>`)
+          .join('')}</div>`
+      : '';
+    return `${mapHtml(marks)}${card}<p class="map-hint">Tap a place on the map${mine.length ? ', or an address below' : ''}.</p>${list}`;
   }
   /** The You sheet. */
   private renderStatsSheet(card: HTMLElement, close: string) {

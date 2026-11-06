@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.88',
+    date: 'Nov 6',
+    items: [
+      'Under the map, the addresses and cars you know are listed as buttons too, each with whose it is and how far: easier to tell apart than the little house pins. Tap one and its card comes up.',
+      'Every button answers your touch now: it presses in under your finger and a ring of light spreads from where you tapped (switched off if your phone asks for less motion).',
+    ],
+  },
+  {
     v: '1.87',
     date: 'Nov 6',
     items: [

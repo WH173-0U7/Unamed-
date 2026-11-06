@@ -5317,12 +5317,12 @@ body[data-drug='withdrawal'] #game {
   .sheet-body.places:has(.map) {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto auto auto 1fr;
     align-items: start;
     column-gap: 14px;
   }
   .sheet-body.places .map {
-    grid-row: 1 / span 2;
+    grid-row: 1 / span 5;
     width: auto;
     height: calc(100dvh - 130px);
     max-height: 62vw;
@@ -5507,4 +5507,103 @@ body[data-drug='withdrawal'] #game {
   margin-top: 6px;
   font-size: 12px;
   opacity: 0.75;
+}
+
+/* ================= Every button answers a touch (see ui/tap.ts) ================= */
+button {
+  transition:
+    scale 0.12s ease,
+    filter 0.18s ease,
+    color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+button:not(:disabled):active {
+  scale: 0.96;
+  filter: brightness(1.3);
+}
+/* The ring of light from where your finger went down. */
+button.tapped:not(:disabled) {
+  background-image: radial-gradient(circle at var(--tap-x, 50%) var(--tap-y, 50%), rgba(236, 235, 230, 0.22) 0, rgba(236, 235, 230, 0.08) 30%, transparent 60%);
+  background-repeat: no-repeat;
+  animation: tap-ring 0.5s ease-out;
+}
+@keyframes tap-ring {
+  0% { background-size: 10% 10%; background-position: var(--tap-x, 50%) var(--tap-y, 50%); }
+  60% { background-size: 260% 260%; }
+  100% { background-size: 300% 300%; background-image: none; }
+}
+/* Buttons that light up a little when you're over them (or they're focused). */
+@media (hover: hover) {
+  button:not(:disabled):hover {
+    filter: brightness(1.15);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  button {
+    transition: none;
+  }
+  button.tapped:not(:disabled) {
+    animation: none;
+  }
+}
+
+/* ================= Under the map: the addresses you know, as buttons ================= */
+.map-list-head {
+  margin: 14px 2px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.map-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.map-list button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  text-align: left;
+  border-radius: 10px;
+  background: rgba(16, 16, 16, 0.6);
+  box-shadow: inset 0 0 0 1px var(--line);
+  --pin: var(--loot-keys);
+}
+.map-list button[data-tone='car'] {
+  --pin: var(--loot-card);
+}
+.map-list button.on {
+  box-shadow: inset 0 0 0 1.5px var(--pin), 0 0 12px color-mix(in srgb, var(--pin) 25%, transparent);
+}
+.map-list button svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: var(--pin);
+}
+.map-list button > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.map-list button b {
+  color: var(--pin);
+  font-size: 13px;
+}
+.map-list button small {
+  color: var(--ink-dim);
+  font-size: 11px;
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .sheet-body.places .map-list-head,
+  .sheet-body.places .map-list {
+    grid-column: 2;
+  }
 }

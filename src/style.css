@@ -6080,11 +6080,24 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* (Upright: "Catch your breath" on one line, even 320 wide.) */
+/* (Upright: the footer buttons on one line, even 320 wide; their small hints may wrap.) */
 @media (orientation: portrait) {
-  #enc .enc-extra button {
+  body[data-buttons] #enc[data-stage] .enc-extra button {
     white-space: nowrap;
-    font-size: 12px;
+    overflow: visible;
     letter-spacing: 0;
+    font-size: 12px;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+  body[data-buttons] #enc[data-stage] .enc-extra button small {
+    white-space: normal;
+  }
+}
+@media (orientation: portrait) and (max-width: 360px) {
+  body[data-buttons] #enc[data-stage] .enc-extra button {
+    font-size: 11px;
+    padding-left: 2px;
+    padding-right: 2px;
   }
 }

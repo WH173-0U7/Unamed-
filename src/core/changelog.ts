@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.16',
+    date: 'Nov 6',
+    items: ['The fight footer fits on the smallest phones, with its little hints (how far ahead they are) never cut off.'],
+  },
+  {
     v: '2.15',
     date: 'Nov 6',
     items: ['In a fight, the buttons along the bottom (Catch your breath, Run) stay on one line on small phones.'],

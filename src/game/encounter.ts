@@ -448,7 +448,9 @@ function learned(e: Encounter, list: (Omit<Option, 'cat'> & { level: number; sty
   const handsGone = arms(e.you) >= 1;
   const usable = new Set(known.filter((o) => !o.disabled && !(handsGone && (o.id === 'tech:double' || o.id === 'floor:pull'))).map((o) => o.id));
   // (The old one comes back only when it can be used itself: no second dead button.)
-  return known.filter((o) => !REPLACED_BY.some(([old, by]) => old === o.id && (usable.has(by) || !usable.has(old))));
+  // (Only once the replacement is learned at all: before that, the old move is just a move, greyed when you're too tired.)
+  const has = new Set(known.map((o) => o.id));
+  return known.filter((o) => !REPLACED_BY.some(([old, by]) => old === o.id && has.has(by) && (usable.has(by) || !usable.has(old))));
 }
 /** What style a move is (by its id: the basic moves, the ambushes, the learned ones). */
 export function styleOfId(o: { id: string }): Style {
@@ -831,9 +833,9 @@ function rawOptions(e: Encounter): Option[] {
       if (y.down) {
         return [
           { id: 'punch', label: 'Punch', hint: armHint ?? 'From the floor', cat: 'attack' },
-          { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : 'From the floor', disabled: tired(COST.kick), cat: 'attack' },
+          { id: 'kick', label: 'Kick', hint: tired(COST.kick) ? 'Too tired' : (legHint ?? 'From the floor'), disabled: tired(COST.kick), cat: 'attack' },
           ...weaponOptions(e, 'attack', tired).filter((o) => !(e.them.out && /spray/i.test(o.label))),
-          ...(e.them.down ? [] : learned(e, FLOOR.map((t) => ({ id: t.id, label: t.name, hint: tired(t.cost) ? 'Too tired' : t.hint, level: t.level, style: t.style, disabled: tired(t.cost) })), 'attack')),
+          ...(e.them.down ? [] : learned(e, FLOOR.map((t) => ({ id: t.id, label: t.name, hint: tired(t.cost) ? 'Too tired' : (t.kind === 'kick' ? legHint : armHint) ?? t.hint, level: t.level, style: t.style, disabled: tired(t.cost) })), 'attack')),
           { id: 'getup', label: 'Get up', hint: legHint ?? (y.dazed ? 'Dazed' : undefined), disabled: legs(y) >= 2, cat: 'move' },
           out ? { id: 'walk', label: 'Crawl away', hint: "They're unconscious", cat: 'move' } : breathe,
           // (They've given up, and you're down here: you can still let them go.)
@@ -2915,7 +2917,7 @@ function brokenAlready(T: Body, t: Technique): string | undefined {
   }
 }
 /** The chance a move meant to break something does: more as you get better at that style. */
-const breakOdds = (t: Technique, base: number) => clamp(base + ((enc.styleLevels?.[t.style] ?? enc.unarmedLevel ?? 1) - t.level) * 0.006 + (enc.them.out ? 0.15 : enc.them.dazed ? 0.08 : 0), 0.05, 0.9);
+const breakOdds = (t: Technique, base: number) => clamp(base + ((enc.styleLevels?.[t.style] ?? enc.unarmedLevel ?? 1) - t.level) * 0.006 + (enc.them.out ? 0.15 : enc.them.dazed ? 0.08 : 0) - (t.kind === 'punch' ? arms(enc.you) * 0.2 : 0), 0.05, 0.9);
 /** What a technique does when it lands, beyond the blow itself. */
 function techEffect(t: Technique, newBreaks: Part[] = []) {
   const T = enc.them;

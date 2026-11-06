@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.08',
+    date: 'Nov 6',
+    items: [
+      'A move you know no longer vanishes from the fight menu when you’re too tired for it: it greys out like the rest, until you’ve learned the move that replaces it.',
+      'With your arms broken, locks and breaking someone’s neck are harder even when they’re out cold, and the moves from the floor say when your arms or legs are broken.',
+    ],
+  },
+  {
     v: '2.07',
     date: 'Nov 6',
     items: [

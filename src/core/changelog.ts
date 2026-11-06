@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.24',
+    date: 'Nov 6',
+    items: [
+      'The street stays still. A message no longer pushes whoever you’ve seen, or Lurk, around to make room: messages always appear in the same place, under Lurk, and a long one scrolls there.',
+      'Things fade in without the text stretching as it appears, so nothing next to them jumps.',
+    ],
+  },
+  {
     v: '2.23',
     date: 'Nov 6',
     items: [

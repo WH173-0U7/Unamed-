@@ -884,10 +884,10 @@ canvas {
 }
 
 @keyframes seen-in {
+  /* (A fade, nothing else: text that changes width as it comes in makes everything around it jump.) */
   from {
     opacity: 0;
-    filter: blur(6px);
-    letter-spacing: 0.2em;
+    filter: blur(4px);
   }
 }
 
@@ -6218,4 +6218,10 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
 #enc .enc-conds span.watched {
   border-color: #c9a77a;
   color: #c9a77a;
+}
+
+/* The street note: always the same strip, under Lurk; long ones scroll there. */
+#game:not(.in-shop) #note {
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }

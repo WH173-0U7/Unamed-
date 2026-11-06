@@ -671,9 +671,8 @@ export class Game {
     const low = this.encounter?.stage === 'seen';
     this.noteEl.classList.toggle('low', low);
     // (Below the card and Lurk, whichever is lower.)
-    const top = low ? Math.max(...[this.seenEl.hidden ? null : this.seenEl, this.lurkBtn.hidden ? null : this.lurkBtn].map((x) => x?.getBoundingClientRect().bottom ?? 0)) : 0;
-    const vr = this.view.getBoundingClientRect();
-    this.noteEl.style.top = top ? `${Math.round(top - vr.top + 8)}px` : '';
+    // (Its place is the same strip every time: see fitStreet.)
+    void low;
     this.fitStreet();
     this.noteEl.style.animation = 'none';
     void this.noteEl.offsetWidth;
@@ -681,9 +680,11 @@ export class Game {
     this.noteTimer = sticky ? 0 : 3 + lines.length * 1.2;
   }
   /**
-   * The street screen, laid out so nothing sits on anything else: the card
-   * for who you've seen clear of the clock, and the note wherever there's a
-   * gap for it (under the card, over it, under Lurk), smaller if it has to be.
+   * The street screen, laid out once: nothing moves to make room for a note.
+   * The card for who you've seen stays where it is (shortened to just who it
+   * is if the screen's too short for more), Lurk stays where it is, and a note
+   * always goes in the same strip: under Lurk, above the You tab. A long one
+   * scrolls in there.
    */
   private fitStreet() {
     const vr = this.view.getBoundingClientRect();
@@ -693,103 +694,38 @@ export class Game {
       const r = el.getBoundingClientRect();
       return r.width && r.height ? r : null;
     };
-    const hits = (a: DOMRect, b: DOMRect | null, pad = 4) => !!b && a.left < b.right + pad && a.right > b.left - pad && a.top < b.bottom + pad && a.bottom > b.top - pad;
-    // The card: never up under the clock.
-    const card = this.seenEl.hidden ? null : this.seenEl;
+    // (Older layouts moved these about: never now.)
     this.seenEl.style.marginTop = '';
-    this.seenEl.classList.remove('compact');
     const idleBar = document.getElementById('idle-bar');
     if (idleBar) idleBar.style.transform = '';
-    void this.seenEl.offsetWidth;
-    const clock = box(document.getElementById('clock'));
-    const statsEl = document.getElementById('stats');
-    const stats = box(statsEl);
-    const cb = box(card);
-    if (cb && clock && hits(cb, clock, 6)) this.seenEl.style.marginTop = `${Math.ceil(clock.bottom + 8 - cb.top)}px`;
-    // ...and never down over Lurk: smaller, then Lurk moved down toward the You tab.
-    const idle = document.getElementById('idle-bar');
-    const lurkBox = () => [box(this.lurkBtn), box(this.restBtn)].filter((x): x is DOMRect => !!x);
-    const cardOverLurk = () => {
-      const c = box(card);
-      return !!c && lurkBox().some((l) => hits(c, l, 2));
-    };
-    if (card && cardOverLurk()) {
-      this.seenEl.classList.add('compact');
-      this.seenEl.style.marginTop = '';
-      const c2 = box(card);
-      if (c2 && clock && hits(c2, clock, 6)) this.seenEl.style.marginTop = `${Math.ceil(clock.bottom + 8 - c2.top)}px`;
-      if (idle && cardOverLurk()) {
-        const c3 = box(card)!;
-        const lb = lurkBox();
-        const you = box(this.youBtn);
-        const room = Math.max(0, (you ? you.top - 4 : vr.bottom - 4) - Math.max(...lb.map((x) => x.bottom)));
-        const need = Math.max(0, c3.bottom + 4 - Math.min(...lb.map((x) => x.top)));
-        idle.style.transform = `translateY(${Math.ceil(Math.min(need, room))}px)`;
-      }
-    }
-    // The note.
-    const note = this.noteEl;
-    if (note.hidden) return;
-    note.classList.remove('tight', 'over');
-    note.style.maxHeight = '';
-    let fixed: DOMRect[] = [];
-    const measure = () => {
-      fixed = [stats, clock, box(card), ...[this.lurkBtn, this.restBtn, this.youBtn, this.goBtn, this.bagBtn].map((b) => box(b))].filter((x): x is DOMRect => !!x);
-    };
-    measure();
-    const clear = () => {
-      const nb = note.getBoundingClientRect();
-      return nb.bottom <= vr.bottom - 2 && !fixed.some((f) => hits(nb, f));
-    };
-    if (clear()) return;
-    // Somewhere else, top to bottom: under the clock and the stats, under the card, under Lurk.
-    // (Then smaller, then with the card cut down to just who it is.)
-    for (const step of ['', 'tight', 'compact']) {
-      if (step === 'tight') note.classList.add('tight');
-      if (step === 'compact' && card) {
+    const lurks = [box(this.lurkBtn), box(this.restBtn)].filter((x): x is DOMRect => !!x);
+    // The card: just who it is, when the full card would reach Lurk (the screen decides, not a note).
+    const card = this.seenEl.querySelector('button');
+    if (card) {
+      this.seenEl.classList.remove('compact');
+      // (Clear of the clock: fixed by the screen, the same every time.)
+      const clock = box(document.getElementById('clock'));
+      const c0 = box(card);
+      if (c0 && clock && c0.top < clock.bottom + 6 && c0.right > clock.left && c0.left < clock.right) this.seenEl.style.marginTop = `${Math.ceil(clock.bottom + 6 - c0.top)}px`;
+      const c = box(this.seenEl);
+      if (c && lurks.some((l) => c.bottom + 4 > l.top)) {
         this.seenEl.classList.add('compact');
         this.seenEl.style.marginTop = '';
-        const c2 = box(card);
-        if (c2 && clock && hits(c2, clock, 6)) this.seenEl.style.marginTop = `${Math.ceil(clock.bottom + 8 - c2.top)}px`;
-        measure();
-      }
-      const tops = [Math.max(clock?.bottom ?? 0, stats?.bottom ?? 0) + 8, ...[box(card), box(this.lurkBtn), box(this.restBtn)].filter((x): x is DOMRect => !!x).map((x) => x.bottom + 8)];
-      for (const t of tops) {
-        note.style.top = `${Math.round(t - vr.top)}px`;
-        if (clear()) return;
+        const c1 = box(card);
+        if (c1 && clock && c1.top < clock.bottom + 6 && c1.right > clock.left && c1.left < clock.right) this.seenEl.style.marginTop = `${Math.ceil(clock.bottom + 6 - c1.top)}px`;
       }
     }
-    const tops = [Math.max(clock?.bottom ?? 0, stats?.bottom ?? 0) + 8];
-    // Still nothing: the note up under the clock, and the card moved down under it, if there's room above Lurk.
-    if (card) {
-      note.style.top = `${Math.round(tops[0] - vr.top)}px`;
-      const nb = note.getBoundingClientRect();
-      this.seenEl.style.marginTop = '';
-      const c0 = card.getBoundingClientRect();
-      this.seenEl.style.marginTop = `${Math.ceil(nb.bottom + 6 - c0.top)}px`;
-      const c1 = card.getBoundingClientRect();
-      // (Lurk can drop down toward the You tab, if it has to.)
-      const bar = document.getElementById('idle-bar');
-      const lb = [box(this.lurkBtn), box(this.restBtn)].filter((x): x is DOMRect => !!x);
-      const you = box(this.youBtn);
-      if (bar && lb.length) {
-        const low = Math.max(...lb.map((x) => x.bottom));
-        const top = Math.min(...lb.map((x) => x.top));
-        const room = Math.max(0, (you ? you.top - 4 : vr.bottom - 4) - low);
-        const need = Math.max(0, c1.bottom + 4 - top);
-        if (need && need <= room) bar.style.transform = `translateY(${Math.ceil(need)}px)`;
-      }
-      const under = [box(this.lurkBtn), box(this.restBtn), box(this.youBtn)].filter((x): x is DOMRect => !!x);
-      if (!under.some((u) => hits(c1, u, 2)) && c1.bottom <= vr.bottom) return;
-      if (bar) bar.style.transform = '';
-      this.seenEl.style.marginTop = '';
-    }
-    // No gap anywhere: it goes over the rest on its own dark panel, so it still reads.
-    note.classList.add('tight', 'over');
-    note.style.top = `${Math.round((tops[0] ?? 40) - vr.top)}px`;
-    // (And never down past the bottom of the screen: it scrolls instead.)
+    const note = this.noteEl;
+    if (note.hidden) return;
+    note.classList.remove('over');
+    note.classList.toggle('tight', vr.height < 460);
+    // Its strip: under Lurk (or where Lurk sits), down to the You tab.
+    const under = lurks.length ? Math.max(...lurks.map((l) => l.bottom)) : (box(idleBar)?.bottom ?? vr.top + vr.height * 0.62);
     const you = box(this.youBtn);
-    note.style.maxHeight = `${Math.max(90, Math.round((you ? you.top : vr.bottom) - 6 - (tops[0] ?? 40)))}px`;
+    const top = under + 6;
+    const bottom = (you ? you.top : vr.bottom) - 6;
+    note.style.top = `${Math.round(top - vr.top)}px`;
+    note.style.maxHeight = `${Math.max(44, Math.round(bottom - top))}px`;
   }
   /** The note that waits for you (see note): up until you tap, lurk, rest or go somewhere. */
   private noteSticky = false;

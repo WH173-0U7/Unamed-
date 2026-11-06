@@ -1222,7 +1222,8 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           const fell = wound('them', 'body', dmg, 'fall');
           say('you', `${amb('bumrush')} It takes them clean off their feet. ${fell}${/\bhit the (sidewalk|floor|ground)\b/.test(fell) ? '' : " They're on the floor."}`);
         } else {
-          say('you', `${amb('bumrush')} They're heavy and hold their ground. ${wound('them', 'body', dmg, 'fall')}`);
+          // (They stay up: a shoulder in the ribs, not a fall.)
+          say('you', `${amb('bumrush')} They're heavy and hold their ground. ${wound('them', 'body', dmg, 'punch')}`);
           if (Math.random() < 0.35) {
             e.you.down = true;
             say('them', "You bounce off them and land on your back. You're on the floor.");
@@ -1230,7 +1231,8 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         }
       } else {
         const dmg = Math.round(roll(4, 8) * str);
-        say('you', `${amb('shove')} They crash back into the wall. ${wound('them', 'body', dmg, 'fall')}`);
+        // (The wall first; the floor only if they go down.)
+        say('you', `${amb('shove')} They crash back into the wall. ${wound('them', 'body', dmg, 'punch')}`);
         if (Math.random() < 0.7) {
           e.them.down = true;
           say('them', "They lose their footing and go down. They're on the floor.");
@@ -2711,7 +2713,7 @@ function techEffect(t: Technique) {
     case 'sweep':
       if (!T.down && Math.random() < (BUILDS[enc.person.build].solid ? 0.55 : 0.85)) {
         T.down = true;
-        say('them', "They go down hard. They're on the floor.");
+        say('them', 'They go down hard.');
         scare(5);
       } else if (!T.down) say('them', oneOf(['They stagger, and keep their feet.', 'They lurch, catch themselves, and stay up.']));
       break;

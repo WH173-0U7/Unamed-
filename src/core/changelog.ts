@@ -11,6 +11,13 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.38',
+    date: 'Nov 6',
+    items: [
+      'Someone heavy who holds their ground against a bum rush, or a shove into the wall that leaves them standing, doesn’t “hit the sidewalk”. A trip says they go down hard, once.',
+    ],
+  },
+  {
     v: '1.37',
     date: 'Nov 6',
     items: [

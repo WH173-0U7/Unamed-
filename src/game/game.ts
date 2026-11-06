@@ -2262,8 +2262,6 @@ export class Game {
   /** Walk to a car you've found. */
   private goCar(id: string) {
     if (this.ending || this.save.state.policeStop) return;
-    // (Someone's standing in front of you in their house: run or fight first.)
-    if (this.job?.confront) return;
     const c = this.carById(id);
     if (!c || !this.keysFor(id)) return;
     if (this.place === 'car' && this.save.state.carAt === id) return this.closeSheet();
@@ -2307,7 +2305,7 @@ export class Game {
   /** At a car that's been towed while you stood there (the app left open, or reopened): it's gone. */
   private carTowedNow(): boolean {
     const c = this.atCar;
-    if (!c || now() < c.towAt) return false;
+    if (!c || now() < c.towAt || this.save.state.policeStop) return false;
     this.note(this.towed(c, `A tow truck backs up to the ${c.make} and the driver gets out with a clipboard. You walk away before he looks at you.`));
     return true;
   }
@@ -4376,13 +4374,21 @@ export class Game {
       j.called = true;
     }
     // Their car keys gone with you, and they know you were in: the car goes on the report too.
-    if (j.called || j.phoned || j.siren || j.policeIn != null || j.killed || caught) {
+    // (Only once they know someone was in: not a prowler call about noise outside.)
+    if ((j.in || j.took || j.confront) && (j.called || j.phoned || j.siren || j.policeIn != null || j.killed || caught)) {
       const early = now() - (REPORTED_HOURS * 3_600_000 + 60_000);
-      for (const x of this.inventory.items) if (x.kind === 'car keys' && x.carOf === h.id && (x.takenAt ?? now()) > early) {
-        x.tookAt ??= x.takenAt;
-        x.takenAt = early;
+      const st = this.save.state;
+      const kept = [...this.inventory.items, ...((st.stash as { items: InvItem[] } | undefined)?.items ?? []), ...((st.room as { items: InvItem[] } | undefined)?.items ?? []), ...this.cars.flatMap((c) => c.items)];
+      const theirs = new Set<string>();
+      for (const x of kept) {
+        if (x.kind !== 'car keys' || x.carOf !== h.id) continue;
+        if (x.carId) theirs.add(x.carId);
+        if ((x.takenAt ?? now()) > early) {
+          x.tookAt ??= x.takenAt;
+          x.takenAt = early;
+        }
       }
-      for (const c of this.cars) if (c.home === h.id && c.takenAt > early) c.takenAt = early;
+      for (const c of this.cars) if ((c.home === h.id || theirs.has(c.id)) && c.takenAt > early) c.takenAt = early;
     }
     if (j.in || j.took) {
       h.hits = (h.hits ?? 0) + 1;
@@ -5074,7 +5080,7 @@ export class Game {
                 // Car keys: find the car (on the street), then go through it, or sleep in it.
                 if (x.kind === 'car keys') {
                   if (!x.car) acts += act('findcar', 'Find the car', this.place !== 'street' || !this.canLurk ? 'Out on the street' : null);
-                  else if (x.car === 'found') acts += act('gocar', 'Go to it', this.atCar && this.atCar.id === x.carId ? 'You’re there' : this.save.state.policeStop || this.job?.confront ? 'Not now' : null);
+                  else if (x.car === 'found') acts += act('gocar', 'Go to it', this.atCar && this.atCar.id === x.carId ? 'You’re there' : this.save.state.policeStop ? 'Not now' : null);
                 }
                 // A weapon: in your hand (out, and seen), or put away.
                 if (x.kind === 'weapon' && !x.spray) {

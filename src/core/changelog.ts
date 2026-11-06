@@ -11,10 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.54',
+    date: 'Nov 6',
+    items: [
+      'Car keys from a house they know you broke into are reported wherever you’ve hidden them, and the car with them. Walking off to a car while someone’s in front of you in their house counts as running, like going anywhere else.',
+    ],
+  },
+  {
     v: '1.53',
     date: 'Nov 6',
     items: [
-      'Caught in someone’s house, you can’t slip off to their car: run or fight first. Leave a house they know you were in with their car keys, and the car’s reported with the break-in.',
+      'Leave a house they know you were in (walking off while they’re in front of you counts as running) and their car is reported with the break-in, wherever you’ve put its keys.',
       'Police at the trunk: “Step away”, not “Step out”. The first time you go to a car you walk to it, not “back” to it.',
     ],
   },

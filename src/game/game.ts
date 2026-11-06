@@ -3763,6 +3763,14 @@ export class Game {
           this.ensureCar(x);
         }
       } else if (x.kind === 'car keys' && x.car === 'found' && x.carId && !this.carById(x.carId) && this.inventory.items.includes(x)) x.car = 'gone';
+      // (Keys back from whoever had them: as old as the car knows they are.)
+      if (x.kind === 'car keys' && x.carId) {
+        const c = this.carById(x.carId);
+        if (c && (x.takenAt == null || c.takenAt < x.takenAt)) {
+          x.tookAt ??= x.takenAt;
+          x.takenAt = c.takenAt;
+        }
+      }
     }
   }
 

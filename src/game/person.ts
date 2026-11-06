@@ -210,6 +210,8 @@ export interface Loot {
   /** Car keys: the car you found with them, and where it is before you have (see cars.ts). */
   carId?: string;
   hunt?: import('./cars').Hunt;
+  /** When the keys really went (before any report moved takenAt on). */
+  tookAt?: number;
 }
 
 /** Something they're wearing or carrying that can be gone through. */

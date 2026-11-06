@@ -6080,3 +6080,11 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* (Upright: "Catch your breath" on one line, even 320 wide.) */
+@media (orientation: portrait) {
+  #enc .enc-extra button {
+    white-space: nowrap;
+    font-size: 12px;
+    letter-spacing: 0;
+  }
+}

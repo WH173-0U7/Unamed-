@@ -1368,20 +1368,18 @@ export class Game {
     this.closeSheet();
     if (p === this.place || HIDDEN_PLACES.has(p)) return;
     if (p === 'home' && !this.homeById(this.save.state.homeAt)) return;
-    // Walking away from an address: if you were in, it's done (and a fight in there counts for what it was).
-    if (this.place === 'home') {
-      if (this.encounter?.resident) this.afterResidentFight(this.encounter);
-      this.leaveHome();
-    }
-    this.shopAt = '';
-    // A new trip to the ER is a new wait.
-    this.erSeen = false;
     // Thrown out of the pawn shop: he won't let you back in for a while.
+    // (Checked before anything else: turned away, you're still where you were.)
     if (((this.save.state.pawnBan as number) ?? 0) > now() + 30 * 60_000) this.save.state.pawnBan = now() + 30 * 60_000;
     if (p === 'pawn' && ((this.save.state.pawnBan as number) ?? 0) > now()) {
       this.note(['He sees you through the glass and shakes his head. The door stays locked.']);
       return;
     }
+    // Walking away from an address: if you were in, it's done (and a fight in there counts for what it was).
+    if (this.place === 'home') this.walkOutOfHome();
+    this.shopAt = '';
+    // A new trip to the ER is a new wait.
+    this.erSeen = false;
     this.place = p;
     this.encounter = null;
     this.unstick();
@@ -2834,6 +2832,7 @@ export class Game {
         lines.push(`They add ${extra.map((x) => x.toLowerCase()).join(' and ')}.`);
       }
       lines.push(...this.passCell());
+      this.ageHomes(8);
       if (this.health.dead) return this.die(lines);
     }
     lines.push(...this.verdict(false));
@@ -2884,7 +2883,7 @@ export class Game {
       (now() < ((this.save.state.probationUntil as number) ?? 0) ? `<p class="record-case">On probation until ${dateText(this.save.state.probationUntil as number)} ${clockText(this.save.state.probationUntil as number)}: get charged with anything and you're held, no bail.</p>` : '') +
       (r.arrests
         ? (rows.length ? `<ul class="record-list">${rows.map(([c, n]) => `<li><span>${c}</span><b>×${n}</b></li>`).join('')}</ul>` : '') +
-          `<p class="record-note">${rows.length ? 'Each charge means a court date.' : 'Held, and let go without charge.'}${r.last ? ` Last arrested ${dateText(r.last)}.` : ''}</p>`
+          `<p class="record-note">${rows.length ? 'Each charge means a court date.' : 'Held, and let go without charge.'}${r.last ? ` Last arrested ${dueText(r.last)}.` : ''}</p>`
         : `<p class="record-note">${this.case?.warrant ? "No arrests yet. They're looking for you." : 'No arrests. The police have nothing on this face.'}</p>`) +
       `</section>`
     );
@@ -3410,6 +3409,7 @@ export class Game {
       if (h.lockAt != null && h.lockAt !== NEVER) h.lockAt -= ms;
       if (h.fixedAt != null) h.fixedAt -= ms;
       for (const k of ['triedAt', 'knockedAt', 'wokeAt', 'hitAt', 'deadAt'] as const) if (h[k] != null) h[k]! -= ms;
+      if (h.looked) for (const r of Object.keys(h.looked)) h.looked[r as keyof typeof h.looked]! -= ms;
     }
     // Car keys go cold (the car's long reported); rent runs out; Dez's money comes due; people heal.
     const st = this.save.state;
@@ -3420,7 +3420,10 @@ export class Game {
     if (room) {
       room.until -= ms;
       room.at -= ms;
+      const r = room as { slept?: number };
+      if (r.slept != null) r.slept -= ms;
     }
+    if (this.record.last != null) this.record.last -= ms;
     const d = st.debt as { due: number; vigAt?: number } | undefined;
     if (d) {
       d.due -= ms;
@@ -3440,6 +3443,13 @@ export class Game {
     const ok = st.idOk as { until: number } | undefined;
     if (ok) ok.until -= ms;
   }
+  /** Out of the house you're at: a fight in there counts for what it was, and the job's done. */
+  private walkOutOfHome() {
+    if (this.encounter?.resident) this.afterResidentFight(this.encounter);
+    this.leaveHome();
+    // (Cleared while this is still the address, so a death in there stays with this house.)
+    this.encounter = null;
+  }
   /** After a break-in, once the new locks are in: the camera, the alarm they paid for. */
   private fixUp(h: Home) {
     if (!h.fixedAt || now() < h.fixedAt) return;
@@ -3456,9 +3466,10 @@ export class Game {
   /** Walk to an address you know. */
   private goHome(id: string) {
     const h = this.homeById(id);
-    if (!h || this.ending) return;
+    if (!h || this.ending || this.save.state.policeStop) return;
     if (this.place === 'home' && this.save.state.homeAt === id) return this.closeSheet();
-    if (this.place === 'home') this.leaveHome();
+    // (Settled at the old address, before the next one is "where you are".)
+    if (this.place === 'home') this.walkOutOfHome();
     this.save.state.homeAt = id;
     delete this.save.state.job;
     // (From one address to the next: by way of the street.)

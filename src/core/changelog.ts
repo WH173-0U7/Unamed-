@@ -11,6 +11,13 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.35',
+    date: 'Nov 6',
+    items: [
+      'A debt that came due while you were inside shows the year it came due, so a year-old date doesn’t read like last week.',
+    ],
+  },
+  {
     v: '1.34',
     date: 'Nov 5',
     items: [

@@ -53,6 +53,8 @@ const HUMANITY: { at: number; name: string; line: string }[] = [
 const oneOf = <T,>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)];
 /** A lock that never gets changed (nobody left to change it). */
 const NEVER = 8.64e15;
+/** A date, with the year when it isn't this year's (a debt that came due while you were inside). */
+const dueText = (t: number) => (new Date(t).getFullYear() === new Date(now()).getFullYear() ? dateText(t) : new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }));
 /** Days Dez's vig keeps compounding once you're late. */
 const VIG_DAYS = 14;
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
@@ -2864,7 +2866,7 @@ export class Game {
     return (
       `<section class="stat-card record"><h3><span>Criminal record</span><b>${r.arrests ? `${r.arrests} arrest${r.arrests > 1 ? 's' : ''}` : this.case?.warrant ? 'Wanted' : 'Clean'}</b></h3>` +
       (this.case ? `<p class="record-case${this.case.warrant ? ' warrant' : ''}">${this.case.warrant ? `WARRANT out for you: ${this.case.warrantFor === 'sting' ? 'the buy you ran from' : 'missed court'}. Any stop is an arrest. Turn yourself in at the County Courthouse to end it.` : `Court date: ${dateText(this.case.courtAt)}, County Courthouse (weekdays, 9 to 4). Charges: ${this.case.charges.map((x) => x.toLowerCase()).join(', ')}.${this.case.bailPaid ? ` Bail paid: ${money(this.case.bailPaid)} (back when you show up).` : ''}`}</p>` : '') +
-      ((d) => (d ? `<p class="record-case${now() > d.due ? ' warrant' : ''}">You owe Dez ${money(d.owed)}${now() > d.due ? `. You're late (it was due ${dateText(d.due)}), ${(d.vigDays ?? 0) >= VIG_DAYS ? "he's done waiting" : 'it grows every day'}, and he's sending someone.` : `, due ${dateText(d.due)} ${clockText(d.due)}. In the alley, at night.`}</p>` : ''))(this.debt) +
+      ((d) => (d ? `<p class="record-case${now() > d.due ? ' warrant' : ''}">You owe Dez ${money(d.owed)}${now() > d.due ? `. You're late (it was due ${dueText(d.due)}), ${(d.vigDays ?? 0) >= VIG_DAYS ? "he's done waiting" : 'it grows every day'}, and he's sending someone.` : `, due ${dateText(d.due)} ${clockText(d.due)}. In the alley, at night.`}</p>` : ''))(this.debt) +
       (now() < ((this.save.state.probationUntil as number) ?? 0) ? `<p class="record-case">On probation until ${dateText(this.save.state.probationUntil as number)} ${clockText(this.save.state.probationUntil as number)}: get charged with anything and you're held, no bail.</p>` : '') +
       (r.arrests
         ? (rows.length ? `<ul class="record-list">${rows.map(([c, n]) => `<li><span>${c}</span><b>×${n}</b></li>`).join('')}</ul>` : '') +
@@ -3249,7 +3251,7 @@ export class Game {
     const stranger = sales < 1 && !d;
     let rows = '';
     if (d)
-      rows += li('What you owe Dez', `${money(d.owed)}, ${late ? `late: it was due ${dateText(d.due)}, ${(d.vigDays ?? 0) >= VIG_DAYS ? 'and he’s done adding to it. Now he wants it, or you.' : 'and it grows a fifth every day.'}` : `due ${dateText(d.due)}.`}`, btn('dez', 'pay', c >= d.owed ? 'Pay it all' : 'Pay what you have', !c && 'No cash'));
+      rows += li('What you owe Dez', `${money(d.owed)}, ${late ? `late: it was due ${dueText(d.due)}, ${(d.vigDays ?? 0) >= VIG_DAYS ? 'and he’s done adding to it. Now he wants it, or you.' : 'and it grows a fifth every day.'}` : `due ${dateText(d.due)}.`}`, btn('dez', 'pay', c >= d.owed ? 'Pay it all' : 'Pay what you have', !c && 'No cash'));
     rows += li('An eight-ball', 'Three and a half grams. Bag it up and it comes to about 35 points. Cash.', btn('dez', 'cash', money(DEZ_CASH * 100), (stranger && '"I don\'t know you."') || (late && '"Not till you pay me."') || (c < DEZ_CASH * 100 && 'Not enough cash')));
     rows += li('Fronted', `He gives it to you now, you pay him ${money(DEZ_FRONT * 100)} in three days. Don't be late.`, btn('dez', 'front', 'Front me', (sales < 5 && '"Move some first. Then we talk."') || (!!d && '"You owe me already."')));
     return `<p class="shop-sub">Dez, by the dumpsters</p><ul class="shop-list">${rows}</ul>`;

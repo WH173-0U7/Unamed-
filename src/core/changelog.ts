@@ -11,6 +11,18 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.98',
+    date: 'Nov 6',
+    items: [
+      'Wanted for an escape: getting stopped now books you on it, and it goes in front of a judge (it used to let you go every time, warrant and all). Escape charges show on your record.',
+      'Going back to who you were keeps their name, and people who only knew the other face don’t recognise this one.',
+      'A visit no longer repeats a van time that’s already gone. Hitting the van while you’re out on bail for something else costs you that bail, and an old missed-court warrant stays on the charges.',
+      'A stamp on the ankle or a wrist lock breaks one limb, never two at once.',
+      'Your own injuries count legs the way a fight does: both legs (or ankles) broken and you can’t get up, and the card says so.',
+      'Someone in a wheelchair can’t charge at you when they spot you following them.',
+    ],
+  },
+  {
     v: '1.97',
     date: 'Nov 6',
     items: [

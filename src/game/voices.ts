@@ -233,7 +233,8 @@ export function voice(e: Encounter, m: Moment): string[] {
     const ys = xs.filter((x) => !/money at home|Pleasure doing business/i.test(x)).map(indoors);
     xs = ys.length ? ys : xs.map(indoors);
   }
-  const legs = e.them.broken.filter((p) => /(leg|ankle)$/.test(p)).length + (e.them.broken.includes('spine') ? 2 : 0);
+  // (Legs, not breaks: a broken leg and an ankle on the same side is still one leg to stand on.)
+  const legs = e.them.broken.includes('spine') ? 2 : new Set(e.them.broken.filter((p) => /(leg|ankle)$/.test(p)).map((p) => p.split(' ')[0])).size;
   // (A broken leg: nobody runs off on it.)
   const moves = /\b(run|runs|ran|scramble|scrambles|weave|weaves|stumble|stumbles|shuffle|shuffles|walk|walks|bolt|gone|vanish|back(s)? (away|out))\b/i;
   if (m === 'letGo' && legs) {

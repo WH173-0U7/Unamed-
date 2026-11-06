@@ -2746,7 +2746,8 @@ function spotted() {
   const b = BUILDS[p.build];
   const tough = ['Easy', 'Fair', 'Hard', 'Brutal'].indexOf(b.difficulty);
   const fight = tough * 0.2 + (p.kind === 'drunk' ? 0.3 : 0) + (p.awareness === 'Paranoid' ? 0.15 : 0) + personalityOf(p).fight;
-  if (Math.random() < fight) {
+  // (In a wheelchair, there's no charging anyone: see below.)
+  if (!enc.them.broken.includes('spine') && Math.random() < fight) {
     say('them', oneOf(['They spin around. "The hell do you want?" They come at you.', "They spot you, and they don't run. They come straight for you."]));
     enc.stage = 'combat';
     enc.facedYou = true;
@@ -2994,7 +2995,8 @@ function techEffect(t: Technique, newBreaks: Part[] = []) {
     case 'break-leg': {
       const what = t.effect === 'break-hand' ? 'hand' : t.effect === 'break-wrist' ? 'wrist' : t.effect === 'break-ankle' ? 'ankle' : 'leg';
       // (The blow broke one already: that's this move's break, not a second one.)
-      if (newBreaks.some((p) => p.endsWith(what))) break;
+      // (A leg broken by the blow is that leg; a broken arm is that arm.)
+      if (newBreaks.some((p) => (what === 'ankle' || what === 'leg' ? /(leg|ankle)$/ : /(arm|wrist|hand)$/).test(p))) break;
       const sides = (['left', 'right'] as const).filter((sd) => !T.broken.includes(`${sd} ${what}` as Part));
       const sd = sides[Math.floor(Math.random() * sides.length)];
       if (!sd || Math.random() >= breakOdds(t, what === 'hand' ? 0.5 : what === 'wrist' ? 0.4 : 0.32)) break;

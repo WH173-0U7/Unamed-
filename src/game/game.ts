@@ -3062,6 +3062,11 @@ export class Game {
       lines.push('One of them runs your name on the radio. A pause. "There\'s a warrant out for you. Turn around."');
       arrested = true;
       if (pending.warrantFor !== 'sting' && pending.warrantFor !== 'escape') charges.push('Failure to appear');
+      // (Wanted for an escape: that's what they book you on, now.)
+      if (pending.warrantFor === 'escape') {
+        charges.push(...pending.charges.filter((x) => /escape/i.test(x)));
+        pending.charges = pending.charges.filter((x) => !/escape/i.test(x));
+      }
     }
     /** The sting(s) you ran from: charged now, at the station, like any other (so they go on your record). */
     const serveStings = () => {
@@ -3490,6 +3495,7 @@ export class Game {
       const rec = this.record;
       rec.arrests++;
       if (fta) rec.charges['Failure to appear'] = (rec.charges['Failure to appear'] ?? 0) + 1;
+      if (c.warrantFor === 'escape') for (const x of c.charges.filter((y) => /escape/i.test(y))) rec.charges[x] = (rec.charges[x] ?? 0) + 1;
       if (c.stingPending) rec.charges['Selling a controlled substance'] = (rec.charges['Selling a controlled substance'] ?? 0) + c.stingPending;
       delete c.stingPending;
       rec.last = now();
@@ -3636,12 +3642,14 @@ export class Game {
   }
   /** You, now, as someone to keep: everything that's yours, but not the moment you're in. */
   private snapshotSelf(): Self {
+    // (Read first: a name nobody's asked for yet is only made when it's read.)
+    const name = this.me.name;
     const st = this.save.state;
     const state: Record<string, unknown> = {};
     for (const k of CHAR_KEYS) if (st[k] !== undefined) state[k] = JSON.parse(JSON.stringify(st[k]));
     for (const k of MOMENT_KEYS) delete state[k];
     state.place = 'street';
-    return { id: Math.random().toString(36).slice(2, 10), name: this.me.name, life: this.world.lives, state, infamy: JSON.parse(JSON.stringify(this.infamy)) as Infamy, status: 'free', until: 0, what: '', at: now(), metAt: now() };
+    return { id: Math.random().toString(36).slice(2, 10), name, life: this.world.lives, state, infamy: JSON.parse(JSON.stringify(this.infamy)) as Infamy, status: 'free', until: 0, what: '', at: now(), metAt: now() };
   }
   /** Time moves for them too: the hearing comes, the sentence ends. */
   private settleSelves() {
@@ -3754,6 +3762,7 @@ export class Game {
           x.van = d.getTime() < x.until ? d.getTime() : undefined;
         }
       }
+      if (x.van != null && x.van + 45 * 60_000 < t) delete x.van;
       const lines = [`You show your ID, sign the visitor log and wait an hour on a plastic chair. They bring ${x.name} out behind the glass, in orange.`];
       lines.push(x.van != null ? `"They move me ${dueText(x.van)}, ${clockText(x.van)}," they say into the phone, low. "The van, out back by the loading dock." They look at you a long time.` : x.hearingAt != null ? '"My hearing’s today," they say. "Whatever happens, happens."' : '"Not long now," they say. "I just sit it out."');
       this.note(lines);
@@ -3812,12 +3821,16 @@ export class Game {
         delete x.hearingAt;
         delete x.bail;
         const c = this.case ?? { charges: [], bail: 0, courtAt: t };
+        const lost = c.bailPaid ?? 0;
+        // (Already wanted for missing court: that's on there too.)
+        if (c.warrant && c.warrantFor !== 'sting' && c.warrantFor !== 'escape' && !c.charges.includes('Failure to appear')) c.charges.push('Failure to appear');
         c.charges = [...c.charges, 'Aiding an escape'];
         c.warrant = true;
         c.warrantFor = 'escape';
         c.bailPaid = 0;
         this.save.state.case = c;
         this.infamy.heat = 100;
+        if (lost) this.heldNote = [...this.heldNote, `The ${money(lost)} bail you put up for yourself is gone now.`];
         buzz([80, 40, 80, 40, 160]);
         this.refresh();
         this.chooseSelf(x, [`You wait behind the dumpsters by the loading dock. The door clanks, and two deputies walk them out in a line, cuffed, toward the van.`, `You go. One deputy goes down hard; the other’s on the radio. ${x.name} is already running, and you’re running with them.`, 'By the time the sirens start, you’re four blocks away. There’ll be warrants out for both of you.']);
@@ -3837,6 +3850,11 @@ export class Game {
         delete h.smokingUntil;
         if (h.dead) return this.die(lines);
         const c = this.case ?? { charges: [], bail: 0, courtAt: 0 };
+        if (c.warrant && c.warrantFor !== 'sting' && c.warrantFor !== 'escape' && !c.charges.includes('Failure to appear')) c.charges.push('Failure to appear');
+        if (c.bailPaid) {
+          lines.push(`You were already out on bail. It's revoked: the ${money(c.bailPaid)} you put up is gone.`);
+          c.bailPaid = 0;
+        }
         c.charges = [...c.charges, 'Aiding an escape'];
         c.bail = 0;
         c.courtAt = courtDate();
@@ -3911,6 +3929,12 @@ export class Game {
     Object.assign(st, loaded);
     st.place = here === 'court' || here === 'street' ? here : 'street';
     w.infamy = JSON.parse(JSON.stringify(x.infamy)) as Infamy;
+    // A different face: what people saw of the one you were is no use to them.
+    for (const k of this.people) {
+      k.memory.sawFace = false;
+      k.memory.clothes = [];
+      k.memory.otherLife = true;
+    }
     const xs = this.selves;
     xs.splice(xs.indexOf(x), 1);
     xs.push(cur);
@@ -6582,7 +6606,7 @@ export class Game {
 
   resume() {
     this.paused = false;
-    if (this.dead || this.jail) return;
+    if (this.dead || this.jail || document.getElementById('choose')) return;
     this.running = true;
     // (Paused, or reloaded, before what happened while you were out was shown.)
     if (this.tvState.on && !this.koLines) this.showWoke();

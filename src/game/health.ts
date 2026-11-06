@@ -487,7 +487,8 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
     const left = ((h.smokingUntil ?? 0) - Date.now()) / 60000;
     out.push({ name: 'Smoking', status: true, meter: { k: Math.min(1, left / 6), text: `${Math.ceil(left)} min left` }, effects: ['Stress eases while it burns'], heals: 'Burns down in a few minutes.' });
   }
-  const legs = h.broken.filter((p) => p.endsWith('leg')).length;
+  // (Legs to stand on: a broken leg or ankle each side counts once.)
+  const legs = new Set(h.broken.filter((p) => /(leg|ankle)$/.test(p)).map((p) => p.split(' ')[0])).size;
   const lost = 1 - h.blood / h.maxBlood;
 
   if (h.bleeding) {
@@ -524,7 +525,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
     if (/(leg|ankle)$/.test(p)) {
       effects.push('Kicks and stomps land: −20%');
       effects.push(`Running away: ${legs >= 2 ? '8%' : '35%'} of the usual chance${legs >= 2 ? ' (both legs)' : ''}`);
-      effects.push('Getting up off the floor: −30%');
+      effects.push(legs >= 2 ? 'Getting up off the floor: you can’t' : 'Getting up off the floor: −30%');
       effects.push('Running from the police: −30%');
     }
     if (p === 'ribs') {

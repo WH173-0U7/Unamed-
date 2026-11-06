@@ -1703,7 +1703,12 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
         : vary([`${N.S} punch ${N.o} ${where}.`, `${N.S} catch ${N.o} ${where} with a right.`, `${N.S} land a fist ${where}.`, `${N.S} hit ${N.o} ${where}.`, `${N.S} drive a punch ${into}.`, `A left from ${a === 'you' ? 'you' : 'them'} lands ${where}.`]);
   }
   // (A needle punctures; it doesn't slice.)
-  say(a, `${text} ${wound(d, loc, dmg, weapon && /syringe/i.test(weapon.name) ? 'jab' : weapon?.cuts && !/^bottle$/i.test(weapon.name) ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch')}`);
+  const how = weapon && /syringe/i.test(weapon.name) ? 'jab' : weapon?.cuts && !/^bottle$/i.test(weapon.name) ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch';
+  let after = wound(d, loc, dmg, how);
+  // (A cut to the body is opened where the blow was said to land: not "in the chest. It nicks your side.")
+  const spot = how === 'cut' && loc === 'body' ? text.match(/\b(ribs|side|chest)\b/)?.[1] : undefined;
+  if (spot) after = after.replace(/\b(your|their) side\b/g, `$1 ${spot}`);
+  say(a, `${text} ${after}`);
   // No guard on it: a hard stab and your hand slides down onto the blade.
   if (a === 'you' && kn?.noGuard && (loc === 'body' || loc === 'stomach') && Math.random() < 0.07) {
     enc.you.bleeding = Math.max(enc.you.bleeding, 1);
@@ -2300,7 +2305,7 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
     ],
     body: [
       [[`${S} fold around it with a grunt.`], [`It knocks ${you ? 'you' : 'them'} back a step.`], [`The air goes out of ${P} chest in a rush.`, wind(6)]],
-      [[`It lands with a deep, heavy thud.`], [`${S} stagger, clutching ${P} side.`], [`${S} wheeze, bent over.`, wind(10)]],
+      [[`It goes in with a deep, heavy thud.`], [`${S} stagger, clutching ${P} side.`], [`${S} wheeze, bent over.`, wind(10)]],
       [
         [`${S} fold over it and can't straighten up.`, wind(15)],
         [`${Pc} knees dip; ${s} barely stay standing.`],

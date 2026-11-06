@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.40',
+    date: 'Nov 6',
+    items: [
+      'After a long sentence, the date you broke into a place shows the year, so it doesn’t look like last week.',
+      'A knife cut lands where the fight text said it did, and a heavy body blow no longer “lands” twice in one line.',
+    ],
+  },
+  {
     v: '1.39',
     date: 'Nov 6',
     items: [

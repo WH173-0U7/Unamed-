@@ -4525,7 +4525,7 @@ export class Game {
             this.homes
               .map((h) => {
                 const here = this.atHome === h;
-                return `<button type="button" class="place ${here ? 'here' : ''}" data-home="${h.id}"><b>${h.addr}</b><small>${here ? "You're here" : `${h.owner}’s place${h.hitAt ? ` · you broke in ${dateText(h.hitAt) === dateText() ? 'today' : dateText(h.hitAt)}` : ''}${this.hasKeyTo(h) ? ' · you have their keys' : ''}`}</small></button>`;
+                return `<button type="button" class="place ${here ? 'here' : ''}" data-home="${h.id}"><b>${h.addr}</b><small>${here ? "You're here" : `${h.owner}’s place${h.hitAt ? ` · you broke in ${dueText(h.hitAt) === dueText(now()) ? 'today' : dueText(h.hitAt)}` : ''}${this.hasKeyTo(h) ? ' · you have their keys' : ''}`}</small></button>`;
               })
               .join('')
           : '') +

@@ -614,6 +614,8 @@ export class Game {
       const extra = [...this.noteEl.querySelectorAll('p:not(.note-tap):not(.note-head)')];
       for (const el of extra.slice(0, Math.max(0, extra.length - 3))) el.remove();
       this.save.state.stickyExtra = [...((this.save.state.stickyExtra as string[] | undefined) ?? []), ...lines].slice(-3);
+      // (Longer now: find it room again.)
+      this.fitStreet();
       return;
     }
     this.noteSticky = sticky;
@@ -688,7 +690,8 @@ export class Game {
     // The note.
     const note = this.noteEl;
     if (note.hidden) return;
-    note.classList.remove('tight');
+    note.classList.remove('tight', 'over');
+    note.style.maxHeight = '';
     let fixed: DOMRect[] = [];
     const measure = () => {
       fixed = [stats, clock, box(card), ...[this.lurkBtn, this.restBtn, this.youBtn, this.goBtn, this.bagBtn].map((b) => box(b))].filter((x): x is DOMRect => !!x);
@@ -744,6 +747,9 @@ export class Game {
     // No gap anywhere: it goes over the rest on its own dark panel, so it still reads.
     note.classList.add('tight', 'over');
     note.style.top = `${Math.round((tops[0] ?? 40) - vr.top)}px`;
+    // (And never down past the bottom of the screen: it scrolls instead.)
+    const you = box(this.youBtn);
+    note.style.maxHeight = `${Math.max(90, Math.round((you ? you.top : vr.bottom) - 6 - (tops[0] ?? 40)))}px`;
   }
   /** The note that waits for you (see note): up until you tap, lurk, rest or go somewhere. */
   private noteSticky = false;

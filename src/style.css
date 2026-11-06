@@ -5340,7 +5340,8 @@ body[data-drug='withdrawal'] #game {
 
 /* ================= Nothing on top of anything (see fitStreet) ================= */
 #note.tight {
-  width: min(92vw, 640px);
+  /* (Clear of the Go and Pockets tabs at the edges.) */
+  width: min(calc(100vw - var(--pad-x-l, 0px) - var(--pad-x-r, 0px) - 80px), 640px);
 }
 #note.tight p {
   font-size: 12px;
@@ -5724,4 +5725,21 @@ body:has(.lockup) #pause-btn {
   justify-content: center;
   gap: 10px;
   max-width: 100%;
+}
+
+/* Landscape shops: what just happened always keeps a few lines, the bills
+   scroll in what's left, and the list on the right never runs past the card. */
+@media (orientation: landscape) and (max-height: 560px) {
+  #shop,
+  #game.in-shop #shop {
+    grid-template-rows: auto minmax(min(3.6em, 30%), 1fr) minmax(0, auto);
+  }
+  #shop > .pocket-purse {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  #shop > .shop-note {
+    min-height: 0;
+  }
 }

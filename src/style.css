@@ -5658,10 +5658,14 @@ button.tapped:not(:disabled) {
   padding: var(--pad-top, 16px) 24px var(--pad-bot, 16px);
   overflow-y: auto;
   text-align: center;
+  background: radial-gradient(ellipse at center, rgba(14, 18, 22, 0.97), rgba(0, 0, 0, 1));
+  animation: death-in 1.6s ease both;
+}
+/* (Bars only in a cell: resting, the plasma center, a shift and the rest have none.) */
+#jail.lockup {
   background:
     repeating-linear-gradient(90deg, transparent 0 calc(12.5% - 5px), rgba(120, 130, 140, 0.16) calc(12.5% - 5px) 12.5%),
     radial-gradient(ellipse at center, rgba(14, 18, 22, 0.97), rgba(0, 0, 0, 1));
-  animation: death-in 1.6s ease both;
 }
 .lockup h2 {
   margin: 0;

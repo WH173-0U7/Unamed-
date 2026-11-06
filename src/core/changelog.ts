@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.26',
+    date: 'Nov 6',
+    items: ['Resting, the plasma center and delivery shifts no longer show cell bars behind them: those are only for jail.'],
+  },
+  {
     v: '2.25',
     date: 'Nov 6',
     items: [

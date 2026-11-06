@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.0',
+    date: 'Nov 6',
+    items: [
+      'DarcVoyd is an Android app now. Download DarcVoyd.apk from the game’s GitHub page (Releases, “DarcVoyd for Android”) and install it. Every update installs over the last one.',
+      'In the app, the phone tells you when things happen while the game’s closed: rested, out of jail, court today, your motel room running out, Dez’s money due, and who you were getting out or being moved in the van.',
+      'In the app, the game fills the whole screen, and the phone’s back button opens the pause menu.',
+    ],
+  },
+  {
     v: '1.99',
     date: 'Nov 6',
     items: [

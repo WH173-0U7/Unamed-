@@ -15,6 +15,8 @@ import { setMuted, sound } from './fx/sound';
 import { createGlass } from './fx/glass';
 import { createMenu } from './ui/menu';
 import { Game } from './game/game';
+import { App } from '@capacitor/app';
+import { askPermission, clearAll, isApp, scheduleAll } from './core/notify';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const params = new URLSearchParams(location.search);
@@ -247,6 +249,9 @@ function startGame(fresh: boolean) {
   // Dying saves at once: that character is gone, and you go on as someone new.
   game.onDeath = () => save();
   game.setSize(innerWidth, innerHeight, pixelRatio);
+  // (In the Android app: may it tell you when you're rested, out, due in court?)
+  void askPermission();
+  void clearAll();
   document.body.classList.add('in-game');
   if (fresh) {
     state = 'playing';
@@ -325,13 +330,24 @@ addEventListener('keydown', (e) => {
   else if (menu.current === 'settings' || menu.current === 'confirm') menu.back();
   else if (state === 'paused') resume();
 });
-// Leaving or closing the app pauses it, which saves.
+// Leaving or closing the app pauses it, which saves (and, in the Android app,
+// tells the phone what's coming, so it can tell you while you're away).
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     pause();
     glass.persist(true);
-  }
+    if (game) void scheduleAll(game.upcoming());
+  } else void clearAll();
 });
+// The Android back button: the pause menu (and back out of it).
+if (isApp()) {
+  void App.addListener('backButton', () => {
+    if (state === 'playing') pause();
+    else if (menu.current === 'settings' || menu.current === 'confirm') menu.back();
+    else if (state === 'paused') resume();
+    else void App.minimizeApp();
+  });
+}
 addEventListener('pagehide', () => {
   pause();
   glass.persist(true);

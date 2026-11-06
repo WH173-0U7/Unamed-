@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The small white mark in the status bar for DarcVoyd's notifications: an eye. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M12,5C7,5 2.73,8.11 1,12c1.73,3.89 6,7 11,7s9.27,-3.11 11,-7C21.27,8.11 17,5 12,5zM12,16.5c-2.48,0 -4.5,-2.02 -4.5,-4.5S9.52,7.5 12,7.5s4.5,2.02 4.5,4.5S14.48,16.5 12,16.5zM12,10c-1.1,0 -2,0.9 -2,2s0.9,2 2,2 2,-0.9 2,-2S13.1,10 12,10z"/>
+</vector>

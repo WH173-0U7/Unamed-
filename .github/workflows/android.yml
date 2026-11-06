@@ -1,0 +1,70 @@
+# Builds the Android app (the same game, packaged with Capacitor) and puts the
+# APK on the "Android app" release, so it can be downloaded straight to a phone:
+# https://github.com/<owner>/<repo>/releases/latest/download/DarcVoyd.apk
+name: Android app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-app
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+
+      - name: Version from the changelog
+        id: ver
+        run: |
+          V=$(grep -m1 -oE "v: '[0-9.]+'" src/core/changelog.ts | grep -oE "[0-9.]+")
+          echo "name=$V" >> "$GITHUB_OUTPUT"
+          sed -i "s/versionCode [0-9]*/versionCode ${GITHUB_RUN_NUMBER}/; s/versionName \"[^\"]*\"/versionName \"$V\"/" android/app/build.gradle
+
+      # Always the same signing key, so each new APK installs over the last one
+      # (and keeps your save) instead of needing an uninstall.
+      - name: Signing key
+        run: |
+          mkdir -p ~/.android
+          cp android/darcvoyd-debug.keystore ~/.android/debug.keystore
+
+      - name: Build the APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../DarcVoyd.apk
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android
+          name: DarcVoyd for Android
+          make_latest: true
+          body: |
+            DarcVoyd ${{ steps.ver.outputs.name }} for Android.
+
+            On your phone, download DarcVoyd.apk below and open it. The first time,
+            Android asks you to allow installing apps from your browser: allow it.
+            Each new version installs over the old one and keeps your game.
+          files: DarcVoyd.apk

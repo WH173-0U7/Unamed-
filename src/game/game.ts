@@ -11,6 +11,7 @@ import { addFatigue, fatigueLevel, fatigueNow, fatigueOdds, restLeft, FATIGUE_NA
 import { clampClock, cravingLine, useHabit, withdrawalEffects, HIGH_HOURS, LURK_HOURS, addCaffeine, caffeineNow, caffeineLevel, drunkLevel, soberUp, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
 import { ALL_TECHNIQUES, PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
+import type { Upcoming } from '../core/notify';
 import { uiGlitch } from '../fx/uiGlitch';
 import { guilt } from './voices';
 import { sound } from '../fx/sound';
@@ -3634,6 +3635,38 @@ export class Game {
     if (this.jailed) this.jail!.after = lines;
     else this.note(lines);
     buzz(10);
+  }
+  /**
+   * What's coming, for the phone to tell you while the game's closed (see
+   * core/notify.ts): rested, out of jail, court, the room, Dez, who you were.
+   */
+  upcoming(): Upcoming[] {
+    if (this.dead) return [];
+    const out: Upcoming[] = [];
+    const t = now();
+    const h = this.health;
+    if (h.restingSince != null) {
+      const at = t + restLeft(h);
+      out.push({ id: 1, at, title: 'Rested', body: `${this.me.name} is up again, rested.` });
+    }
+    const j = this.jail;
+    if (j && j.until > t) out.push({ id: 2, at: j.until, title: 'They open the door', body: `${this.me.name} is out. ${j.what}: done.` });
+    const c = this.case;
+    if (c && !c.warrant && !this.jail && !this.save.state.bailOffer) {
+      const d = new Date(c.courtAt);
+      d.setHours(8, 30, 0, 0);
+      out.push({ id: 3, at: d.getTime(), title: 'Court today', body: `${this.me.name}: your hearing is today at the County Courthouse, 9 to 4. Miss it and there's a warrant.` });
+    }
+    const room = this.room;
+    if (room && room.until > t) out.push({ id: 4, at: room.until - 2 * 3_600_000, title: 'Your room', body: `Room 14 is paid up until ${clockText(room.until)}. After that the motel clears it, and what's in it.` });
+    const d = this.debt;
+    if (d && d.due > t) out.push({ id: 5, at: d.due - 3 * 3_600_000, title: 'Dez', body: `${money(d.owed)} due to Dez by ${clockText(d.due)}. Late, and he sends someone.` });
+    this.selves.forEach((x, i) => {
+      if (x.status !== 'inside' || i > 5) return;
+      if (x.van != null && x.van > t) out.push({ id: 10 + i, at: x.van - 30 * 60_000, title: 'The van', body: `${x.name} gets moved in half an hour. The loading dock behind the County Courthouse.` });
+      else if (x.hearingAt == null && x.until > t) out.push({ id: 10 + i, at: x.until, title: 'Out', body: `${x.name} has done their time. They're out on the streets.` });
+    });
+    return out;
   }
   /** Where you're held, and until when (real time: the game's clock is yours). */
   private get jail(): Jail | undefined {

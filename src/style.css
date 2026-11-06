@@ -5399,3 +5399,112 @@ body[data-drug='withdrawal'] #game {
     margin-top: 11px;
   }
 }
+
+/* ================= The map: what the city's made of ================= */
+.map-streets .blds rect {
+  stroke: rgba(236, 235, 230, 0.06);
+  stroke-width: 0.4;
+}
+.map-streets .lit rect {
+  fill: rgba(242, 198, 109, 0.55);
+}
+.map-streets .trees circle {
+  fill: rgba(127, 216, 143, 0.22);
+  stroke: rgba(127, 216, 143, 0.35);
+  stroke-width: 0.4;
+}
+.map-streets .park-path {
+  fill: none;
+  stroke: rgba(236, 235, 230, 0.14);
+  stroke-width: 1;
+  stroke-dasharray: 2 1.5;
+}
+.map-streets .pond {
+  fill: rgba(127, 182, 255, 0.16);
+  stroke: rgba(127, 182, 255, 0.3);
+  stroke-width: 0.5;
+}
+.map-streets .ripple {
+  fill: none;
+  stroke: rgba(127, 182, 255, 0.3);
+  stroke-width: 0.6;
+}
+.map-streets .bridge {
+  fill: rgba(236, 235, 230, 0.12);
+  stroke: rgba(236, 235, 230, 0.3);
+  stroke-width: 0.5;
+}
+.map-streets .rail {
+  fill: none;
+  stroke: rgba(236, 235, 230, 0.22);
+  stroke-width: 0.6;
+}
+.map-streets .ties {
+  stroke: rgba(236, 235, 230, 0.14);
+  stroke-width: 0.8;
+}
+.map-streets .district {
+  font: 400 11px var(--font-display);
+  letter-spacing: 0.18em;
+  fill: rgba(236, 235, 230, 0.1);
+}
+.map-streets .landmark path {
+  fill: none;
+  stroke: rgba(236, 235, 230, 0.38);
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.map-streets .landmark text {
+  font: 600 4.6px var(--font-ui);
+  letter-spacing: 0.14em;
+  fill: rgba(236, 235, 230, 0.32);
+}
+.map-streets .compass circle {
+  fill: rgba(0, 0, 0, 0.4);
+  stroke: rgba(236, 235, 230, 0.25);
+  stroke-width: 0.6;
+}
+.map-streets .compass path {
+  fill: rgba(236, 235, 230, 0.25);
+}
+.map-streets .compass path.n {
+  fill: rgba(255, 107, 127, 0.75);
+}
+.map-streets .compass text,
+.map-streets .scale text {
+  font: 700 5px var(--font-ui);
+  letter-spacing: 0.14em;
+  fill: rgba(236, 235, 230, 0.45);
+}
+.map-streets .scale path {
+  fill: none;
+  stroke: rgba(236, 235, 230, 0.4);
+  stroke-width: 0.8;
+}
+/* Streets drawn a little rougher: asphalt, not ruled lines. */
+.map-streets .lines line {
+  stroke: rgba(236, 235, 230, 0.17);
+}
+/* "YOU", under your mark. */
+.map-pin .map-you {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  translate: -50% 3px;
+  font: 700 8px var(--font-ui);
+  font-style: normal;
+  letter-spacing: 0.2em;
+  margin-right: -0.2em;
+  color: #ff8a94;
+  text-shadow: 0 0 4px #000, 0 0 2px #000;
+  pointer-events: none;
+}
+/* Forget an address: quieter than Walk there. */
+.map-forget {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.75;
+}

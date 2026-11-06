@@ -1472,6 +1472,7 @@ export class Game {
   /** A sheet button: what it does. */
   private sheetAction(b: HTMLButtonElement) {
     if (b.dataset.close !== undefined) this.closeSheet();
+    else if (b.dataset.forget) this.forgetHome(b.dataset.forget);
     else if (b.dataset.mappick) {
       this.mapPick = b.dataset.mappick;
       this.renderSheet();
@@ -4970,6 +4971,17 @@ export class Game {
   }
 
   /** Your bills and coins, as little chips: "$20 ×2". */
+  /** Off the map: an address you don't need any more (it stays forgotten, even with their ID on you). */
+  private forgetHome(id: string) {
+    if (this.place === 'home' && this.save.state.homeAt === id) return;
+    const i = this.homes.findIndex((h) => h.id === id);
+    if (i < 0) return;
+    const learned = (this.save.state.homesLearned ??= []) as string[];
+    if (!learned.includes(id)) learned.push(id);
+    this.homes.splice(i, 1);
+    this.mapPick = null;
+    this.renderSheet();
+  }
   /** Where to?: the map, everything you can go to on it, and the card for what you've tapped. */
   private mapSheetHtml(): string {
     type Spot = { key: string; x: number; y: number; icon: string; tone: MapMark['tone']; name: string; small: string; go: string; extra?: string };
@@ -4983,7 +4995,7 @@ export class Game {
     }
     for (const h of this.homes) {
       const at = addressAt(h.addr);
-      spots.push({ key: `home:${h.id}`, x: at.x, y: at.y, icon: PLACE_ICON.home, tone: 'home', name: h.addr, small: `${h.owner}’s place${h.hitAt ? ` · you broke in ${dueText(h.hitAt) === dueText(now()) ? 'today' : dueText(h.hitAt)}` : ''}${this.hasKeyTo(h) ? ' · you have their keys' : ''}`, go: `data-home="${h.id}"` });
+      spots.push({ key: `home:${h.id}`, x: at.x, y: at.y, icon: PLACE_ICON.home, tone: 'home', name: h.addr, extra: `<button type="button" class="map-forget" data-forget="${h.id}">Forget this address</button>`, small: `${h.owner}’s place${h.hitAt ? ` · you broke in ${dueText(h.hitAt) === dueText(now()) ? 'today' : dueText(h.hitAt)}` : ''}${this.hasKeyTo(h) ? ' · you have their keys' : ''}`, go: `data-home="${h.id}"` });
     }
     for (const c of this.myCars) {
       const h = c.home ? this.homeById(c.home) : undefined;
@@ -5003,6 +5015,7 @@ export class Game {
       `<div class="map-card-head"><span class="map-card-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${picked.icon}"/></svg></span><div><b>${picked.name}</b><small>${isHere ? 'You’re here.' : far ? `${far} block${far === 1 ? '' : 's'} from you.` : 'Just round the corner.'}</small></div></div>` +
       `<p>${picked.small}</p>` +
       (isHere ? '' : `<button type="button" class="map-go" ${picked.go}>${picked.key === 'place:street' ? 'Back out to your corner' : 'Walk there'}</button>`) +
+      (isHere ? '' : (picked.extra ?? '')) +
       `</div>`;
     return `${mapHtml(marks)}${card}<p class="map-hint">Tap a place on the map.</p>`;
   }

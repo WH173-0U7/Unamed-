@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.85',
+    date: 'Nov 6',
+    items: [
+      'The map has a city on it now: buildings on every block (a few windows lit), the rail line across the top, the river with its bridge, the park with its trees and pond, the parts of town by name (Downtown, the Flats, Old Town, Southside, the Docks), a few landmarks (St. Agnes, the laundromat, the water tower, the shelter), a compass and a scale. “YOU” under your mark.',
+      'Addresses you know can be taken off the map: tap one and Forget this address. It stays forgotten, even if you still have their ID.',
+    ],
+  },
+  {
     v: '1.84',
     date: 'Nov 6',
     items: [

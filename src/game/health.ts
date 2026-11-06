@@ -619,7 +619,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
     const face = places.filter((p) => /cheek|eyebrow|lip|jaw|face/.test(p));
     out.push({
       mark: true, name: `Scar${places.length > 1 ? 's' : ''}: ${places.join(', ')}`,
-      effects: [face.length ? `On your face (${face.join(', ')}): people will remember it. It doesn't slow you in a fight.` : `On your ${places.join(' and ')}. It doesn't slow you in a fight.`],
+      effects: [face.length ? `On your face${face.some((p) => p !== 'face') ? ` (${face.filter((p) => p !== 'face').join(', ')})` : ''}: people will remember it. It doesn't slow you in a fight.` : `On your ${places.join(' and ')}. It doesn't slow you in a fight.`],
       heals: 'For good.',
     });
   }

@@ -54,6 +54,11 @@ const oneOf = <T,>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)];
 /** A lock that never gets changed (nobody left to change it). */
 const NEVER = 8.64e15;
 /** A date, with the year when it isn't this year's (a debt that came due while you were inside). */
+/** A prison sentence, said the way a judge would: whole years, else months. */
+const prisonTerm = (days: number) => {
+  const months = Math.round(days / 30.4);
+  return months % 12 ? `${months} months` : months === 12 ? 'a year' : `${months / 12} years`;
+};
 const dueText = (t: number) => (new Date(t).getFullYear() === new Date(now()).getFullYear() ? dateText(t) : new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }));
 /** Days Dez's vig keeps compounding once you're late. */
 const VIG_DAYS = 14;
@@ -2507,7 +2512,7 @@ export class Game {
           delete this.save.state.stingCash;
         }
       } else {
-        lines.push(burglary ? 'You get as far as the back door. One of them takes your legs out and you hit the floor face first. A knee in your back, your arms wrenched behind you.' : 'You bolt, and get about ten yards. One of them takes your legs out and you hit the sidewalk face first. A knee in your back, your arms wrenched behind you.');
+        lines.push(burglary ? (upstairs ? 'You get as far as the stairwell.' : 'You get as far as the back door.') + ' One of them takes your legs out and you hit the floor face first. A knee in your back, your arms wrenched behind you.' : 'You bolt, and get about ten yards. One of them takes your legs out and you hit the sidewalk face first. A knee in your back, your arms wrenched behind you.');
         h.blood = Math.min(h.blood, Math.max(h.maxBlood * 0.6, h.blood - 350));
         h.stress = Math.min(100, (h.stress ?? 0) + 25);
         this.fx.impact(true, 350, true, 'spatter');
@@ -2778,14 +2783,14 @@ export class Game {
       return lines;
     }
     const days = Math.round(c.charges.reduce((n, x) => n + chargeOf(x).days, 0) * (1 + priors * 0.3));
-    lines.push(days >= 365 ? `Found guilty. ${Math.round(days / 365) === 1 ? 'A year' : `${Math.round(days / 365)} years`} in state prison.` : `Found guilty. ${days} days in County.`);
+    lines.push(days >= 365 ? `Found guilty. ${prisonTerm(days).replace(/^a/, 'A')} in state prison.` : `Found guilty. ${days} days in County.`);
     return [...lines, ...this.serve(days)];
   }
   /** Time inside: you heal, you get harder, and you come out with nothing new. */
   private serve(days: number): string[] {
     const h = this.health;
     // (They don't let you bleed out inside: the wound's seen to first.)
-    const lines = [...custodyCare(h), `You serve ${days >= 365 ? (Math.round(days / 365) === 1 ? 'the year' : `${Math.round(days / 365)} years`) : `your ${days} days`}. The food is gray, the nights are loud, and you learn who not to look at.`, ...passHours(h, Math.min(days * 24, 96), true)];
+    const lines = [...custodyCare(h), `You serve ${days >= 365 ? (prisonTerm(days) === 'a year' ? 'the year' : prisonTerm(days)) : `your ${days} days`}. The food is gray, the nights are loud, and you learn who not to look at.`, ...passHours(h, Math.min(days * 24, 96), true)];
     this.ageHomes(days * 24);
     if (h.dead) return lines;
     h.stress = Math.min(100, (h.stress ?? 0) + 25);

@@ -1707,10 +1707,16 @@ function strike(a: Side, kind: 'punch' | 'kick' | 'weapon' | 'stomp', aim?: Loc,
   }
   // (A needle punctures; it doesn't slice.)
   const how = weapon && /syringe/i.test(weapon.name) ? 'jab' : weapon?.cuts && !/^bottle$/i.test(weapon.name) ? 'cut' : stomp ? 'stomp' : kind === 'kick' ? 'kick' : 'punch';
+  const scarsBefore = enc[d].marks?.scars?.length ?? 0;
   let after = wound(d, loc, dmg, how);
   // (A cut to the body is opened where the blow was said to land: not "in the chest. It nicks your side.")
   const spot = how === 'cut' && loc === 'body' ? text.match(/\b(ribs|side|chest)\b/)?.[1] : undefined;
-  if (spot) after = after.replace(/\b(your|their) side\b/g, `$1 ${spot}`);
+  if (spot) {
+    after = after.replace(/\b(your|their) side\b/g, `$1 ${spot}`);
+    // (And the scar is where the cut was.)
+    const sc = enc[d].marks?.scars;
+    if (sc) for (let i = scarsBefore; i < sc.length; i++) if (sc[i] === 'side') sc[i] = spot;
+  }
   say(a, `${text} ${after}`);
   // No guard on it: a hard stab and your hand slides down onto the blade.
   if (a === 'you' && kn?.noGuard && (loc === 'body' || loc === 'stomach') && Math.random() < 0.07) {
@@ -2310,7 +2316,7 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
     ],
     body: [
       [[`${S} fold around it with a grunt.`], [`It knocks ${you ? 'you' : 'them'} back a step.`], [`The air goes out of ${P} chest in a rush.`, wind(6)]],
-      [[`It goes in with a deep, heavy thud.`], [`${S} stagger, clutching ${P} side.`], [`${S} wheeze, bent over.`, wind(10)]],
+      [[`A deep, heavy thud.`], [`${S} stagger, clutching ${P} side.`], [`${S} wheeze, bent over.`, wind(10)]],
       [
         [`${S} fold over it and can't straighten up.`, wind(15)],
         [`${Pc} knees dip; ${s} barely stay standing.`],

@@ -375,6 +375,7 @@ canvas {
 .enc-card,
 .enc-actions {
   overflow: hidden;
+  overflow: clip;
 }
 .ui-blood {
   position: absolute;
@@ -5002,4 +5003,10 @@ body[data-drug='withdrawal'] #game {
   #shop > .shop-note {
     min-height: 3.6em;
   }
+}
+
+/* Blood splashes stay inside the fight panels: nothing scrolls sideways. */
+#enc .enc-log,
+#enc .enc-status {
+  overflow-x: clip !important;
 }

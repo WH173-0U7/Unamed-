@@ -114,7 +114,10 @@ export function createHitUi(game: HTMLElement) {
         const el = document.createElement('i');
         el.className = 'ui-blood';
         el.style.width = el.style.height = `${size}px`;
-        el.style.left = `${Math.random() * 100}%`;
+        // (Whole splash inside the panel's width, however it's turned: nothing to scroll sideways to.)
+        const half = size * 0.71;
+        const w = p.clientWidth;
+        el.style.left = `${w > half * 2 ? half + Math.random() * (w - half * 2) : w / 2}px`;
         el.style.top = `${Math.random() * 100}%`;
         el.style.backgroundImage = `url(${spriteFor(size * 1.5)})`;
         el.style.transform = `translate(-50%, -50%) rotate(${Math.random() * 360}deg)`;

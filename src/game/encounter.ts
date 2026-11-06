@@ -3400,11 +3400,15 @@ function several(x: string, k: number): string[] {
   const m = /^(?:a|an|the) (.+)$/i.exec(bare);
   // (The same sum twice: "$40 in cash", "$80 of your cash".)
   const sum = /^\$([\d,]+(?:\.\d+)?) (in|of) (.+)$/.exec(bare);
-  if (sum) return [`$${(Number(sum[1].replace(/,/g, '')) * k).toLocaleString('en-US', { maximumFractionDigits: 2 })} ${sum[2]} ${sum[3]}${where}`];
+  if (sum) {
+    const total = Math.round(Number(sum[1].replace(/,/g, '')) * k * 100) / 100;
+    const cents = total % 1 !== 0;
+    return [`$${total.toLocaleString('en-US', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: 2 })} ${sum[2]} ${sum[3]}${where}`];
+  }
   // (Money, or a detail after a comma or in brackets: listed as many times as there are.)
   if (/^[$\d]/.test(bare) || bare.includes(',') || bare.includes('(') || / (in|with|from) /.test(bare)) return Array(k).fill(x);
   // (No "a" to count by: "two sets of house keys", "two cans of pepper spray"; anything else, listed as many times as there are.)
-  if (!m) return /keys$/i.test(bare) ? [`${NUMBER[k] ?? k} sets of ${bare}${where}`] : /spray$/i.test(bare) ? [`${NUMBER[k] ?? k} cans of ${bare}${where}`] : Array(k).fill(x);
+  if (!m) return /keys$/i.test(bare) ? [`${NUMBER[k] ?? k} sets of ${bare}${where}`] : /spray$/i.test(bare) ? [`${NUMBER[k] ?? k} cans of ${bare}${where}`] : [x];
   const body = m[1];
   if (/spray$/i.test(body)) return [`${NUMBER[k] ?? k} cans of ${body}${where}`];
   const of = body.search(/ of /);

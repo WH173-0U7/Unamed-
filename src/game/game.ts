@@ -988,6 +988,8 @@ export class Game {
     this.powerBtn.hidden = true;
     this.powerBtn.classList.remove('pressed');
     this.koHint.hidden = true;
+    // (Whatever note was up before it went dark goes with it.)
+    this.noteEl.hidden = true;
     this.refresh();
     buzz([200, 80, 400]);
     this.waitToComeRound();

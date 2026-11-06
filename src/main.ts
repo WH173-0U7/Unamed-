@@ -14,6 +14,7 @@ import { createDrugs } from './fx/drugs';
 import { setMuted, sound } from './fx/sound';
 import { createGlass } from './fx/glass';
 import { createMenu } from './ui/menu';
+import { showExport, showImport } from './ui/transfer';
 import { Game } from './game/game';
 import { App } from '@capacitor/app';
 import { APP_BUILD_NEEDED, APP_DOWNLOAD, askPermission, clearAll, isApp, scheduleAll } from './core/notify';
@@ -192,6 +193,30 @@ const menu = createMenu({
       },
     });
   },
+});
+
+// Moving a game between devices (Settings): export it as a code, or load one.
+$('btn-export').addEventListener('click', () => {
+  if (game) save();
+  void showExport((t) => menu.toast(t, 4500));
+});
+$('btn-import').addEventListener('click', () => {
+  if (state !== 'menu') {
+    menu.toast('Go to the main menu first to load another game');
+    return;
+  }
+  showImport(
+    (t) => menu.toast(t, 4500),
+    (go) =>
+      hasSave()
+        ? menu.confirm({ title: 'Replace this game?', body: 'The game saved here is replaced by the one from the code. This can’t be undone.', ok: 'Replace', onOk: go })
+        : go(),
+    () => {
+      menu.setSaveInfo(loadSave());
+      menu.toast('Game loaded. Tap Continue to play it.', 4500);
+      showMenu('main');
+    },
+  );
 });
 
 function showMenu(screen: 'main' | 'pause') {

@@ -11,6 +11,13 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.11',
+    date: 'Nov 6',
+    items: [
+      'Move your game, in Settings: Export copies your game as a code. On the other device (the Android app, or another browser), Settings, Move your game, Import: paste it in, and it’s your game there.',
+    ],
+  },
+  {
     v: '2.10',
     date: 'Nov 6',
     items: [

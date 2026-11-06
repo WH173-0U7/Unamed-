@@ -157,3 +157,40 @@ export function formatAgo(timestamp: number): string {
   const d = Math.floor(s / 86400);
   return d === 1 ? 'yesterday' : `${d} days ago`;
 }
+
+/**
+ * Moving a game to another device: the save as one line of text (squeezed,
+ * then written out in letters and numbers) to paste somewhere and back.
+ */
+const CODE_PREFIX = 'DARCVOYD1:';
+async function squeeze(text: string, how: 'compress' | 'decompress'): Promise<Uint8Array> {
+  const input = how === 'compress' ? new TextEncoder().encode(text) : Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+  const stream = new Blob([input]).stream().pipeThrough(how === 'compress' ? new CompressionStream('gzip') : new DecompressionStream('gzip'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+/** The saved game as a code (null: nothing saved). */
+export async function exportCode(): Promise<string | null> {
+  const raw = localStorage.getItem(KEY);
+  if (!raw || !parse(raw)) return null;
+  const bytes = await squeeze(raw, 'compress');
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return CODE_PREFIX + btoa(bin);
+}
+/** A code back into a saved game, replacing what's here. Returns what it loaded, or null if the code isn't one. */
+export async function importCode(code: string): Promise<SaveData | null> {
+  try {
+    const body = code.replace(/\s+/g, '');
+    if (!body.startsWith(CODE_PREFIX)) return null;
+    const bytes = await squeeze(body.slice(CODE_PREFIX.length), 'decompress');
+    const data = parse(new TextDecoder().decode(bytes));
+    if (!data) return null;
+    // (It takes over from whatever was here: counted on from that, so nothing thinks it's stale.)
+    data.rev = Math.max(data.rev ?? 0, parse(localStorage.getItem(KEY))?.rev ?? 0) + 1;
+    localStorage.removeItem(BACKUP_KEY);
+    localStorage.setItem(KEY, JSON.stringify(data));
+    return data;
+  } catch {
+    return null;
+  }
+}

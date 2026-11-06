@@ -98,13 +98,15 @@ function streetsSvg(): string {
   }
   for (const [name, y] of Object.entries(STS)) {
     lines.push(`<line x1="0" y1="${y}" x2="${MAP_W}" y2="${y}"/>`);
-    labels.push(`<text x="4" y="${y - 3}">${name.toUpperCase()}</text>`);
+    labels.push(`<text x="36" y="${y - 3}">${name.toUpperCase()}</text>`);
   }
   for (const [name, [x1, y1, x2, y2]] of Object.entries(ROADS)) {
     lines.push(`<line class="road" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`);
     const a = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
-    const mx = x1 + (x2 - x1) * 0.62;
-    const my = y1 + (y2 - y1) * 0.62;
+    // (Along the road where nothing else is written.)
+    const at = name === 'Tanner Rd' ? 0.3 : 0.62;
+    const mx = x1 + (x2 - x1) * at;
+    const my = y1 + (y2 - y1) * at;
     labels.push(`<text x="${mx}" y="${my - 3}" transform="rotate(${a.toFixed(1)} ${mx} ${my})">${name.toUpperCase()}</text>`);
   }
   for (const [name, [x1, y1, x2, y2]] of Object.entries(STUBS)) {

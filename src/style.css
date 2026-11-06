@@ -4132,7 +4132,8 @@ body[data-buttons] .enc-opts button:disabled {
   top: -10px;
   z-index: 1;
   padding: 6px 0 4px;
-  background: linear-gradient(to bottom, rgba(16, 16, 16, 0.95) 70%, transparent);
+  /* (Solid where its words are, so no line shows through them.) */
+  background: linear-gradient(to bottom, rgb(14, 14, 14) 0 calc(100% - 4px), transparent);
 }
 
 /* Shops: what just happened shows inside the card (the street note is hidden
@@ -5386,4 +5387,9 @@ body[data-drug='withdrawal'] #game {
     width: 32px;
     height: 32px;
   }
+}
+
+/* A place's name and the line under it: room between them. */
+.shop-head h2 {
+  margin-bottom: 4px;
 }

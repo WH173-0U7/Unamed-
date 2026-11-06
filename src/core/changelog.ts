@@ -11,6 +11,13 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.82',
+    date: 'Nov 6',
+    items: [
+      'More text kept apart: the “earlier lines” label in a fight no longer lets a line show through it, a place’s name has room above its description, and street names on the map don’t run into each other.',
+    ],
+  },
+  {
     v: '1.81',
     date: 'Nov 6',
     items: [

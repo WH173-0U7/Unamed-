@@ -4898,7 +4898,7 @@ body[data-drug='withdrawal'] #game {
    that, it scrolls (the latest at the bottom, so swipe up for the rest). */
 #game:not(.in-shop) #note.sticky {
   /* (Clear of the clock and date: they end about 50px under the top padding.) */
-  max-height: calc(57% - var(--pad-top, 0px) - 112px);
+  max-height: max(118px, calc(57% - var(--pad-top, 0px) - 112px));
   overflow-y: auto;
   overscroll-behavior: contain;
   pointer-events: auto;
@@ -5303,6 +5303,7 @@ body[data-drug='withdrawal'] #game {
 .map-go {
   display: block;
   width: 100%;
+  min-height: 44px;
   margin-top: 10px;
 }
 .map-hint {
@@ -5630,4 +5631,12 @@ button.tapped:not(:disabled) {
 /* Who you've seen: clear of the Go and Pockets tabs at the sides. */
 #seen {
   width: min(86vw, 420px, calc(100vw - 72px));
+}
+
+/* Short screens: the "tap to dismiss" line stays small, so the note's text shows above it. */
+@media (max-height: 420px) {
+  #game:not(.in-shop) #note.sticky p.note-tap {
+    padding: 6px 0 0;
+    font-size: 10px;
+  }
 }

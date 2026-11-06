@@ -11,6 +11,20 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.94',
+    date: 'Nov 6',
+    items: [
+      'Jail no longer fast-forwards the world. Your room, what you owe Dez, your car and the houses you know all keep real time, so a night in a cell doesn’t cost you a room you’d paid for. Your body still heals and your habits still fade inside.',
+      'Ambush moves (Kick their knee, Slam them into the wall, Choke from behind) unlock and work by their own style’s level, like every other move. A move a style just unlocked can be used straight away.',
+      'Grappling someone to the ground trains Clinch & takedowns.',
+      'Nobody stays standing on two broken legs. A knee or ankle kick breaks one leg, not both at once.',
+      'Someone in a wheelchair can’t run when you let them go, can’t come hunting you, and isn’t on crutches. You can’t sneak up and sweep them off their feet: you just go at them.',
+      'Torture: fingers on a hand that’s already broken are left alone. Twist the broken arm only shows when an arm is broken. Fingers that have healed can be broken again.',
+      'Fixed: the level-up sound, getting winded twice from one punch, a limp on someone already on the floor, and two locked moves of the same style on the floor menu.',
+      'The street message’s text no longer hides under “Tap to dismiss” on short screens, and the map’s Walk there button is easier to tap.',
+    ],
+  },
+  {
     v: '1.93',
     date: 'Nov 6',
     items: [

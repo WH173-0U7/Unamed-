@@ -926,7 +926,7 @@ export class Game {
     const wasOut = !!e.them.out;
     const tortured = e.tortured ?? 0;
     const mugged = !!e.mugged;
-    const levelsBefore = Object.values(this.stats).reduce((n, x) => n + x.level, 0);
+    const levelsBefore = this.levelSum();
     const shotsBefore = e.shots ?? 0;
     const downBefore = !!e.you?.down;
     const logFrom = e.log.length;
@@ -936,7 +936,7 @@ export class Game {
     if (!downBefore && e.you?.down) this.fx.dirt(e.you.out ? 0.9 : 0.6);
     // Gunshots get called in.
     if ((e.shots ?? 0) > shotsBefore) this.infamy.heat = Math.min(100, this.infamy.heat + 18 * ((e.shots ?? 0) - shotsBefore));
-    if (Object.values(this.stats).reduce((n, x) => n + x.level, 0) > levelsBefore) sound.levelUp();
+    if (this.levelSum() > levelsBefore) sound.levelUp();
     // Knocked out of your mouth (or you're out cold): the cigarette's gone.
     if (!wasOver && this.smoking && e.you && (e.you.smoking === false || e.you.out || e.result === 'lost')) {
       delete this.health.smokingUntil;
@@ -3243,7 +3243,6 @@ export class Game {
       delete h.smokingUntil;
       lines.push('You spend the night in a holding cell that smells of bleach and piss.', ...passHours(h, 8, true));
       rec.nights = (rec.nights ?? 0) + 1;
-      this.ageHomes(8);
       h.cold = 0;
       if (h.dead) return this.die(lines);
       if (charges.length) {
@@ -3327,7 +3326,6 @@ export class Game {
     delete this.save.state.bailOffer;
     const lines = [...custodyCare(h), 'A day and a half in County: a bunk, a toilet with no seat, and the noise that never stops.', ...passHours(h, 36, true)];
     this.record.heldHours = (this.record.heldHours ?? 0) + 36;
-    this.ageHomes(36);
     if (h.dead) return this.die(lines);
     h.stress = Math.min(100, (h.stress ?? 0) + 20);
     lines.push(...this.verdict(true));
@@ -3417,7 +3415,6 @@ export class Game {
     const lines = [...custodyCare(h), `You serve ${days >= 365 ? (prisonTerm(days) === 'a year' ? 'the year' : prisonTerm(days)) : `your ${days} days`}. The food is gray, the nights are loud, and you learn who not to look at.`, ...passHours(h, Math.min(days * 24, 96), true)];
     // (The rest of the term goes by too: habits fade, bones and faces mend.)
     if (!h.dead && days * 24 > 96) passHours(h, days * 24 - 96, true);
-    this.ageHomes(days * 24);
     if (h.dead) return lines;
     h.stress = Math.min(100, (h.stress ?? 0) + 25);
     h.nerve = Math.min(100, (h.nerve ?? 0) + 5);
@@ -3464,7 +3461,6 @@ export class Game {
       }
       lines.push(...this.passCell());
       this.record.nights = (this.record.nights ?? 0) + 1;
-      this.ageHomes(8);
       if (this.health.dead) return this.die(lines);
     }
     lines.push(...this.verdict(false));
@@ -4137,7 +4133,7 @@ export class Game {
     const away = !j?.metOwner && ((!!e && !e.resident && e.person.home?.id === h.id) || (!!k && now() - k.at < 2 * 3_600_000));
     const w = whoIsIn(h, now(), away);
     // A broken leg keeps you home.
-    if (!away && !h.deadAt && w.owner === 'out' && k?.broken.some((p) => p.endsWith('leg'))) w.owner = 'awake';
+    if (!away && !h.deadAt && w.owner === 'out' && k?.broken.some((p) => /(leg|ankle)$/.test(p) || p === 'spine')) w.owner = 'awake';
     if (j?.woke || (h.wokeAt && now() - h.wokeAt < 3_600_000)) {
       if (w.owner === 'asleep') w.owner = 'awake';
       if (w.other === 'asleep') w.other = 'awake';
@@ -4149,63 +4145,16 @@ export class Game {
   private hasKeyTo(h: Home): boolean {
     return this.inventory.items.some((x) => x.opens === h.id);
   }
-  /**
-   * Time served (the game's clock is the real one; a sentence isn't): the
-   * houses you know move on by that much. The police leave, the locks get changed.
-   */
-  private ageHomes(hours: number) {
-    const ms = hours * 3_600_000;
-    for (const h of this.homes) {
-      if (h.scene) h.scene.until -= ms;
-      if (h.lockAt != null && h.lockAt !== NEVER) h.lockAt -= ms;
-      if (h.fixedAt != null) h.fixedAt -= ms;
-      for (const k of ['triedAt', 'knockedAt', 'wokeAt', 'hitAt', 'deadAt'] as const) if (h[k] != null) h[k]! -= ms;
-      if (h.looked) for (const r of Object.keys(h.looked)) h.looked[r as keyof typeof h.looked]! -= ms;
+  /** Every level you've got, the fighting styles' included (for the level-up sound). */
+  private levelSum(): number {
+    type L = { level?: unknown };
+    const st = this.stats as unknown as Record<string, L & Record<string, L>>;
+    let n = 0;
+    for (const [k, x] of Object.entries(st)) {
+      if (k === 'styles') for (const y of Object.values(x ?? {}) as L[]) n += typeof y?.level === 'number' ? y.level : 0;
+      else if (typeof x?.level === 'number') n += x.level;
     }
-    // Car keys go cold (the car's long reported); rent runs out; Dez's money comes due; people heal.
-    const st = this.save.state;
-    const stash = st.stash as { items: InvItem[]; at: number } | undefined;
-    const room = st.room as { until: number; items: InvItem[]; at: number } | undefined;
-    // (And what thieves are holding of yours: the same time went by for it.)
-    const theirs = (this.world.thieves ?? []).flatMap((t) => t.person.clothes.flatMap((g) => g.loot));
-    for (const x of [...this.inventory.items, ...(stash?.items ?? []), ...(room?.items ?? []), ...this.cars.flatMap((c) => c.items), ...theirs]) {
-      if (x.takenAt != null) x.takenAt -= ms;
-      if (x.tookAt != null) x.tookAt -= ms;
-    }
-    if (stash) stash.at -= ms;
-    if (room) {
-      room.until -= ms;
-      room.at -= ms;
-      const r = room as { slept?: number };
-      if (r.slept != null) r.slept -= ms;
-    }
-    if (this.record.last != null) this.record.last -= ms;
-    for (const c of this.cars) {
-      c.takenAt -= ms;
-      c.foundAt -= ms;
-      c.towAt -= ms;
-      if (c.copsUntil != null) c.copsUntil -= ms;
-      if (c.slept != null) c.slept -= ms;
-      delete c.watch;
-    }
-    const d = st.debt as { due: number; vigAt?: number } | undefined;
-    if (d) {
-      d.due -= ms;
-      if (d.vigAt != null) d.vigAt -= ms;
-    }
-    for (const k of this.people) {
-      k.at -= ms;
-      if (k.healedAt != null) k.healedAt -= ms;
-      for (const p of Object.keys(k.mends) as (keyof typeof k.mends)[]) k.mends[p]! -= ms;
-      for (const m of Object.keys(k.markEnds) as (keyof typeof k.markEnds)[]) k.markEnds[m]! -= ms;
-      heal(k);
-    }
-    // What's said about you fades; bans and doubts lapse.
-    const inf = this.world.infamy;
-    if (inf) inf.at -= ms;
-    if (typeof st.pawnBan === 'number') st.pawnBan -= ms;
-    const ok = st.idOk as { until: number } | undefined;
-    if (ok) ok.until -= ms;
+    return n;
   }
   /** What walking off from a confrontation looked like (said on arriving wherever you went). */
   private offLines: string[] = [];
@@ -4613,7 +4562,7 @@ export class Game {
     // On two broken legs, the owner's in bed and staying there.
     const ownerK = owner ? this.ownerOf(h) : undefined;
     if (ownerK) heal(ownerK);
-    const crippled = owner && (ownerK?.broken.filter((b) => b.endsWith('leg')).length ?? 0) >= 2;
+    const crippled = owner && (ownerK?.broken.includes('spine') || new Set(ownerK?.broken.filter((b) => /(leg|ankle)$/.test(b)).map((b) => b.split(' ')[0])).size >= 2);
     const body = !!j.killed;
     j.occupied = true;
     j.woke = true;
@@ -6020,7 +5969,7 @@ export class Game {
           return;
         }
         // The ones who hate you most come looking: they find you first.
-        if (known && e.recognised && (e.grudge ?? 0) >= 70 && (e.dread ?? 0) < 60 && !known.broken.some((p) => p.endsWith('leg')) && known.broken.filter((p) => p.endsWith('arm')).length < 2 && Math.random() < 0.5) {
+        if (known && e.recognised && (e.grudge ?? 0) >= 70 && (e.dread ?? 0) < 60 && !known.broken.some((p) => /(leg|ankle)$/.test(p) || p === 'spine') && known.broken.filter((p) => /(arm|wrist|hand)$/.test(p)).length < 2 && Math.random() < 0.5) {
           // Through the normal path, so a fight that ends at once is dealt with properly.
           this.phase = 'idle';
           this.act('ambushed');

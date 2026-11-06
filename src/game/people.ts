@@ -77,7 +77,10 @@ export function heal(k: Known, t = now()) {
   for (const [m, end] of Object.entries(k.markEnds) as [keyof typeof MARK_DAYS, number][]) {
     if (end <= t) {
       delete k.markEnds[m];
-      if (m === 'fingers') delete k.marks.fingers;
+      if (m === 'fingers') {
+        delete k.marks.fingers;
+        delete k.marks.fingerList;
+      }
       else k.marks[m] = false;
       if (m === 'brow') (k.marks.scars ??= []).push('eyebrow');
     }

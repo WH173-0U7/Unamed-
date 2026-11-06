@@ -2791,6 +2791,8 @@ export class Game {
     const h = this.health;
     // (They don't let you bleed out inside: the wound's seen to first.)
     const lines = [...custodyCare(h), `You serve ${days >= 365 ? (prisonTerm(days) === 'a year' ? 'the year' : prisonTerm(days)) : `your ${days} days`}. The food is gray, the nights are loud, and you learn who not to look at.`, ...passHours(h, Math.min(days * 24, 96), true)];
+    // (The rest of the term goes by too: habits fade, bones and faces mend.)
+    if (!h.dead && days * 24 > 96) passHours(h, days * 24 - 96, true);
     this.ageHomes(days * 24);
     if (h.dead) return lines;
     h.stress = Math.min(100, (h.stress ?? 0) + 25);

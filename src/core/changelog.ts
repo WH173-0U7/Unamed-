@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.04',
+    date: 'Nov 6',
+    items: [
+      'The fight menu only shows moves you know. Moves you haven’t learned yet no longer sit there greyed out; the You tab’s Fighting styles card still says what each style teaches next, and at what level.',
+      'A better move takes over from the one it improves on once you learn it: the Uppercut replaces the Haymaker, Kick the knee in replaces the Leg kick, the Double-leg takedown replaces Trip them, Elbows from the top replace Ground and pound, and Drag them down replaces Kick their legs. The old one only comes back when the new one can’t be used (too tired for it, say).',
+    ],
+  },
+  {
     v: '2.03',
     date: 'Nov 6',
     items: [

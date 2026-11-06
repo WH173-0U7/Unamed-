@@ -428,16 +428,24 @@ function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolea
  * The techniques you've learned (by Unarmed level), and the next one you
  * haven't, shown greyed out so you know what's coming.
  */
+/** A move that a better one takes over from, once you know the better one: [the old one, the one that replaces it]. */
+const REPLACED_BY: [string, string][] = [
+  ['tech:hook', 'tech:uppercut'],
+  ['tech:lowkick', 'tech:kneekick'],
+  ['tech:sweep', 'tech:double'],
+  ['ground:pound', 'ground:elbows'],
+  ['floor:legs', 'floor:pull'],
+];
+/**
+ * The moves you know (the ones you don't aren't shown: the You tab says what
+ * each style teaches next). An old move goes once the one that replaces it is
+ * learned, unless that one can't be used right now.
+ */
 function learned(e: Encounter, list: (Omit<Option, 'cat'> & { level: number; style?: Style })[], cat: Category): Option[] {
   const lvl = (t: { style?: Style }) => e.styleLevels?.[t.style ?? styleOfId(t as { id: string })] ?? e.unarmedLevel ?? 1;
   const known = list.filter((t) => t.level <= lvl(t)).map(({ level: _l, style: _s, ...o }) => ({ ...o, cat }));
-  // The next one to learn in each style (one locked move per style, so you can see what's coming).
-  const next = new Map<Style, (typeof list)[number]>();
-  for (const t of list.filter((x) => x.level > lvl(x)).sort((a, b) => a.level - b.level)) {
-    const st = t.style ?? styleOfId(t);
-    if (!next.has(st)) next.set(st, t);
-  }
-  return [...known, ...[...next].map(([st, t]) => ({ id: `locked:${t.id}`, label: t.label, hint: `Learn at ${STYLE_NAMES[st]} ${t.level}`, disabled: true, cat }))];
+  const usable = new Set(known.filter((o) => !o.disabled).map((o) => o.id));
+  return known.filter((o) => !REPLACED_BY.some(([old, by]) => old === o.id && usable.has(by)));
 }
 /** What style a move is (by its id: the basic moves, the ambushes, the learned ones). */
 export function styleOfId(o: { id: string }): Style {

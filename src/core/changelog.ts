@@ -11,6 +11,13 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.73',
+    date: 'Nov 6',
+    items: [
+      'The loot symbols are the game’s own now: thin line drawings in the colour of what they are, with the same red and blue fringe as the rest of the screen. A bill, a stack of coins, a phone, a key, a blade, a baggie, a torn-off receipt, and the rest.',
+    ],
+  },
+  {
     v: '1.72',
     date: 'Nov 6',
     items: [

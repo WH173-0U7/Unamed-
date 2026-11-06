@@ -1,3 +1,4 @@
+import { glyphSvg } from '../game/lootIcon';
 import { uiGlitch } from '../fx/uiGlitch';
 import { BUILDS, NAMES, personalityOf } from '../game/person';
 import { CATEGORY_NAMES, FEAR_NAMES, PASS_OUT, conditions, fearLevel, distanceLabel, options, type Body, type Category, type Encounter, type Option } from '../game/encounter';
@@ -134,7 +135,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
   /** Violence looks and feels different from everything else. */
   const HARM = new Set(['violence', 'attack', 'stomp', 'torture']);
   const button = (o: Option) =>
-    `<button type="button" data-id="${o.id}" ${o.cat && HARM.has(o.cat) ? 'data-tone="harm"' : ''} ${o.tone ? `data-loot="${o.tone}"` : ''} ${o.disabled ? 'disabled' : ''}>${o.icon ? `<span class="loot-ic" data-tone="${o.tone}" aria-hidden="true">${o.icon}</span>` : ''}${o.label}${o.hint ? `<small>${o.hint}</small>` : ''}</button>`;
+    `<button type="button" data-id="${o.id}" ${o.cat && HARM.has(o.cat) ? 'data-tone="harm"' : ''} ${o.tone ? `data-loot="${o.tone}"` : ''} ${o.disabled ? 'disabled' : ''}>${o.icon && o.tone ? glyphSvg(o.icon, o.tone) : ''}${o.label}${o.hint ? `<small>${o.hint}</small>` : ''}</button>`;
 
   /** The tab bar, the options under the chosen tab, and the ones always shown. */
   function drawOptions(switched = false) {

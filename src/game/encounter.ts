@@ -2,7 +2,7 @@ import { AMBUSH_TEXT, TECH_TEXT, kickText, missText, punchText, stompText, tierO
 import { AWARENESS, BUILDS, NAMES, personalityOf, type Item, type Loot, type Person } from './person';
 import { money } from './money';
 import { indoors, isBrute, voice, type Moment } from './voices';
-import { lootMark, type LootTone } from './lootIcon';
+import { lootMark, type LootGlyph, type LootTone } from './lootIcon';
 import { caffeineEdge } from './health';
 import { partOfDay } from './clock';
 import { knifeOf, type Knife } from './knives';
@@ -328,7 +328,7 @@ export interface Option {
   /** A section within the tab (Strikes, Weapons, On the ground, Torture...). */
   group?: string;
   /** Something to take: its symbol, and what kind of thing it is (see lootIcon.ts). */
-  icon?: string;
+  icon?: LootGlyph;
   tone?: LootTone;
 }
 

@@ -622,11 +622,33 @@ export class Game {
     this.seenEl.classList.remove('compact');
     const idleBar = document.getElementById('idle-bar');
     if (idleBar) idleBar.style.transform = '';
+    void this.seenEl.offsetWidth;
     const clock = box(document.getElementById('clock'));
     const statsEl = document.getElementById('stats');
     const stats = box(statsEl);
     const cb = box(card);
     if (cb && clock && hits(cb, clock, 6)) this.seenEl.style.marginTop = `${Math.ceil(clock.bottom + 8 - cb.top)}px`;
+    // ...and never down over Lurk: smaller, then Lurk moved down toward the You tab.
+    const idle = document.getElementById('idle-bar');
+    const lurkBox = () => [box(this.lurkBtn), box(this.restBtn)].filter((x): x is DOMRect => !!x);
+    const cardOverLurk = () => {
+      const c = box(card);
+      return !!c && lurkBox().some((l) => hits(c, l, 2));
+    };
+    if (card && cardOverLurk()) {
+      this.seenEl.classList.add('compact');
+      this.seenEl.style.marginTop = '';
+      const c2 = box(card);
+      if (c2 && clock && hits(c2, clock, 6)) this.seenEl.style.marginTop = `${Math.ceil(clock.bottom + 8 - c2.top)}px`;
+      if (idle && cardOverLurk()) {
+        const c3 = box(card)!;
+        const lb = lurkBox();
+        const you = box(this.youBtn);
+        const room = Math.max(0, (you ? you.top - 4 : vr.bottom - 4) - Math.max(...lb.map((x) => x.bottom)));
+        const need = Math.max(0, c3.bottom + 4 - Math.min(...lb.map((x) => x.top)));
+        idle.style.transform = `translateY(${Math.ceil(Math.min(need, room))}px)`;
+      }
+    }
     // The note.
     const note = this.noteEl;
     if (note.hidden) return;
@@ -3469,7 +3491,7 @@ export class Game {
     if (r.sentences) rows.push(['Sentences served', `${r.sentences}${r.prison ? ` (${r.prison} in state prison)` : ''}`]);
     if (r.daysServed) rows.push(['Time served', span(r.daysServed)]);
     if (r.longest && (r.sentences ?? 0) > 1) rows.push(['Longest stretch', span(r.longest)]);
-    if (held) rows.push(['Held in a cell', held >= 48 ? `${Math.round(held / 24)} days` : `${(r.nights ?? 0) + ((r.heldHours ?? 0) ? 1 : 0)} night${(r.nights ?? 0) + ((r.heldHours ?? 0) ? 1 : 0) === 1 ? '' : 's'}`]);
+    if (held) rows.push(['Held in a cell', held < 24 ? `${held} hours` : `${(held / 24).toFixed(held % 24 ? 1 : 0)} days`]);
     if (r.fines) rows.push(['Fines paid', `${money(r.finedCents ?? 0)} (${r.fines})`]);
     if (r.probations) rows.push(['Probation', `${r.probations} time${r.probations === 1 ? '' : 's'}`]);
     if (r.lastOut && r.lastOut <= now()) rows.push(['Last let out', dueText(r.lastOut)]);
@@ -5164,7 +5186,7 @@ export class Game {
       (isHere ? '' : (picked.extra ?? '')) +
       `</div>`;
     // The addresses and cars you know, as buttons too: easier to tell apart than the pins.
-    const mine = spots.filter((x) => x.tone === 'home' || x.tone === 'car');
+    const mine = spots.filter((x) => (x.tone === 'home' || x.tone === 'car') && x.key !== 'hunt');
     const list = mine.length
       ? `<p class="map-list-head">Addresses and cars you know</p><div class="map-list">${mine
           .map((x) => `<button type="button" data-mappick="${x.key}" data-tone="${x.tone}" class="${x === picked ? 'on' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${x.icon}"/></svg><span><b>${x.name}</b><small>${x === here ? 'You’re here' : `${blocksBetween(here, x)} block${blocksBetween(here, x) === 1 ? '' : 's'} away · ${x.small.replace(/<[^>]+>/g, '').split(' · ')[0]}`}</small></span></button>`)

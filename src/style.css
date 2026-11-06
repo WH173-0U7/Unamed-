@@ -5622,3 +5622,12 @@ button.tapped:not(:disabled) {
 .stat-card.styles .style-row h4 b {
   color: var(--ink);
 }
+
+/* The map keeps its size, however long the list under it gets. */
+.sheet-body.places .map {
+  flex: none;
+}
+/* Who you've seen: clear of the Go and Pockets tabs at the sides. */
+#seen {
+  width: min(86vw, 420px, calc(100vw - 72px));
+}

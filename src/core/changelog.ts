@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.93',
+    date: 'Nov 6',
+    items: [
+      'The map keeps its size however many addresses you know (it used to squash flat). Walking the blocks with a fob isn’t listed as a car you know.',
+      'On a short landscape screen, the card for who you’ve seen no longer sits on the Lurk button, and it keeps clear of the side tabs on a small phone.',
+      'Criminal record: time held in a cell counts up in hours and days, the same way every time.',
+    ],
+  },
+  {
     v: '1.92',
     date: 'Nov 6',
     items: [

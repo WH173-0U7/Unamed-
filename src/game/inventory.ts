@@ -296,9 +296,11 @@ export function take(inv: Inventory, l: Loot): { ok: boolean; text: string } {
     }
   }
   const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained, weapon: l.weapon, cuts: l.cuts, spray: l.spray, drink: l.drink, ...(l.card ? { card: l.card } : {}), ...(l.homeInfo ? { homeInfo: l.homeInfo } : {}), ...(l.opens ? { opens: l.opens } : {}), ...(l.hot ? { hot: true } : {}), ...(l.carOf ? { carOf: l.carOf } : {}), ...(l.carId ? { carId: l.carId } : {}), ...(l.hunt ? { hunt: l.hunt } : {}), ...(l.tookAt != null ? { tookAt: l.tookAt } : {}), ...(l.kind === 'car keys' ? { takenAt: l.takenAt ?? Date.now(), car: l.car, carSearched: l.carSearched } : {}) });
-  if (!it) return { ok: false, text: `No room for the ${l.name.toLowerCase()}. ${noRoomWhy(inv, measure(l).size)}` };
+  // ("the state ID (expired)": not "the state id, expired".)
+  const nm = l.name.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase()).replace(/^([^,]+), ([^,]+)$/, '$1 ($2)');
+  if (!it) return { ok: false, text: `No room for the ${nm}. ${noRoomWhy(inv, measure(l).size)}` };
   const spot = inv.spots.find((s) => s.id === it.spot)!;
-  return { ok: true, text: `You put the ${l.name.toLowerCase()} in your ${spot.on.toLowerCase()} (${spot.name.toLowerCase()}).${once}` };
+  return { ok: true, text: `You put the ${nm} in your ${spot.on.toLowerCase()} (${spot.name.toLowerCase()}).${once}` };
 }
 
 export const dollars = (n: number) => `$${n % 1 ? n.toFixed(2) : n}`;

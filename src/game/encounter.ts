@@ -3341,11 +3341,11 @@ function search(id: string, inv?: Inventory) {
       for (const l of [...g.loot]) {
         if (l.hidden && enc.them.yielded) continue;
         if (!take(inv, l).ok) {
-          left.push(a(lc(l.name)));
+          left.push(named(l.name));
           continue;
         }
         if (l.kind === 'cash') cash += l.cash ?? 0;
-        else lines.push(a(lc(l.name)));
+        else lines.push(named(l.name));
         g.loot.splice(g.loot.indexOf(l), 1);
         enc.robbed = true;
       }
@@ -3379,6 +3379,8 @@ const plural = (s: string) => {
 };
 /** Lower-case the first letter only ("state ID", not "state id"). */
 const lc = (s: string) => s.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase());
+/** A thing's name, in a list: "a state ID (expired)", not "a state ID, expired". */
+const named = (s: string) => a(lc(s)).replace(/^(an? [^,]+), ([^,]+)$/, '$1 ($2)');
 export const a = (s: string) => (/^(pepper spray|cash|loose|folded|groceries|house keys|car keys|cigarettes|headphones|matches|some |your |bills|bandages|gauze|iron tablets|painkillers)/.test(s) || plural(s) ? s : /^[aeiou]/.test(s) ? `an ${s}` : `a ${s}`);
 export const list = (xs1: string[]) => {
   // (Money of the same kind, different amounts: one sum. "$30 of your cash" and "$50 of your cash" are $80 of it.)
@@ -3416,7 +3418,7 @@ const pluralWord = (w: string) => (/(s|x|z|ch|sh)$/i.test(w) ? `${w}es` : /[^aei
 /** "a receipt", 3 → "three receipts"; "a pack of gum", 2 → "two packs of gum". */
 function several(x: string, k: number): string[] {
   // ("a receipt (in the bag)": the where stays as it is.)
-  const where = / \([^)]*\)$/.exec(x)?.[0] ?? '';
+  const where = /( \([^)]*\))+$/.exec(x)?.[0] ?? '';
   const bare = where ? x.slice(0, -where.length) : x;
   const m = /^(?:a|an|the) (.+)$/i.exec(bare);
   // (The same sum twice: "$40 in cash", "$80 of your cash".)

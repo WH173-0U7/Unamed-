@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.70',
+    date: 'Nov 6',
+    items: [
+      'Taking things: “You put the state ID (expired) in your jeans”, and the same in Take everything.',
+      'Two of the same lighter in one pocket read “two lighters (43% full, in the jacket)”.',
+      'Car keys a thief took off you age while you’re in jail, the same as ones you kept. Dez’s man no longer says your pockets are empty when he’s left things in them.',
+    ],
+  },
+  {
     v: '1.69',
     date: 'Nov 6',
     items: [

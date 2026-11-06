@@ -960,7 +960,7 @@ export class Game {
       const gone = [...(c ? [money(c)] : []), ...took.map((x) => aOf(lc(x.name)).replace(/^(an? [^,]+), ([^,]+)$/, '$1 ($2)'))];
       lines = [
         ...lines,
-        gone.length ? `Your pockets are empty. Gone to Dez: ${listOf(gone)}.` : 'They’ve been through your pockets and found nothing.',
+        gone.length ? `They’ve been through your pockets. Gone to Dez: ${listOf(gone)}.` : 'They’ve been through your pockets and found nothing.',
         dz && dz.owed ? `You still owe ${money(dz.owed)}.` : c > owed ? "That's the debt paid. Dez's man kept the rest, for the trouble." : "That's the debt paid.",
       ];
       if (dz && !dz.owed) delete this.save.state.debt;
@@ -3820,7 +3820,9 @@ export class Game {
     const st = this.save.state;
     const stash = st.stash as { items: InvItem[]; at: number } | undefined;
     const room = st.room as { until: number; items: InvItem[]; at: number } | undefined;
-    for (const x of [...this.inventory.items, ...(stash?.items ?? []), ...(room?.items ?? []), ...this.cars.flatMap((c) => c.items)]) {
+    // (And what thieves are holding of yours: the same time went by for it.)
+    const theirs = (this.world.thieves ?? []).flatMap((t) => t.person.clothes.flatMap((g) => g.loot));
+    for (const x of [...this.inventory.items, ...(stash?.items ?? []), ...(room?.items ?? []), ...this.cars.flatMap((c) => c.items), ...theirs]) {
       if (x.takenAt != null) x.takenAt -= ms;
       if (x.tookAt != null) x.tookAt -= ms;
     }

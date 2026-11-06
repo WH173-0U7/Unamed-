@@ -11,6 +11,13 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.75',
+    date: 'Nov 6',
+    items: [
+      'Polished loot symbols: finer lines, more detail (a lit phone screen, the chip on a card, powder in the baggie, the ember on a cigarette), a faint fill on the part that matters, and a tile lit from above like an old terminal key. Money and valuables catch the light now and then.',
+    ],
+  },
+  {
     v: '1.74',
     date: 'Nov 6',
     items: [

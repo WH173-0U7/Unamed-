@@ -253,7 +253,7 @@ export const RACE_CHANCES: [Race, number][] = [
 ];
 
 export const NAMES: Record<Kind, string> = {
-  civilian: 'Passerby',
+  civilian: 'Civilian',
   drunk: 'Drunk',
   homeless: 'Homeless',
   junkie: 'Junkie',

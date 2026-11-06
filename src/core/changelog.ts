@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.89',
+    date: 'Nov 6',
+    items: [
+      'Your criminal record (on You) shows what came of it all: how many times you were convicted, sentences served (and how many in state prison), total time served, your longest stretch, nights in a holding cell, fines paid, probation, and when you were last let out.',
+      'Back to how it was: the button says Lurk, every time, and ordinary people are Civilians.',
+    ],
+  },
+  {
     v: '1.88',
     date: 'Nov 6',
     items: [

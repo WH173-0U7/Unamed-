@@ -3202,6 +3202,7 @@ export class Game {
       lines.push(...custodyCare(h));
       delete h.smokingUntil;
       lines.push('You spend the night in a holding cell that smells of bleach and piss.', ...passHours(h, 8, true));
+      rec.nights = (rec.nights ?? 0) + 1;
       this.ageHomes(8);
       h.cold = 0;
       if (h.dead) return this.die(lines);
@@ -3285,6 +3286,7 @@ export class Game {
     const h = this.health;
     delete this.save.state.bailOffer;
     const lines = [...custodyCare(h), 'A day and a half in County: a bunk, a toilet with no seat, and the noise that never stops.', ...passHours(h, 36, true)];
+    this.record.heldHours = (this.record.heldHours ?? 0) + 36;
     this.ageHomes(36);
     if (h.dead) return this.die(lines);
     h.stress = Math.min(100, (h.stress ?? 0) + 20);
@@ -3338,6 +3340,9 @@ export class Game {
         left -= fromCash;
         if (left && this.account) this.account.cents -= left;
         lines.push(`Your lawyer takes the deal: you plead guilty. ${/^\$(8|1[18](,|$))/.test(money(fine * 100)) ? 'An' : 'A'} ${money(fine * 100)} fine, paid at the window on the way out.`);
+        this.record.convictions = (this.record.convictions ?? 0) + 1;
+        this.record.fines = (this.record.fines ?? 0) + 1;
+        this.record.finedCents = (this.record.finedCents ?? 0) + fine * 100;
         f.heat = Math.max(0, f.heat - 30);
         return lines;
       }
@@ -3347,6 +3352,8 @@ export class Game {
     }
     if (sev <= 6 && !onProbation) {
       this.save.state.probationUntil = now() + 30 * 24 * 3_600_000;
+      this.record.convictions = (this.record.convictions ?? 0) + 1;
+      this.record.probations = (this.record.probations ?? 0) + 1;
       lines.push('Your lawyer takes the deal: you plead guilty and get probation. Get charged with anything while you\'re on it and you\'re held with no bail.');
       f.heat = Math.max(0, f.heat - 30);
       return lines;
@@ -3358,6 +3365,14 @@ export class Game {
   /** Time inside: you heal, you get harder, and you come out with nothing new. */
   private serve(days: number): string[] {
     const h = this.health;
+    // On your record: the sentence, and the time.
+    const rec = this.record;
+    rec.convictions = (rec.convictions ?? 0) + 1;
+    rec.sentences = (rec.sentences ?? 0) + 1;
+    rec.daysServed = (rec.daysServed ?? 0) + days;
+    rec.longest = Math.max(rec.longest ?? 0, days);
+    if (days >= 365) rec.prison = (rec.prison ?? 0) + 1;
+    rec.lastOut = now();
     // (They don't let you bleed out inside: the wound's seen to first.)
     const lines = [...custodyCare(h), `You serve ${days >= 365 ? (prisonTerm(days) === 'a year' ? 'the year' : prisonTerm(days)) : `your ${days} days`}. The food is gray, the nights are loud, and you learn who not to look at.`, ...passHours(h, Math.min(days * 24, 96), true)];
     // (The rest of the term goes by too: habits fade, bones and faces mend.)
@@ -3408,6 +3423,7 @@ export class Game {
         lines.push(`They add ${extra.map((x) => x.toLowerCase()).join(' and ')}.`);
       }
       lines.push(...this.passCell());
+      this.record.nights = (this.record.nights ?? 0) + 1;
       this.ageHomes(8);
       if (this.health.dead) return this.die(lines);
     }
@@ -3425,13 +3441,29 @@ export class Game {
     return lines;
   }
 
+  /** Time inside, and what the courts gave you. */
+  private recordTimeHtml(): string {
+    const r = this.record;
+    const span = (days: number) => (days >= 365 ? `${(days / 365).toFixed(days % 365 ? 1 : 0)} year${days === 365 ? '' : 's'}` : `${days} day${days === 1 ? '' : 's'}`);
+    const held = (r.nights ?? 0) * 8 + (r.heldHours ?? 0);
+    const rows: [string, string][] = [];
+    if (r.convictions) rows.push(['Convicted', `${r.convictions} time${r.convictions === 1 ? '' : 's'}`]);
+    if (r.sentences) rows.push(['Sentences served', `${r.sentences}${r.prison ? ` (${r.prison} in state prison)` : ''}`]);
+    if (r.daysServed) rows.push(['Time served', span(r.daysServed)]);
+    if (r.longest && (r.sentences ?? 0) > 1) rows.push(['Longest stretch', span(r.longest)]);
+    if (held) rows.push(['Held in a cell', held >= 48 ? `${Math.round(held / 24)} days` : `${(r.nights ?? 0) + ((r.heldHours ?? 0) ? 1 : 0)} night${(r.nights ?? 0) + ((r.heldHours ?? 0) ? 1 : 0) === 1 ? '' : 's'}`]);
+    if (r.fines) rows.push(['Fines paid', `${money(r.finedCents ?? 0)} (${r.fines})`]);
+    if (r.probations) rows.push(['Probation', `${r.probations} time${r.probations === 1 ? '' : 's'}`]);
+    if (r.lastOut && r.lastOut <= now()) rows.push(['Last let out', dueText(r.lastOut)]);
+    return rows.length ? `<ul class="record-list record-time">${rows.map(([k, v]) => `<li><span>${k}</span><b>${v}</b></li>`).join('')}</ul>` : '';
+  }
   /** Your criminal record (this character's): arrests, and what for. */
-  private get record(): { arrests: number; charges: Record<string, number>; last?: number } {
+  private get record(): CrimeRecord {
     const r = this.save.state.record;
     // (Older saves: just "charged once".)
     if (r === true) this.save.state.record = { arrests: 1, charges: { 'Possession of stolen property': 1 } };
     else if (!r || typeof r !== 'object') this.save.state.record = { arrests: 0, charges: {} };
-    return this.save.state.record as { arrests: number; charges: Record<string, number>; last?: number };
+    return this.save.state.record as CrimeRecord;
   }
   /** Ever been charged with anything (the gun store's background check sees it). */
   private get charged(): boolean {
@@ -3459,7 +3491,8 @@ export class Game {
       (now() < ((this.save.state.probationUntil as number) ?? 0) ? `<p class="record-case">On probation until ${dateText(this.save.state.probationUntil as number)} ${clockText(this.save.state.probationUntil as number)}: get charged with anything and you're held, no bail.</p>` : '') +
       (r.arrests
         ? (rows.length ? `<ul class="record-list">${rows.map(([c, n]) => `<li><span>${c}</span><b>×${n}</b></li>`).join('')}</ul>` : '') +
-          `<p class="record-note">${rows.length ? 'Each charge means a court date.' : 'Held, and let go without charge.'}${r.last ? ` Last arrested ${dueText(r.last)}.` : ''}</p>`
+          `<p class="record-note">${rows.length ? 'Each charge means a court date.' : 'Held, and let go without charge.'}${r.last ? ` Last arrested ${dueText(r.last)}.` : ''}</p>` +
+          this.recordTimeHtml()
         : `<p class="record-note">${this.case?.warrant ? "No arrests yet. They're looking for you." : 'No arrests. The police have nothing on this face.'}</p>`) +
       `</section>`
     );
@@ -6244,7 +6277,7 @@ export class Game {
     const show = this.canLurk && !(e && e.stage === 'over'); // then it's in the encounter screen
     if (this.lurkBtn.hidden === show) {
       this.lurkBtn.hidden = !show;
-      this.lurkBtn.querySelector('span')!.textContent = this.lurkState.times > this.world.lifeStart ? 'Lurk again' : 'Lurk';
+      this.lurkBtn.querySelector('span')!.textContent = 'Lurk';
     }
     const rest = show && isHurt(this.health);
     if (this.restBtn.hidden === rest) this.restBtn.hidden = !rest;
@@ -6381,4 +6414,27 @@ function named(x: Parameters<typeof lootMark>[0], name: string = x.name): string
 /** Something on a shelf, as the thing it would be in your pockets. */
 function stockThing(s: { name: string; slot?: string; med?: string; knife?: string; gun?: string; ammo?: number }): Parameters<typeof lootMark>[0] {
   return { kind: s.ammo ? 'ammo' : s.gun || s.knife ? 'weapon' : s.med ? 'med' : 'misc', name: s.name, slot: s.slot, ...(s.gun || s.knife ? { weapon: 1 } : {}) };
+}
+
+/** This character's record: arrests and charges, and what came of them. */
+interface CrimeRecord {
+  arrests: number;
+  charges: Record<string, number>;
+  last?: number;
+  /** Found guilty (a fine, probation, or time). */
+  convictions?: number;
+  /** Time served: how many sentences, how many days in all, the longest, and how many were state prison. */
+  sentences?: number;
+  daysServed?: number;
+  longest?: number;
+  prison?: number;
+  /** When you were last let out. */
+  lastOut?: number;
+  /** Nights in a holding cell, and hours held in County waiting for court. */
+  nights?: number;
+  heldHours?: number;
+  /** Fines paid, and what they came to. */
+  fines?: number;
+  finedCents?: number;
+  probations?: number;
 }

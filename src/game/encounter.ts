@@ -827,7 +827,7 @@ function rawOptions(e: Encounter): Option[] {
         ...(e.them.dead ? searchOptions(e) : []),
         ...(e.them.dead ? [{ id: 'leave-body', label: e.resident ? 'Step over them' : 'Walk away', hint: e.resident ? 'Back to the rest of the house' : 'Leave the body where it lies' }] : []),
         // (In someone's house, there's no lurking: the rest of the house, or the door.)
-        ...(e.resident ? [] : [{ id: 'lurk', label: 'Lurk again' }, { id: 'rest', label: 'Rest', hint: 'Let time pass and heal' }]),
+        ...(e.resident ? [] : [{ id: 'lurk', label: 'Lurk' }, { id: 'rest', label: 'Rest', hint: 'Let time pass and heal' }]),
       ];
     default:
       return [];

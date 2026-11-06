@@ -8,7 +8,7 @@
  * drawn in the colour of what they are (and given the same red/cyan fringe
  * as everything else on the screen, in CSS).
  */
-export type LootTone = 'cash' | 'value' | 'card' | 'keys' | 'weapon' | 'drug' | 'junk';
+export type LootTone = 'cash' | 'value' | 'card' | 'keys' | 'weapon' | 'drug' | 'wear' | 'junk';
 
 export type LootGlyph =
   | 'cash'
@@ -37,6 +37,14 @@ export type LootGlyph =
   | 'bag'
   | 'plug'
   | 'ammo'
+  | 'shirt'
+  | 'pants'
+  | 'backpack'
+  | 'cap'
+  | 'mask'
+  | 'glasses'
+  | 'sheath'
+  | 'cup'
   | 'box';
 
 export interface LootMark {
@@ -171,6 +179,43 @@ const GLYPHS: Record<LootGlyph, { line: string; tint?: string }> = {
     line: 'M5.5 20.5V11l1.75-4.5L9 11v9.5z M10.25 20.5V11L12 6.5l1.75 4.5v9.5z M15 20.5V11l1.75-4.5L18.5 11v9.5z M5.5 17h3.5 M10.25 17h3.5 M15 17h3.5',
     tint: 'M5.5 17h3.5v3.5H5.5z M10.25 17h3.5v3.5h-3.5z M15 17h3.5v3.5H15z',
   },
+  // Clothes: a jacket, open at the collar.
+  shirt: {
+    line: 'M8.5 3.5L4 6l-1.5 5 2.5 1V20.5h14V12l2.5-1L20 6l-4.5-2.5C15 5.5 13.6 6.5 12 6.5S9 5.5 8.5 3.5z M12 6.5v14 M9 11.5h1.5',
+    tint: 'M8.5 3.5C9 5.5 10.4 6.5 12 6.5s3-1 3.5-3l-3.5 1z',
+  },
+  pants: {
+    line: 'M6 3.5h12l1 17h-4.5L12 10l-2.5 10.5H5z M6 6.5h12 M9 6.5v2',
+    tint: 'M6 3.5h12v3H6z',
+  },
+  backpack: {
+    line: 'M8 6V5a4 4 0 0 1 8 0v1 M6.5 6h11a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 19.5v-12A1.5 1.5 0 0 1 6.5 6z M8 13.5h8v4.5H8z M10 13.5v-1.5h4v1.5',
+    tint: 'M8 13.5h8v4.5H8z',
+  },
+  // A cap: the crown and the peak.
+  cap: {
+    line: 'M4 15.5a8 8 0 0 1 16 0z M12 7.5V6.5 M4 15.5c-.5 1.5.5 2 2 2h12.5c1.5 0 3-.5 3.5-2z M12 7.5v8',
+    tint: 'M4 15.5a8 8 0 0 1 16 0z',
+  },
+  // Something over your face: the eyes, the mouth.
+  mask: {
+    line: 'M12 3c-4 0-7 3-7 8.5S8 21 12 21s7-4 7-9.5S16 3 12 3z M8.5 9.5h2.5 M13 9.5h2.5 M10 15.5h4',
+    tint: 'M12 3c-4 0-7 3-7 8.5S8 21 12 21s7-4 7-9.5S16 3 12 3z',
+  },
+  glasses: {
+    line: 'M2.5 10.5h8.5v2.5a3 3 0 0 1-3 3h-2.5a3 3 0 0 1-3-3z M13 10.5h8.5v2.5a3 3 0 0 1-3 3H16a3 3 0 0 1-3-3z M11 11.5h2 M2.5 10.5l1-3 M21.5 10.5l-1-3',
+    tint: 'M2.5 10.5h8.5v2.5a3 3 0 0 1-3 3h-2.5a3 3 0 0 1-3-3z M13 10.5h8.5v2.5a3 3 0 0 1-3 3H16a3 3 0 0 1-3-3z',
+  },
+  // A sheath or a holster on a strap.
+  sheath: {
+    line: 'M3 6.5h18 M3 9.5h18 M9 9.5h6v8l-3 4-3-4z M10.5 6.5V4.5h3v2',
+    tint: 'M9 9.5h6v8l-3 4-3-4z',
+  },
+  // A paper cup, steam off the top.
+  cup: {
+    line: 'M6 9.5h12l-1.5 11h-9z M5.5 7h13v2.5h-13z M10 5c0-1 1-1 1-2 M13.5 5c0-1 1-1 1-2',
+    tint: 'M6.6 13.5h10.8l-.9 7h-9z',
+  },
   // A cardboard box, taped down the middle.
   box: {
     line: 'M3.5 7.5L12 3.5l8.5 4v9L12 20.5l-8.5-4z M3.5 7.5L12 11.5l8.5-4 M12 11.5v9 M7.75 5.5l8.5 4',
@@ -193,14 +238,22 @@ const RULES: [RegExp, LootMark][] = [
   [/pepper spray/i, { icon: 'spray', tone: 'weapon' }],
   [/cigarette/i, { icon: 'cigarette', tone: 'junk' }],
   [/lighter|matches/i, { icon: 'flame', tone: 'junk' }],
-  [/beer|whiskey|vodka|wine|bottle|pint/i, { icon: 'bottle', tone: 'junk' }],
+  [/beer|whiskey|vodka|wine|bottle|pint|energy drink/i, { icon: 'bottle', tone: 'junk' }],
+  [/caffeine pills/i, { icon: 'pill', tone: 'drug' }],
+  [/drug test/i, { icon: 'box', tone: 'drug' }],
   [/groceries|lunch|sandwich|snack|grocery/i, { icon: 'bag', tone: 'junk' }],
   [/receipt|note|ticket|letter|paper/i, { icon: 'paper', tone: 'junk' }],
   [/keys?$/i, { icon: 'key', tone: 'keys' }],
 ];
 
-/** The mark for a thing you could take. */
-export function lootMark(x: { kind: string; name: string; weapon?: number; spray?: boolean; secret?: string }): LootMark {
+const WEAR: Record<string, LootGlyph> = { top: 'shirt', bottom: 'pants', bag: 'backpack', head: 'cap', face: 'mask', eyes: 'glasses', gear: 'sheath' };
+
+/** The mark for a thing you could take (or buy, or carry, or wear). */
+export function lootMark(x: { kind: string; name: string; weapon?: number; spray?: boolean; secret?: string; slot?: string }): LootMark {
+  if (x.slot && WEAR[x.slot]) return { icon: WEAR[x.slot], tone: 'wear' };
+  if (x.kind === 'wear') return { icon: /backpack|bag|fanny/i.test(x.name) ? 'backpack' : /mask|bandana|balaclava/i.test(x.name) ? 'mask' : /cap|beanie|hat|hood/i.test(x.name) ? 'cap' : /glasses|shades/i.test(x.name) ? 'glasses' : /sheath|holster/i.test(x.name) ? 'sheath' : /pants|jeans|chinos|trousers/i.test(x.name) ? 'pants' : 'shirt', tone: 'wear' };
+  if (/coffee|tea$/i.test(x.name)) return { icon: 'cup', tone: 'junk' };
+  if (/zip bags/i.test(x.name)) return { icon: 'baggie', tone: 'drug' };
   if (x.kind === 'cash') return { icon: /change|cup holder|coins/i.test(x.name) ? 'coins' : 'cash', tone: 'cash' };
   if (x.kind === 'car keys') return { icon: 'key', tone: 'keys' };
   if (x.kind === 'credit card' || x.kind === 'debit card') return { icon: 'card', tone: 'card' };

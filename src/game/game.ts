@@ -2638,7 +2638,7 @@ export class Game {
     const rows = found.map(({ l, at, where }) => {
       const m = measure(l);
       const what = l.kind === 'cash' ? money(Math.round((l.cash ?? 0) * 100)) : `${l.detail ? `${l.detail} · ` : ''}${m.size}, ${kgLabel(m.kg)}`;
-      return li(`<span class="loot-name" data-tone="${lootMark(l).tone}">${lootIcon(l)}${l.name}</span>`, `${what} · ${where}`, btn(attr, `take:${at}`, 'Take'));
+      return li(named(l), `${what} · ${where}`, btn(attr, `take:${at}`, 'Take'));
     });
     // (Everything from one place, in one go: quicker, and noisier.)
     const places = [...new Set(found.map((f) => f.at.split(':')[0]))];
@@ -4810,7 +4810,7 @@ export class Game {
     return (
       `<p class="shop-sub">${kind === 'stash' ? 'Behind the loose brick, low in the wall by the dumpster' : kind === 'trunk' ? 'Your things: in the trunk, under the cover with the spare' : 'Under the loose board by the radiator'}</p>` +
       `<ul class="shop-list">` +
-      items.map((x, i) => li(x.name, x.detail ?? '', btn('unstash', `${kind}:${i}`, 'Take'))).join('') +
+      items.map((x, i) => li(named(x), x.detail ?? '', btn('unstash', `${kind}:${i}`, 'Take'))).join('') +
       li('Cash', cents ? `${money(cents)} hidden here.` : 'None hidden here.', btn('cash', `${kind}:in`, 'Leave yours', !c && 'No cash') + btn('cash', `${kind}:out`, 'Take it', !cents && 'Nothing there')) +
       `</ul>` +
       (items.length ? '' : `<p class="shop-broke">Nothing ${kind === 'stash' ? 'behind it' : kind === 'trunk' ? 'of yours in there' : 'left here'}. Leave things from Pockets (“${kind === 'stash' ? 'Hide it' : kind === 'trunk' ? 'In the trunk' : 'Leave it here'}”). ${kind === 'trunk' ? 'If the car goes, so does what’s in it.' : ''}</p>`)
@@ -4897,11 +4897,11 @@ export class Game {
     if (place === 'pharmacy') {
       const have = (id: MedId) => inv.items.filter((x) => x.med === id).length;
       body =
-        `<ul class="shop-list">${SOLD_MEDS().map((m) => li(m.name, `${m.desc}${have(m.id) ? ` · You have ${have(m.id)}` : ''}`, btn('buy', m.id, money(m.price * 100), c < m.price * 100 && 'Not enough cash'))).join('')}</ul>` +
+        `<ul class="shop-list">${SOLD_MEDS().map((m) => li(named({ kind: 'med', name: m.name }), `${m.desc}${have(m.id) ? ` · You have ${have(m.id)}` : ''}`, btn('buy', m.id, money(m.price * 100), c < m.price * 100 && 'Not enough cash'))).join('')}</ul>` +
         (c < Math.min(...SOLD_MEDS().map((m) => m.price)) * 100 ? `<p class="shop-broke">You can't afford anything. Cash only.</p>` : '');
     } else if (place === 'guns') {
       body = open
-        ? `<ul class="shop-list">${GUN_STOCK.map((s) => li(s.name, s.gun ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.gun }))}, ${alarmStat(1)}.` : s.desc, btn('stock', s.id, money(s.price * 100), this.ownsWhy(s) || (c < s.price * 100 && 'Not enough cash')))).join('')}</ul>` +
+        ? `<ul class="shop-list">${GUN_STOCK.map((s) => li(named(stockThing(s)), s.gun ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.gun }))}, ${alarmStat(1)}.` : s.desc, btn('stock', s.id, money(s.price * 100), this.ownsWhy(s) || (c < s.price * 100 && 'Not enough cash')))).join('')}</ul>` +
           `<p class="shop-broke">${this.ownId() ? (this.charged ? 'With a charge against you, the background check will come back denied.' : 'Your own ID, a form and a background check, and it’s yours.') : 'Nothing without your own ID: they run a background check on every buyer.'} Firing a gun is loud: someone always calls it in.</p>`
         : `<p class="shop-closed">The shutters are down and the alarm light blinks.</p>`;
     } else if (place === 'hospital') {
@@ -4936,7 +4936,7 @@ export class Game {
         : `<p class="shop-closed">The doors are locked. Open weekdays, 9 to 4.</p>`;
     } else if (place === 'liquor') {
       body = open
-        ? `<ul class="shop-list">${LIQUOR_STOCK.map((s) => li(s.name, s.desc, btn('stock', s.id, money(s.price * 100), this.ownsWhy(s) || (c < s.price * 100 && 'Not enough cash')))).join('')}</ul>` +
+        ? `<ul class="shop-list">${LIQUOR_STOCK.map((s) => li(named(stockThing(s)), s.desc, btn('stock', s.id, money(s.price * 100), this.ownsWhy(s) || (c < s.price * 100 && 'Not enough cash')))).join('')}</ul>` +
           `<p class="shop-broke">${this.ownId() ? 'They know your face now.' : 'They’ll want to see ID.'}</p>`
         : `<p class="shop-closed">The grille is down.</p>`;
     } else if (place === 'gas') {
@@ -4944,17 +4944,17 @@ export class Game {
       body =
         `<ul class="shop-list">${GAS_STOCK.map((s) => {
           const n = s.med ? inv.items.filter((x) => x.med === s.med).length : s.slot || s.drink ? 0 : have(s.name);
-          return li(s.name, `${s.desc}${n ? ` · You have ${n}` : ''}`, btn('stock', s.id, money(s.price * 100), this.ownsWhy(s) || (c < s.price * 100 && 'Not enough cash')));
+          return li(named(stockThing(s)), `${s.desc}${n ? ` · You have ${n}` : ''}`, btn('stock', s.id, money(s.price * 100), this.ownsWhy(s) || (c < s.price * 100 && 'Not enough cash')));
         }).join('')}</ul>` + (c < 100 ? `<p class="shop-broke">You can't afford anything. The clerk watches you anyway.</p>` : '');
     } else if (place === 'pawn' || place === 'fence') {
       if (!open) body = `<p class="shop-closed">${place === 'pawn' ? 'The shutter is down.' : "There's nobody back here right now."}</p>`;
       else {
         const sell = inv.items
           .map((x, i) => ({ x, i, o: offer(place, x) }))
-          .map(({ x, i, o }) => li(x.name, 'cents' in o ? `${x.detail ? `${x.detail} · ` : ''}He'll give you ${money(o.cents)}` : o.why, 'cents' in o ? btn('sell', i, `Sell ${money(o.cents)}`) : ''));
+          .map(({ x, i, o }) => li(named(x), 'cents' in o ? `${x.detail ? `${x.detail} · ` : ''}He'll give you ${money(o.cents)}` : o.why, 'cents' in o ? btn('sell', i, `Sell ${money(o.cents)}`) : ''));
         body = `<h3>Sell</h3>` + (sell.length ? `<ul class="shop-list">${sell.join('')}</ul>` : `<p class="shop-broke">You've got nothing to sell.</p>`);
         if (place === 'pawn') {
-          body += `<h3>For sale</h3><ul class="shop-list">${PAWN_STOCK.map((s) => li(s.name, s.slot === 'top' || s.slot === 'bottom' || s.slot === 'bag' ? `${s.desc} ${hidesWord(s.name)}.` : s.knife ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.knife }))}, ${alarmStat(alarmOf({ kind: 'weapon', name: s.knife }))}.` : s.desc, btn('stock', s.id, money(s.price * 100), this.ownsWhy(s) || (c < s.price * 100 && 'Not enough cash')))).join('')}</ul>`;
+          body += `<h3>For sale</h3><ul class="shop-list">${PAWN_STOCK.map((s) => li(named(stockThing(s)), s.slot === 'top' || s.slot === 'bottom' || s.slot === 'bag' ? `${s.desc} ${hidesWord(s.name)}.` : s.knife ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.knife }))}, ${alarmStat(alarmOf({ kind: 'weapon', name: s.knife }))}.` : s.desc, btn('stock', s.id, money(s.price * 100), this.ownsWhy(s) || (c < s.price * 100 && 'Not enough cash')))).join('')}</ul>`;
         }
       }
     } else if (place === 'bank') {
@@ -4985,7 +4985,7 @@ export class Game {
       const cards = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind));
       const usable = cards.filter(({ x }) => x.pin && !x.drained);
       body += usable.length
-        ? usable.map(({ x, i }) => li(`Cash machine · ${x.name}`, `${x.detail ? `${x.detail}'s card · ` : ''}PIN ${x.pin}. There's a camera over the screen.`, btn('atm', i, 'Withdraw'))).join('')
+        ? usable.map(({ x, i }) => li(named(x, `Cash machine · ${x.name}`), `${x.detail ? `${x.detail}'s card · ` : ''}PIN ${x.pin}. There's a camera over the screen.`, btn('atm', i, 'Withdraw'))).join('')
         : li('Cash machine', cards.some(({ x }) => x.drained) && !cards.some(({ x }) => !x.drained && !x.pin) ? "The cards you had PINs for have been stopped." : cards.length ? "You've got cards, but no PIN for them. Someone would have to tell you." : 'Any hour. You need a card, and its PIN.', btn('atm', -1, 'Use', 'No card with a PIN'));
       body += `</ul>`;
     } else if (place === 'room') {
@@ -5190,10 +5190,10 @@ export class Game {
       const anon = anonymity(inv);
       const row = (name: string, small: string, btn: string) => `<li><div><b>${name}</b><small>${small}</small></div><span class="acts">${btn}</span></li>`;
       const rows: string[] = [];
-      if (w.face) rows.push(row(w.face, w.masked ? 'Pulled up over your face' : 'Pulled down', `<button type="button" data-mask>${w.masked ? 'Pull down' : 'Pull up'}</button>`));
-      if (hasHood(inv)) rows.push(row('Hood', w.hood ? 'Up' : 'Down', `<button type="button" data-hood>${w.hood ? 'Down' : 'Up'}</button>`));
-      if (w.head) rows.push(row(w.head, 'On', ''));
-      if (w.eyes) rows.push(row(w.eyes, 'On', ''));
+      if (w.face) rows.push(row(named({ kind: 'wear', name: w.face, slot: 'face' }), w.masked ? 'Pulled up over your face' : 'Pulled down', `<button type="button" data-mask>${w.masked ? 'Pull down' : 'Pull up'}</button>`));
+      if (hasHood(inv)) rows.push(row(named({ kind: 'wear', name: 'Hood', slot: 'head' }), w.hood ? 'Up' : 'Down', `<button type="button" data-hood>${w.hood ? 'Down' : 'Up'}</button>`));
+      if (w.head) rows.push(row(named({ kind: 'wear', name: w.head, slot: 'head' }), 'On', ''));
+      if (w.eyes) rows.push(row(named({ kind: 'wear', name: w.eyes, slot: 'eyes' }), 'On', ''));
       body +=
         `<div class="spot"><h3><span>Your face</span><em>${Math.round(anon * 100)}% hidden</em></h3>` +
         (rows.length ? `<ul class="pocket-list">${rows.join('')}</ul>` : `<p class="pocket-empty">Nothing hides your face. Anyone who sees you will know you again.</p>`) +
@@ -5308,7 +5308,7 @@ export class Game {
                 // Into another pocket (to hide it better, or have it to hand).
                 if (!x.hand) acts += act('move', 'Move', nextSpot(inv, x) ? null : 'Nowhere else');
                 return (
-                  `<li><div><b>${x.name}</b><small>${small ? `${small} · ` : ''}${kgLabel(x.kg)}${x.kind === 'weapon' ? ` · ${hideStat(bulkOf(x))}, ${alarmStat(alarmOf(x))} · <span class="shows${showing(inv, x) >= 0.16 ? ' seen' : ''}">${x.hand ? `In your ${x.hand} hand` : showWord(showing(inv, x))}${inBag(inv, x.spot) ? ' (a moment to get out)' : ''}</span>` : ''}</small></div>` +
+                  `<li><div><b>${named(x)}</b><small>${small ? `${small} · ` : ''}${kgLabel(x.kg)}${x.kind === 'weapon' ? ` · ${hideStat(bulkOf(x))}, ${alarmStat(alarmOf(x))} · <span class="shows${showing(inv, x) >= 0.16 ? ' seen' : ''}">${x.hand ? `In your ${x.hand} hand` : showWord(showing(inv, x))}${inBag(inv, x.spot) ? ' (a moment to get out)' : ''}</span>` : ''}</small></div>` +
                   `<span class="acts">${acts}<button type="button" class="drop" data-drop="${i}" aria-label="Throw away ${x.name}">Trash</button></span></li>`
                 );
               })
@@ -6106,4 +6106,13 @@ function custodyCare(h: Health): string[] {
 /** Your court date is today (the court sits weekdays, and the date is the afternoon it closes). */
 function hearingToday(courtAt: number, t = Date.now()): boolean {
   return new Date(courtAt).toDateString() === new Date(t).toDateString();
+}
+
+/** A thing's name with its symbol, coloured by what it is (see lootIcon.ts). */
+function named(x: Parameters<typeof lootMark>[0], name: string = x.name): string {
+  return `<span class="loot-name" data-tone="${lootMark(x).tone}">${lootIcon(x)}${name}</span>`;
+}
+/** Something on a shelf, as the thing it would be in your pockets. */
+function stockThing(s: { name: string; slot?: string; med?: string; knife?: string; gun?: string; ammo?: number }): Parameters<typeof lootMark>[0] {
+  return { kind: s.ammo ? 'ammo' : s.gun || s.knife ? 'weapon' : s.med ? 'med' : 'misc', name: s.name, slot: s.slot, ...(s.gun || s.knife ? { weapon: 1 } : {}) };
 }

@@ -5024,6 +5024,7 @@ body[data-drug='withdrawal'] #game {
   --loot-keys: #f0a35e;
   --loot-weapon: #ff7f8c;
   --loot-drug: #c79bff;
+  --loot-wear: #8fd0c6;
   --loot-junk: rgba(236, 235, 230, 0.5);
 }
 .loot-ic {
@@ -5089,6 +5090,8 @@ body[data-drug='withdrawal'] #game {
 [data-loot='weapon'] { --tone: var(--loot-weapon); }
 [data-tone='drug'],
 [data-loot='drug'] { --tone: var(--loot-drug); }
+[data-tone='wear'],
+[data-loot='wear'] { --tone: var(--loot-wear); }
 [data-tone='junk'],
 [data-loot='junk'] { --tone: var(--loot-junk); }
 /* The name in its colour (not the junk: that stays plain). */

@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.78',
+    date: 'Nov 6',
+    items: [
+      'The item symbols are everywhere now, in the same colours: Pockets, every shop (the pharmacy, the gas station, the liquor store, the pawn shop, the gun shop), what you can sell to the pawn shop and the fence, the alley stash, your room, the trunk, and the cash machine.',
+      'New symbols for things you wear, in a soft teal: a jacket, trousers, a bag, a cap, a mask, sunglasses, a sheath or holster. And a coffee cup.',
+    ],
+  },
+  {
     v: '1.77',
     date: 'Nov 6',
     items: [

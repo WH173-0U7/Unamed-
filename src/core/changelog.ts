@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.23',
+    date: 'Nov 6',
+    items: [
+      'Watching and talking are separate now. While you watch someone (follow, size them up, see what they carry, read them), they don’t know you’re there, and the sneak attacks are yours.',
+      'Walk up to them to talk: then you see them properly, and a Talk tab has asking for change, asking who’s selling, and selling. Face to face there’s no getting behind them: you can hit them, shove, mug or spray them, or walk off. Someone who comes over to you starts face to face.',
+    ],
+  },
+  {
     v: '2.22',
     date: 'Nov 6',
     items: [

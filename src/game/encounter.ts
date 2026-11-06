@@ -255,6 +255,8 @@ export interface Encounter {
   heat?: number;
   /** They've bought from you before. */
   regular?: boolean;
+  /** You've walked up to them (or they came over): face to face, no more watching from a distance. */
+  talking?: boolean;
   /** You don't know a supplier yet: you can ask them if they know one. */
   askConnect?: boolean;
   /** You can ask them for change. */
@@ -357,9 +359,10 @@ export interface Option {
 }
 
 /** The tabs the options are sorted into. */
-export type Category = 'surveil' | 'violence' | 'attack' | 'stomp' | 'search' | 'threaten' | 'torture' | 'move';
+export type Category = 'surveil' | 'talk' | 'violence' | 'attack' | 'stomp' | 'search' | 'threaten' | 'torture' | 'move';
 export const CATEGORY_NAMES: Record<Category, string> = {
   surveil: 'Surveil',
+  talk: 'Talk',
   violence: 'Violence',
   attack: 'Attack',
   stomp: 'Violence',
@@ -368,7 +371,7 @@ export const CATEGORY_NAMES: Record<Category, string> = {
   torture: 'Torture',
   move: 'Move',
 };
-const SURVEIL_IDS = ['follow', 'build', 'carrying', 'awareness', 'sex', 'read', 'bluff', 'sell'];
+const SURVEIL_IDS = ['follow', 'build', 'carrying', 'awareness', 'sex', 'read', 'bluff', 'sell', 'approach', 'beg', 'connect'];
 const VIOLENCE_IDS = ['bumrush', 'sucker', 'shove', 'mug', 'kneecap', 'slam', 'rear-choke', 'spray-ambush', 'go-at'];
 
 // ---------- Fear ----------
@@ -802,8 +805,30 @@ function rawOptions(e: Encounter): Option[] {
     case 'menu':
     case 'surveil':
     case 'violence':
+      // Face to face: talk, or go for them (no more watching them from a distance, no getting behind them).
+      if (e.talking) {
+        return [
+          ...(e.canBeg && !(e.asked ?? []).includes('beg') ? [{ id: 'beg', label: '"Spare some change?"', hint: 'Ask for a little money', cat: 'talk' as Category }] : []),
+          ...(e.askConnect && !(e.asked ?? []).includes('connect') ? [{ id: 'connect', label: '"Know anyone selling?"', hint: 'Who supplies around here', cat: 'talk' as Category }] : []),
+          ...((e.product ?? 0) > 0 || (e.bulk ?? 0) > 0
+            ? (e.asked ?? []).includes('sell')
+              ? []
+              : [{ id: 'sell', label: e.regular ? '"Same as last time?"' : '"You looking?"', hint: (e.product ?? 0) > 0 ? 'Sell them a bag' : 'Bag it up first (Pockets)', disabled: !(e.product ?? 0), cat: 'talk' as Category }]
+            : []),
+          ...(e.them.down
+            ? [{ id: 'go-at', label: 'Go at them', hint: 'They can’t get away', cat: 'violence' as Category }]
+            : [
+                { id: 'sucker', label: 'Hit them', hint: 'Before they see it coming', cat: 'violence' as Category },
+                { id: 'shove', label: 'Shove', hint: 'Easiest to land', cat: 'violence' as Category },
+                ...learned(e, [{ id: 'slam', label: 'Slam them into the wall', hint: 'Head first', level: SLAM_AMBUSH_LEVEL, style: 'clinch' as Style }], 'violence'),
+              ]),
+          ...((e.weapons ?? []).some((w) => w.spray && (w.doses ?? 3) > 0) ? [((full: boolean) => ({ id: 'spray-ambush', label: 'Pepper spray them', hint: full ? 'Your hands are full' : 'Right in the face', disabled: full, cat: 'violence' as Category }))(handsFull(e) && !(e.weapons ?? []).some((w) => w.spray && w.hand))] : []),
+          { id: 'mug', label: 'Mug them', hint: oddsHint(yieldChance(e, mugSurprise(e))), cat: 'violence' },
+          { id: 'leave', label: 'Walk off' },
+        ];
+      }
       // Before anything has happened: watch them, or go for them. Switching
-      // between the two is free; it's only a tab.
+      // between the two is free; it's only a tab. Talking means walking up to them first.
       return [
         { id: 'follow', label: e.distance < 2 ? 'Follow' : 'Keep following', hint: e.suspicion >= 45 ? 'They\'re onto you: they may run' : e.distance < 2 ? 'Closer: easier to see, easier to be seen' : 'Each step risks being noticed', cat: 'surveil' },
         ...(e.known.build ? [] : [{ id: 'build', label: 'Size up their build', cat: 'surveil' as Category }]),
@@ -813,16 +838,8 @@ function rawOptions(e: Encounter): Option[] {
         ...(e.suspicion >= 35 && !e.recognised ? [{ id: 'bluff', label: 'Act natural', hint: 'Speech: look like you belong here', cat: 'surveil' as Category }] : []),
         ...(e.known.sex && e.known.race ? [] : [{ id: 'sex', label: 'Get a look at them', hint: e.distance < 1 ? 'Hard to tell from here' : 'Their face, their build', cat: 'surveil' as Category }]),
         ...(e.known.personality ? [] : [{ id: 'read', label: 'Read them', hint: e.distance < 1 ? 'Need to be closer' : 'What kind of person?', disabled: e.distance < 1, cat: 'surveil' as Category }]),
-        // Looking for a supplier: someone like this might know one.
-        // Asking for change: a little money, and no violence.
-        ...(e.canBeg && !(e.asked ?? []).includes('beg') ? [{ id: 'beg', label: '"Spare some change?"', hint: e.distance < 1 ? 'Need to be closer' : 'Ask for a little money', disabled: e.distance < 1, cat: 'surveil' as Category }] : []),
-        ...(e.askConnect && !(e.asked ?? []).includes('connect') ? [{ id: 'connect', label: '"Know anyone selling?"', hint: e.distance < 1 ? 'Need to be closer' : 'Who supplies around here', disabled: e.distance < 1, cat: 'surveil' as Category }] : []),
-        // Selling: only with something bagged up to sell, and only the once.
-        ...((e.product ?? 0) > 0 || (e.bulk ?? 0) > 0
-          ? (e.asked ?? []).includes('sell')
-            ? []
-            : [{ id: 'sell', label: e.regular ? '"Same as last time?"' : '"You looking?"', hint: (e.product ?? 0) > 0 ? 'Sell them a bag' : 'Bag it up first (Pockets)', disabled: !(e.product ?? 0), cat: 'surveil' as Category }]
-          : []),
+        // Talking to them (asking for change, a supplier, selling): walk up first.
+        { id: 'approach', label: 'Walk up to them', hint: 'Face to face: talk, sell, ask', cat: 'surveil' as Category },
         ...(e.them.down
           ? [{ id: 'go-at', label: 'Go at them', hint: 'They can’t get away', cat: 'violence' as Category }]
           : [
@@ -1086,12 +1103,14 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           // (Face to face: there's no getting behind them now.)
           e.suspicion = 75;
           e.cameOver = true;
+          e.talking = true;
         } else if (e.regular && (e.grudge ?? 0) < 30) {
           // Someone you've sold to: they know what you are, and that's why they come over.
           say('them', oneOf([`The ${who} sees you and nods, and drifts over. "Hey. You around?"`, `The ${who} catches your eye, glances up and down the street, and comes over.`]));
           e.distance = 2;
           e.suspicion = 75;
           e.cameOver = true;
+          e.talking = true;
         } else if (lame) {
           say('them', e.them.broken.includes('spine') ? `The ${who} sees you and goes rigid. They know you. In the chair, they can't get away; they grip the wheels and back up against the wall.` : `The ${who} sees you and goes rigid. They know you. On crutches, they can't run; they back up against the wall.`);
           e.suspicion = 100;
@@ -1120,6 +1139,19 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
     if (SURVEIL_IDS.includes(id)) e.stage = 'surveil';
     else if (VIOLENCE_IDS.includes(id)) e.stage = 'violence';
   }
+  // Walking up to them: face to face now (you see them properly; they see you).
+  if (id === 'approach' && !e.talking && e.stage === 'surveil') {
+    e.talking = true;
+    e.facedYou = true;
+    e.distance = 2;
+    e.suspicion = Math.max(e.suspicion, 75);
+    e.known.sex = e.known.race = e.known.build = true;
+    const k = p.kind;
+    say('you', oneOf(['You walk up to them, hands where they can see them.', 'You cross over and fall in beside them.', 'You step into their path, not too close.']));
+    say('them', k === 'junkie' ? oneOf(['They stop, twitchy, already looking at your hands. "What?"', '"You got something?" Their eyes don\'t settle.']) : k === 'drunk' ? oneOf(['They sway to a stop. "Wha\'d\'you want?"', 'They squint at you, friendly enough. "Yeah?"']) : k === 'homeless' ? oneOf(['They look up at you, wary. "Yeah?"', 'They stop, and wait to see what you want.']) : oneOf(['They stop, wary, one hand on their bag. "Can I help you?"', 'They slow down, but they keep their distance. "Yeah?"']));
+    return impacts;
+  }
+
   if (id === 'leave' && (e.stage === 'menu' || e.stage === 'surveil' || e.stage === 'violence')) {
     say('info', 'You let them go.');
     end('left');

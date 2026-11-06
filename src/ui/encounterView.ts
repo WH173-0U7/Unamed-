@@ -14,7 +14,7 @@ const STAGE_TITLE: Record<string, string> = {
   youDown: "You're on the floor",
 };
 /** The tabs always in the same order, whatever the moment (so a thumb learns where they are). */
-const TAB_ORDER: Category[] = ['surveil', 'violence', 'attack', 'stomp', 'torture', 'search', 'threaten', 'move'];
+const TAB_ORDER: Category[] = ['surveil', 'talk', 'violence', 'attack', 'stomp', 'torture', 'search', 'threaten', 'move'];
 
 export const RESULT: Record<string, string> = {
   won: "They're down.",

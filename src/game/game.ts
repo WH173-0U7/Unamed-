@@ -74,9 +74,9 @@ const VIG_DAYS = 14;
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 /** At an address: outside, or in, and what's happened so far. */
 /** Everything in the save that's this character's (not the world's). */
-const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'laterLines', 'restLines', 'connect'];
+const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'laterLines', 'restLines', 'connect', 'work', 'workLines', 'plasma', 'gig', 'bins'];
 /** What only makes sense in the moment (a stop, a fight, a door you're at): not kept when you stop being them. */
-const MOMENT_KEYS = ['laterLines', 'restLines', 'encounter', 'policeStop', 'policeResult', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow'];
+const MOMENT_KEYS = ['work', 'workLines', 'laterLines', 'restLines', 'encounter', 'policeStop', 'policeResult', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow'];
 /**
  * Someone you used to be: kept whole (stats, body, pockets, record), inside
  * or out on the streets, to free, to meet, and to go on as again.
@@ -113,6 +113,10 @@ const DEZ_DEALS: { id: string; name: string; detail: string; doses: number; cash
   { id: 'quarter', name: 'Quarter ounce', detail: 'Seven grams, pressed, in a taped-up baggie', doses: 70, cash: [0, 320, 300], front: 500, days: 5, tier: 2, desc: 'Seven grams. About 70 points.' },
   { id: 'ounce', name: 'Ounce', detail: 'A full ounce, in a vacuum-sealed brick wrapped in tape', doses: 280, cash: [0, 0, 1100], front: 1600, days: 7, tier: 3, desc: 'Twenty-eight grams, from Dez’s own supplier. About 280 points.' },
 ];
+/** Something that takes real time on its own screen: a plasma visit, a delivery shift. */
+type Work = { kind: 'plasma' | 'deliver'; since: number; until?: number; drops?: number; earned?: number; tick?: number; part?: number };
+/** The delivery app (made up). */
+const GIG_APP = 'Handoff';
 /** Held: since when, until when (real time), what for, and what's said when the door opens. */
 type Jail = { from: number; until: number; what: string; after?: string[] };
 /** Whether this one in the house (the owner, or whoever else lives there) has seen your face. */
@@ -332,6 +336,8 @@ export class Game {
       else if (b.dataset.records) this.getId();
       else if (b.dataset.er) this.er(b.dataset.er as ErCare);
       else if (b.dataset.court) this.appear();
+      else if (b.dataset.cans) this.cashCans();
+      else if (b.dataset.plasma) this.donatePlasma();
       else if (b.dataset.selfact) this.selfAct(b.dataset.selfact);
       else if (b.dataset.room) this.roomAct(b.dataset.room);
       else if (b.dataset.dez) this.dez(b.dataset.dez);
@@ -597,7 +603,7 @@ export class Game {
     const fight = this.encounter;
     // The beat after a fight ends (the screen's about to change), lying down, inside:
     // it waits, and shows once there's a screen to show it on.
-    if ((this.ending && fight) || (!this.running && (this.health.restingSince != null || this.jailed))) {
+    if ((this.ending && fight) || (!this.running && (this.health.restingSince != null || this.jailed || !!this.work))) {
       this.later(lines);
       return;
     }
@@ -1147,6 +1153,12 @@ export class Game {
       this.refresh();
       return;
     }
+    if (id === 'beg') {
+      if (e.asked?.includes('beg')) return;
+      this.beg(e);
+      this.refresh();
+      return;
+    }
     const stageBefore = e.stage;
     const impacts = act(e, id, this.stats, this.inventory, (this.save.state.moves ??= {}) as Record<string, number>);
     // Fighting wears you down: every move (more for a chase, a lot more for being beaten senseless).
@@ -1515,6 +1527,8 @@ export class Game {
     this.closeSheet();
     document.getElementById('jail')?.remove();
     document.getElementById('rest')?.remove();
+    document.getElementById('work')?.remove();
+    delete this.save.state.work;
     if (!jailed) this.fx.impact(true, 900, true);
     buzz([120, 80, 200, 120, 400]);
     const h = this.humanity;
@@ -1760,6 +1774,8 @@ export class Game {
     else if (b.dataset.test) this.identify(Number(b.dataset.test), true);
     else if (b.dataset.bump) this.bump(Number(b.dataset.bump));
     else if (b.dataset.bagup) this.bagUp(Number(b.dataset.bagup));
+    else if (b.dataset.gig) this.gigAct(b.dataset.gig, Number(b.dataset.gigi));
+    else if (b.dataset.bins !== undefined) this.searchBins();
     else if (b.dataset.stash) this.stashItem(Number(b.dataset.stash));
     else if (b.dataset.inject) this.inject(Number(b.dataset.inject));
     else if (b.dataset.pack) this.packLoose(Number(b.dataset.pack));
@@ -1826,6 +1842,7 @@ export class Game {
         pawn: 'You walk over to the pawn shop.',
         fence: 'You slip down the alley behind the laundromat.',
         bank: 'You walk to the bank.',
+        plasma: 'You push into the plasma center. A nurse at the desk slides a clipboard at you without looking up.',
         liquor: 'You walk into the liquor store. A bell jangles over the door.',
         records: 'You push through the doors of the City Records Office and take a ticket.',
         hospital: 'The ER doors hiss open. You give a name at the desk and they tell you to sit.',
@@ -2067,6 +2084,13 @@ export class Game {
       (inv.gear ??= []).push(s.name);
       inv.spots = spotsFor(inv.clothes, inv.gear);
       line = `You buy the ${lc(s.name)} and strap it on${s.id === 'anklesheath' ? ', under your pant leg' : ''}. Move ${s.id === 'holster' ? 'a handgun' : 'a knife'} into it from Pockets.`;
+    } else if (s.id === 'phone') {
+      // A phone of your own: unlocked, in your name.
+      if (!stow(inv, { kind: 'phone', name: 'Prepaid phone', detail: 'Prepaid, yours', own: this.world.lives, locked: false })) {
+        this.note([`Nowhere to put it. ${noRoomWhy(inv, 'small')}`]);
+        return;
+      }
+      line = 'The clerk rings up a prepaid phone in a plastic clamshell and slides it under the glass. It’s yours, and it works.';
     } else if (how === 'carry' && s.slot) {
       // (Bought to carry: on later, from Pockets.)
       if (!stow(inv, { kind: 'wear', name: s.name, slot: s.slot as 'top' | 'bottom' | 'bag' | 'head' | 'face' | 'eyes' })) {
@@ -3781,6 +3805,8 @@ export class Game {
       const at = t + restLeft(h);
       out.push({ id: 1, at, title: 'Rested', body: `${this.me.name} is up again, rested.` });
     }
+    const wk = this.work;
+    if (wk?.kind === 'plasma' && wk.until && wk.until > t) out.push({ id: 6, at: wk.until, title: 'Plasma', body: `${this.me.name}: they’re unhooking you. Collect your pay at the desk.` });
     const j = this.jail;
     if (j && j.until > t) out.push({ id: 2, at: j.until, title: 'They open the door', body: `${this.me.name} is out. ${j.what}: done.` });
     const c = this.case;
@@ -3853,7 +3879,7 @@ export class Game {
     const xs = this.save.state.laterLines as string[] | undefined;
     if (!xs?.length) return;
     const e = this.encounter;
-    if (!this.running || !this.tvState.on || !this.tv.showingPicture || this.koLines || this.save.state.koLines || this.save.state.wokeLines || this.ending || this.dead || this.jail || this.health.restingSince != null || this.sheet || (e && e.stage !== 'seen')) return;
+    if (!this.running || !this.tvState.on || !this.tv.showingPicture || this.koLines || this.save.state.koLines || this.save.state.wokeLines || this.ending || this.dead || this.jail || this.work || this.health.restingSince != null || this.sheet || (e && e.stage !== 'seen')) return;
     delete this.save.state.laterLines;
     this.note(xs);
   }
@@ -3872,6 +3898,7 @@ export class Game {
       delete this.health.restingSince;
       document.getElementById('rest')?.remove();
     }
+    if (this.work) this.endWork(false, true);
     const t = now();
     const j = this.jail;
     const live = !!j && j.until > t;
@@ -4261,7 +4288,7 @@ export class Game {
     const fix = (o: unknown) => {
       if (!o || typeof o !== 'object') return;
       const it = o as { kind?: string; own?: number };
-      if (it.kind === 'id' && it.own === x.life) it.own = w.lives;
+      if ((it.kind === 'id' || it.kind === 'phone') && it.own === x.life) it.own = w.lives;
       for (const v of Object.values(o)) fix(v);
     };
     fix(loaded);
@@ -4882,6 +4909,327 @@ export class Game {
       // (A straight citizen might mention it to someone in a uniform.)
       if (k === 'civilian' && Math.random() < 0.3) this.infamy.heat = Math.min(100, this.infamy.heat + 4);
     }
+  }
+  // ---------- Small, honest money ----------
+
+  /** Asking someone for change. */
+  private beg(e: Encounter) {
+    (e.asked ??= []).push('beg');
+    const k = e.person.kind;
+    const h = this.health;
+    const say = (by: 'you' | 'them' | 'info', text: string) => e.log.push({ by, text });
+    say('you', oneOf(['"Spare some change? Anything helps."', 'You hold out a hand. "Got a dollar? Anything."', '"Sorry to bother you. Any change at all?"']));
+    // Somebody you hurt: not a cent.
+    if (e.recognised && (e.grudge ?? 0) >= 30) {
+      say('them', oneOf(['"You? Get the hell away from me."', 'They know you. Their face goes hard and they keep walking.']));
+      e.suspicion = Math.min(100, e.suspicion + 20);
+      return;
+    }
+    // Looking rough helps: cold, hurt, bloody.
+    const rough = ((h.cold ?? 0) > 0 ? 0.08 : 0) + (h.broken.length ? 0.08 : 0) + (h.bleeding ? 0.1 : 0) + (h.blood < h.maxBlood * 0.9 ? 0.05 : 0);
+    const roll = Math.random();
+    let amt = 0;
+    if (k === 'civilian') {
+      if (roll < 0.25 + rough) amt = Math.random() < 0.8 ? 25 * (1 + Math.floor(Math.random() * 4)) : 100 * (1 + Math.floor(Math.random() * 5));
+    } else if (k === 'drunk') {
+      if (roll < 0.4 + rough) amt = 100 * (1 + Math.floor(Math.random() * 10));
+      else if (roll < 0.6) {
+        say('them', oneOf(['"Get a job, you bum!" They laugh at their own joke.', '"Change? I\'ll give you change." They spit near your feet.']));
+        return;
+      }
+    } else if (k === 'homeless') {
+      if (roll < 0.1 + rough / 2) amt = 25;
+    }
+    if (k === 'junkie') {
+      say('them', oneOf(['"I was gonna ask you, man."', 'They laugh, a dry, empty sound. "Yeah. Me too."']));
+      return;
+    }
+    if (!amt && k === 'homeless') {
+      say('them', oneOf(['They show you their own empty cup.', '"Wish I could, friend."', 'They shake their head slowly. "Nothing today."']));
+      return;
+    }
+    if (!amt) {
+      say('them', oneOf(['They don’t even look at you.', '"Sorry, no cash." They keep walking.', 'They step around you like you’re a puddle.', 'A quick shake of the head. Eyes straight ahead.']));
+      // (A straight citizen might mention you to someone in a uniform.)
+      if (k === 'civilian' && Math.random() < 0.15) this.infamy.heat = Math.min(100, this.infamy.heat + 3);
+      return;
+    }
+    const left = cents(pocketCash(this.inventory, fewest(amt)));
+    say('them', amt >= 100 ? oneOf([`They dig out ${money(amt)} and press it into your hand.`, `"Here." ${money(amt)}, folded small. "Get something to eat."`]) : oneOf([`They drop ${money(amt)} in coins into your palm.`, `A few coins, ${money(amt)}, without a word.`]));
+    if (left) say('info', `You’ve no room for ${money(left)} of it, and it rolls into the gutter.`);
+    else say('info', `+${money(amt)}`);
+  }
+
+  /** The cans and bottles you've picked up. */
+  private get cansCount(): number {
+    return this.inventory.items.filter((x) => x.name === 'Empty cans').reduce((n, x) => n + (x.doses ?? 0), 0);
+  }
+  /** The bins on your block: how many cans they hold now (they fill back up over a few hours). */
+  private get bins(): { left: number; at: number } {
+    const b = (this.save.state.bins ??= { left: 10, at: now() }) as { left: number; at: number };
+    const hours = (now() - b.at) / 3_600_000;
+    if (hours > 0) {
+      b.left = Math.min(12, b.left + hours * 2.5);
+      b.at = now();
+    }
+    return b;
+  }
+  private binsWhy(): string | null {
+    if (this.place !== 'street' || !this.canLurk) return 'Not now';
+    if (fatigueNow(this.health) >= FATIGUE_SPENT) return 'Too worn out';
+    return this.bins.left < 1 ? 'Picked clean. Give it a few hours.' : null;
+  }
+  /** Going through the bins along the block: cans to cash in, and now and then something else. */
+  private searchBins() {
+    if (this.binsWhy()) return;
+    const b = this.bins;
+    const inv = this.inventory;
+    addFatigue(this.health, 2);
+    const n = Math.max(1, Math.min(Math.floor(b.left), 2 + Math.floor(Math.random() * 5)));
+    b.left -= n;
+    const lines = [oneOf(['You go through the bins along the block, elbow-deep in other people’s trash.', 'You work your way down the block, lifting lids, picking through bags.', 'You check every bin and dumpster on the block. Someone has been through some of them already.'])];
+    const have = inv.items.find((x) => x.name === 'Empty cans');
+    if (have) {
+      have.doses = (have.doses ?? 0) + n;
+      have.kg = Math.round((have.doses ?? 0) * 15) / 1000;
+      lines.push(`${n} more can${n === 1 ? '' : 's'}. ${have.doses} in all.`);
+    } else if (stow(inv, { kind: 'misc', name: 'Empty cans', detail: 'Rinsed out, crushed flat, in a plastic bag', doses: n, size: 'small', kg: Math.round(n * 15) / 1000 })) lines.push(`${n} can${n === 1 ? '' : 's'}, crushed flat into a plastic bag.`);
+    else lines.push(`${n} cans, and nowhere to put them. ${noRoomWhy(inv, 'small')}`);
+    // Now and then, something else.
+    const f = Math.random();
+    if (f < 0.05) {
+      if (stow(inv, { kind: 'misc', name: 'Lighter', detail: 'Someone threw it out half full', doses: 40 })) lines.push('A lighter, still half full.');
+    } else if (f < 0.1) {
+      if (stow(inv, { kind: 'misc', name: 'Loose cigarettes', doses: 1 + Math.floor(Math.random() * 3) })) lines.push('A couple of cigarettes in a crushed pack.');
+    } else if (f < 0.16) {
+      const c = 5 + Math.floor(Math.random() * 46);
+      const left = cents(pocketCash(inv, fewest(c)));
+      if (!left) lines.push(`${money(c)} in loose change at the bottom of a bag.`);
+    }
+    this.refresh();
+    this.renderSheet();
+    this.note(lines);
+  }
+  /** At the gas station: the cans back, for the deposit. */
+  private cashCans() {
+    if (this.place !== 'gas') return;
+    const inv = this.inventory;
+    const n = this.cansCount;
+    if (!n) return;
+    inv.items = inv.items.filter((x) => x.name !== 'Empty cans');
+    const left = cents(pocketCash(inv, fewest(n * 10)));
+    this.refresh();
+    this.note([`You feed ${n} can${n === 1 ? '' : 's'} into the machine one at a time. It spits out a ticket, and the clerk gives you ${money(n * 10 - left)} for it.${left ? ` You’ve no room for the other ${money(left)}.` : ''}`]);
+  }
+
+  /** Plasma: when you've given (real time), to keep to twice a week. */
+  private get plasmaLog(): { visits: number[]; total: number } {
+    return (this.save.state.plasma ??= { visits: [], total: 0 }) as { visits: number[]; total: number };
+  }
+  private plasmaWhy(): string | null {
+    const h = this.health;
+    const t = now();
+    const log = this.plasmaLog;
+    const week = log.visits.filter((v) => t - v < 7 * 86_400_000);
+    const last = log.visits.length ? Math.max(...log.visits) : 0;
+    if (!this.ownId()) return 'They need to see your own ID';
+    if (week.length >= 2) return 'Twice a week at most';
+    if (last && t - last < 48 * 3_600_000) return `Not till ${dueText(last + 48 * 3_600_000)} ${clockText(last + 48 * 3_600_000)}`;
+    if (h.blood < h.maxBlood * 0.9) return 'Not enough blood in you';
+    if ((h.drunk ?? 0) >= 20 || h.wired || (h.high && (h.highUntil ?? 0) > t)) return 'They can tell you’re on something';
+    if (h.bleeding) return 'Not while you’re bleeding';
+    return null;
+  }
+  private plasmaHtml(btn: (attr: string, v: string | number, label: string, no?: string | false | null) => string, li: (name: string, small: string, button: string) => string): string {
+    const pay = this.plasmaLog.total ? 45 : 60;
+    return `<ul class="shop-list">${li('Donate plasma', `About fifty minutes in a recliner with a needle in your arm, real time. ${money(pay * 100)} on the way out${this.plasmaLog.total ? '' : ' (the first visit; $45 after that)'}. You leave light-headed. Leave early and you don’t get paid.`, btn('plasma', 'go', 'Sit down', this.plasmaWhy()))}</ul>` +
+      `<p class="shop-broke">They screen everyone: your own ID, a finger prick, a few questions. Twice a week at most, two days apart.</p>`;
+  }
+  private donatePlasma() {
+    if (this.place !== 'plasma' || this.plasmaWhy() || this.work) return;
+    this.startWork({ kind: 'plasma', since: now(), until: now() + 50 * 60_000 }, ['A finger prick, a blood pressure cuff, a form with too many questions. Then a recliner, a needle in the crook of your arm, and the machine starts to hum.']);
+  }
+
+  // ---------- The delivery app ----------
+  /** Your account with the delivery app (this character's). */
+  private get gig(): { signedUp: boolean; balance: number; cashedAt?: number; drops: number } {
+    return (this.save.state.gig ??= { signedUp: false, balance: 0, drops: 0 }) as { signedUp: boolean; balance: number; cashedAt?: number; drops: number };
+  }
+  /** Locked or not: yours never; someone else's, usually (decided the first time you look). */
+  private phoneLocked(x: InvItem): boolean {
+    if (x.kind !== 'phone') return true;
+    if (x.own != null && x.own === this.world.lives) return false;
+    if (x.locked == null) x.locked = Math.random() < 0.75;
+    return x.locked;
+  }
+  /** A phone you can actually use. */
+  private get usablePhone(): InvItem | undefined {
+    return this.inventory.items.find((x) => x.kind === 'phone' && !this.phoneLocked(x));
+  }
+  private phoneActs(x: InvItem, i: number): string {
+    if (this.phoneLocked(x)) return '';
+    const g = this.gig;
+    const b = (v: string, label: string, no?: string | null) => `<button type="button" data-gig="${v}" data-gigi="${i}" ${no ? `disabled title="${no}"` : ''}>${label}${no ? `<small>${no}</small>` : ''}</button>`;
+    if (!g.signedUp) return b('signup', `${GIG_APP}: sign up`, this.ownId() ? null : 'Needs your own ID');
+    const free = !g.cashedAt || now() - g.cashedAt >= 7 * 86_400_000;
+    return (
+      b('start', 'Start a delivery shift', !this.canOpenSheet || this.place !== 'street' ? 'Out on the street' : fatigueNow(this.health) >= 70 ? 'Too worn out' : null) +
+      b('cash', free ? 'Cash out (free)' : 'Cash out ($2 fee)', !this.account ? 'Needs a bank account' : g.balance < (free ? 100 : 300) ? 'Not enough to cash out' : null)
+    );
+  }
+  private gigAct(what: string, _i: number) {
+    const g = this.gig;
+    if (!this.usablePhone) return;
+    if (what === 'signup' && !g.signedUp && this.ownId()) {
+      g.signedUp = true;
+      this.refresh();
+      this.renderSheet();
+      this.note([`You download ${GIG_APP}, photograph your ID, take a selfie, and wait. Ten minutes later: you’re approved. Start a shift whenever you like, from the street.`]);
+      return;
+    }
+    if (what === 'start' && g.signedUp && this.place === 'street' && this.canOpenSheet && fatigueNow(this.health) < 70) {
+      this.closeSheet();
+      this.startWork({ kind: 'deliver', since: now(), drops: 0, earned: 0, tick: now(), part: 0 }, [`You open ${GIG_APP} and go online. The first order pings before you’ve put the phone away.`]);
+      return;
+    }
+    if (what === 'cash' && g.signedUp && this.account) {
+      const free = !g.cashedAt || now() - g.cashedAt >= 7 * 86_400_000;
+      const fee = free ? 0 : 200;
+      if (g.balance < (free ? 100 : 300)) return;
+      const out = g.balance - fee;
+      this.account.cents += out;
+      g.balance = 0;
+      if (free) g.cashedAt = now();
+      this.refresh();
+      this.renderSheet();
+      this.note([`${money(out)} goes from ${GIG_APP} into your bank account${fee ? ` (${money(fee)} for the instant cash-out)` : ''}.`]);
+    }
+  }
+
+  // ---------- Busy: a plasma visit, a delivery shift (real time, on its own screen) ----------
+  private get work(): Work | undefined {
+    return this.save.state.work as Work | undefined;
+  }
+  private startWork(w: Work, lines: string[]) {
+    this.save.state.work = w;
+    this.save.state.workLines = lines;
+    this.running = false;
+    this.unstick();
+    this.noteEl.hidden = true;
+    this.showWork();
+  }
+  private workTick = -1;
+  private showWork() {
+    const w = this.work;
+    if (!w) return;
+    document.getElementById('work')?.remove();
+    const el = document.createElement('div');
+    el.id = 'work';
+    el.className = 'lockup';
+    const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const lines = ((this.save.state.workLines as string[] | undefined) ?? []).slice(-2);
+    el.innerHTML =
+      `<h2>${w.kind === 'plasma' ? 'Plasma' : 'Delivering'}</h2>` +
+      `<p class="jail-what">${w.kind === 'plasma' ? 'In a recliner at Harbor Plasma, the machine humming.' : `Online with ${GIG_APP}, bag on your back, phone in your hand.`}</p>` +
+      lines.map((l) => `<p class="rest-line">${esc(l)}</p>`).join('') +
+      (w.kind === 'plasma' ? `<div class="rest-bar"><i></i></div>` : '') +
+      `<p class="jail-left"></p><p class="jail-out"></p>` +
+      `<p class="jail-how">${w.kind === 'plasma' ? 'Real time. Leave early and you don’t get paid.' : 'Real time: orders come in while the game is open or closed. Stop whenever you like; you keep what you’ve made.'}</p>` +
+      `<button type="button" class="jail-quit">${w.kind === 'plasma' ? 'Leave early' : 'Go offline'}</button>`;
+    const shown = performance.now();
+    el.querySelector('button')!.addEventListener('click', () => performance.now() - shown > 800 && this.endWork(false));
+    this.view.append(el);
+    this.workTick = -1;
+    this.tickWork();
+  }
+  private tickWork() {
+    const w = this.work;
+    if (!w) return;
+    const t = now();
+    if (w.kind === 'plasma') {
+      if (w.until != null && t >= w.until) return this.endWork(true);
+    } else this.deliverUpTo(w, t);
+    if (!this.work) return;
+    const el = document.getElementById('work');
+    if (!el) return this.showWork();
+    const sec = Math.floor(t / 1000);
+    if (sec === this.workTick) return;
+    this.workTick = sec;
+    const two = (n: number) => String(n).padStart(2, '0');
+    if (w.kind === 'plasma') {
+      const left = Math.max(0, Math.ceil(((w.until ?? t) - t) / 1000));
+      (el.querySelector('.rest-bar i') as HTMLElement).style.width = `${Math.min(100, (100 * (t - w.since)) / ((w.until ?? t) - w.since))}%`;
+      el.querySelector('.jail-left')!.textContent = `${two(Math.floor(left / 60))}:${two(left % 60)} to go`;
+      el.querySelector('.jail-out')!.textContent = `Done by ${clockText(w.until ?? t)}`;
+    } else {
+      const on = Math.floor((t - w.since) / 1000);
+      el.querySelector('.jail-left')!.textContent = `${w.drops ?? 0} drop${w.drops === 1 ? '' : 's'} · ${money(w.earned ?? 0)}`;
+      el.querySelector('.jail-out')!.textContent = `Online ${Math.floor(on / 3600)}:${two(Math.floor((on % 3600) / 60))} · ${FATIGUE_NAMES[fatigueLevel(Math.round(fatigueNow(this.health)))]}`;
+    }
+  }
+  /** Out on deliveries up to now: orders come and go (more at dinner and in bad weather, fewer worn out). */
+  private deliverUpTo(w: Work, t: number) {
+    const h = this.health;
+    let at = w.tick ?? w.since;
+    // (Ten hours on, the app logs you off.)
+    const stopAt = Math.min(t, w.since + 10 * 3_600_000);
+    while (at < stopAt) {
+      const step = Math.min(stopAt - at, 60_000);
+      const hr = new Date(at).getHours();
+      const dinner = hr >= 17 && hr < 21;
+      const wet = WET_AMOUNT[this.weather.now] > 0;
+      const rate = (2.5 + (dinner ? 1 : 0) + (wet ? 0.8 : 0)) * Math.max(0.3, 1 - (h.fatigue ?? 0) * 0.008);
+      w.part = (w.part ?? 0) + (rate * step) / 3_600_000;
+      while ((w.part ?? 0) >= 1) {
+        w.part = (w.part ?? 0) - 1;
+        const pay = 300 + Math.floor(Math.random() * 301) + Math.floor(Math.random() * (wet ? 450 : 300));
+        w.drops = (w.drops ?? 0) + 1;
+        w.earned = (w.earned ?? 0) + pay;
+        this.gig.balance += pay;
+        this.gig.drops += 1;
+        addFatigue(h, 3.5);
+        train(this.stats, 'stamina', 2);
+      }
+      at += step;
+      w.tick = at;
+      if (fatigueNow(h) >= 88) return this.endWork(false, false, 'You’re dead on your feet. You go offline before you drop.');
+    }
+    if (t >= w.since + 10 * 3_600_000) return this.endWork(false, false, `Ten hours on: ${GIG_APP} logs you off.`);
+    if (!this.usablePhone) return this.endWork(false, false, 'No phone: you’re offline.');
+  }
+  /** Done (or left): paid, or not. */
+  private endWork(finished: boolean, quiet = false, why?: string) {
+    const w = this.work;
+    if (!w) return;
+    if (w.kind === 'deliver' && !quiet) this.deliverUpTo(w, now());
+    if (!this.work) return;
+    delete this.save.state.work;
+    delete this.save.state.workLines;
+    document.getElementById('work')?.remove();
+    this.running = !this.paused && !this.jail && !this.dead;
+    if (quiet) return;
+    const meanwhile = (this.save.state.laterLines as string[] | undefined) ?? [];
+    delete this.save.state.laterLines;
+    const lines: string[] = [];
+    if (w.kind === 'plasma') {
+      if (finished) {
+        const h = this.health;
+        const log = this.plasmaLog;
+        const pay = log.total ? 4500 : 6000;
+        log.visits.push(now());
+        log.visits = log.visits.filter((v) => now() - v < 14 * 86_400_000);
+        log.total += 1;
+        h.blood = Math.max(Math.round(h.maxBlood * 0.6), h.blood - 400);
+        addFatigue(h, 12);
+        const left = cents(pocketCash(this.inventory, fewest(pay)));
+        lines.push(`They unhook you and tape a cotton ball in the crook of your arm. At the desk, ${money(pay - left)} in cash.${left ? ` You’ve no room on you for ${money(left)}; they keep it on your account for next time.` : ''} You stand up too fast and the room tilts.`);
+      } else lines.push('You pull the tape and tell the nurse you have to go. She stops the machine with a sigh. No pay.');
+    } else {
+      lines.push(`${why ?? 'You go offline.'} ${w.drops ?? 0} drop${w.drops === 1 ? '' : 's'}, ${money(w.earned ?? 0)} into ${GIG_APP}. ${money(this.gig.balance)} waiting to cash out.`);
+    }
+    this.refresh();
+    this.note([...lines, ...meanwhile]);
+    buzz(8);
   }
   /** Who Dez sends: big, calm, and carrying. Bigger each time you send one back. */
   private enforcerFor(d: { strikes?: number }): import('./person').Person {
@@ -6074,6 +6422,7 @@ export class Game {
       `<div class="map-card-head"><span class="map-card-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${picked.icon}"/></svg></span><div><b>${picked.name}</b><small>${isHere ? 'You’re here.' : far ? `${far} block${far === 1 ? '' : 's'} from you.` : 'Just round the corner.'}</small></div></div>` +
       `<p>${picked.small}</p>` +
       (isHere ? '' : `<button type="button" class="map-go" ${picked.go}>${picked.key === 'place:street' ? 'Back out to your corner' : 'Walk there'}</button>`) +
+      (isHere && picked.key === 'place:street' ? ((why) => `<button type="button" class="map-go" data-bins ${why ? 'disabled' : ''}>Go through the bins${why ? `<small>${why}</small>` : ''}</button>`)(this.binsWhy()) : '') +
       (isHere ? '' : (picked.extra ?? '')) +
       `</div>`;
     // The addresses and cars you know, as buttons too: easier to tell apart than the pins.
@@ -6160,6 +6509,8 @@ export class Game {
           : `<p class="shop-broke">Your name isn't on any list. Nothing for you here.</p>`
         : `<p class="shop-closed">The doors are locked. Open weekdays, 9 to 4.</p>`;
       body += this.jailVisitHtml(open && !metal, btn, li);
+    } else if (place === 'plasma') {
+      body = open ? this.plasmaHtml(btn, li) : `<p class="shop-closed">The doors are locked. Open Monday to Saturday, 7 to 7.</p>`;
     } else if (place === 'records') {
       const mine = this.ownId();
       body = open
@@ -6177,7 +6528,9 @@ export class Game {
         `<ul class="shop-list">${GAS_STOCK.map((s) => {
           const n = s.med ? inv.items.filter((x) => x.med === s.med).length : s.slot || s.drink ? 0 : have(s.name);
           return li(named(stockThing(s)), `${s.desc}${n ? ` · You have ${n}` : ''}`, this.stockBtns(s, c, btn));
-        }).join('')}</ul>` + (c < 100 ? `<p class="shop-broke">You can't afford anything. The clerk watches you anyway.</p>` : '');
+        }).join('')}</ul>` +
+        ((cans) => (cans ? `<ul class="shop-list">${li('Cash in cans', `The machine by the ice chest takes them back: 10¢ a can. You have ${cans}.`, btn('cans', 'cash', `Cash in · ${money(cans * 10)}`))}</ul>` : ''))(this.cansCount) +
+        (c < 100 ? `<p class="shop-broke">You can't afford anything. The clerk watches you anyway.</p>` : '');
     } else if (place === 'pawn' || place === 'fence') {
       if (!open) body = `<p class="shop-closed">${place === 'pawn' ? 'The shutter is down.' : "There's nobody back here right now."}</p>`;
       else {
@@ -6495,6 +6848,8 @@ export class Game {
                             ? idText((x.detail ?? '').split(',')[0], x.card)
                             : x.opens
                             ? `${x.detail ? `${x.detail} · ` : ''}${((h) => (h ? `Opens ${h.addr}${this.atHome === h ? " (you're here)" : ''}` : 'Whose door, you’d need an address to know'))(this.homeById(x.opens))}`
+                            : x.kind === 'phone'
+                            ? `${x.detail ? `${x.detail} · ` : ''}${this.phoneLocked(x) ? 'Locked: you can’t get in' : this.gig.signedUp ? `${GIG_APP} app: ${money(this.gig.balance)} to cash out` : 'Unlocked'}`
                             : /card/.test(x.kind) && (x.pin || x.drained)
                             ? `${x.detail ? `${x.detail} · ` : ''}${x.drained ? (x.empty ? 'Nothing in the account' : 'Stopped') : `PIN ${x.pin} (cash machine at the bank)`}`
                             : x.detail;
@@ -6504,6 +6859,8 @@ export class Game {
                 if (/^(loose |pack of )?cigarettes$/i.test(x.name)) acts += act('smoke', this.smoking ? 'Smoking' : 'Smoke', (x.doses ?? 1) <= 0 ? 'Empty' : this.smokeBlocked());
                 if (x.drink) acts += act('drink', 'Drink', (x.doses ?? 0) <= 0 ? 'Empty' : this.canOpenSheet ? null : 'Not now');
                 if (x.kind === 'wear' && x.slot) acts += act('puton', 'Put on', this.canOpenSheet ? null : 'Not now');
+                // A phone: the delivery app, if it's yours or unlocked.
+                if (x.kind === 'phone') acts += this.phoneActs(x, i);
                 // Loose ones into a pack with room in it.
                 if (/^loose cigarettes$/i.test(x.name) && inv.items.some((y) => /^(pack of )?cigarettes$/i.test(y.name) && (y.doses ?? 0) < 20))
                   acts += act('pack', 'Put in pack');
@@ -6568,6 +6925,8 @@ export class Game {
     const inv = this.inventory;
     // Looking for a supplier: anyone on the street might know one (not Dez's own people, not the police).
     e.askConnect = !this.connect.known && !e.enforcer && !e.deal && ['junkie', 'homeless', 'drunk', 'civilian'].includes(e.person.kind);
+    // Anyone on the street can be asked for change (not Dez's man, not someone you're selling to, not a house).
+    e.canBeg = !e.enforcer && !e.deal && !e.resident && !e.person.title;
     // Bags to sell (a point each), and powder not bagged up yet.
     const coke = inv.items.filter((x) => x.secret === 'cocaine' && x.known && (x.doses ?? 0) > 0);
     e.product = coke.filter((x) => x.doses === 1).length;
@@ -6988,6 +7347,12 @@ export class Game {
         }, 600),
       );
     }
+    // Closed at the plasma center, or out on deliveries: you still are.
+    document.getElementById('work')?.remove();
+    if (this.work && !this.jail && typeof this.save.state.deathScreen !== 'string') {
+      this.running = false;
+      this.showWork();
+    }
     // Closed while lying down: you still are.
     document.getElementById('rest')?.remove();
     if (this.health.restingSince != null && !this.jail && typeof this.save.state.deathScreen !== 'string') {
@@ -7092,7 +7457,7 @@ export class Game {
 
   resume() {
     this.paused = false;
-    if (this.dead || this.jail || this.health.restingSince != null || document.getElementById('choose')) return;
+    if (this.dead || this.jail || this.work || this.health.restingSince != null || document.getElementById('choose')) return;
     this.running = true;
     // (Paused, or reloaded, before what happened while you were out was shown.)
     if (this.tvState.on && !this.koLines) this.showWoke();
@@ -7117,7 +7482,7 @@ export class Game {
   /** Closes the game view (back to the menu). */
   close() {
     this.closed = true;
-    for (const id of ['rest', 'jail', 'choose']) document.getElementById(id)?.remove();
+    for (const id of ['rest', 'jail', 'choose', 'work']) document.getElementById(id)?.remove();
     document.removeEventListener('pointerdown', this.onTap, { capture: true });
     clearTimeout(this.noteFade);
     this.koListen?.abort();
@@ -7166,6 +7531,7 @@ export class Game {
     this.healOnClock();
     if (this.jail && !this.dead) this.tickJail();
     else if (this.health.restingSince != null && !this.dead) this.tickRest();
+    else if (this.work && !this.dead) this.tickWork();
     else this.flushLater();
     if (this.running) {
       this.tickSmoke(dt);

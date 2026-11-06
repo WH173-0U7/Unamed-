@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.21',
+    date: 'Nov 6',
+    items: [
+      'Honest money, a little at a time. Ask people on the street for change ("Spare some change?"): most walk past, some give a few coins, a drunk might give you a few dollars. Looking rough helps; someone you’ve hurt gives nothing.',
+      'Go through the bins at your corner (Go: Your corner) for empty cans, and now and then something else. They fill back up over a few hours. The gas station takes the cans back at 10¢ each.',
+      'Harbor Plasma, on the map: about fifty minutes in a recliner, real time, for $60 the first time and $45 after. Your own ID, twice a week at most, and you leave light-headed. Leave early and you don’t get paid.',
+      'Deliveries with the Handoff app: you need a phone that’s yours or unlocked (a prepaid one at the gas station, $45; most phones you take off people are locked) and your own ID. Go online from the street, on its own real-time screen; more orders at dinnertime and in bad weather, fewer when you’re worn out. Your pay builds up in the app: cash it out to your bank account, free once a week or $2 any time.',
+    ],
+  },
+  {
     v: '2.20',
     date: 'Nov 6',
     items: [

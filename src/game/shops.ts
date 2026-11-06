@@ -20,7 +20,7 @@ import type { InvItem } from './inventory';
  *   and breaks big ones down. After hours, the coin machine in the lobby
  *   still turns coins into bills, for a cut.
  */
-export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records' | 'hospital' | 'guns' | 'court' | 'room' | 'home' | 'car';
+export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records' | 'hospital' | 'guns' | 'court' | 'room' | 'home' | 'car' | 'plasma';
 
 export interface PlaceInfo {
   id: Place;
@@ -121,6 +121,14 @@ export const PLACES: PlaceInfo[] = [
     desc: 'Get your State ID made.',
     hours: WEEKDAYS(9, 16),
     blurb: 'A long room of plastic chairs and a ticket machine. Everyone looks like they have been waiting forever.',
+    indoors: true,
+  },
+  {
+    id: 'plasma',
+    name: 'Harbor Plasma',
+    desc: 'Sell your plasma: about an hour, a little money. Your own ID, twice a week at most.',
+    hours: [null, [7, 19], [7, 19], [7, 19], [7, 19], [7, 19], [7, 19]],
+    blurb: 'A waiting room of plastic chairs and a TV on mute. A nurse with a clipboard calls names. Everyone here needs the money.',
     indoors: true,
   },
   {
@@ -255,6 +263,7 @@ export const GAS_STOCK: Stock[] = [
   { id: 'energy', name: 'Energy drink', price: 4, desc: '160 mg of caffeine in a can. Kicks in after half an hour; lasts for hours.', doses: 1, drinkType: 'energy' },
   { id: 'cigs', name: 'Pack of cigarettes', price: 9, desc: '20 in a pack. Takes the edge off stress.', doses: 20 },
   { id: 'lighter', name: 'Lighter', price: 3, desc: 'Full of fuel.', doses: 100 },
+  { id: 'phone', name: 'Prepaid phone', price: 45, desc: 'A cheap smartphone in a plastic clamshell, minutes on it. Yours, and unlocked: enough for a delivery app.' },
   { id: 'matches', name: 'Matches', price: 1, desc: 'A book of 20.', doses: 20 },
   { id: 'zipbags', name: 'Zip bags', price: 3, desc: 'A pack of 50 tiny zip-top bags, by the register. “For jewelry,” the label says.', doses: 50 },
   { id: 'bandages', name: 'Bandages', price: 11, desc: 'Slows bleeding a level. Pricier than the pharmacy.', med: 'bandages' },

@@ -45,6 +45,8 @@ export interface InvItem {
   slot?: 'top' | 'bottom' | 'bag' | 'head' | 'face' | 'eyes';
   /** Your own ID (which life it's for: see World.lives). Never evidence. */
   own?: number;
+  /** A phone: locked (someone else's, and you can't get in) or not; decided the first time you look. */
+  locked?: boolean;
   /** Something to drink (beer, liquor, an energy drink), swigs in `doses`. */
   drink?: 'beer' | 'liquor' | 'energy';
   /** Car keys: when you took them (owners report a stolen car fast), and whether you found the car (and went through it). */

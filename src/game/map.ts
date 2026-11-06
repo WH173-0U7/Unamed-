@@ -34,6 +34,7 @@ export const PLACE_AT: Partial<Record<Place, { x: number; y: number; addr: strin
   court: { x: 122, y: 66, addr: 'Grand Ave and Alder St' },
   records: { x: 238, y: 66, addr: 'Fulton Ave and Alder St' },
   bank: { x: 238, y: 122, addr: 'Fulton Ave and Larkin St' },
+  plasma: { x: 178, y: 340, addr: 'Grand Ave, past Bellamy St' },
 };
 
 /** A number from a string (the same string, the same number). */
@@ -84,6 +85,7 @@ export const PLACE_ICON: Record<string, string> = {
   court: 'M3 9.5L12 4l9 5.5z M5.5 9.5v8 M10 9.5v8 M14 9.5v8 M18.5 9.5v8 M3 20.5h18 M4 17.5h16',
   records: 'M6 2.5h9l3.5 3.5v15.5H6z M15 2.5V6h3.5 M9 10h6.5 M9 13.5h6.5 M9 17h4',
   bank: 'M3 9L12 4l9 5z M5 9v9 M19 9v9 M3 20.5h18 M12 10.5v7 M14 12c0-1-1-1.5-2-1.5s-2 .5-2 1.5 1 1.4 2 1.6 2 .6 2 1.6-1 1.5-2 1.5-2-.5-2-1.5',
+  plasma: 'M12 3.5c3.2 4.2 5.5 7.2 5.5 10.2a5.5 5.5 0 0 1-11 0c0-3 2.3-6 5.5-10.2z M9.4 14.2a2.6 2.6 0 0 0 2.6 2.6',
   home: 'M3.5 11L12 4l8.5 7 M5.5 9.5V20h13V9.5 M10 20v-5h4v5',
   car: 'M3.5 15.5v-3l2-5h13l2 5v3 M3.5 15.5h17v3H18v-1.5H6v1.5H3.5z M6 12.5h12 M7 15.5h.01 M17 15.5h.01',
 };

@@ -257,6 +257,8 @@ export interface Encounter {
   regular?: boolean;
   /** You don't know a supplier yet: you can ask them if they know one. */
   askConnect?: boolean;
+  /** You can ask them for change. */
+  canBeg?: boolean;
   /** Sent by Dez, for the money you owe him. */
   enforcer?: boolean;
   /** You were arrested for what happened, there and then. */
@@ -808,6 +810,8 @@ function rawOptions(e: Encounter): Option[] {
         ...(e.known.sex && e.known.race ? [] : [{ id: 'sex', label: 'Get a look at them', hint: e.distance < 1 ? 'Hard to tell from here' : 'Their face, their build', cat: 'surveil' as Category }]),
         ...(e.known.personality ? [] : [{ id: 'read', label: 'Read them', hint: e.distance < 1 ? 'Need to be closer' : 'What kind of person?', disabled: e.distance < 1, cat: 'surveil' as Category }]),
         // Looking for a supplier: someone like this might know one.
+        // Asking for change: a little money, and no violence.
+        ...(e.canBeg && !(e.asked ?? []).includes('beg') ? [{ id: 'beg', label: '"Spare some change?"', hint: e.distance < 1 ? 'Need to be closer' : 'Ask for a little money', disabled: e.distance < 1, cat: 'surveil' as Category }] : []),
         ...(e.askConnect && !(e.asked ?? []).includes('connect') ? [{ id: 'connect', label: '"Know anyone selling?"', hint: e.distance < 1 ? 'Need to be closer' : 'Who supplies around here', disabled: e.distance < 1, cat: 'surveil' as Category }] : []),
         // Selling: only with something bagged up to sell, and only the once.
         ...((e.product ?? 0) > 0 || (e.bulk ?? 0) > 0

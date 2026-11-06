@@ -2299,6 +2299,13 @@ export class Game {
     if (!c || now() < c.towAt) return [];
     return this.towed(c, `Where you left the ${c.make}, there’s ${c.home ? 'an empty space at the curb' : 'an empty space, and someone else’s car pulling into it'}. Towed, or found and taken home.`);
   }
+  /** At a car that's been towed while you stood there (the app left open, or reopened): it's gone. */
+  private carTowedNow(): boolean {
+    const c = this.atCar;
+    if (!c || now() < c.towAt) return false;
+    this.note(this.towed(c, `A tow truck backs up to the ${c.make} and the driver gets out with a clipboard. You walk away before he looks at you.`));
+    return true;
+  }
   /** The car's gone (towed, or the owner has it back), and so's what was in it. You're on the street. */
   private towed(c: Car, line: string): string[] {
     const lines = [line];
@@ -2439,6 +2446,7 @@ export class Game {
       c.towAt -= ms;
       const key = this.keysFor(c.id);
       if (key?.takenAt != null) key.takenAt -= ms;
+      if (key?.tookAt != null) key.tookAt -= ms;
       // (Towed while you slept: you wake to it.)
       if (now() >= c.towAt) {
         this.unstick();
@@ -3763,7 +3771,10 @@ export class Game {
     const st = this.save.state;
     const stash = st.stash as { items: InvItem[]; at: number } | undefined;
     const room = st.room as { until: number; items: InvItem[]; at: number } | undefined;
-    for (const x of [...this.inventory.items, ...(stash?.items ?? []), ...(room?.items ?? []), ...this.cars.flatMap((c) => c.items)]) if (x.takenAt != null) x.takenAt -= ms;
+    for (const x of [...this.inventory.items, ...(stash?.items ?? []), ...(room?.items ?? []), ...this.cars.flatMap((c) => c.items)]) {
+      if (x.takenAt != null) x.takenAt -= ms;
+      if (x.tookAt != null) x.tookAt -= ms;
+    }
     if (stash) stash.at -= ms;
     if (room) {
       room.until -= ms;
@@ -4503,6 +4514,7 @@ export class Game {
 
   /** Leaving something behind the brick, or in your room. */
   private stashItem(i: number) {
+    if (this.carTowedNow()) return;
     const inv = this.inventory;
     const it = inv.items[i];
     const car = this.atCar && !this.copsAtCar(this.atCar) && it?.carId !== this.atCar.id ? this.atCar : undefined;
@@ -4527,6 +4539,7 @@ export class Game {
 
   /** Taking something back out of the stash or the room: "stash:3", "room:0". */
   private unstash(v: string) {
+    if (this.carTowedNow()) return;
     const [kind, n] = v.split(':');
     const where = kind === 'stash' && this.place === 'fence' ? this.stash : kind === 'room' && this.place === 'room' && this.roomRented ? this.room : kind === 'trunk' && this.atCar && !this.copsAtCar(this.atCar) ? this.atCar : undefined;
     const it = where?.items[Number(n)];
@@ -4547,6 +4560,7 @@ export class Game {
 
   /** All your cash in, or all of it back out: "stash:in", "room:out". */
   private stashCash(v: string) {
+    if (this.carTowedNow()) return;
     const [kind, dir] = v.split(':');
     const where = kind === 'stash' && this.place === 'fence' ? this.stash : kind === 'room' && this.place === 'room' && this.roomRented ? this.room : kind === 'trunk' && this.atCar && !this.copsAtCar(this.atCar) ? this.atCar : undefined;
     if (!where) return;

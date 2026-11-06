@@ -15,6 +15,7 @@ export const CHANGES: Release[] = [
     date: 'Nov 6',
     items: [
       'Someone bleeding too hard to stay awake can’t be slapped awake (the option says they’re too far gone), instead of coming to and passing out again in the same breath.',
+      'A car towed while you stood at it can’t be emptied through its trunk. After time inside, the car hunt remembers how long ago you really took the keys.',
     ],
   },
   {

@@ -848,6 +848,8 @@ let actLogStart = 0;
 export { indoors };
 const say = (by: LogLine['by'], text: string) => {
   text = text.replace(/ {2,}/g, ' ').trim();
+  // (Where a blow landed, said once: not "on the cheekbone. It catches you on the cheekbone.")
+  if (/\bon the [a-z ]+\..*\bIt catches (you|them) on the cheekbone\./.test(text)) text = text.replace(/\s*\bIt catches (you|them) on the cheekbone\./, '');
   // (Limping a step, then going down in the same moment: they just go down.)
   // (Only the same person, and only in this move.)
   const down = (who: string) => new RegExp(`\\b${who} (go(es)? down|hit the (sidewalk|floor|ground))|\\b${who === 'They' ? "They're" : "You're"} on the (floor|sidewalk|ground)`);
@@ -1217,7 +1219,8 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         const dmg = Math.round(roll(10, 15) * str);
         if (!b.solid) {
           e.them.down = true;
-          say('you', `${amb('bumrush')} It takes them clean off their feet. ${wound('them', 'body', dmg, 'fall')} They're on the floor.`);
+          const fell = wound('them', 'body', dmg, 'fall');
+          say('you', `${amb('bumrush')} It takes them clean off their feet. ${fell}${/\bhit the (sidewalk|floor|ground)\b/.test(fell) ? '' : " They're on the floor."}`);
         } else {
           say('you', `${amb('bumrush')} They're heavy and hold their ground. ${wound('them', 'body', dmg, 'fall')}`);
           if (Math.random() < 0.35) {
@@ -1790,7 +1793,7 @@ function shoot(it: { name: string; doses?: number }) {
     } else text += loc === 'stomach' ? ' They fold over it, and blood comes through their fingers.' : ' Blood spreads through their shirt.';
     if (!T.down && Math.random() < 0.7) {
       T.down = true;
-      text += " They go down. They're on the floor.";
+      text += ' They go down hard.';
     }
   } else {
     ml = Math.round(T.maxBlood * (0.05 + Math.random() * 0.05) * pw);
@@ -2255,7 +2258,7 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
         [`The edge drags through ${P} ${where}, and the blood comes fast.`, scar(where)],
       ],
       [
-        [`It goes deep into ${P} ${where}. The blood comes in a rush.`, scar(where)],
+        [`The blood comes in a rush from ${P} ${where}.`, scar(where)],
         [`Blood wells up fast from ${P} ${where}.`, scar(where)],
         [`The wound in ${P} ${where} gapes, and won't stop.`, scar(where)],
       ],

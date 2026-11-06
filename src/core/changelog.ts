@@ -11,6 +11,13 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.37',
+    date: 'Nov 6',
+    items: [
+      'Fight text says things once: a bum rush doesn’t put them on the floor twice, a punch to the cheekbone isn’t a punch to the cheekbone twice, and a deep stab isn’t “deep into” twice.',
+    ],
+  },
+  {
     v: '1.36',
     date: 'Nov 6',
     items: [

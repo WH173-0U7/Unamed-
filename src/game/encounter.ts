@@ -3385,7 +3385,7 @@ const list = (xs0: string[]) => {
   for (const x of xs0) n.set(x, (n.get(x) ?? 0) + 1);
   const xs = [...n].flatMap(([x, k]) => (k < 2 ? [x] : several(x, k)));
   // (A list inside the list, "a wallet with A and B": a comma before the last "and".)
-  const out = xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')}${xs.some((x) => / and /.test(x)) ? ',' : ''} and ${xs[xs.length - 1]}`;
+  const out = xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')}${xs.slice(0, -1).some((x) => / and /.test(x)) ? ',' : ''} and ${xs[xs.length - 1]}`;
   // ("matches (20 left, in the bag)", not "(20 left) (in the bag)".)
   return out.replace(/\) \(/g, ', ');
 };
@@ -3400,7 +3400,8 @@ function several(x: string, k: number): string[] {
   // (Money, or a detail after a comma or in brackets: listed as many times as there are.)
   if (/^[$\d]/.test(bare) || bare.includes(',') || bare.includes('(') || / (in|with|from) /.test(bare)) return Array(k).fill(x);
   // (No "a" to count by: "two pepper sprays", "two sets of house keys".)
-  if (!m) return [/[^s]s$/i.test(bare) ? `${NUMBER[k] ?? k} ${/keys$/i.test(bare) ? 'sets' : 'lots'} of ${bare}${where}` : `${NUMBER[k] ?? k} ${bare.replace(/(\S+)$/, (w) => pluralWord(w))}${where}`];
+  // (No "a" to count by: "two sets of house keys", "two cans of pepper spray"; anything else, listed as many times as there are.)
+  if (!m) return /keys$/i.test(bare) ? [`${NUMBER[k] ?? k} sets of ${bare}${where}`] : /spray$/i.test(bare) ? [`${NUMBER[k] ?? k} cans of ${bare}${where}`] : Array(k).fill(x);
   const body = m[1];
   const of = body.search(/ of /);
   const head = of >= 0 ? body.slice(0, of) : body;

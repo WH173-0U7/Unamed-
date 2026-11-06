@@ -65,8 +65,15 @@ const VIG_DAYS = 14;
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 /** At an address: outside, or in, and what's happened so far. */
 /** Whether this one in the house (the owner, or whoever else lives there) has seen your face. */
-const sawFace = (j: { faceSeen?: boolean | { owner?: boolean; other?: boolean } } | undefined, owner: boolean) =>
-  !!j && typeof j.faceSeen === 'object' && !!(owner ? j.faceSeen.owner : j.faceSeen.other);
+type FaceSeen = boolean | { owner?: boolean | number; other?: boolean | number };
+const sawFace = (j: { faceSeen?: FaceSeen } | undefined, owner: boolean) =>
+  !!j && typeof j.faceSeen === 'object' && (owner ? j.faceSeen.owner : j.faceSeen.other) != null && (owner ? j.faceSeen.owner : j.faceSeen.other) !== false;
+/** How covered you were when they saw your face (what they'll remember, mask or not since). */
+const faceAnon = (j: { faceSeen?: FaceSeen } | undefined, owner: boolean, now: number): number => {
+  if (!sawFace(j, owner)) return now;
+  const v = (j!.faceSeen as { owner?: boolean | number; other?: boolean | number })[owner ? 'owner' : 'other'];
+  return Math.min(now, typeof v === 'number' ? v : 0.3);
+};
 interface HomeJob {
   home: string;
   in: boolean;
@@ -88,7 +95,7 @@ interface HomeJob {
   /** Someone saw your face; the doorbell camera got you (and whether your face showed). */
   seen?: boolean;
   /** Your face as it was when they came on you (a mask pulled up after doesn't take it back). */
-  faceSeen?: boolean | { owner?: boolean; other?: boolean };
+  faceSeen?: FaceSeen;
   filmed?: boolean;
   faceFilmed?: boolean;
   called?: boolean;
@@ -757,7 +764,7 @@ export class Game {
       e.conspicuous = conspicuous(inv);
       const k = e.person.known ? this.people.find((x) => x.id === e.person.known) : undefined;
       // (In their house, a face they've already seen stays seen.)
-      const anon = e.resident && sawFace(this.save.state.job as HomeJob | undefined, e.resident.owner) ? Math.min(anonymity(inv), 0.3) : anonymity(inv);
+      const anon = e.resident ? faceAnon(this.save.state.job as HomeJob | undefined, e.resident.owner, anonymity(inv)) : anonymity(inv);
       const clothes = lookClothes(inv).join('|');
       const was = e.lookAt;
       if (!was || was.anon !== anon || was.clothes !== clothes) {
@@ -4211,7 +4218,8 @@ export class Game {
     const p = this.presence(h);
     const owner = how === 'home' ? !!ownerHome : !j.metOwner && p.owner !== 'out' && (j.metOther || p.other === 'out' || p.other == null || Math.random() < 0.6);
     // (Who saw your face: this one, as you were when they came on you.)
-    if (anonymity(this.inventory) < 0.6) j.faceSeen = { ...(typeof j.faceSeen === 'object' ? j.faceSeen : {}), [owner ? 'owner' : 'other']: true };
+    const seenAnon = anonymity(this.inventory);
+    if (seenAnon < 0.6) j.faceSeen = { ...(typeof j.faceSeen === 'object' ? j.faceSeen : {}), [owner ? 'owner' : 'other']: seenAnon };
     const sex: 'Male' | 'Female' = owner ? h.sex : h.household === 'partner' ? (Math.random() < 0.8 ? (h.sex === 'Male' ? 'Female' : 'Male') : h.sex) : Math.random() < 0.5 ? 'Male' : 'Female';
     const [He, he, his] = sex === 'Male' ? ['He', 'he', 'his'] : ['She', 'she', 'her'];
     const who = owner ? h.owner.split(' ')[0] : sex === 'Male' ? 'a man' : 'a woman';
@@ -4326,7 +4334,7 @@ export class Game {
     if (k) {
       applyTo(k, e.them);
       // (A mask pulled up once they've already seen your face doesn't hide it.)
-      const anon = sawFace(j, c.owner) ? Math.min(anonymity(inv), 0.3) : anonymity(inv);
+      const anon = faceAnon(j, c.owner, anonymity(inv));
       e.recognised = recognises(k, anon, lookClothes(inv));
       e.lookAt = { anon, clothes: lookClothes(inv).join('|') };
       e.grudge = k.memory.grudge;
@@ -5169,7 +5177,7 @@ export class Game {
     // Face to face and awake, they see you as you are now (the least covered you've been is what sticks).
     if (e.facedYou && e.stage !== 'seen' && !e.them.out && !e.them.dead && !e.chase) {
       // (In their house, a face they've already seen stays seen, mask or not.)
-      const anon = e.resident && sawFace(this.save.state.job as HomeJob | undefined, e.resident.owner) ? Math.min(anonymity(inv), 0.3) : anonymity(inv);
+      const anon = e.resident ? faceAnon(this.save.state.job as HomeJob | undefined, e.resident.owner, anonymity(inv)) : anonymity(inv);
       if (!e.seenAs || anon < e.seenAs.anon) e.seenAs = { anon, looked: describe(inv), clothes: lookClothes(inv) };
     }
     e.flame = !!this.flame();

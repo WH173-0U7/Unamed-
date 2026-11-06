@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.17',
+    date: 'Nov 6',
+    items: ['Weapons in a fight: take it out first (a turn), then use it. While it’s still in your pocket, taking it out is the only option; once it’s in your hand you can use it or put it away. That goes for pepper spray too (spraying someone as you jump them is still one move).'],
+  },
+  {
     v: '2.16',
     date: 'Nov 6',
     items: ['The fight footer fits on the smallest phones, with its little hints (how far ahead they are) never cut off.'],

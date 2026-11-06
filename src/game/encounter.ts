@@ -416,9 +416,9 @@ function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolea
   return (e.weapons ?? [])
     .filter((w) => { const key = `${w.name}|${w.loaded ?? ''}|${w.hand ?? ''}`; return !seen.has(key) && !!seen.add(key); })
     .flatMap((w) => [
-      // Take it out (a turn), or put it away (a turn).
-      ...(w.hand ? [{ id: `stow:${w.i}`, label: `Put the ${shortName(w.name)} away`, hint: 'Hands free, nothing showing · a turn', cat }] : !w.spray ? [{ id: `draw:${w.i}`, label: `Take out the ${shortName(w.name)}`, hint: handsFull(e) ? 'Your hands are full' : 'They see it, and scare easier · a turn', disabled: handsFull(e), cat }] : []),
-      ...((full: boolean) => w.gun
+      // In your pocket, all you can do is take it out (a turn); in your hand, use it, or put it away (a turn).
+      ...(w.hand ? [{ id: `stow:${w.i}`, label: `Put the ${shortName(w.name)} away`, hint: 'Hands free, nothing showing · a turn', cat }] : [{ id: `draw:${w.i}`, label: `Take out the ${shortName(w.name)}`, hint: handsFull(e) ? 'Your hands are full' : w.spray ? 'Ready to spray · a turn' : 'They see it, and scare easier · a turn', disabled: handsFull(e), cat }]),
+      ...(!w.hand ? [] : ((full: boolean) => w.gun
       ? [
           { id: `wpn:${w.i}`, label: 'Shoot them', hint: full ? 'Your hands are full' : w.doses ? `${w.doses} in the gun · loud: it gets called in` : 'Empty', disabled: full || !w.doses, cat },
           ...(w.ammo && (w.doses ?? 0) < (gunOf(w.name)?.holds ?? 0) ? [{ id: `reload:${w.i}`, label: 'Reload', hint: `${w.ammo} rounds left · takes a turn`, cat }] : []),
@@ -430,7 +430,7 @@ function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolea
         : { id: `wpn:${w.i}`, label: /^bottle$/i.test(w.name) ? 'Swing the bottle' : /syringe/i.test(w.name) ? (w.loaded ? `Stab with the syringe (${w.known ? w.loaded : 'loaded'})` : 'Stab with the empty syringe') : `${w.cuts ? (knifeOf(w.name)?.style === 'stab' ? 'Stab' : 'Slash') : 'Hit'} (${lc(w.name)})`, hint: full ? 'Your hands are full' : tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0} damage${w.cuts && !/^bottle$|syringe/i.test(w.name) ? ', cuts' : ''}${w.loaded ? ', may inject them' : ''}`, disabled: full || tired(COST.weapon), cat },
       // A whole bottle can be broken for an edge (it doesn't always break).
       ...(/^bottle$/i.test(w.name) ? [{ id: `smash:${w.i}`, label: 'Smash the bottle', hint: full ? 'Your hands are full' : tired(COST.punch) ? 'Too tired' : 'For a jagged edge: it cuts', disabled: full || tired(COST.punch), cat }] : []),
-        ])(!w.hand && handsFull(e)),
+        ])(false)),
     ]);
 }
 

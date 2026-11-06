@@ -5389,7 +5389,7 @@ body[data-drug='withdrawal'] #game {
   }
 }
 
-/* A place's name and the line under it: room between them. */
-.shop-head h2 {
-  margin-bottom: 4px;
+/* A place's name and the line under it: room between them (the display face runs tall). */
+.shop-head h2 + p {
+  margin-top: 11px;
 }

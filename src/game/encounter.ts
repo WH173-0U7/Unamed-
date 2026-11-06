@@ -2421,8 +2421,8 @@ function theirTurn(started = false) {
     spend('them', COST.getUp);
     if (Math.random() < getUpChance(T)) {
       T.down = false;
-      say('them', legs(T) ? 'They drag themselves up on one good leg.' : arms(T) >= 2 ? 'They roll over and get their feet under them, arms held to their chest.' : oneOf(['They get back on their feet.', 'They scramble back up.', 'They push themselves up off the sidewalk.']));
-    } else say('them', legs(T) >= 2 ? arms(T) >= 2 ? 'Neither leg will hold them, and their arms are no use. They lie there.' : vary(['Neither leg will hold them. They stay down, and throw whatever they can reach at you.', 'They can\'t get up. They scream for help instead.', 'They grab for the edge of something and can\'t pull themselves up.']) : legs(T) ? 'They try to stand, but their leg gives way.' : oneOf(['They try to get up, and fall back down.', 'They get halfway up, and their legs fold.']));
+      say('them', legs(T) ? (arms(T) >= 2 ? 'They get up on their one good leg somehow, arms held to their chest.' : 'They drag themselves up on one good leg.') : arms(T) >= 2 ? 'They roll over and get their feet under them, arms held to their chest.' : oneOf(['They get back on their feet.', 'They scramble back up.', 'They push themselves up off the sidewalk.']));
+    } else say('them', legs(T) >= 2 ? arms(T) >= 2 ? vary(['Neither leg will hold them, and their arms are no use. They lie there.', 'They lie where they are, breathing hard.', 'They try to roll over, and stop, and groan.']) : vary(['Neither leg will hold them. They stay down, and throw whatever they can reach at you.', 'They can\'t get up. They scream for help instead.', 'They grab for the edge of something and can\'t pull themselves up.']) : legs(T) ? 'They try to stand, but their leg gives way.' : oneOf(['They try to get up, and fall back down.', 'They get halfway up, and their legs fold.']));
     return;
   }
   // Losing badly: some try to run for it (much harder on a broken leg).
@@ -3162,7 +3162,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     if (hidden.length && Math.random() < fear / 100 + 0.1) {
       const { g, l } = hidden[0];
       l.hidden = false;
-      say('them', `"Okay! Okay, there's this too." They pull ${lootWords(l)} out of their ${g.name.toLowerCase()}.`);
+      say('them', `"Okay! Okay, there's this too." They pull ${lootWords(l).replace(/ \(([^)]*)\)$/, ', $1,')} out of their ${g.name.toLowerCase()}.`);
       you.gain('intimidation', 4);
     } else say('them', speak(hidden.length ? 'holdingOut' : 'allThere') || (fear >= 50 ? '"That\'s all of it, I swear. I swear!"' : '"That\'s everything." They hold your eye a little too long.'));
     return true;
@@ -3285,6 +3285,7 @@ function torture(how: string) {
 function lootWords(l: Loot): string {
   return a(lc(lootLabel(l)))
     .replace(/^(?:some )?cash, (\$[\d,.]+)$/i, '$1 in cash')
+    .replace(/^your cash, (\$[\d,.]+)$/i, '$1 of your cash')
     // ("$59 in folded bills", not "folded bills, $59"; "a lighter (43% full)".)
     .replace(/^((?:folded|crumpled|loose|rolled)[a-z ]*?), (\$[\d,.]+)$/i, '$2 in $1')
     .replace(/^(an? [^,]+), ([^,]+)$/i, '$1 ($2)');
@@ -3357,7 +3358,7 @@ function search(id: string, inv?: Inventory) {
     }
     if (cash) lines.unshift(`${money(Math.round(cash * 100))} in cash`);
     if (lines.length) say('you', `You take ${left.length ? 'what you can carry' : 'everything'}: ${list(lines)}.`);
-    if (left.length) say('you', `There's no room for ${list(left)}. You leave ${left.length > 1 || /[^s]s$/i.test(left[0]) ? 'them' : 'it'}.`);
+    if (left.length) say('you', `There's no room for ${list(left)}. You leave ${left.length > 1 || /[^s]s$/i.test(left[0].split(/ of | \(/)[0]) ? 'them' : 'it'}.`);
     return;
   }
   if (id.startsWith('takec:')) {
@@ -3397,12 +3398,15 @@ function several(x: string, k: number): string[] {
   const where = / \([^)]*\)$/.exec(x)?.[0] ?? '';
   const bare = where ? x.slice(0, -where.length) : x;
   const m = /^(?:a|an|the) (.+)$/i.exec(bare);
+  // (The same sum twice: "$40 in cash", "$80 of your cash".)
+  const sum = /^\$([\d,]+(?:\.\d+)?) (in|of) (.+)$/.exec(bare);
+  if (sum) return [`$${(Number(sum[1].replace(/,/g, '')) * k).toLocaleString('en-US', { maximumFractionDigits: 2 })} ${sum[2]} ${sum[3]}${where}`];
   // (Money, or a detail after a comma or in brackets: listed as many times as there are.)
   if (/^[$\d]/.test(bare) || bare.includes(',') || bare.includes('(') || / (in|with|from) /.test(bare)) return Array(k).fill(x);
-  // (No "a" to count by: "two pepper sprays", "two sets of house keys".)
   // (No "a" to count by: "two sets of house keys", "two cans of pepper spray"; anything else, listed as many times as there are.)
   if (!m) return /keys$/i.test(bare) ? [`${NUMBER[k] ?? k} sets of ${bare}${where}`] : /spray$/i.test(bare) ? [`${NUMBER[k] ?? k} cans of ${bare}${where}`] : Array(k).fill(x);
   const body = m[1];
+  if (/spray$/i.test(body)) return [`${NUMBER[k] ?? k} cans of ${body}${where}`];
   const of = body.search(/ of /);
   const head = of >= 0 ? body.slice(0, of) : body;
   const rest = of >= 0 ? body.slice(of) : '';

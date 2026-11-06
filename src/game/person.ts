@@ -195,6 +195,8 @@ export interface Loot {
   noPin?: boolean;
   /** You asked them for its PIN already. */
   pinAsked?: boolean;
+  /** Nothing in it: the machine said so. */
+  empty?: boolean;
 
   /** Something to drink (uses in `doses`). */
   drink?: 'beer' | 'liquor' | 'energy';

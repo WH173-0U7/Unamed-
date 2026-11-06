@@ -5004,7 +5004,13 @@ export class Game {
       spots.push({ key: `car:${c.id}`, x: at.x, y: at.y, icon: PLACE_ICON.car, tone: 'car', name: `The ${c.color} ${c.make}`, small: notes.join(' · '), go: `data-car="${c.id}"` });
     }
     // Where you are now.
-    const hereKey = this.place === 'home' && this.atHome ? `home:${this.atHome.id}` : this.place === 'car' && this.atCar ? `car:${this.atCar.id}` : `place:${this.place === 'car' || this.place === 'home' ? 'street' : this.place}`;
+    // (Out on the hunt with a fob: somewhere along the blocks, not at your corner.)
+    const hunting = this.place === 'car' && !this.atCar && !!this.hunt;
+    const hereKey = this.place === 'home' && this.atHome ? `home:${this.atHome.id}` : this.place === 'car' && this.atCar ? `car:${this.atCar.id}` : hunting ? 'hunt' : `place:${this.place === 'car' || this.place === 'home' ? 'street' : this.place}`;
+    if (hunting) {
+      const at = PLACE_AT.street!;
+      spots.push({ key: 'hunt', x: at.x + 22, y: at.y - 30, icon: PLACE_ICON.car, tone: 'car', name: 'Walking the blocks', small: 'Pressing the fob, listening for a chirp.', go: '' });
+    }
     const here = spots.find((x) => x.key === hereKey) ?? spots.find((x) => x.key === 'place:street')!;
     const picked = spots.find((x) => x.key === this.mapPick) ?? here;
     const marks: MapMark[] = spots.map((x) => ({ key: x.key, x: x.x, y: x.y, icon: x.icon, tone: x.tone, label: x.name, here: x === here, picked: x === picked && x !== here }));
@@ -5151,7 +5157,7 @@ export class Game {
       const usable = cards.filter(({ x }) => x.pin && !x.drained);
       body += usable.length
         ? usable.map(({ x, i }) => li(named(x, `Cash machine · ${x.name}`), `${x.detail ? `${x.detail}'s card · ` : ''}PIN ${x.pin}. There's a camera over the screen.`, btn('atm', i, 'Withdraw'))).join('')
-        : li('Cash machine', cards.some(({ x }) => x.drained) && !cards.some(({ x }) => !x.drained && !x.pin) ? (cards.every(({ x }) => !x.drained || x.empty) ? 'The cards you had PINs for have nothing on them.' : 'The cards you had PINs for have been stopped.') : cards.every(({ x }) => x.noPin && x.pinAsked) ? 'The cards you have don’t have PINs: no use at a machine.' : cards.length ? "You've got cards, but no PIN for them. Someone would have to tell you." : 'Any hour. You need a card, and its PIN.', btn('atm', -1, 'Use', 'No card with a PIN'));
+        : li('Cash machine', cards.some(({ x }) => x.drained) && !cards.some(({ x }) => !x.drained && !x.pin) ? (cards.every(({ x }) => !x.drained || x.empty) ? 'The cards you had PINs for have nothing on them.' : 'The cards you had PINs for have been stopped.') : cards.length && cards.every(({ x }) => x.noPin && x.pinAsked) ? 'The cards you have don’t have PINs: no use at a machine.' : cards.length ? "You've got cards, but no PIN for them. Someone would have to tell you." : 'Any hour. You need a card, and its PIN.', btn('atm', -1, 'Use', 'No card with a PIN'));
       body += `</ul>`;
     } else if (place === 'room') {
       // The Hotel Marlow: a room by the week.

@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.02',
+    date: 'Nov 6',
+    items: [
+      'Check for updates, on the main menu and the pause menu. If there’s a newer version it offers to update you there and then, saving your game first. The button says so on its own when one is out.',
+      'In the Android app it also tells you when the app itself needs a new download, and takes you to it.',
+    ],
+  },
+  {
     v: '2.01',
     date: 'Nov 6',
     items: [

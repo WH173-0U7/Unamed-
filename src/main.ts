@@ -17,6 +17,11 @@ import { createMenu } from './ui/menu';
 import { Game } from './game/game';
 import { App } from '@capacitor/app';
 import { APP_BUILD_NEEDED, APP_DOWNLOAD, askPermission, clearAll, isApp, scheduleAll } from './core/notify';
+import { apply as applyUpdate, holdUpdate, latest, newer } from './core/update';
+import { VERSION } from './core/changelog';
+
+// An update you took: that's the one that loads (not a copy the phone cached).
+const reloading = holdUpdate();
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const params = new URLSearchParams(location.search);
@@ -340,13 +345,70 @@ document.addEventListener('visibilitychange', () => {
   } else void clearAll();
 });
 // The Android app plays the live game: if the app itself is too old for it, say so.
-if (isApp()) {
+if (isApp() && !reloading) {
   void App.getInfo()
     .then((info) => {
-      if (Number(info.build) < APP_BUILD_NEEDED) menu.toast(`There's a new version of the app. Download it: ${APP_DOWNLOAD}`, 9000);
+      if (Number(info.build) < APP_BUILD_NEEDED) menu.toast('There’s a new version of the app: Check for updates to get it.', 6000);
     })
     .catch(() => {});
 }
+
+// "Check for updates": the newest game now (saved first), or the new app to download.
+const updateBtns = [...document.querySelectorAll<HTMLButtonElement>('.btn-update')];
+const setUpdateLabel = (t: string) => updateBtns.forEach((b) => (b.textContent = t));
+async function appBuild(): Promise<number> {
+  if (!isApp()) return Infinity;
+  try {
+    return Number((await App.getInfo()).build) || 0;
+  } catch {
+    return 0;
+  }
+}
+async function checkForUpdates(quiet: boolean) {
+  if (!quiet) setUpdateLabel('Checking…');
+  const l = await latest();
+  if (!l) {
+    setUpdateLabel('Check for updates');
+    if (!quiet) menu.toast('Couldn’t reach the server. Are you online?');
+    return;
+  }
+  const build = await appBuild();
+  if (l.appBuild > build) {
+    setUpdateLabel('New app to download');
+    if (quiet) return;
+    menu.confirm({
+      title: 'A new version of the app',
+      body: 'This one needs the app itself updated (new things the phone does for the game). Download DarcVoyd.apk and open it: it installs over this one and keeps your game.',
+      ok: 'Download',
+      onOk: () => {
+        if (game) save();
+        // (In the app, a link off the game's own site opens in the phone's browser, which downloads it.)
+        if (isApp()) location.href = APP_DOWNLOAD;
+        else window.open(APP_DOWNLOAD, '_blank');
+      },
+    });
+    return;
+  }
+  if (newer(l.version, VERSION)) {
+    setUpdateLabel(`Update to v${l.version}`);
+    if (quiet) return;
+    menu.confirm({
+      title: `Version ${l.version} is out`,
+      body: `You have v${VERSION}. Update now? Your game is saved first, and it picks up right where you are.`,
+      ok: 'Update',
+      onOk: () => {
+        if (game) save();
+        applyUpdate(l.version);
+      },
+    });
+    return;
+  }
+  setUpdateLabel('Check for updates');
+  if (!quiet) menu.toast(`You’re up to date (v${VERSION}).`);
+}
+updateBtns.forEach((b) => b.addEventListener('click', () => void checkForUpdates(false)));
+// (And a quiet look at start, so the button says when there's one.)
+if (!reloading) void checkForUpdates(true);
 // The Android back button: the pause menu (and back out of it).
 if (isApp()) {
   void App.addListener('backButton', () => {

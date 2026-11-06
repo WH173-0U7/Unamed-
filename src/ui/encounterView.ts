@@ -263,7 +263,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       for (; shown < e.log.length; shown++) {
         const line = e.log[shown];
         const el = document.createElement('p');
-        el.className = `by-${line.by}${line.hit ? ` hit-${line.hit}` : ''}${shown === turnFrom ? ' turn-start' : ''}`;
+        el.className = `by-${line.by}${line.hit ? ` hit-${line.hit}` : ''}${line.end ? ' end' : ''}${shown === turnFrom ? ' turn-start' : ''}`;
         // The blood it cost stands out on a hit.
         const m = line.hit ? /^(.*?)(\(−\d+\s?ml\))(.*)$/.exec(line.text) : null;
         if (m) {

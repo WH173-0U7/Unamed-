@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.76',
+    date: 'Nov 6',
+    items: [
+      'When a fight or a confrontation ends, you stay on its screen: how it ended is the last thing in the log, everything you could do is greyed out, and Leave takes you back. All of it stays in one place, not in a note on the street afterwards.',
+      'Walking away from a body says nothing more on the street. (Knocked out, you still come to on the sidewalk.)',
+    ],
+  },
+  {
     v: '1.75',
     date: 'Nov 6',
     items: [

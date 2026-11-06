@@ -78,6 +78,8 @@ const SPILL_RANK: Spill[] = ['none', 'drip', 'spatter', 'cough', 'spray', 'splas
 export interface LogLine {
   by: Side | 'info';
   text: string;
+  /** How it ended (shown as the last word on it). */
+  end?: boolean;
   /** A blow landed in this line, on this side (shown highlighted). */
   hit?: Side;
 }
@@ -199,6 +201,10 @@ export const STRESS_NAMES = ['', 'On edge', 'Stressed', 'Panicking'];
 export const stressLevel = (s: number) => (s >= 75 ? 3 : s >= 45 ? 2 : s >= 20 ? 1 : 0);
 
 export interface Encounter {
+  /** It's over and you've seen how: everything greyed out but the way out. */
+  finished?: boolean;
+  /** What you could do just before it ended (shown greyed out). */
+  endOpts?: Option[];
   version: number;
   person: Person;
   stage: Stage;
@@ -807,6 +813,12 @@ function rawOptions(e: Encounter): Option[] {
       ];
     }
     case 'over':
+      // Done: what you could do last, greyed out, and the way out.
+      if (e.finished)
+        return [
+          ...(e.endOpts ?? []).map((o) => ({ ...o, disabled: true })),
+          { id: 'done', label: e.resident ? 'Back to the house' : 'Leave', hint: e.resident ? undefined : 'Back to the street' },
+        ];
       return [
         ...(e.them.dead ? searchOptions(e) : []),
         ...(e.them.dead ? [{ id: 'leave-body', label: e.resident ? 'Step over them' : 'Walk away', hint: e.resident ? 'Back to the rest of the house' : 'Leave the body where it lies' }] : []),

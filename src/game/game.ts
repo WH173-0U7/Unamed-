@@ -2,7 +2,7 @@ import type * as THREE from 'three';
 import { writeSave, type SaveData } from '../core/save';
 import { createTv } from './tv';
 import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf, randomName, type Loot } from './person';
-import { ENCOUNTER_VERSION, act, indoors, newEncounter, type Encounter } from './encounter';
+import { ENCOUNTER_VERSION, act, indoors, newEncounter, options as encounterOptions, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
 import { STAT_NAMES, lieBonus, persuadeBonus, train, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
 import { clampClock, cravingLine, useHabit, withdrawalEffects, HIGH_HOURS, LURK_HOURS, addCaffeine, caffeineNow, caffeineLevel, drunkLevel, soberUp, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
@@ -753,9 +753,13 @@ export class Game {
     if (id === 'pockets') return this.openSheet('pockets');
     if (id === 'go') return this.openSheet('places');
     if (id === 'leave-body') {
-      const j = this.job;
-      const dog = this.atHome?.dog === 'small';
-      return this.closeEncounter([e.resident ? (j?.siren ? 'You step over the body. The alarm is still screaming.' : dog ? 'You step over the body. The little dog won’t stop.' : 'You step over the body. It’s very quiet in here now.') : 'You leave the body where it lies, and walk.']);
+      // (Nothing left to say about it on the street: it's all there in the fight.)
+      return this.closeEncounter([], true);
+    }
+    if (id === 'done') {
+      if (performance.now() < this.tapsFrom) return;
+      delete this.save.state.endLines;
+      return this.closeEncounter([], true);
     }
     // Approaching someone: bring your body as it is now (and lose the cigarette).
     if (e.stage === 'seen' && id === 'ambushed') e.you = this.yourBody();
@@ -793,6 +797,8 @@ export class Game {
     }
     if (e.stage === 'seen') e.them.fear = this.fearOf(e);
     this.prime(e);
+    // (What you could do before this move: if it ends here, they stay on the screen, greyed out.)
+    const optsBefore = e.stage === 'over' ? [] : encounterOptions(e).filter((o) => !o.disabled && !['lurk', 'rest', 'pockets', 'go', 'open'].includes(o.id));
     const wasOver = e.stage === 'over';
     const wasOut = !!e.them.out;
     const tortured = e.tortured ?? 0;
@@ -903,6 +909,21 @@ export class Game {
       // They got away (or walked off): say how, and why, not just that they're gone.
       const how = e.result === 'lost-them' || e.result === 'they-fled' ? [...e.log.slice(logFrom, fightTo).filter((l) => l.by !== 'you' && !/ went up to \d+\.$/.test(l.text)).map((l) => l.text).slice(-2), ...(e.chaseEnd ? [e.chaseEnd] : []), ...(e.whyRan ? [e.whyRan] : [])].filter((x, i, a) => a.indexOf(x) === i) : [];
       const lines = ko && e.chaseOut ? ['You collapsed.', ...after] : ko ? [RESULT.lost, ...remember, ...after] : [e.deal?.kind === 'sting' ? 'It was a setup.' : e.resident && e.result === 'walked' ? 'You leave them where they lie.' : RESULT[e.result ?? 'left'], ...how, ...after];
+      // Not knocked out (and not a setup): it stays on the screen. How it ended is the last of
+      // the log, everything you could do greys out, and the one way on is to leave.
+      const quietLeave = e.result === 'left' && !e.fought && !e.chased && !e.robbed && !e.mugged;
+      if (!ko && e.deal?.kind !== 'sting' && !quietLeave) {
+        // (Not again what the log already says, just above.)
+        const said = new Set(e.log.slice(Math.max(0, logFrom - 1), fightTo).map((l) => l.text));
+        e.log.splice(fightTo, 0, ...[lines[0], ...how.filter((t) => !said.has(t))].map((text) => ({ by: 'info' as const, text, end: true })));
+        e.finished = true;
+        e.endOpts = optsBefore;
+        this.save.state.endLines = lines;
+        this.closeSheet();
+        this.tapsFrom = performance.now() + 400;
+        this.refresh();
+        return;
+      }
       // (Saved now: a reload in the beat still ends it properly.)
       if (ko) this.save.state.koLines = lines;
       else this.save.state.endLines = lines;
@@ -915,7 +936,7 @@ export class Game {
           if (this.closed || this.encounter !== e) return;
           delete this.save.state.endLines;
           if (ko) this.knockedOut(lines);
-          else this.closeEncounter(lines);
+          else this.closeEncounter(lines, quietLeave);
         }, impacts.length ? 1100 : e.result === 'left' || e.result === 'walked' ? 700 : 1800),
       );
       return;
@@ -1061,7 +1082,7 @@ export class Game {
   }
 
   /** Done with whoever it was: back to the street, with what happened as a note. */
-  private closeEncounter(lines: string[]) {
+  private closeEncounter(lines: string[], quiet = false) {
     const was = this.encounter;
     this.encounter = null;
     if (was?.resident) this.afterResidentFight(was);
@@ -1074,6 +1095,7 @@ export class Game {
       this.openSheet('police');
       return;
     }
+    if (quiet || !lines.length) return;
     this.note(lines, true);
     this.noteEl.firstElementChild?.classList.add('note-title');
   }
@@ -5679,7 +5701,7 @@ export class Game {
       this.tv.powerOnSettled();
       // Saved in the beat after a fight ended: finish ending it.
       const e = this.encounter;
-      if (e?.stage === 'over' && e.result !== 'killed') {
+      if (e?.stage === 'over' && e.result !== 'killed' && !e.finished) {
         const saved = e.result === 'lost' ? this.save.state.koLines : this.save.state.endLines;
         const lines = Array.isArray(saved) ? (saved as string[]) : [RESULT[e.result ?? 'left']];
         this.ending = true;

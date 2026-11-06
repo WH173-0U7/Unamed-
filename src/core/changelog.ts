@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.12',
+    date: 'Nov 6',
+    items: [
+      'A carry limit, by Strength: 15 kg untrained, up to 50 kg. Over it, you can’t pick anything else up, and it says so. Pockets shows how close you are. Walking across town with a heavy load tires you more, and slowly builds your Strength.',
+      'Fight writing, polished: locks read like locks (no punch lines after them), misses and moves vary more, nobody is “on the floor” twice, someone knocked out by a blow doesn’t react to it, and giving up a second time is short.',
+      'With an arm broken, the fight says so: one-armed versions of grabs, shoves, chokes and takedowns, and moves that need both hands (breaking a neck, a choke) are greyed out.',
+      'Someone in a wheelchair: your first move kicks the chair over. Stomp, not stamp. Clearer move names (Stomp on their head, Kick out their knee) and shorter weapon labels.',
+    ],
+  },
+  {
     v: '2.11',
     date: 'Nov 6',
     items: [

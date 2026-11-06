@@ -580,7 +580,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
     const effects: string[] = [];
     if (/(arm|wrist|hand)$/.test(p) || p === 'collarbone') {
       effects.push(p.endsWith('hand') ? 'You can’t make a fist or grip with it' : p === 'collarbone' ? 'One arm hangs useless' : 'Punches and weapon blows land: −20%');
-      effects.push('Grappling works: −20%');
+      effects.push('Grabs and takedowns: −20%');
     }
     if (/(leg|ankle)$/.test(p)) {
       effects.push('Kicks and stomps land: −20%');

@@ -38,7 +38,25 @@ export const MOVE_NAMES: Record<string, string> = {
   'tech:sweep': 'trips',
   'ground:kneedrop': 'knee drops',
   'ground:pound': 'ground and pound',
-  'ground:arm': 'arm locks',
+  'ground:arm': 'arm bars',
+  'ground:fingers': 'finger breaks',
+  'ground:ankle': 'ankle locks',
+  'ground:elbows': 'elbows from the top',
+  'ground:spine': 'knee drops',
+  'tech:fingers': 'finger locks',
+  'tech:wrist': 'wrist locks',
+  'tech:palm': 'palm strikes',
+  'tech:collar': 'hammer fists',
+  'tech:jaw': 'hooks',
+  'tech:throat': 'throat punches',
+  'tech:front': 'front kicks',
+  'tech:lowkick': 'leg kicks',
+  'tech:ankle': 'ankle stomps',
+  'tech:kneekick': 'knee stomps',
+  'tech:headkick': 'head kicks',
+  'tech:throw': 'hip throws',
+  'tech:double': 'takedowns',
+  choke: 'chokes',
   'floor:legs': 'kicks from the floor',
   'floor:pull': 'takedowns from the floor',
   sucker: 'sucker punches',
@@ -52,7 +70,7 @@ export const MOVE_NAMES: Record<string, string> = {
 /** Said once, when a move moves up a tier. */
 export function tierUpLine(key: string, t: Tier): string {
   const n = MOVE_NAMES[key] ?? 'moves';
-  const plural = !/work|pound/.test(n);
+  const plural = !/work|pound|from the top/.test(n);
   return t === 1
     ? `Your ${n} ${plural ? 'are' : 'is'} starting to come naturally.`
     : `Your ${n} ${plural ? 'have' : 'has'} gotten sharp: you don't have to think about ${plural ? 'them' : 'it'} anymore.`;
@@ -63,11 +81,11 @@ export function punchText(t: Tier, where: string, into: string): string[] {
   if (t === 0)
     return [
       `You swing wild and catch them ${where}.`,
-      `You throw a sloppy punch and it lands ${where}.`,
+      `You throw a sloppy punch and it catches them ${where}.`,
       `You flail at them and connect ${where}.`,
-      `You throw everything into a clumsy swing; it lands ${where}.`,
-      `Your fist swings around in a big, slow arc and lands ${where}. Your knuckles sting.`,
-      `You shut your eyes as you swing, and it lands ${where}.`,
+      `You throw everything into a clumsy swing; it catches them ${where}.`,
+      `Your fist swings around in a big, slow arc and catches them ${where}. Your knuckles sting.`,
+      `You shut your eyes as you swing, and it catches them ${where}.`,
     ];
   if (t === 1)
     return [
@@ -75,17 +93,17 @@ export function punchText(t: Tier, where: string, into: string): string[] {
       `You catch them ${where} with a right.`,
       `You land a fist ${where}.`,
       `You drive a punch ${into}.`,
-      `A left from you lands ${where}.`,
+      `Your left catches them ${where}.`,
       `You step in and hit them ${where}.`,
     ];
   return [
     `You snap a punch ${into}.`,
     `You punch them ${where}, short and hard.`,
     `You slip inside and drive a fist ${into}.`,
-    `A tight punch, ${where}.`,
+    `A tight punch ${into}.`,
     `You feint high and put the real one ${into}.`,
-    `Jab, then the right, ${where}. You're back out before they can answer.`,
-    `You turn your hips into it and the punch lands ${where}.`,
+    `Jab, then the right ${into}. You're back out before they can answer.`,
+    `You turn your hips into it and the punch catches them ${where}.`,
   ];
 }
 
@@ -102,7 +120,7 @@ export function kickText(t: Tier, where: string, into: string): string[] {
     return [`You kick them ${where}.`, `You drive a boot ${into}.`, `You plant a kick ${where}.`, `You catch them with a kick ${where}.`];
   return [
     `You turn on your standing foot and whip a kick ${into}.`,
-    `A short, fast kick, ${where}, and your foot is back down.`,
+    `A short, fast kick ${into}, and your foot is back down.`,
     `You check them with your shin ${where}, balanced the whole time.`,
     `You step and snap a kick ${into}.`,
   ];
@@ -221,11 +239,34 @@ export const TECH_TEXT: Record<string, [string[], string[]]> = {
   ],
 };
 
+/** More ways a learned move reads, at the middle tier (beside its own line). */
+export const TECH_ALT: Record<string, string[]> = {
+  'ground:fingers': ['You kneel on their wrist and pull their fingers back toward the elbow.', 'You get their hand flat on the sidewalk and lean on the fingers.'],
+  'ground:ankle': ['You hook their heel in your elbow and twist the foot outward.', 'You sit back on their leg and crank the foot sideways.'],
+  'ground:arm': ['You straighten their arm across your knee and lean on the elbow.'],
+  'ground:elbows': ['You lean your weight on them and drive an elbow down into their face.', 'You bring an elbow down on their brow, then again.'],
+  'ground:spine': ['You flip them face down and drop your knee into the middle of their back.'],
+  'ground:neck': ['You kneel behind their head, cup their jaw and the back of their skull, and wrench it around.'],
+  'ground:kneedrop': ['You lift your knee and drop it onto their chest.'],
+  'tech:palm': ['You shove the heel of your palm up into their nose.'],
+  'tech:front': ['You lift a knee and push your foot straight into their stomach.'],
+  'tech:wrist': ['You grab their wrist and bend the hand back toward the forearm.'],
+  'tech:fingers': ['You grab two of their fingers and bend them back hard.'],
+  'tech:kneekick': ['You stomp sideways into their knee, heel first.'],
+  'tech:jaw': ['A short hook, right on the hinge of the jaw.'],
+  'tech:throat': ['You jab your knuckles into their windpipe.'],
+  'tech:collar': ['You chop down onto their collarbone with the side of your fist.'],
+  'tech:throw': ['You turn in, load them onto your hip and pull them over.'],
+  'tech:headkick': ['You swing your shin high, at the side of their head.'],
+  'tech:lowkick': ['You chop your shin into the outside of their thigh.'],
+  'tech:ankle': ['You bring your heel down on the knob of their ankle.'],
+};
+
 /** The ambushes, landing: [clumsy, practiced, polished]. */
 export const AMBUSH_TEXT: Record<string, [string[], string[], string[]]> = {
   sucker: [
     ['You come up behind them and swing, wild, at the side of their head.', 'You rush the last few steps and throw a big, ugly swing at their head from behind.'],
-    ['You sucker punch them from behind, on the side of the head.'],
+    ['You come up behind them and punch them on the side of the head.'],
     ['Three quiet steps, and you put a short, perfect punch behind their ear.', 'You time it to their step, and your fist catches the side of their head from behind.'],
   ],
   bumrush: [['You run at them, head down, and crash into them.'], ['You bum rush them.'], ['You close the gap fast and low and drive your shoulder into them.']],

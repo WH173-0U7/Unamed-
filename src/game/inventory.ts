@@ -98,6 +98,8 @@ export interface Inventory {
   /** Caps, masks, sunglasses, and whether the mask and hood are up (see look.ts). */
   wearing?: import('./look').Wearing;
   spots: Spot[];
+  /** The most you can carry, all told (set from your Strength; see carryLimit). None: no limit (a car, a stash). */
+  maxKg?: number;
 }
 
 // ---------- Clothes and their pockets ----------
@@ -324,7 +326,14 @@ export function roomForCents(inv: Inventory, want: number): number {
 }
 
 /** Where something would go: the smallest place it fits that has room. */
+/** The most someone can carry, all told, by Strength: 15 kg untrained, up to 50 kg at the top. */
+export const carryLimit = (strength: number) => Math.round((15 + (Math.max(1, strength) - 1) * 0.354) * 10) / 10;
+/** Everything on you, cash and all. */
+export const carriedKg = (inv: Inventory) => inv.items.reduce((n, i) => n + i.kg, 0) + kgOf(inv.purse);
+/** That much more would be more than you can carry. */
+export const tooHeavy = (inv: Inventory, kg: number) => inv.maxKg != null && carriedKg(inv) + kg > inv.maxKg + 1e-9;
 export function findRoom(inv: Inventory, size: Size, kg: number, x?: { kind: string; name: string; cuts?: boolean }): Spot | null {
+  if (tooHeavy(inv, kg)) return null;
   const ok = inv.spots
     .filter((s) => fitsIn(s, x) && SIZE_RANK[s.fits] >= SIZE_RANK[size] && usedKg(inv, s.id) + kg <= s.maxKg + 1e-9)
     .sort((a, b) => SIZE_RANK[a.fits] - SIZE_RANK[b.fits] || a.maxKg - b.maxKg);
@@ -332,7 +341,8 @@ export function findRoom(inv: Inventory, size: Size, kg: number, x?: { kind: str
 }
 
 /** Why it won't go anywhere. */
-export function noRoomWhy(inv: Inventory, size: Size): string {
+export function noRoomWhy(inv: Inventory, size: Size, kg = 0.01): string {
+  if (tooHeavy(inv, kg)) return `It’s more than you can carry: ${kgLabel(inv.maxKg!)} is your limit. Strength raises it.`;
   if (!inv.spots.some((s) => SIZE_RANK[s.fits] >= SIZE_RANK[size])) {
     return size === 'large' ? 'Too big to carry without a backpack.' : size === 'medium' ? "Won't fit in a pocket. You'd need a bag." : 'You have no pockets.';
   }
@@ -417,7 +427,7 @@ export function take(inv: Inventory, l: Loot): { ok: boolean; text: string; cent
   const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained, ...(l.balance != null ? { balance: l.balance, limit: l.limit } : {}), ...(l.noPin ? { noPin: true } : {}), ...(l.pinAsked ? { pinAsked: true } : {}), ...(l.empty ? { empty: true } : {}), ...(l.slot ? { slot: l.slot } : {}), weapon: l.weapon, cuts: l.cuts, spray: l.spray, drink: l.drink, ...(l.card ? { card: l.card } : {}), ...(l.homeInfo ? { homeInfo: l.homeInfo } : {}), ...(l.opens ? { opens: l.opens } : {}), ...(l.hot ? { hot: true } : {}), ...(l.carOf ? { carOf: l.carOf } : {}), ...(l.carId ? { carId: l.carId } : {}), ...(l.hunt ? { hunt: l.hunt } : {}), ...(l.tookAt != null ? { tookAt: l.tookAt } : {}), ...(l.kind === 'car keys' ? { takenAt: l.takenAt ?? Date.now(), car: l.car, carSearched: l.carSearched } : {}) });
   // ("the state ID (expired)": not "the state id, expired".)
   const nm = l.name.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase()).replace(/^([^,]+), ([^,]+)$/, '$1 ($2)');
-  if (!it) return { ok: false, text: `No room for the ${nm}. ${noRoomWhy(inv, measure(l).size)}` };
+  if (!it) return { ok: false, text: `No room for the ${nm}. ${noRoomWhy(inv, measure(l).size, measure(l).kg)}` };
   const spot = inv.spots.find((s) => s.id === it.spot)!;
   return { ok: true, text: `You put the ${nm} in your ${spot.on.toLowerCase()} (${spot.name.toLowerCase()}).${once}` };
 }
@@ -634,6 +644,7 @@ export function hidesWord(garment: string): string {
  * compartment, a coat's inside pocket...).
  */
 export function hidingSpot(inv: Inventory, size: Size, kg: number, x?: { kind: string; name: string; cuts?: boolean }): Spot | null {
+  if (tooHeavy(inv, kg)) return null;
   const ok = inv.spots.filter((s) => fitsIn(s, x) && SIZE_RANK[s.fits] >= SIZE_RANK[size] && usedKg(inv, s.id) + kg <= s.maxKg + 1e-9);
   // (Best hidden first; between equals, not the slow ankle.)
   return ok.sort((a, b) => concealOf(b, inv.clothes[0]) - concealOf(a, inv.clothes[0]) - (/ankle/i.test(b.on) ? 0.1 : 0) + (/ankle/i.test(a.on) ? 0.1 : 0))[0] ?? null;
@@ -651,7 +662,9 @@ export function nextSpot(inv: Inventory, x: InvItem): Spot | null {
 export const inBag = (inv: Inventory, spotId: string) => /backpack|shoulder bag|tote|fanny|ankle/i.test(inv.spots.find((s) => s.id === spotId)?.on ?? '');
 
 /** A free hand to hold something in (right first), or null. */
-export function freeHand(inv: Inventory): 'left' | 'right' | null {
-  const busy = new Set(inv.items.map((x) => x.hand).filter(Boolean));
+export function freeHand(inv: Inventory, broken: readonly string[] = []): 'left' | 'right' | null {
+  const busy = new Set<string>(inv.items.map((x) => x.hand).filter((x): x is 'left' | 'right' => !!x));
+  // (A broken arm, wrist or hand holds nothing.)
+  for (const sd of ['left', 'right']) if (broken.some((p) => p === `${sd} arm` || p === `${sd} wrist` || p === `${sd} hand`)) busy.add(sd);
   return !busy.has('right') ? 'right' : !busy.has('left') ? 'left' : null;
 }

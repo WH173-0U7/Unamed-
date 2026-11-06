@@ -241,12 +241,20 @@ export function voice(e: Encounter, m: Moment): string[] {
     const ys = xs.filter((x) => !moves.test(x) && !(e.them.down && /sit down/i.test(x)));
     return ys.length ? ys : [legs >= 2 ? (e.them.down ? 'They stay where they are, on the ground, and watch you go.' : 'They lean on their crutches and don\'t move until you\'re gone.') : e.them.down ? 'They drag themselves up on the good leg and limp away, looking back the whole way.' : 'They limp away as fast as the leg will let them, looking back the whole way.'];
   }
+  // (Their hands broken: nothing's held out with both, or thrown.)
+  if (m === 'emptied' && e.them.broken.some((p) => /(arm|wrist|hand)$/.test(p))) {
+    const both = (['left', 'right'] as const).every((sd) => e.them.broken.some((p) => p === `${sd} arm` || p === `${sd} wrist` || p === `${sd} hand`));
+    const ys = xs.filter((x) => !/both hands|hold .* out|throw it|fumble|hand it over|hands shake/i.test(x));
+    xs = both ? ["They can't work their hands. You go through their pockets yourself."] : ys.length ? ys : ['They dig it out one-handed and drop it at your feet.'];
+  }
+  // (Never hit: nothing to be hit "again" for.)
+  if (!e.fought) xs = xs.map((x) => x.replace(" don't hit me again", " don't hit me").replace(" don\'t hit me again", " don\'t hit me"));
   if (!e.them.down) return xs;
   xs = xs.filter(Boolean);
   // (Let go from the ground: they get up before they go anywhere.)
   if (m === 'letGo') {
     const ys = xs.filter((x) => !moves.test(x) && !/sit down|on their feet/i.test(x));
-    return ys.length ? ys : ['They scramble to their feet and run, and don\'t look back.'];
+    return ys.length ? ys : ['They scramble to their feet and run, and don\'t look back.', 'They get up slowly, then run.', 'They crawl a few feet, get up, and go.'];
   }
   const ys = xs.filter((x) => !/on their feet|back(s)? away|walk(s)? (off|away)|step(s)? (back|aside)|stand(s)? over|look(s)? down at you/i.test(x));
   return ys.length ? ys : xs;

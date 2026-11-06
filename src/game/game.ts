@@ -31,7 +31,7 @@ import { mlOf } from './money';
 import { lootIcon, lootMark } from './lootIcon';
 import { STYLES, STYLE_HOW, STYLE_NAMES, stylesOf } from './styles';
 import { PLACE_AT, PLACE_ICON, addressAt, blocksBetween, mapHtml, type MapMark } from './map';
-import { MEDS, take, freeHand, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
+import { MEDS, take, freeHand, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, kgLabel, carriedKg, carryLimit, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
 
 /**
  * What's left of your humanity. Killing someone takes a lot of it; stamping
@@ -456,6 +456,8 @@ export class Game {
   private get inventory(): Inventory {
     const inv = (this.save.state.inventory ??= newInventory()) as Inventory;
     upgradeInventory(inv);
+    // (What you can carry, all told: your Strength.)
+    inv.maxKg = carryLimit(this.stats.strength.level);
     return inv;
   }
 
@@ -1754,8 +1756,16 @@ export class Game {
       this.note(['He sees you through the glass and shakes his head. The door stays locked.']);
       return;
     }
-    // (On foot, across town: it adds up.)
-    if (p !== 'street') addFatigue(this.health, 0.8);
+    // (On foot, across town: it adds up, more with a heavy load, which builds you up a little too.)
+    {
+      const inv = this.inventory;
+      const load = carriedKg(inv) / (inv.maxKg ?? 15);
+      if (p !== 'street') addFatigue(this.health, 0.8 * (1 + Math.max(0, load - 0.5) * 2));
+      if (load > 0.5) {
+        const up = train(this.stats, 'strength', 1 + Math.round(load * 2));
+        if (up) this.later([`Strength went up to ${up}. You can carry ${kgLabel(carryLimit(up))} now.`]);
+      }
+    }
     // Walking away from an address: if you were in, it's done (and a fight in there counts for what it was).
     if (this.place === 'home') this.walkOutOfHome();
     if (this.place === 'car') this.leaveCar();
@@ -1841,7 +1851,7 @@ export class Game {
     if (this.place !== 'pharmacy' || cashOf(inv) < m.price) return;
     const it = stow(inv, { kind: 'med', name: m.name, med: id });
     if (!it) {
-      this.note([`You've got nowhere to put ${withA(m.name)}. ${noRoomWhy(inv, measure({ kind: 'med', name: m.name, med: id }).size)}`]);
+      this.note([`You've got nowhere to put ${withA(m.name)}. ${noRoomWhy(inv, measure({ kind: 'med', name: m.name, med: id }).size, measure({ kind: 'med', name: m.name, med: id }).kg)}`]);
       return;
     }
     const paid = this.payLine(m.price * 100);
@@ -1972,7 +1982,7 @@ export class Game {
     } else if (s.med) {
       const m = medById(s.med);
       if (!stow(inv, { kind: 'med', name: m.name, med: s.med })) {
-        this.note([`You've got nowhere to put ${withA(m.name)}. ${noRoomWhy(inv, measure({ kind: 'med', name: m.name, med: s.med }).size)}`]);
+        this.note([`You've got nowhere to put ${withA(m.name)}. ${noRoomWhy(inv, measure({ kind: 'med', name: m.name, med: s.med }).size, measure({ kind: 'med', name: m.name, med: s.med }).kg)}`]);
         return;
       }
       line = `You buy ${withA(m.name)} from behind the counter.`;
@@ -1980,20 +1990,20 @@ export class Game {
       const gn = gunOf(s.gun)!;
       // (Sold unloaded.)
       if (!stow(inv, { kind: 'weapon', name: gn.name, weapon: gn.club, doses: 0 })) {
-        this.note([`Nowhere to carry it. ${noRoomWhy(inv, measure({ kind: 'weapon', name: gn.name }).size)}`]);
+        this.note([`Nowhere to carry it. ${noRoomWhy(inv, measure({ kind: 'weapon', name: gn.name }).size, measure({ kind: 'weapon', name: gn.name }).kg)}`]);
         return;
       }
       line = `He hands it over across the counter, unloaded, in a cardboard box. ${gn.desc}`;
     } else if (s.ammo) {
       if (!stow(inv, { kind: 'misc', name: s.name, doses: s.ammo })) {
-        this.note([`Nowhere to put it. ${noRoomWhy(inv, measure({ kind: 'misc', name: s.name }).size)}`]);
+        this.note([`Nowhere to put it. ${noRoomWhy(inv, measure({ kind: 'misc', name: s.name }).size, measure({ kind: 'misc', name: s.name }).kg)}`]);
         return;
       }
       line = `A box of ${s.ammo} ${s.name.replace(/ rounds$/, ' rounds').toLowerCase()}, heavier than it looks.`;
     } else if (s.knife && knifeOf(s.knife)) {
       const k = knifeOf(s.knife)!;
       if (!stow(inv, { kind: 'weapon', name: k.name, weapon: k.dmg, cuts: true })) {
-        this.note([`Nowhere to put it. ${noRoomWhy(inv, measure({ kind: 'weapon', name: k.name }).size)}`]);
+        this.note([`Nowhere to put it. ${noRoomWhy(inv, measure({ kind: 'weapon', name: k.name }).size, measure({ kind: 'weapon', name: k.name }).kg)}`]);
         return;
       }
       line = `He unlocks the case and slides the ${lc(k.name)} across. ${k.desc}`;
@@ -2023,7 +2033,7 @@ export class Game {
     } else {
       const brand = s.id === 'cigs' ? ['Red Crest', 'Mayfair Lights', 'Dakota Menthols', 'Ridgeway Reds', 'Union Blues', 'Harbor 100s'][Math.floor(Math.random() * 6)] : undefined;
       if (!stow(inv, { kind: 'misc', name: s.name, ...(brand ? { detail: brand } : {}), ...(s.drinkType ? { drink: s.drinkType } : {}), ...(s.doses ? { doses: s.doses } : s.id === 'lighter' ? { doses: 100 } : {}) })) {
-        this.note([`Nowhere to put it. ${noRoomWhy(inv, measure({ kind: 'misc', name: s.name }).size)}`]);
+        this.note([`Nowhere to put it. ${noRoomWhy(inv, measure({ kind: 'misc', name: s.name }).size, measure({ kind: 'misc', name: s.name }).kg)}`]);
         return;
       }
       line = s.id === 'energy' ? 'You buy an energy drink.' : s.id === 'beer' ? 'You buy a can of beer.' : s.id === 'vodka' ? 'You buy a pint of vodka in a paper bag.' : s.id === 'whiskey' ? 'You buy a pint of whiskey in a paper bag.' : s.id === 'wine' ? 'You buy a bottle of cheap red.' : s.id === 'cigs' ? `You buy a pack of ${brand}.` : s.id === 'matches' ? 'You buy a book of matches.' : `You buy the ${lc(s.name)}.`;
@@ -4271,7 +4281,7 @@ export class Game {
       if (!name) return;
       const it = stow(inv, { kind: 'wear', name, slot });
       if (!it) {
-        this.note([`Nowhere to put the ${lc(name)}. ${noRoomWhy(inv, measure({ kind: 'wear', name }).size)}`]);
+        this.note([`Nowhere to put the ${lc(name)}. ${noRoomWhy(inv, measure({ kind: 'wear', name }).size, measure({ kind: 'wear', name }).kg)}`]);
         return;
       }
       delete w[slot];
@@ -6196,7 +6206,7 @@ export class Game {
       `<div class="pocket-cash"><span>Cash</span><b>${money(Math.round(cashOf(inv) * 100))}</b></div>` +
       `<p class="pocket-purse">${this.purseHtml()}</p>` +
       this.cashWhereHtml() +
-      `<p class="pocket-wear">Wearing ${[...inv.clothes, ...(inv.gear ?? [])].map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total + purseKg(inv))}.</p>` +
+      `<p class="pocket-wear">Wearing ${[...inv.clothes, ...(inv.gear ?? [])].map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total + purseKg(inv))} of ${kgLabel(inv.maxKg ?? carryLimit(this.stats.strength.level))}${(total + purseKg(inv)) / (inv.maxKg ?? 99) > 0.85 ? ': about all you can carry' : ''}.</p>` +
       // What anyone looking at you can see you're carrying.
       (inv.items.some((x) => x.kind === 'weapon')
         ? ((seen) => `<p class="pocket-shows${seen.length ? ' seen' : ''}">${seen.length ? `Anyone looking can see you're carrying: ${seen.map((x) => lc(x.name)).join(', ')}. People notice you sooner and scare easier, and the police notice too.` : 'Your weapons are out of sight.'}</p>`)(inv.items.filter((x) => x.kind === 'weapon' && showing(inv, x) >= 0.16))
@@ -6434,6 +6444,7 @@ export class Game {
       strength: [
         ['Damage from your blows', `+${pct(strengthDamage(st))}`],
         ['Fear of you', `+${strengthFear(st)}`],
+        ['Most you can carry', kgLabel(carryLimit(st.strength.level))],
       ],
       unarmed: [
         ['Damage from your blows', `+${pct(unarmedDamage(st))}`],
@@ -6470,7 +6481,7 @@ export class Game {
     const how: Record<StatName, string> = {
       speech: 'Talking your way out of things: the police, a clerk who doubts your ID, someone who catches you following them. More when the lie works.',
       sneak: 'Surveilling, and ambushes (bum rush, sucker punch, shove).',
-      strength: 'Landing blows (slowly).',
+      strength: 'Landing blows, and carrying a heavy load around (slowly).',
       unarmed: 'Landing blows, ambushes and techniques. Each new level can teach you a new move.',
       agility: 'Landing blows, and dodging theirs.',
       stamina: "Fighting until you're exhausted.",

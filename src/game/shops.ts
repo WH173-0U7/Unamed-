@@ -321,5 +321,8 @@ export const CHARGES: Record<string, { bail: number; fine: number; days: number;
   // Breaking into a home; doing it with someone inside (most places treat that as far worse).
   Burglary: { bail: 5000, fine: 2500, days: 365, sev: 10 },
   'Home invasion': { bail: 25000, fine: 5000, days: 1095, sev: 15 },
+  // Out of custody without leave, and helping someone do it.
+  Escape: { bail: 0, fine: 0, days: 730, sev: 14 },
+  'Aiding an escape': { bail: 0, fine: 0, days: 1095, sev: 14 },
 };
 export const chargeOf = (c: string) => CHARGES[c] ?? { bail: 300, fine: 300, days: 3, sev: 2 };

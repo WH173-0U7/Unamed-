@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.96',
+    date: 'Nov 6',
+    items: [
+      'Giving up in jail doesn’t erase who you were. They stay inside, on their real sentence, and the You tab lists them under “Who you were”.',
+      'As someone new, go to the County Courthouse (weekdays, 9 to 4) to visit them: you’ll need your own ID. Before their hearing you can pay their bail.',
+      'On a visit they tell you when the transport van moves them. Be at the loading dock then and you can try to break them out. The odds are long, and if it fails you’re arrested for aiding an escape, with no bail. If it works, you’re both wanted.',
+      'Once they’re out, by bail, breakout or serving their time, you choose who you go on as. The other one stays in the world, and you may run into them on the street and take over as them again.',
+      'Fixed: a note that came in after a fight ended was drawn over the end screen; it now goes into the fight log.',
+    ],
+  },
+  {
     v: '1.95',
     date: 'Nov 6',
     items: [

@@ -5642,7 +5642,7 @@ button.tapped:not(:disabled) {
 }
 
 /* Inside: a cell, a countdown, and the one way out that isn't the door. */
-#jail {
+.lockup {
   position: fixed;
   inset: 0;
   /* (Under the pause menu: you can still pause, change settings or quit.) */
@@ -5660,7 +5660,7 @@ button.tapped:not(:disabled) {
     radial-gradient(ellipse at center, rgba(14, 18, 22, 0.97), rgba(0, 0, 0, 1));
   animation: death-in 1.6s ease both;
 }
-#jail h2 {
+.lockup h2 {
   margin: 0;
   font-family: var(--font-display);
   font-weight: 400;
@@ -5668,25 +5668,25 @@ button.tapped:not(:disabled) {
   line-height: 1;
   color: #9aa4ad;
 }
-#jail p {
+.lockup p {
   max-width: 400px;
   margin: 0;
   color: var(--ink-dim);
   font-size: 14px;
   overflow-wrap: anywhere;
 }
-#jail .jail-left {
+.lockup .jail-left {
   font-size: clamp(18px, 6vw, 26px);
   color: var(--ink);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
 }
-#jail .jail-how {
+.lockup .jail-how {
   font-size: 12px;
   line-height: 1.5;
   color: var(--ink-faint);
 }
-#jail .jail-quit {
+.lockup .jail-quit {
   margin-top: 8px;
   min-height: 44px;
   max-width: 100%;
@@ -5700,20 +5700,28 @@ button.tapped:not(:disabled) {
   color: var(--ink-dim);
 }
 @media (max-height: 420px) {
-  #jail {
+  .lockup {
     gap: 6px;
   }
-  #jail h2 {
+  .lockup h2 {
     font-size: 30px;
   }
-  #jail .jail-left {
+  .lockup .jail-left {
     font-size: 20px;
   }
-  #jail .jail-how {
+  .lockup .jail-how {
     display: none;
   }
 }
-body:has(#jail) #pause-btn {
+body:has(.lockup) #pause-btn {
   position: fixed;
   z-index: 24;
+}
+
+.lockup .choose-btns {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  max-width: 100%;
 }

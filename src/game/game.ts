@@ -507,7 +507,7 @@ export class Game {
   private get place(): Place {
     const p = (this.save.state.place as Place) ?? 'street';
     // (Saved inside a place that's hidden now: you're back outside.)
-    return HIDDEN_PLACES.has(p) || (p === 'home' && !this.homeById(this.save.state.homeAt)) || (p === 'car' && !this.carById(this.save.state.carAt) && !this.huntKeys()) ? 'street' : p;
+    return HIDDEN_PLACES.has(p) || (p === 'home' && !this.homeById(this.save.state.homeAt)) || (p === 'car' && !(this.carById(this.save.state.carAt) && this.inventory.items.some((x) => x.kind === 'car keys' && x.carId === this.save.state.carAt)) && !this.huntKeys()) ? 'street' : p;
   }
   private set place(p: Place) {
     this.save.state.place = p;
@@ -2346,6 +2346,11 @@ export class Game {
       } else lines.push(oneOf(['You press the fob. Nothing.', 'You hold the fob up and press it. Not a chirp, not a flash.', 'Click. Nothing answers.']));
     } else if (what === 'walk') {
       s.blocks++;
+      // (A block takes a few minutes. Long enough, and it's reported; reported, it gets moved or towed.)
+      const walk = 5 * 60_000;
+      if (key.takenAt != null) key.takenAt -= walk;
+      if (key.tookAt != null) key.tookAt -= walk;
+      if (!hunt.gone && now() - (key.takenAt ?? now()) > REPORTED_HOURS * 3_600_000 && Math.random() < 0.12) hunt.gone = true;
       if (s.heard) {
         if (Math.random() < 0.75) hunt.dist = Math.max(0, hunt.dist - 1);
         lines.push('You walk toward where the sound came from.');
@@ -2373,6 +2378,7 @@ export class Game {
       const fresh = now() - (key.takenAt ?? 0) < 3_600_000;
       if (fresh && !hunt.gone && hunt.dist <= 1 && k > 0.8) {
         lines.push('Down the block, someone’s patting their pockets, then walking the parked cars with a phone to their ear. Looking for theirs. It’ll be reported now.');
+        key.tookAt ??= key.takenAt;
         key.takenAt = now() - (REPORTED_HOURS * 3_600_000 + 60_000);
       } else if (k < 0.45) {
         s.watched = true;
@@ -2427,7 +2433,6 @@ export class Game {
       if (h.dead) return this.die(lines);
       h.cold = 0;
       h.stress = Math.max(0, (h.stress ?? 0) - 15);
-      lines.push('You wake stiff and cold-footed, but dry.');
       // (The hours went by for the owner too.)
       const ms = REST_HOURS * 3_600_000;
       c.takenAt -= ms;
@@ -2440,6 +2445,7 @@ export class Game {
         this.note([...lines, ...this.towed(c, 'You wake to a hammering on the glass: the tow truck driver. You climb out, and he hooks it up without a word to you.')]);
         return;
       }
+      lines.push('You wake stiff and cold-footed, but dry.');
       // Reported by now: someone's been looking for it.
       if (reported(c, now()) && Math.random() < 0.4) {
         lines.push('A flashlight on the glass. Someone is tapping on the window with a baton.');
@@ -2472,14 +2478,14 @@ export class Game {
     c.left[part] = loot;
     c.looked[part] = now();
     lines.push(loot.length ? `${searchLine(part)} You turn up ${list2(loot.map(lootA))}.` : `${searchLine(part)} ${empty}`);
-    this.carNote(c, lines, part === 'trunk' ? 0.08 : 0.04);
+    this.carNote(c, lines, part === 'trunk' ? 0.08 : 0.04, part === 'trunk');
   }
   /** After each thing you do at the car: who saw. */
-  private carNote(c: Car, lines: string[], exposed: number) {
+  private carNote(c: Car, lines: string[], exposed: number, atTrunk = false) {
     const night = partOfDay() === 'night';
     if (c.watch != null) {
       c.watch--;
-      if (c.watch <= 0) return this.carCops(c, lines, 'searching');
+      if (c.watch <= 0) return this.carCops(c, lines, atTrunk ? 'trunk' : 'searching');
     } else if (Math.random() < exposed * (night ? 0.6 : 1.5) + (reported(c, now()) ? 0.04 : 0) + this.infamy.heat / 600) {
       c.watch = 2 + Math.floor(Math.random() * 2);
       lines.push(oneOf(['A man walking a dog slows down, looks at you, then at the car, and walks on with his phone out.', 'Up on a balcony, someone’s on the phone, looking down at you.', 'A woman across the street stops and stares. Then she takes out her phone.']));
@@ -2493,8 +2499,8 @@ export class Game {
     buzz(8);
   }
   /** The police, at the car. */
-  private carCops(c: Car, lines: string[], how: 'asleep' | 'searching') {
-    if (how === 'searching') lines.push(reported(c, now()) ? 'A patrol car pulls in behind, lights going, and a flashlight finds you.' : 'A patrol car noses in behind the car. Someone called it in.');
+  private carCops(c: Car, lines: string[], how: 'asleep' | 'searching' | 'trunk') {
+    if (how !== 'asleep') lines.push(reported(c, now()) ? 'A patrol car pulls in behind, lights going, and a flashlight finds you.' : 'A patrol car noses in behind the car. Someone called it in.');
     this.save.state.carStopHow = how;
     this.save.state.carReported = reported(c, now());
     this.refresh();
@@ -2555,7 +2561,7 @@ export class Game {
       ...(cops ? ['A patrol car parked right behind it, and an officer walking round it with a flashlight.'] : []),
       `The ${c.color} ${c.make}, parked ${c.street}.`,
       ...(rep && t - c.takenAt > 8 * 3_600_000 ? ['A parking ticket under the wiper.'] : []),
-      rep ? 'It’s been reported by now. Every patrol car in the city has the plate.' : 'Not reported yet, probably. That won’t last.',
+      ...(rep ? ['It’s been reported by now. Every patrol car in the city has the plate.'] : c.watch != null || cops ? [] : ['Not reported yet, probably. That won’t last.']),
       night ? 'Dark here, between the streetlights.' : 'People walking past, in daylight.',
       ...(c.watch != null ? ['Someone saw you. The police are on their way.'] : []),
     ];
@@ -2568,7 +2574,7 @@ export class Game {
     return (
       `<ul class="home-cues">${cues.map((l) => `<li>${l}</li>`).join('')}</ul>` +
       `<ul class="shop-list">${rows}` +
-      li('Sleep in it', 'The back seat, doors locked. Warm and dry, and the windows fog. Until it’s been reported.', btn('caract', 'sleep', 'Sleep', cops)) +
+      li('Sleep in it', `The back seat, doors locked. Warm and dry, and the windows fog. ${rep ? 'It’s been reported: someone may come looking.' : 'Until it’s been reported.'}`, btn('caract', 'sleep', 'Sleep', cops)) +
       li('Walk away', 'Leave it where it is. It’ll be here, for a while.', btn('caract', 'leave', 'Go')) +
       `</ul>` +
       this.foundHtml(found, 'caract', btn, li) +
@@ -2709,7 +2715,7 @@ export class Game {
     // (Out of the house either way; whether you got away is settled below.)
     // At a car (or out looking for one): the car, if they've come for it.
     const stopCar = carStop ? this.carById(this.save.state.carAt) : undefined;
-    const carHow = this.save.state.carStopHow as 'asleep' | 'searching' | undefined;
+    const carHow = this.save.state.carStopHow as 'asleep' | 'searching' | 'trunk' | undefined;
     const carReported = this.save.state.carReported !== false;
     delete this.save.state.carStopHow;
     delete this.save.state.carReported;
@@ -2794,7 +2800,7 @@ export class Game {
     }
     // Asleep in a stolen car: they've run the plate.
     if (carStop && choice !== 'run') {
-      lines.push(carHow === 'searching' ? (carReported ? 'They run the plate. It comes back stolen. "Hands on the roof."' : 'They run the plate, and get the owner on the phone. Nobody lent you this car. "Hands on the roof."') : 'They run the plate while you blink at the flashlight. It comes back stolen. "Out of the car. Slowly."');
+      lines.push(carHow === 'searching' || carHow === 'trunk' ? (carReported ? 'They run the plate. It comes back stolen. "Hands on the roof."' : 'They run the plate, and get the owner on the phone. Nobody lent you this car. "Hands on the roof."') : 'They run the plate while you blink at the flashlight. It comes back stolen. "Out of the car. Slowly."');
       arrested = true;
       charges.push('Possession of stolen property');
       this.impound(stopCar, true);
@@ -4786,7 +4792,7 @@ export class Game {
         : car
           ? `<div class="shop-head"><h2>The ${car.color} ${car.make}</h2><p>Parked ${car.street}. Their keys, in your hand.</p></div>`
           : huntKey
-            ? `<div class="shop-head"><h2>Looking for the ${makeOf(huntKey)}</h2><p>The fob in your hand. You took it ${((m) => (m < 60 ? `${Math.max(1, m)} minute${m <= 1 ? '' : 's'} ago` : m < 48 * 60 ? `${Math.round(m / 60)} hour${Math.round(m / 60) === 1 ? '' : 's'} ago` : 'days ago'))(Math.round((now() - (huntKey.takenAt ?? now())) / 60_000))}.</p></div>`
+            ? `<div class="shop-head"><h2>Looking for the ${makeOf(huntKey)}</h2><p>The fob in your hand. You took it ${((m) => (m < 60 ? `${Math.max(1, m)} minute${m <= 1 ? '' : 's'} ago` : m < 48 * 60 ? `${Math.round(m / 60)} hour${Math.round(m / 60) === 1 ? '' : 's'} ago` : 'days ago'))(Math.round((now() - (huntKey.tookAt ?? huntKey.takenAt ?? now())) / 60_000))}.</p></div>`
             : `<div class="shop-head"><h2>${info.name}</h2><p>${info.blurb}</p>${info.hours ? `<p class="shop-hours">${hoursText(info.hours)}.</p>` : ''}</div>`) +
       this.noteHtml(this.shopNote, 'shop-note') +
       (home || hunt ? '' : `<p class="pocket-purse">${this.purseHtml()}</p>`) +
@@ -4864,6 +4870,8 @@ export class Game {
           ? why + `<p>"POLICE! Show me your hands! Show me your HANDS!" Two flashlights in the hallway, and the guns under them.</p>`
           : this.save.state.policeStop === 'sting'
           ? why + `<p>"Police. Turn around. Hands behind your back." It was a buy. They were waiting for you to make it.</p>`
+          : this.save.state.policeStop === 'car' && this.save.state.carStopHow === 'trunk'
+          ? why + `<p>A flashlight on you over the open trunk lid. "Step away from the car. Hands where I can see them."</p>`
           : this.save.state.policeStop === 'car'
           ? why + `<p>A second flashlight on the other window. "Step out of the vehicle. Slowly. Hands where I can see them."</p>`
           : `<p>A patrol car pulls up beside you, lights off. Two of them get out. One has a hand on his belt.</p>` +
@@ -5778,7 +5786,10 @@ function withA(s: string): string {
 }
 /** Something turned up, said in a list: "a laptop", "car keys", "loose change", "a pack of cigarettes". */
 function lootA(l: { kind: string; name: string }): string {
-  const n = lc(l.name);
+  // (No commas inside a name in a list: "rent money in an envelope".)
+  const n = lc(l.name).replace(/, /g, ' ');
+  // Money's money ("loose change", "bills in the junk drawer"), unless it's in something ("an envelope of cash").
+  if (l.kind === 'cash' && !/^(envelope|wad|roll|jar|sock|tin|coffee can)\b/.test(n)) return n;
   // ("pack of cigarettes" goes by "pack"; "games console" by "console".)
   const w = n.split(' ');
   const head = / of /.test(n) ? w[0] : w[w.length - 1].replace(/[^a-z]/g, '');

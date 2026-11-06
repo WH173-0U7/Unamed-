@@ -140,7 +140,7 @@ export function partLoot(c: Car, part: CarPart): { loot: Loot[]; empty: string }
     if (r() < 0.2) add({ kind: 'misc', name: 'Painkillers', med: 'painkillers' }, 'glovebox');
     if (r() < (o === 'trade' ? 0.25 : 0.08)) add({ kind: 'weapon', name: 'Pocket knife', weapon: 4, cuts: true }, 'glovebox');
     if (r() < (o === 'mess' ? 0.6 : 0.15)) add({ kind: 'misc', name: 'Parking tickets', detail: 'A wad of them, unpaid' }, 'sun visor');
-    empty = 'The manual, the registration in a plastic sleeve, napkins. Nothing worth taking.';
+    empty = 'A pen that doesn’t work, a tire gauge. Nothing worth taking.';
   } else if (part === 'console') {
     if (r() < 0.7) add({ kind: 'cash', name: 'Change from the cup holder', cash: Math.round((1 + r() * 6) * 4) / 4 }, 'cup holder');
     if (r() < 0.45) add({ kind: 'misc', name: 'Phone charger' }, 'console');

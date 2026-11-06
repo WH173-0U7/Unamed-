@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.51',
+    date: 'Nov 6',
+    items: [
+      'Looking for a car takes time: each block is a few minutes, and if it’s reported while you walk, it may be moved or towed before you find it.',
+      'Throw away a car’s keys while you’re at it and you walk off. Police finding you at the open trunk say so. Waking up in a car that’s being towed happens once, not twice. The hunt screen remembers when you really took the keys.',
+      'Tidier wording: “rent money in an envelope”, not “a rent money, in an envelope”; the glovebox doesn’t list its papers twice; a car someone just called in isn’t “not reported yet”.',
+    ],
+  },
+  {
     v: '1.50',
     date: 'Nov 6',
     items: [

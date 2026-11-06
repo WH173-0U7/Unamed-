@@ -58,6 +58,8 @@ export interface InvItem {
   /** Car keys: the car you found with them (see cars.ts), and where it is before you have. */
   carId?: string;
   hunt?: import('./cars').Hunt;
+  /** Car keys: when you really took them (before word got out and it was reported early). */
+  tookAt?: number;
 }
 
 /** Somewhere to keep things: a pocket, a bag. */

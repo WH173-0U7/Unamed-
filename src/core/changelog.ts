@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.25',
+    date: 'Nov 6',
+    items: [
+      'Speech sells: the better you talk, the more people buy, and the more they pay. Every sale you try trains it.',
+      'Sneak keeps it quiet: less heat from each sale, people who turn you down are less likely to report you, you’re better at smelling a cop posing as a buyer, and witnesses are less sure what they saw. Selling with nobody else around trains it.',
+      'The You tab shows what each one does for your selling.',
+    ],
+  },
+  {
     v: '2.24',
     date: 'Nov 6',
     items: [

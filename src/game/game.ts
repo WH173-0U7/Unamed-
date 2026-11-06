@@ -4673,6 +4673,8 @@ export class Game {
     if (!d || d.done) return;
     d.done = true;
     const f = this.infamy;
+    // Selling trains your tongue; selling without drawing eyes trains you to keep it quiet.
+    train(this.stats, 'speech', d.kind === 'sold' ? 3 : 1);
     if (d.kind === 'no') {
       if (d.reported) f.heat = Math.min(100, f.heat + 6);
       return;
@@ -4715,9 +4717,10 @@ export class Game {
       e.person.clothes[0]?.loot.push({ kind: 'cash', name: 'Cash', cash: back / 100, where: 'pocket' });
       (e.log ??= []).push({ by: 'info', text: `You’ve no room on you for ${money(back)} of it. They shrug and put it back in their pocket.` });
     }
-    // Word gets around: to buyers, and to the police (more with people watching).
+    // Word gets around: to buyers, and to the police (more with people watching; less, the quieter you keep it: Sneak).
     f.rep += 1;
-    f.heat = Math.min(100, f.heat + 2 + this.crowd.length * 2);
+    f.heat = Math.min(100, f.heat + (2 + this.crowd.length * 2) * (1 - this.quiet));
+    if (!this.crowd.length) train(this.stats, 'sneak', 2);
     this.save.state.sales = ((this.save.state.sales as number) ?? 0) + 1;
     // A regular who likes you: where to get more.
     if (!this.connect.known && e.regular && Math.random() < 0.35) {
@@ -5246,6 +5249,10 @@ export class Game {
     }
   }
   /** Violence, with others on the street: they see it. Once per encounter. */
+  /** How low-key you keep things (Sneak): 0 .. 0.6. */
+  private get quiet(): number {
+    return Math.min(0.6, ((this.stats.sneak?.level ?? 1) - 1) * 0.006);
+  }
   private witness(e: Encounter) {
     const c = this.crowd;
     e.watchers = e.stage === 'seen' ? 0 : c.length;
@@ -5258,13 +5265,15 @@ export class Game {
     const anon = anonymity(this.inventory);
     const say = (text: string) => e.log.push({ by: 'info', text });
     say(n === 1 ? 'Someone on the street sees it.' : 'The others on the street see it.');
-    f.heat = Math.min(100, f.heat + 5 * n);
-    if (Math.random() < 0.3 + 0.15 * n) {
+    // (Low-key, they're less sure what they saw: Sneak.)
+    const q = this.quiet;
+    f.heat = Math.min(100, f.heat + 5 * n * (1 - q * 0.5));
+    if (Math.random() < (0.3 + 0.15 * n) * (1 - q)) {
       say(oneOf(['One of them has a phone out. They’re calling it in.', 'Someone’s on the phone already, backing away, looking right at you.']));
       f.heat = Math.min(100, f.heat + 15);
     }
     // A good look at your face: what they'll tell the police.
-    if (Math.random() > anon && Math.random() < 0.6) {
+    if (Math.random() > anon && Math.random() < 0.6 * (1 - q)) {
       f.reports = (f.reports ?? 0) + 1;
       say('They got a good look at you.');
     }
@@ -7072,6 +7081,7 @@ export class Game {
       sneak: [
         ['Ambushes land', sign(ambushBonus(st))],
         ['How fast you’re noticed', noticeRate(st) >= 0.995 ? 'normal' : `−${pct(1 - noticeRate(st))}`],
+        ['Attention from selling and witnesses', `−${pct(Math.min(0.6, (st.sneak.level - 1) * 0.006))}`],
       ],
       strength: [
         ['Damage from your blows', `+${pct(strengthDamage(st))}`],
@@ -7108,11 +7118,13 @@ export class Game {
       speech: [
         ['Lies that land', `+${pct(lieBonus(st))}`],
         ['Talking them into handing it over', `+${pct(persuadeBonus(st.speech.level))}`],
+        ['Talking them into buying', `+${pct((st.speech.level - 1) * 0.004)}`, ],
+        ['What they’ll pay', `+${pct((st.speech.level - 1) * 0.004)}`],
       ],
     };
     const how: Record<StatName, string> = {
-      speech: 'Talking your way out of things: the police, a clerk who doubts your ID, someone who catches you following them. More when the lie works.',
-      sneak: 'Surveilling, and ambushes (bum rush, sucker punch, shove).',
+      speech: 'Talking your way out of things (the police, a clerk who doubts your ID, someone who catches you following them), and selling. More when the lie, or the sale, works.',
+      sneak: 'Surveilling, ambushes (bum rush, sucker punch, shove), and selling without anyone noticing.',
       strength: 'Landing blows, and carrying a heavy load around (slowly).',
       unarmed: 'Landing blows, ambushes and techniques. Each new level can teach you a new move.',
       agility: 'Landing blows, and dodging theirs.',

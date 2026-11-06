@@ -340,6 +340,8 @@ export interface Encounter {
   styleLevels?: Partial<Record<Style, number>>;
   /** Your Speech level, set as you act (for talking them into things). */
   speechLevel?: number;
+  /** Your Sneak (how low-key you keep things). */
+  sneakLevel?: number;
   /** What they told you: someone has your old things ('thief'), or nothing. */
   tip?: 'thief' | 'none';
 }
@@ -1017,6 +1019,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
   enc = e;
   e.unarmedLevel = stats.unarmed?.level ?? 1;
   e.speechLevel = stats.speech?.level ?? 1;
+  e.sneakLevel = stats.sneak?.level ?? 1;
   outBefore = !!e.them.out;
   e.styleLevels = { strikes: styleLevel(stats, 'strikes'), kicks: styleLevel(stats, 'kicks'), clinch: styleLevel(stats, 'clinch'), ground: styleLevel(stats, 'ground'), locks: styleLevel(stats, 'locks') };
   you = {
@@ -3277,7 +3280,9 @@ function sellTo(e: Encounter) {
   e.facedYou = true;
   say('you', e.regular ? oneOf(['You give them a nod. "Same as last time?"', '"Hey. You need?"']) : oneOf(['You fall in beside them and keep your voice low. "You looking?"', 'You catch their eye. "You need something? I got you."', '"Hey. You good? I can help you out."']));
   // A plainclothes cop, playing a buyer (more of them when they're after you).
-  const cop = p.kind === 'civilian' ? 0.04 + (e.heat ?? 0) / 300 : 0;
+  // (Low-key and careful, you smell more of them before you ever open your mouth: Sneak.)
+  const quiet = Math.min(0.6, ((e.sneakLevel ?? 1) - 1) * 0.006);
+  const cop = p.kind === 'civilian' ? (0.04 + (e.heat ?? 0) / 300) * (1 - quiet * 0.7) : 0;
   if (!e.regular && Math.random() < cop) {
     say('them', oneOf(['"Yeah. Yeah, I\'m looking." A twenty, folded small. They take the bag and look at it a little too long.', '"How much for one?" They pay without haggling, and slip the bag into a jacket pocket.']));
     say('info', 'A car door opens behind you. Then another.');
@@ -3287,11 +3292,11 @@ function sellTo(e: Encounter) {
   }
   // (Anything in your hand, a blade, a bat, a gun: nobody buys from that.)
   const scary = (e.conspicuous ? 0.2 : 0) + ((e.weapons ?? []).some((w) => w.hand) ? 0.3 : 0) + (hr >= 8 && hr < 18 ? 0.08 : 0);
-  const want = clamp(-scary + ({ junkie: 0.75, drunk: night ? 0.45 : 0.25, homeless: 0.3, civilian: night ? 0.16 : 0.06 } as Record<string, number>)[p.kind] + (e.cameOver ? 0.55 : e.regular ? 0.3 : 0) - (e.cameOver ? 0 : e.suspicion / 250) + ((e.speechLevel ?? 1) - 1) * 0.002, 0.02, 0.95);
+  const want = clamp(-scary + ({ junkie: 0.75, drunk: night ? 0.45 : 0.25, homeless: 0.3, civilian: night ? 0.16 : 0.06 } as Record<string, number>)[p.kind] + (e.cameOver ? 0.55 : e.regular ? 0.3 : 0) - (e.cameOver ? 0 : e.suspicion / 250) + ((e.speechLevel ?? 1) - 1) * 0.004, 0.02, 0.95);
   if (Math.random() >= want) {
     say('them', e.cameOver ? oneOf(['"Nah. Changed my mind." They step back, and they\'re gone.', 'They look at the bag, then up the street. "Not here. Not now."']) : p.kind === 'civilian' ? oneOf(['"What? No. Get away from me."', 'They look at you like you\'re something on their shoe and walk faster.', '"I\'m good." They don\'t look at you again.']) : oneOf(['"Nah. Not tonight."', '"I\'m good, man."', 'They shake their head and keep going.']));
     // Some people call it in.
-    e.deal = { kind: 'no', price: 0, reported: p.kind === 'civilian' && Math.random() < 0.2 };
+    e.deal = { kind: 'no', price: 0, reported: p.kind === 'civilian' && Math.random() < 0.2 * (1 - quiet) };
     end('left');
     return;
   }

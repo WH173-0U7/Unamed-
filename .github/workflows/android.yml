@@ -3,9 +3,18 @@
 # https://github.com/<owner>/<repo>/releases/latest/download/DarcVoyd.apk
 name: Android app
 
+# (The app plays the live game from the website, so game updates don't need a
+# new APK: this only runs when the app itself changes.)
 on:
   push:
     branches: [main]
+    paths:
+      - 'android/**'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'src/core/notify.ts'
+      - '.github/workflows/android.yml'
   workflow_dispatch:
 
 permissions:

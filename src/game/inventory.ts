@@ -229,9 +229,9 @@ export function findRoom(inv: Inventory, size: Size, kg: number, x?: { kind: str
 /** Why it won't go anywhere. */
 export function noRoomWhy(inv: Inventory, size: Size): string {
   if (!inv.spots.some((s) => SIZE_RANK[s.fits] >= SIZE_RANK[size])) {
-    return size === 'large' ? "It's too big to carry without a backpack." : size === 'medium' ? "It won't fit in a pocket. You'd need a bag." : 'You have no pockets.';
+    return size === 'large' ? 'Too big to carry without a backpack.' : size === 'medium' ? "Won't fit in a pocket. You'd need a bag." : 'You have no pockets.';
   }
-  return 'There is no room left for it.';
+  return 'There is no room left.';
 }
 
 /** Puts something into the first place it fits. Returns null if there's no room. */

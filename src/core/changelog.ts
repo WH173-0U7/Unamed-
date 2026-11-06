@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.56',
+    date: 'Nov 6',
+    items: [
+      'Pulling a mask up once someone in their house has seen your face doesn’t take it back, and running doesn’t wipe out a look they got at you earlier.',
+      'A car you have the spare keys to shows up out front of their house.',
+      'Slapping someone awake who’s bleeding badly only works if they won’t black straight out again.',
+      'Someone with both arms broken drops what they were holding and can’t swing at you.',
+      'Fight text: no stumbling just before going down, no cheekbone said twice, and “three receipts” instead of “a receipt, a receipt and a receipt”.',
+    ],
+  },
+  {
     v: '1.55',
     date: 'Nov 6',
     items: [

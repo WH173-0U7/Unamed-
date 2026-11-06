@@ -853,7 +853,7 @@ export { indoors };
 const say = (by: LogLine['by'], text: string) => {
   text = text.replace(/ {2,}/g, ' ').trim();
   // (Where a blow landed, said once: not "on the cheekbone. It catches you on the cheekbone.")
-  if (/\bon the [a-z ]+\..*\bIt catches (you|them) on the cheekbone\./.test(text)) text = text.replace(/\s*\bIt catches (you|them) on the cheekbone\./, '');
+  if (/\bon the [a-z ]+\..*\bIt catches (you|them) on the cheekbone\./.test(text) || /\bon the cheekbone\b.*\bIt catches (you|them) on the cheekbone\./.test(text)) text = text.replace(/\s*\bIt catches (you|them) on the cheekbone\./, '');
   // (Limping a step, then going down in the same moment: they just go down.)
   // (Only the same person, and only in this move.)
   const down = (who: string) => new RegExp(`\\b${who} (go(es)? down|hit the (sidewalk|floor|ground))|\\b${who === 'They' ? "They're" : "You're"} on the (floor|sidewalk|ground)`);
@@ -2214,7 +2214,7 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   // "dazed" isn't worth saying).
   knockOut(0);
   // (Going down, or out, with this very blow: no line about staying up.)
-  if (g && (((D.down && !wasDown) || (D.out && !outAtStart)) && /stagger|back a step|barely stay standing|knees dip|nearly gives out|hop back|limp a step|shake out/i.test(g) || (D.out && !outAtStart && /for a moment/.test(g)))) out.splice(out.indexOf(g), 1);
+  if (g && (((D.down && !wasDown) || (D.out && !outAtStart)) && /stagger|stumble|back a step|barely stay standing|knees? (dip|buckle)|leg folds|nearly gives out|hop back|limp a step|shake out/i.test(g) || (D.out && !outAtStart && /for a moment/.test(g)))) out.splice(out.indexOf(g), 1);
   if (!outAtStart && D.out) {
     const i = out.indexOf(`${re} dazed.`);
     if (i >= 0) out.splice(i, 1);
@@ -2493,6 +2493,17 @@ function theirTurn(started = false) {
   if (T.stamina < COST.punch) {
     T.stamina = Math.min(T.maxStamina, T.stamina + 22);
     say('them', oneOf(['They stop, gasping for breath.', 'They bend over, hands on their knees, sucking air.']));
+    return;
+  }
+  // (Both arms broken: whatever they had in their hand goes, and they can't swing.)
+  if (T.weaponOut && arms(T) >= 2) {
+    say('them', `Their hand won’t hold the ${lc(T.weaponOut)} any more. It drops.`);
+    T.weaponOut = null;
+    return;
+  }
+  if (arms(T) >= 2) {
+    if (!legs(T) && T.stamina >= cost(T, COST.kick)) strike('them', e.you.down ? 'stomp' : 'kick');
+    else say('them', oneOf(['They back off, holding their broken arms to their chest.', 'They hunch over their broken arms, and don’t come at you.']));
     return;
   }
   if (T.weaponOut && Math.random() < 0.7) strike('them', 'weapon');
@@ -2900,8 +2911,9 @@ function mugSurprise(e: Encounter) {
 }
 
 /** Knocked out, but not bled out: a slap can bring them round. */
-// (Not if one more round of their bleeding would only put them straight back under.)
-const canWake = (e: Encounter) => !!e.them.out && !e.them.dead && e.them.blood - (BLEED_ML[e.them.bleeding] * e.them.maxBlood) / 5000 > e.them.maxBlood * (PASS_OUT + 0.03) && e.them.awake > -60;
+// (Not if the next two rounds of their bleeding (the slap's, and the one after)
+// would only put them straight back under.)
+const canWake = (e: Encounter) => !!e.them.out && !e.them.dead && e.them.blood - (2 * BLEED_ML[e.them.bleeding] * e.them.maxBlood) / 5000 > e.them.maxBlood * (PASS_OUT + 0.03) && e.them.awake > -60;
 
 /** "Wallet. Now." Before any blows: they give it up, run, or fight. */
 function mug() {
@@ -3354,7 +3366,27 @@ const plural = (s: string) => {
 /** Lower-case the first letter only ("state ID", not "state id"). */
 const lc = (s: string) => s.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase());
 const a = (s: string) => (/^(pepper spray|cash|loose|folded|groceries|house keys|car keys|cigarettes|headphones|matches|some |your |bills|bandages|gauze|iron tablets|painkillers)/.test(s) || plural(s) ? s : /^[aeiou]/.test(s) ? `an ${s}` : `a ${s}`);
-const list = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+const list = (xs0: string[]) => {
+  // (The same thing twice is "two receipts", not "a receipt and a receipt".)
+  const n = new Map<string, number>();
+  for (const x of xs0) n.set(x, (n.get(x) ?? 0) + 1);
+  const xs = [...n].map(([x, k]) => (k < 2 ? x : several(x, k)));
+  return xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
+};
+const NUMBER = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+const pluralWord = (w: string) => (/(s|x|z|ch|sh)$/i.test(w) ? `${w}es` : /[^aeiou]y$/i.test(w) ? `${w.slice(0, -1)}ies` : /fe?$/i.test(w) && /(knife|wife|life)$/i.test(w) ? `${w.replace(/fe?$/i, '')}ves` : `${w}s`);
+/** "a receipt", 3 → "three receipts"; "a pack of gum", 2 → "two packs of gum". */
+function several(x: string, k: number): string {
+  const m = /^(?:a|an|the) (.+)$/i.exec(x);
+  if (!m) return x;
+  const body = m[1];
+  const of = body.search(/ (of|in|with|from) /);
+  const head = of >= 0 ? body.slice(0, of) : body;
+  const rest = of >= 0 ? body.slice(of) : '';
+  const words = head.split(' ');
+  words[words.length - 1] = pluralWord(words[words.length - 1]);
+  return `${NUMBER[k] ?? k} ${words.join(' ')}${rest}`;
+}
 
 function end(result: Result) {
   delete enc.chase;

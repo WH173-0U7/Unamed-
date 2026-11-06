@@ -26,6 +26,7 @@ import { marksText, list as listOf, a as aOf } from './encounter';
 import { cashFill, cashFits, cashWhere, pocketCash, roomForCents, spotMl } from './inventory';
 import { mlOf } from './money';
 import { lootIcon, lootMark } from './lootIcon';
+import { STYLES, STYLE_HOW, STYLE_NAMES, stylesOf } from './styles';
 import { PLACE_AT, PLACE_ICON, addressAt, blocksBetween, mapHtml, type MapMark } from './map';
 import { MEDS, take, freeHand, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, kgLabel, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
 
@@ -957,6 +958,12 @@ export class Game {
         const l = this.loseHumanity(KILL_COST);
         if (l) worse.push(l);
       }
+      // Crippled for life: you did that.
+      if (e.them.broken.includes('spine') && !(e.start?.broken ?? []).includes('spine') && !e.them.dead) {
+        worse.push('They’ll never walk again. You did that.');
+        const l = this.loseHumanity(Math.round(KILL_COST * 0.7));
+        if (l) worse.push(l);
+      }
       // It's done. The fight's log stays (a body stays to be searched, and the
       // last blows should still be there); what happens to you afterwards is
       // added, and is what the closing note says.
@@ -1002,13 +1009,15 @@ export class Game {
       const lines = ko && e.chaseOut ? ['You collapsed.', ...after] : ko ? [RESULT.lost, ...remember, ...after] : [e.deal?.kind === 'sting' ? 'It was a setup.' : e.resident && e.result === 'walked' ? 'You leave them where they lie.' : RESULT[e.result ?? 'left'], ...how, ...after];
       // Not knocked out (and not a setup): it stays on the screen. How it ended is the last of
       // the log, everything you could do greys out, and the one way on is to leave.
-      const quietLeave = e.result === 'left' && !e.fought && !e.chased && !e.robbed && !e.mugged;
+      const quietLeave = e.result === 'left' && !e.fought && !e.chased && !e.robbed && !e.mugged && !e.deal;
       if (!ko && e.deal?.kind !== 'sting' && !quietLeave) {
         // (Not again what the log already says, just above.)
         const said = new Set(e.log.slice(0, fightTo).map((l) => l.text));
         e.log.splice(fightTo, 0, ...[lines[0], ...how].filter((t, i) => i === 0 ? !e.log.slice(Math.max(0, logFrom), fightTo).some((l) => l.text === t) : !said.has(t)).map((text) => ({ by: 'info' as const, text, end: true })));
         e.finished = true;
         e.endOpts = optsBefore;
+        // (Whatever note was up before the fight stays gone: it's all in the log now.)
+        this.noteEl.hidden = true;
         this.save.state.endLines = lines;
         this.closeSheet();
         this.tapsFrom = performance.now() + 400;
@@ -2125,7 +2134,7 @@ export class Game {
       const twenties = avail - (pocketCash(inv, { 2000: avail })[2000] ?? 0);
       card.drained = true;
       const limited = behind > cap && twenties === avail;
-      lines.push(`You type ${card.pin}. It works. You take out ${money(twenties * 2000)} in twenties${credit ? ' on a cash advance' : ''}${twenties < avail ? ', all you can carry. The rest stays in the machine.' : limited ? `, as much as the machine gives in a day.${credit ? '' : ' There was more in there.'}` : credit ? ', all the card allows.' : behind - twenties * 2000 >= 100 ? `, all of it but ${money(behind - twenties * 2000)} the machine can’t give in twenties.` : ', all that was in there.'}`);
+      lines.push(`You type ${card.pin}. It works. You take out ${twenties === 1 ? 'a single twenty' : `${money(twenties * 2000)} in twenties`}${credit ? ' on a cash advance' : ''}${twenties < avail ? ', all you can carry. The rest stays in the machine.' : limited ? `, as much as the machine gives in a day.${credit ? '' : ' There was more in there.'}` : credit ? ', all the card allows.' : behind - twenties * 2000 >= 100 ? `, all of it but ${money(behind - twenties * 2000)} the machine can’t give in twenties.` : ', all that was in there.'}`);
       lines.push("By morning they'll have stopped the card.");
       f.heat = Math.min(100, f.heat + 10 * (1 - anon));
     }
@@ -5710,11 +5719,7 @@ export class Game {
       unarmed: [
         ['Damage from your blows', `+${pct(unarmedDamage(st))}`],
         ['All told (with Strength)', `×${damageMult(st).toFixed(2)}`],
-        ['Techniques', ALL_TECHNIQUES.filter((t) => t.level <= st.unarmed.level).map((t) => t.name).join(', ') || 'Just the basics'],
-        ...((): [string, string][] => {
-          const next = ALL_TECHNIQUES.find((t) => t.level > st.unarmed.level);
-          return next ? [['Next', `${next.name} (${next.where}) at level ${next.level}`]] : [];
-        })(),
+        ['Moves', 'Learned in each fighting style, below'],
       ],
       agility: [
         ['Your blows land', sign(accuracyBonus(st))],
@@ -5789,6 +5794,23 @@ export class Game {
         );
       })
       .join('');
+    // The fighting styles: each its own level, its moves, and what's next.
+    const sty = stylesOf(st);
+    html +=
+      `<section class="stat-card styles"><h3><span>Fighting styles</span></h3><p class="stat-how">Every blow with your body trains Unarmed; each style levels from its own moves, and its level is what teaches you its harder ones.</p>` +
+      STYLES.map((k) => {
+        const { level, xp } = sty[k];
+        const need = xpToNext(level);
+        const max = level >= MAX_LEVEL;
+        const known = ALL_TECHNIQUES.filter((t) => t.style === k && t.level <= level).map((t) => t.name);
+        const next = ALL_TECHNIQUES.find((t) => t.style === k && t.level > level);
+        return (
+          `<div class="style-row"><h4><span>${STYLE_NAMES[k]}</span><b>${level}</b></h4>` +
+          `<div class="spot-bar"><i style="width:${max ? 100 : (100 * xp) / need}%"></i><span>${max ? 'Maxed out' : `${Math.floor(xp)} / ${need}`}</span></div>` +
+          `<p class="stat-how">${known.length ? known.join(', ') : 'Just the basics'}.${next ? ` Next: ${next.name} at ${next.level}.` : ''} Grows by ${STYLE_HOW[k]}.</p></div>`
+        );
+      }).join('') +
+      `</section>`;
     // The rest of you.
     const h = this.health;
     const stress = this.stressNow;

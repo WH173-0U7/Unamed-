@@ -11,6 +11,18 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '1.90',
+    date: 'Nov 6',
+    items: [
+      'Fighting is sorted the way real fighting is: Strikes (hands, elbows, head), Kicks & knees, Clinch & takedowns, Ground, and Locks & chokes, each its own section in the fight, with Weapons and Torture apart.',
+      'Each style is a skill of its own, levelling from the moves you use (see Fighting styles on You). A style’s level is what teaches you its harder moves; Unarmed still rises with every blow and still drives how hard you hit. Characters from before keep everything they’d learned.',
+      'Twenty new moves: a palm to the nose, a hammer-fist to the collarbone, a hook to the jaw, a throat punch, front kicks and leg kicks, stamping an ankle, kicking a knee in, a head kick, a hip throw and a double-leg takedown, breaking fingers, wrist and ankle locks, elbows from the top, an arm bar.',
+      'More bones break, each with its own effect: fingers and hands (no fist, no grip: they drop what they’re holding), wrists, ankles (they can’t run on it), knees, the collarbone (one arm useless), the jaw.',
+      'At the very top of Ground and Locks: a knee on the spine that can paralyse someone for life (they’re in a wheelchair if you ever see them again, and it weighs on you), and breaking someone’s neck, which kills them.',
+      'A refused sale stays on the screen so you can see what was said, and an old note no longer shows over the end of a fight.',
+    ],
+  },
+  {
     v: '1.89',
     date: 'Nov 6',
     items: [

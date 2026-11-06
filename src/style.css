@@ -5607,3 +5607,18 @@ button.tapped:not(:disabled) {
     grid-column: 2;
   }
 }
+
+/* ================= Fighting styles (You) ================= */
+.stat-card.styles .style-row {
+  margin-top: 12px;
+}
+.stat-card.styles .style-row h4 {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+.stat-card.styles .style-row h4 b {
+  color: var(--ink);
+}

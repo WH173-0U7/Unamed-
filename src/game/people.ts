@@ -62,7 +62,7 @@ export interface Known {
 
 const DAY = 86_400_000;
 /** Real time for a break to heal, roughly as in life. */
-const MEND_DAYS: Record<string, number> = { nose: 21, ribs: 42, 'left arm': 42, 'right arm': 42, 'left leg': 56, 'right leg': 56 };
+const MEND_DAYS: Record<string, number> = { nose: 21, ribs: 42, 'left arm': 42, 'right arm': 42, 'left leg': 56, 'right leg': 56, 'left hand': 35, 'right hand': 35, 'left wrist': 42, 'right wrist': 42, 'left ankle': 49, 'right ankle': 49, collarbone: 42, spine: 1e6 };
 const MARK_DAYS = { lip: 4, cheek: 5, eye: 10, brow: 12, jaw: 42, hand: 42, fingers: 28 };
 const MAX_PEOPLE = 40;
 
@@ -93,7 +93,19 @@ export function heal(k: Known, t = now()) {
 /** How their injuries show ("Left arm in a cast", "Nose taped"...). */
 export function injuriesText(k: Pick<Known, 'broken'>): string[] {
   return k.broken.map((p) =>
-    p === 'nose' ? 'Nose taped' : p === 'ribs' ? 'Moves stiffly, ribs strapped' : p.endsWith('arm') ? `${cap(p)} in a cast` : `${cap(p)} in a cast, on crutches`,
+    p === 'nose'
+      ? 'Nose taped'
+      : p === 'ribs'
+        ? 'Moves stiffly, ribs strapped'
+        : p === 'spine'
+          ? 'In a wheelchair. Paralysed from the waist down'
+          : p === 'collarbone'
+            ? 'Arm in a sling, a broken collarbone'
+            : /(arm|hand|wrist)$/.test(p)
+              ? `${cap(p)} in a cast`
+              : p.endsWith('ankle')
+                ? `${cap(p)} in a boot, limping`
+                : `${cap(p)} in a cast, on crutches`,
   );
 }
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
@@ -285,6 +297,8 @@ export function applyTo(k: Known, b: Body) {
   b.marks = JSON.parse(JSON.stringify(k.marks));
   // Broken ribs leave them short of breath.
   if (k.broken.includes('ribs')) b.stamina = Math.round(b.stamina * 0.5);
+  // Paralysed: they're in a wheelchair, and they always will be.
+  if (k.broken.includes('spine')) b.down = true;
 }
 
 /**

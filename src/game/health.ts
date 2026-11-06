@@ -115,6 +115,14 @@ export const MEND_HOURS: Record<Part, number> = {
   'right arm': 24,
   'left leg': 24,
   'right leg': 24,
+  'left hand': 10,
+  'right hand': 10,
+  'left wrist': 12,
+  'right wrist': 12,
+  'left ankle': 16,
+  'right ankle': 16,
+  collarbone: 18,
+  spine: 100000,
 };
 export const CONCUSSION_HOURS = 6;
 /** Blood lost per hour at each level of bleeding. */
@@ -509,11 +517,11 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
   }
   for (const p of h.broken) {
     const effects: string[] = [];
-    if (p.endsWith('arm')) {
-      effects.push('Punches and weapon blows land: −20%');
+    if (/(arm|wrist|hand)$/.test(p) || p === 'collarbone') {
+      effects.push(p.endsWith('hand') ? 'You can’t make a fist or grip with it' : p === 'collarbone' ? 'One arm hangs useless' : 'Punches and weapon blows land: −20%');
       effects.push('Grappling works: −20%');
     }
-    if (p.endsWith('leg')) {
+    if (/(leg|ankle)$/.test(p)) {
       effects.push('Kicks and stomps land: −20%');
       effects.push(`Running away: ${legs >= 2 ? '8%' : '35%'} of the usual chance${legs >= 2 ? ' (both legs)' : ''}`);
       effects.push('Getting up off the floor: −30%');
@@ -532,7 +540,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
       effects,
       heals:
         `Heals in about ${hrs(left)}.` +
-        (p.endsWith('arm') || p.endsWith('leg') ? (splinted ? '' : ' Left loose, it takes twice as long to heal: a splint holds it still.') : ''),
+        (/(arm|leg|wrist|ankle|hand)$/.test(p) ? (splinted ? '' : ' Left loose, it takes twice as long to heal: a splint holds it still.') : ''),
     });
   }
   if (h.lung) {

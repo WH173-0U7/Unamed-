@@ -62,6 +62,8 @@ export interface Car {
   copsUntil?: number;
   /** When you last slept in it. */
   slept?: number;
+  /** You've been to it before. */
+  visited?: boolean;
 }
 
 /** A hunt with the fob: how far the car is (in blocks), and whether it's still anywhere. Kept on the keys. */

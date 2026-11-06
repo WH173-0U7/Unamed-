@@ -1414,7 +1414,7 @@ export class Game {
         guns: 'A buzzer sounds as you push the door. The man behind the counter looks up, and keeps looking.',
         court: 'A deputy at the door watches you put your keys and phone in a plastic tray for the metal detector.',
         room: 'You climb the stairs to the Hotel Marlow. The man in the cage looks up, then down again.',
-        car: ((c, s) => (c ? `You walk back to the ${c.color} ${c.make}, parked ${c.street}.` : s ? `You start down the block with the ${makeOf(this.keysFor(s.car) ?? {})} fob in your hand.` : ''))(this.atCar, this.hunt),
+        car: ((c, s) => (c ? `You walk ${c.visited ? 'back ' : ''}to the ${c.color} ${c.make}, parked ${c.street}.` : s ? `You start down the block with the ${makeOf(this.keysFor(s.car) ?? {})} fob in your hand.` : ''))(this.atCar, this.hunt),
         home: this.atHome?.type === 'room' ? `You walk to ${this.atHome.addr}. The street door’s propped open with a brick; you go up to their floor.` : `You walk to ${this.atHome?.addr ?? 'the address'}, and take a look at it from across the street.`,
       }[p] ?? '',
     ];
@@ -1425,7 +1425,10 @@ export class Game {
     // Whether your hiding places are as you left them.
     if (p === 'fence') lines.push(...this.checkStash());
     if (p === 'room') lines.push(...this.checkRoom());
-    if (p === 'car') lines.push(...this.checkCar());
+    if (p === 'car') {
+      lines.push(...this.checkCar());
+      if (this.atCar) this.atCar.visited = true;
+    }
     if (!inside && WET_AMOUNT[this.weather.now] > 0) lines.push(`It's still ${isSnow(this.weather.now) ? 'snowing' : 'raining'} (${WEATHER_NAME[this.weather.now].toLowerCase()}).`);
     this.note(lines);
     buzz(10);
@@ -2259,6 +2262,8 @@ export class Game {
   /** Walk to a car you've found. */
   private goCar(id: string) {
     if (this.ending || this.save.state.policeStop) return;
+    // (Someone's standing in front of you in their house: run or fight first.)
+    if (this.job?.confront) return;
     const c = this.carById(id);
     if (!c || !this.keysFor(id)) return;
     if (this.place === 'car' && this.save.state.carAt === id) return this.closeSheet();
@@ -2338,6 +2343,7 @@ export class Game {
         key.car = 'found';
         delete key.hunt;
         if (s.watched) c.watch = 2;
+        c.visited = true;
         delete this.save.state.hunt;
         this.save.state.carAt = c.id;
         lines.push(`You press the fob, and halfway down the block a ${c.color} ${make} chirps and flashes its lights. There it is, parked ${c.street}.`);
@@ -2508,7 +2514,7 @@ export class Game {
   }
   /** The police, at the car. */
   private carCops(c: Car, lines: string[], how: 'asleep' | 'searching' | 'trunk') {
-    if (how !== 'asleep') lines.push(reported(c, now()) ? 'A patrol car pulls in behind, lights going, and a flashlight finds you.' : 'A patrol car noses in behind the car. Someone called it in.');
+    if (how !== 'asleep') lines.push(reported(c, now()) ? `A patrol car pulls in behind, lights going${how === 'trunk' ? '' : ', and a flashlight finds you'}.` : 'A patrol car noses in behind the car. Someone called it in.');
     this.save.state.carStopHow = how;
     this.save.state.carReported = reported(c, now());
     this.refresh();
@@ -4369,6 +4375,15 @@ export class Game {
       j.seen = anonymity(this.inventory) < 0.6;
       j.called = true;
     }
+    // Their car keys gone with you, and they know you were in: the car goes on the report too.
+    if (j.called || j.phoned || j.siren || j.policeIn != null || j.killed || caught) {
+      const early = now() - (REPORTED_HOURS * 3_600_000 + 60_000);
+      for (const x of this.inventory.items) if (x.kind === 'car keys' && x.carOf === h.id && (x.takenAt ?? now()) > early) {
+        x.tookAt ??= x.takenAt;
+        x.takenAt = early;
+      }
+      for (const c of this.cars) if (c.home === h.id && c.takenAt > early) c.takenAt = early;
+    }
     if (j.in || j.took) {
       h.hits = (h.hits ?? 0) + 1;
       h.hitAt = now();
@@ -4898,8 +4913,10 @@ export class Game {
           ? `<button type="button" class="place" data-police="stay"><b>Hands up</b><small>On your knees, on someone else’s floor. They’ve got you in the house.</small></button>`
           : this.save.state.policeStop === 'sting'
           ? `<button type="button" class="place" data-police="stay"><b>Hands behind your back</b><small>They've got the bag, the money, and you on camera.</small></button>`
+          : this.save.state.policeStop === 'car' && this.save.state.carStopHow === 'trunk'
+          ? `<button type="button" class="place" data-police="stay"><b>Step away</b><small>Do as they say. They'll run the plate.</small></button>`
           : this.save.state.policeStop === 'car'
-          ? `<button type="button" class="place" data-police="stay"><b>Step out</b><small>Do as they say. They've run the plate.</small></button>`
+          ? `<button type="button" class="place" data-police="stay"><b>Step out</b><small>Do as they say. They'll run the plate.</small></button>`
           : `<button type="button" class="place" data-police="stay"><b>Stay calm</b><small>Let them talk. They'll want to search you.</small></button>` +
             `<button type="button" class="place" data-police="talk"><b>Talk your way out</b><small>Speech. A good story and they move on without a search; a bad one and they look harder.</small></button>`) +
         (this.save.state.policeCuffed ? '' : `<button type="button" class="place" data-police="run"><b>Run</b><small>Agility, and your legs. If they catch you, it'll hurt.</small></button>`) +
@@ -5057,7 +5074,7 @@ export class Game {
                 // Car keys: find the car (on the street), then go through it, or sleep in it.
                 if (x.kind === 'car keys') {
                   if (!x.car) acts += act('findcar', 'Find the car', this.place !== 'street' || !this.canLurk ? 'Out on the street' : null);
-                  else if (x.car === 'found') acts += act('gocar', 'Go to it', this.atCar && this.atCar.id === x.carId ? 'You’re there' : this.save.state.policeStop ? 'Not now' : null);
+                  else if (x.car === 'found') acts += act('gocar', 'Go to it', this.atCar && this.atCar.id === x.carId ? 'You’re there' : this.save.state.policeStop || this.job?.confront ? 'Not now' : null);
                 }
                 // A weapon: in your hand (out, and seen), or put away.
                 if (x.kind === 'weapon' && !x.spray) {

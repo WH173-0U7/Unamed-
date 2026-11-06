@@ -3727,12 +3727,19 @@ export class Game {
     // On the menu, the power screen, out cold: it catches up once you're back, so you see it.)
     const e = this.encounter;
     if (this.dead || this.paused || !this.tvState.on || this.koLines || this.save.state.koLines || (e && e.stage !== 'seen' && e.stage !== 'over')) return;
+    // Away from the game (it wasn't running to look): bleeding leaves you weak, not dead.
+    const away = this.lastHealLook == null || performance.now() - this.lastHealLook > 5 * 60_000;
+    this.lastHealLook = performance.now();
     const hours = Math.floor((t - h.healedAt) / 3_600_000);
     if (hours < 1) return;
     h.healedAt += hours * 3_600_000;
-    const away = hours >= 2 && !this.jail && h.restingSince == null;
-    const lines = passHours(h, Math.min(hours, 24 * 120), h.restingSince != null || !!this.jail, false);
-    if (h.dead) return this.die(away ? ['While you were gone, you kept bleeding.', ...lines] : lines);
+    const lines = passHours(h, Math.min(hours, 24 * 120), h.restingSince != null || !!this.jail, false, away);
+    if (h.dead) return this.die(lines);
+    if (away && h.bleeding && h.blood <= h.maxBlood * (PASS_OUT + 0.06)) {
+      // (An hour's grace from now, to do something about it.)
+      h.healedAt = t;
+      lines.push('While you were gone you kept bleeding. You’re weak and light-headed, close to passing out: bandage it, or get to the ER, now.');
+    }
     // (Collapsed from losing blood: whoever was across the street is long gone.)
     if (lines.some((l) => /You collapse\./.test(l)) && e?.stage === 'seen') this.encounter = null;
     if (lines.length) {
@@ -3740,6 +3747,8 @@ export class Game {
       this.note(lines);
     }
   }
+  /** When the body was last looked at with the game running (null: just opened, so anything owed was time away). */
+  private lastHealLook: number | null = null;
   /** A rest's quick healing: once every few hours (after that, the rest takes time). */
   private get restHeals(): boolean {
     const h = this.health;

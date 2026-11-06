@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.10',
+    date: 'Nov 6',
+    items: [
+      'Having to leave in a hurry won’t kill you. Bleeding while the game is closed leaves you weak, just short of passing out, but never dead. When you’re back it tells you, and you have an hour before it gets worse: time to bandage it or get to the ER.',
+      'While you’re playing, bleeding works as before.',
+    ],
+  },
+  {
     v: '2.09',
     date: 'Nov 6',
     items: [

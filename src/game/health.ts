@@ -332,7 +332,7 @@ function lieThere(h: Health): string[] {
  * bones and concussion mend. Returns lines describing what changed. If you
  * bleed down to passing out, you collapse and wake up later.
  */
-export function passHours(h: Health, hours: number, resting = false, clock = true): string[] {
+export function passHours(h: Health, hours: number, resting = false, clock = true, awayFloor = false): string[] {
   const lines: string[] = [];
   if (clock) lines.push(...skipClock(h, hours));
   if (resting && h.bleeding) {
@@ -360,6 +360,12 @@ export function passHours(h: Health, hours: number, resting = false, clock = tru
   for (let i = 0; i < hours; i++) {
     if (h.bleeding) {
       h.blood -= BLEED_PER_HOUR[h.bleeding];
+      // (Called away from the game: it leaves you weak, just short of passing out, never dead.)
+      const floor = h.maxBlood * (PASS_OUT + 0.05);
+      if (awayFloor && h.blood < floor) {
+        h.blood = Math.max(h.blood, floor);
+        continue;
+      }
       if (Math.random() < CLOT[h.bleeding] * (resting ? 1.5 : 1)) {
         h.bleeding--;
         if (!h.bleeding) lines.push('The bleeding has stopped.');

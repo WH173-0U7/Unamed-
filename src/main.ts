@@ -16,7 +16,7 @@ import { createGlass } from './fx/glass';
 import { createMenu } from './ui/menu';
 import { Game } from './game/game';
 import { App } from '@capacitor/app';
-import { askPermission, clearAll, isApp, scheduleAll } from './core/notify';
+import { APP_BUILD_NEEDED, APP_DOWNLOAD, askPermission, clearAll, isApp, scheduleAll } from './core/notify';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 const params = new URLSearchParams(location.search);
@@ -339,6 +339,14 @@ document.addEventListener('visibilitychange', () => {
     if (game) void scheduleAll(game.upcoming());
   } else void clearAll();
 });
+// The Android app plays the live game: if the app itself is too old for it, say so.
+if (isApp()) {
+  void App.getInfo()
+    .then((info) => {
+      if (Number(info.build) < APP_BUILD_NEEDED) menu.toast(`There's a new version of the app. Download it: ${APP_DOWNLOAD}`, 9000);
+    })
+    .catch(() => {});
+}
 // The Android back button: the pause menu (and back out of it).
 if (isApp()) {
   void App.addListener('backButton', () => {

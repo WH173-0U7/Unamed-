@@ -62,3 +62,11 @@ export async function clearAll() {
     /* */
   }
 }
+
+/**
+ * The app build (its versionCode, the GitHub run that built it) this game
+ * needs: raised whenever the app itself changes. Older, and the game says
+ * there's a new app to download.
+ */
+export const APP_BUILD_NEEDED = 1;
+export const APP_DOWNLOAD = 'https://github.com/WH173-0U7/Unamed-/releases/latest/download/DarcVoyd.apk';

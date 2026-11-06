@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.01',
+    date: 'Nov 6',
+    items: [
+      'The Android app plays the live game, so every update reaches your phone the next time you open it, with no new download. It needs an internet connection to start.',
+      'If the app itself ever needs updating, the game tells you, with where to download it.',
+    ],
+  },
+  {
     v: '2.0',
     date: 'Nov 6',
     items: [

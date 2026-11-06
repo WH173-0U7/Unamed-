@@ -5393,3 +5393,9 @@ body[data-drug='withdrawal'] #game {
 .shop-head h2 + p {
   margin-top: 11px;
 }
+@media (orientation: landscape) and (max-height: 340px) {
+  /* (The description's hidden here: the hours sit straight under the name.) */
+  #shop .shop-head p.shop-hours {
+    margin-top: 11px;
+  }
+}

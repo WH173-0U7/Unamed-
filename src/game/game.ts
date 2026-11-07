@@ -6805,7 +6805,8 @@ export class Game {
 
   /** In a shop, or a sheet (Pockets, stats, Go) is open: the screen stays clear of what you're on. */
   get inMenu(): boolean {
-    return (this.place !== 'street' && this.tvState.on && !(this.place === 'home' && this.encounter)) || !!this.sheet;
+    // (Lying down, inside, at work: a screen of its own to read, like a menu.)
+    return (this.place !== 'street' && this.tvState.on && !(this.place === 'home' && this.encounter)) || !!this.sheet || !!document.querySelector('.lockup');
   }
 
   private renderSheet() {

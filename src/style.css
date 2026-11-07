@@ -6313,3 +6313,28 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
     margin-bottom: 4px;
   }
 }
+/* Blood on the fight's panels: under the words, not over them. */
+.enc-card,
+.enc-status,
+.enc-log,
+.enc-actions {
+  isolation: isolate;
+}
+.ui-blood {
+  z-index: -1;
+}
+/* Landscape: the status clear of the Go tab. */
+@media (orientation: landscape) {
+  #you-status {
+    left: max(var(--pad-x-l), 34px);
+  }
+}
+.you-humanity em {
+  white-space: nowrap;
+}
+/* The You tab: a bigger target than it looks. */
+.edge-tab.edge-bottom::before {
+  content: '';
+  position: absolute;
+  inset: -8px 0 0;
+}

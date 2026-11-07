@@ -68,6 +68,11 @@ const prisonTerm = (days: number) => {
   return months % 12 ? `${months} months` : months === 12 ? 'a year' : `${months / 12} years`;
 };
 /** A date, with the year when it isn't this year's (a debt that came due while you were inside). */
+/** Real hours behind the door: a night in a cell, the wait in County for a hearing. */
+const CELL_HOURS = 2;
+const COUNTY_HOURS = 8;
+/** A sentence, in real hours: a day of it is far less than a real day (a week is about 11 hours, a month 22, a year about 3 days). */
+const servedHours = (days: number) => Math.max(CELL_HOURS, Math.round(4 * Math.sqrt(days)));
 const dueText = (t: number) => (new Date(t).getFullYear() === new Date(now()).getFullYear() ? dateText(t) : new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }));
 /** Days Dez's vig keeps compounding once you're late. */
 const VIG_DAYS = 14;
@@ -3583,7 +3588,7 @@ export class Game {
     this.save.state.policeArrested = arrested;
     this.refresh();
     this.renderSheet();
-    if (arrested) this.lockUp(8, 'A night in a holding cell');
+    if (arrested) this.lockUp(CELL_HOURS, 'A night in a holding cell');
     buzz(arrested ? [80, 60, 120] : 12);
   }
 
@@ -3630,7 +3635,7 @@ export class Game {
     delete this.save.state.bailOffer;
     const lines = [...custodyCare(h), 'A day and a half in County: a bunk, a toilet with no seat, and the noise that never stops.'];
     this.record.heldHours = (this.record.heldHours ?? 0) + 36;
-    this.lockUp(36, 'In County, waiting for your hearing');
+    this.lockUp(COUNTY_HOURS, 'In County, waiting for your hearing');
     if (h.dead) return this.die(lines);
     h.stress = Math.min(100, (h.stress ?? 0) + 20);
     lines.push(...this.verdict(true));
@@ -3717,7 +3722,7 @@ export class Game {
     rec.longest = Math.max(rec.longest ?? 0, days);
     if (days >= 365) rec.prison = (rec.prison ?? 0) + 1;
     // (Real time: you're inside until the day they let you out.)
-    this.lockUp(days * 24, days >= 365 ? `Serving ${prisonTerm(days)} in state prison` : `Serving ${days} days in County`);
+    this.lockUp(servedHours(days), days >= 365 ? `Serving ${prisonTerm(days)} in state prison` : `Serving ${days} days in County`);
     rec.lastOut = this.jail?.until ?? now();
     // (They don't let you bleed out inside: the wound's seen to first.)
     // (Bones and faces mend on the real clock while you're in there.)
@@ -3883,6 +3888,24 @@ export class Game {
   private get jailed(): boolean {
     const j = this.jail;
     return !!j && now() < j.until;
+  }
+  /** Jail got shorter: time already set the old way is cut to the new lengths (once). */
+  private shortenOldTerms() {
+    const st = this.save.state;
+    if (st.termsV2) return;
+    st.termsV2 = true;
+    const t = now();
+    const j = this.jail;
+    if (j && j.until > t) {
+      const dur = j.until - j.from;
+      const hrs = /holding cell/i.test(j.what) ? CELL_HOURS : /waiting for your hearing/i.test(j.what) ? COUNTY_HOURS : dur >= 2 * 86_400_000 ? servedHours(Math.round(dur / 86_400_000)) : dur / 3_600_000;
+      j.until = Math.max(t, Math.min(j.until, j.from + hrs * 3_600_000));
+    }
+    for (const x of this.selves) {
+      if (x.status !== 'inside' || x.hearingAt != null || x.until <= t) continue;
+      const left = x.until - t;
+      if (left > 2 * 86_400_000) x.until = Math.min(x.until, t + servedHours(Math.ceil(left / 86_400_000)) * 3_600_000);
+    }
   }
   /** Held: that many more real hours behind a door you can't open. */
   private lockUp(hours: number, what: string) {
@@ -4054,10 +4077,10 @@ export class Game {
       rec.daysServed = (rec.daysServed ?? 0) + days;
       rec.longest = Math.max(rec.longest ?? 0, days);
       if (days >= 365) rec.prison = (rec.prison ?? 0) + 1;
-      rec.lastOut = at + days * 86_400_000;
+      rec.lastOut = at + servedHours(days) * 3_600_000;
       x.what = days >= 365 ? `Serving ${prisonTerm(days)} in state prison` : `Serving ${days} days in County`;
     }
-    x.until = at + days * 86_400_000;
+    x.until = at + (days ? servedHours(days) * 3_600_000 : 0);
   }
   /** On the You sheet: who you were, and where they are now. */
   private selvesHtml(): string {
@@ -4242,7 +4265,7 @@ export class Game {
         this.save.state.policeArrested = true;
         this.refresh();
         this.openSheet('police');
-        this.lockUp(8, 'A night in a holding cell');
+        this.lockUp(CELL_HOURS, 'A night in a holding cell');
         buzz([80, 60, 120]);
       }
     }
@@ -4322,7 +4345,7 @@ export class Game {
   /** A night held after turning yourself in. */
   private passCell(): string[] {
     const lines = [...custodyCare(this.health), 'You spend the night in a holding cell.'];
-    this.lockUp(8, 'A night in a holding cell');
+    this.lockUp(CELL_HOURS, 'A night in a holding cell');
     this.health.cold = 0;
     delete this.health.smokingUntil;
     return lines;
@@ -6827,9 +6850,9 @@ export class Game {
         (this.save.state.bailOffer === 'bail'
           ? ((have) =>
               `<button type="button" class="place" data-police="bail" ${have < (this.case?.bail ?? 0) * 100 ? 'disabled' : ''}><b>Pay bail: ${money((this.case?.bail ?? 0) * 100)}</b><small>${have < (this.case?.bail ?? 0) * 100 ? `You’ve only got ${money(have)}, cash and bank together` : 'Cash first, then your bank account. You get it back if you show up to court.'}</small></button>` +
-              `<button type="button" class="place" data-police="custody"><b>Wait in jail for the hearing</b><small>36 real hours in County, then the judge.</small></button>`)(Math.round(cashOf(this.inventory) * 100) + (this.account?.cents ?? 0))
+              `<button type="button" class="place" data-police="custody"><b>Wait in jail for the hearing</b><small>${COUNTY_HOURS} real hours in County, then the judge.</small></button>`)(Math.round(cashOf(this.inventory) * 100) + (this.account?.cents ?? 0))
           : this.save.state.bailOffer === 'custody'
-            ? `<button type="button" class="place" data-police="custody"><b>Wait for the hearing</b><small>36 real hours in County, then the judge.</small></button>`
+            ? `<button type="button" class="place" data-police="custody"><b>Wait for the hearing</b><small>${COUNTY_HOURS} real hours in County, then the judge.</small></button>`
             : `<button type="button" class="place" data-police="done"><b>Go on</b><small>${this.save.state.policeArrested ? 'It’s on your record (You: Criminal record).' : 'Back to the street.'}</small></button>`) +
         `</div>`;
       return;
@@ -7721,6 +7744,7 @@ export class Game {
     }
     if ((this.weatherTimer -= dt) <= 0) {
       this.weatherTimer = 2;
+      this.shortenOldTerms();
       // Missed your court date: a warrant.
       const cs = this.case;
       this.settleSelves();

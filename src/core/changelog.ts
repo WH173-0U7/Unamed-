@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.48',
+    date: 'Nov 7',
+    items: [
+      'Jail is much shorter. A night in a holding cell is 2 real hours (was 8), and waiting in County for your hearing is 8 (was 36).',
+      'Sentences take far less real time than their length: a week is about 11 hours, a month about a day, a year about 3 days.',
+      'Anyone already locked up (you or someone you used to be) has their time cut to match.',
+    ],
+  },
+  {
     v: '2.47',
     date: 'Nov 7',
     items: [

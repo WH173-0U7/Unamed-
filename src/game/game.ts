@@ -1768,11 +1768,11 @@ export class Game {
       return;
     }
     if (p !== 'street') this.save.state.crowd = [];
-    // (On foot, across town: it adds up, more with a heavy load, which builds you up a little too.)
+    // (On foot, walking light costs nothing; a heavy load wears you down, and builds you up a little too.)
     {
       const inv = this.inventory;
       const load = carriedKg(inv) / (inv.maxKg ?? 15);
-      if (p !== 'street') addFatigue(this.health, 0.4 * (1 + Math.max(0, load - 0.5) * 2));
+      if (load > 0.5) addFatigue(this.health, 0.4 * (1 + (load - 0.5) * 2));
       if (load > 0.5) {
         const up = train(this.stats, 'strength', 1 + Math.round(load * 2));
         if (up) this.later([`Strength went up to ${up}. You can carry ${kgLabel(carryLimit(up))} now.`]);

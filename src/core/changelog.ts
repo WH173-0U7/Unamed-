@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.49',
+    date: 'Nov 7',
+    items: ['Walking between places no longer tires you, unless you’re carrying a heavy load (more than half of what you can carry). That still wears you down, and builds your Strength.'],
+  },
+  {
     v: '2.48',
     date: 'Nov 7',
     items: [

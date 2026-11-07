@@ -12,7 +12,7 @@ export interface Health {
   healedAt?: number;
   /** When a rest last did its quick healing (it does once every few hours: the rest takes time). */
   restHealAt?: number;
-  /** How worn down you are, 0 (fresh) .. 100 (spent): fights, lurking, walking. Wears off in real time. */
+  /** How worn down you are, 0 (fresh) .. 100 (spent): fights, lurking, walking with a heavy load. Wears off in real time. */
   fatigue?: number;
   /** When fatigue was last brought up to date (ms). */
   fatigueAt?: number;

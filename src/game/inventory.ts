@@ -345,9 +345,12 @@ export function findRoom(inv: Inventory, size: Size, kg: number, x?: { kind: str
 /** Why it won't go anywhere. */
 export function noRoomWhy(inv: Inventory, size: Size, kg = 0.01): string {
   if (tooHeavy(inv, kg)) return `It’s more than you can carry: ${kgLabel(inv.maxKg!)} is your limit. Strength raises it.`;
-  if (!inv.spots.some((s) => SIZE_RANK[s.fits] >= SIZE_RANK[size])) {
+  // (A sheath or a holster takes only what it's made for.)
+  const spots = inv.spots.filter((s) => fitsIn(s));
+  if (!spots.some((s) => SIZE_RANK[s.fits] >= SIZE_RANK[size])) {
     return size === 'large' ? 'Too big to carry without a backpack.' : size === 'medium' ? "Won't fit in a pocket. You'd need a bag." : 'You have no pockets.';
   }
+  if (!spots.some((s) => SIZE_RANK[s.fits] >= SIZE_RANK[size] && s.maxKg >= kg - 1e-9)) return "Too heavy for any pocket you've got. You'd need a bag.";
   return cashBulk(inv) > 0.35 ? 'Your pockets are stuffed with cash.' : 'There is no room left.';
 }
 
@@ -387,6 +390,12 @@ export function wear(inv: Inventory, slot: 'top' | 'bottom' | 'bag', name: strin
   const order = [...inv.items].sort((a, b) => SIZE_RANK[b.size] - SIZE_RANK[a.size] || b.kg - a.kg);
   const left: InvItem[] = [];
   for (const it of order) {
+    // (In your hand, it stays in your hand: it goes in a pocket if there's one for it.)
+    if (it.hand) {
+      const sp = hidingSpot(trial, it.size, it.kg, it);
+      trial.items.push(sp ? { ...it, spot: sp.id } : it);
+      continue;
+    }
     const spot = it.kind === 'weapon' ? hidingSpot(trial, it.size, it.kg, it) : findRoom(trial, it.size, it.kg, it);
     if (!spot) {
       // (Told to: what won't go anywhere stays behind.)
@@ -402,6 +411,8 @@ export function wear(inv: Inventory, slot: 'top' | 'bottom' | 'bag', name: strin
   inv.clothes = clothes;
   inv.spots = spots;
   inv.items = trial.items;
+  // (A different top: its hood, if it has one, starts down.)
+  if (slot === 'top' && old !== name && inv.wearing) delete inv.wearing.hood;
   return { ok: true, old, left };
 }
 /** What putting that on would leave with nowhere to go (nothing changes). */

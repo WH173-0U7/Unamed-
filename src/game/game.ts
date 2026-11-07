@@ -31,7 +31,7 @@ import { mlOf } from './money';
 import { lootIcon, lootMark } from './lootIcon';
 import { STYLES, STYLE_HOW, STYLE_NAMES, stylesOf } from './styles';
 import { PLACE_AT, PLACE_ICON, addressAt, blocksBetween, mapHtml, type MapMark } from './map';
-import { MEDS, take, freeHand, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, wouldLeave, kgLabel, carriedKg, carryLimit, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, type Inventory, type InvItem, type MedId } from './inventory';
+import { MEDS, take, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, wouldLeave, kgLabel, carriedKg, carryLimit, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, hidingSpot, tooHeavy, type Inventory, type InvItem, type MedId } from './inventory';
 
 /**
  * What's left of your humanity. Killing someone takes a lot of it; stamping
@@ -3100,6 +3100,7 @@ export class Game {
     const inv = this.inventory;
     const it = inv.items[i];
     if (!it || it.kind !== 'weapon' || inv.items.some((y) => y.hand === hand)) return;
+    if (this.handBroken(hand)) return;
     if (this.inside) {
       this.note(['Not in here.']);
       return;
@@ -3109,11 +3110,25 @@ export class Game {
     this.note([`You take out the ${lc(it.name)} and hold it in your ${hand} hand. Anyone who looks can see it.`]);
     buzz(6);
   }
+  /** That arm, wrist or hand is broken: it holds nothing. */
+  private handBroken(side: 'left' | 'right') {
+    return this.health.broken.some((p) => p === `${side} arm` || p === `${side} wrist` || p === `${side} hand`);
+  }
   /** A weapon back where it's kept. */
   private putAway(i: number) {
     const inv = this.inventory;
     const it = inv.items[i];
     if (!it?.hand) return;
+    // (Its pocket went with the clothes you changed: somewhere else, if there's room.)
+    if (!inv.spots.some((s) => s.id === it.spot)) {
+      const rest = { ...inv, items: inv.items.filter((y) => y !== it) };
+      const to = hidingSpot(rest, it.size, it.kg, it);
+      if (!to) {
+        this.note([`There’s nowhere to put the ${lc(it.name)} away. ${noRoomWhy(rest, it.size, it.kg)}`]);
+        return;
+      }
+      it.spot = to.id;
+    }
     delete it.hand;
     const sp = inv.spots.find((s) => s.id === it.spot);
     this.refresh();
@@ -4936,7 +4951,10 @@ export class Game {
     b.left -= n;
     const lines = [oneOf(['You go through the bins along the block, elbow-deep in other people’s trash.', 'You work your way down the block, lifting lids, picking through bags.', 'You check every bin and dumpster on the block. Someone has been through some of them already.'])];
     const have = inv.items.find((x) => x.name === 'Empty cans');
-    if (have) {
+    const sp = have && inv.spots.find((s) => s.id === have.spot);
+    const more = n * 0.015;
+    if (have && (!sp || usedKg(inv, sp.id) + more > sp.maxKg + 1e-9 || tooHeavy(inv, more))) lines.push(`${n} more can${n === 1 ? '' : 's'}, and nowhere to put them. ${noRoomWhy(inv, 'small', more)}`);
+    else if (have) {
       have.doses = (have.doses ?? 0) + n;
       have.kg = Math.round((have.doses ?? 0) * 15) / 1000;
       lines.push(`${n} more can${n === 1 ? '' : 's'}. ${have.doses} in all.`);
@@ -6307,7 +6325,7 @@ export class Game {
     void _kg;
     const got = stow(this.inventory, rest);
     if (!got) {
-      this.note([`No room for the ${lc(it.name)}. ${noRoomWhy(this.inventory, measure(it).size)}`]);
+      this.note([`No room for the ${lc(it.name)}. ${noRoomWhy(this.inventory, measure(it).size, measure(it).kg)}`]);
       return;
     }
     where.items.splice(Number(n), 1);
@@ -6954,9 +6972,8 @@ export class Game {
                 if (x.kind === 'weapon' && !x.spray) {
                   if (x.hand) acts += act('putaway', 'Put away');
                   else {
-                    const fh = freeHand(inv);
-                    acts += act('hold-r', 'Right hand', fh === null || inv.items.some((y) => y.hand === 'right') ? 'Hand full' : null);
-                    acts += act('hold-l', 'Left hand', inv.items.some((y) => y.hand === 'left') ? 'Hand full' : null);
+                    acts += act('hold-r', 'Right hand', this.handBroken('right') ? 'Broken' : inv.items.some((y) => y.hand === 'right') ? 'Hand full' : null);
+                    acts += act('hold-l', 'Left hand', this.handBroken('left') ? 'Broken' : inv.items.some((y) => y.hand === 'left') ? 'Hand full' : null);
                   }
                 }
                 // Into another pocket (to hide it better, or have it to hand).

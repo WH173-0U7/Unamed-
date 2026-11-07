@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.32',
+    date: 'Nov 7',
+    items: [
+      'Changing clothes no longer leaves behind a weapon you’re holding in your hand.',
+      'You can’t take a weapon out into a broken hand from Pockets any more.',
+      'The bag of empty cans no longer grows past what its pocket can hold or what you can carry.',
+      'Swapping to a different top no longer leaves its hood already pulled up.',
+      '“No room” messages now give the real reason: too heavy for any pocket, or more than you can carry, instead of just “no room left”.',
+    ],
+  },
+  {
     v: '2.31',
     date: 'Nov 7',
     items: ['A long message on the street no longer has “Tap to dismiss” drawn over its last line: it’s the last line now, after the text.'],

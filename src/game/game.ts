@@ -18,7 +18,7 @@ import { sound } from '../fx/sound';
 import type { DrugLook } from '../fx/drugs';
 import { clockText, dateText, now, partOfDay } from './clock';
 import { COLD_AMOUNT, RAIN_AMOUNT, SNOW_AMOUNT, WEATHER_NAME, WET_AMOUNT, isSnow, newWeather, updateWeather, weatherLine, type WeatherState } from './weather';
-import { COLD_NAMES } from './health';
+import { COLD_NAMES, easeStress } from './health';
 import { maybeThief, newWorld, robBody, robKnockedOut, settle, type World } from './legacy';
 import { isBrute } from './voices';
 import { knifeOf } from './knives';
@@ -3828,6 +3828,12 @@ export class Game {
     // (Mid-fight, the fight's own body is the one that counts: it catches up after.
     // On the menu, the power screen, out cold: it catches up once you're back, so you see it.)
     const e = this.encounter;
+    // Stress settles as you go, minute by minute (not in a fight: that's the fight's own).
+    if (e && e.stage !== 'seen' && e.stage !== 'over') h.stressAt = t;
+    else if (!this.dead) {
+      easeStress(h, t - Math.min(t, h.stressAt ?? t), h.restingSince != null || !!this.jail);
+      h.stressAt = t;
+    }
     if (this.dead || this.paused || !this.tvState.on || this.koLines || this.save.state.koLines || (e && e.stage !== 'seen' && e.stage !== 'over')) return;
     // Away from the game (it wasn't running to look): bleeding leaves you weak, not dead.
     const away = this.lastHealLook == null || performance.now() - this.lastHealLook > 5 * 60_000;
@@ -3835,7 +3841,7 @@ export class Game {
     const hours = Math.floor((t - h.healedAt) / 3_600_000);
     if (hours < 1) return;
     h.healedAt += hours * 3_600_000;
-    const lines = passHours(h, Math.min(hours, 24 * 120), h.restingSince != null || !!this.jail, false, away);
+    const lines = passHours(h, Math.min(hours, 24 * 120), h.restingSince != null || !!this.jail, false, away, false);
     if (h.dead) return this.die(lines);
     if (away && h.bleeding && h.blood <= h.maxBlood * (PASS_OUT + 0.06)) {
       // (An hour's grace from now, to do something about it.)

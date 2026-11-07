@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.43',
+    date: 'Nov 7',
+    items: ['Stress settles much faster, minute by minute: from full panic you stop panicking in about ten minutes, and you’re only on edge after about half an hour. It’s gone within a couple of hours (faster lying down).'],
+  },
+  {
     v: '2.42',
     date: 'Nov 7',
     items: [

@@ -54,6 +54,8 @@ export interface Health {
   drunkAt?: number;
   /** Stress, 0..100 (see encounter.ts addStress): eases with time and cigarettes. */
   stress?: number;
+  /** When stress last eased on the real clock. */
+  stressAt?: number;
   /** How used to violence you are, 0..100: at 100 it doesn't stress you. */
   nerve?: number;
   /** Smoking a cigarette until this time (ms, real clock). */
@@ -71,8 +73,15 @@ type HealingMark = 'lip' | 'cheek' | 'eye' | 'brow' | 'jaw';
 /** Hours for a mark to heal (game time). A cut brow leaves a scar. */
 export const MARK_HOURS: Record<HealingMark, number> = { lip: 8, cheek: 11, eye: 22, brow: 30, jaw: 120 };
 
-/** Stress lost per hour of game time (more when resting). */
-const STRESS_EASE = 6;
+/** Stress settles fast at first and slower as you calm down: it halves every this many minutes (faster at rest). */
+const STRESS_HALF_MIN = 25;
+/** Stress easing over that long: panic passes in minutes, the last of the edge in an hour or so. */
+export function easeStress(h: Health, ms: number, resting = false) {
+  if (!h.stress || ms <= 0) return;
+  const k = Math.pow(0.5, ms / 60_000 / STRESS_HALF_MIN * (resting ? 1.5 : 1));
+  h.stress = h.stress * k - (ms / 3_600_000) * 2;
+  if (h.stress < 0.5) h.stress = 0;
+}
 
 export const COLD_NAMES = ['', 'Chilled', 'Cold', 'Freezing'];
 export const DRUNK_NAMES = ['', 'Tipsy', 'Drunk', 'Wasted', 'Blackout'];
@@ -335,7 +344,7 @@ function lieThere(h: Health): string[] {
  * bones and concussion mend. Returns lines describing what changed. If you
  * bleed down to passing out, you collapse and wake up later.
  */
-export function passHours(h: Health, hours: number, resting = false, clock = true, awayFloor = false): string[] {
+export function passHours(h: Health, hours: number, resting = false, clock = true, awayFloor = false, stress = true): string[] {
   const lines: string[] = [];
   if (clock) lines.push(...skipClock(h, hours));
   if (resting && h.bleeding) {
@@ -344,8 +353,8 @@ export function passHours(h: Health, hours: number, resting = false, clock = tru
       lines.push(h.bleeding ? 'You press on the wound. The bleeding slows.' : 'You manage to stop the bleeding.');
     } else lines.push('You press on the wound, hard. It keeps coming.');
   }
-  // Time takes the edge off.
-  if (h.stress) h.stress = Math.max(0, h.stress - hours * STRESS_EASE * (resting ? 1.5 : 1));
+  // Time takes the edge off (on the real clock, that's done as it goes: see easeStress).
+  if (stress) easeStress(h, hours * 3_600_000, resting);
   // Cuts and bruises heal; a cut brow leaves a scar.
   for (const [k, left] of Object.entries(h.markHours ?? {}) as [HealingMark, number][]) {
     const now = left - hours * (resting ? 1.5 : 1);
@@ -526,7 +535,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
       status: true,
       meter: { k: Math.min(1, stress / 100), text: `${Math.round(stress)} / 100` },
       effects: [`Your blows land: −${p}%`, `Dodging their blows: −${p}%`, ...(sl >= 3 ? ['Your hands shake; the world narrows'] : [])],
-      heals: `Eases about ${STRESS_EASE} an hour (faster at rest), and quicker with a cigarette, a drink or painkillers.`,
+      heals: 'Panic passes in about ten minutes; the rest wears off within an hour or so (faster at rest), and quicker with a cigarette, a drink or painkillers.',
     });
   }
   // Worn down.

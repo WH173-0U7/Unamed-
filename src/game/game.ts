@@ -1738,7 +1738,11 @@ export class Game {
     // (Stopped by the police: you're not walking anywhere.)
     if (this.ending || this.save.state.policeStop) return;
     this.shopNote = [];
+    // (What was waiting while Places was open goes first, ahead of where you've got to, not over it.)
+    const held = { lines: this.heldNote };
+    this.heldNote = [];
     this.closeSheet();
+    if (held.lines.length) requestAnimationFrame(() => held.lines.length && !this.closed && this.note(held.lines));
     if (p === this.place || HIDDEN_PLACES.has(p)) return;
     if (p === 'home' && !this.homeById(this.save.state.homeAt)) return;
     // (On foot, across town: it adds up.)
@@ -1797,6 +1801,8 @@ export class Game {
       }[p] ?? '',
     ];
     lines.unshift(...this.offLines);
+    lines.unshift(...held.lines);
+    held.lines = [];
     this.offLines = [];
     this.exposure = 0;
     this.wasInside = inside;
@@ -5166,7 +5172,8 @@ export class Game {
   private endWork(finished: boolean, quiet = false, why?: string) {
     const w = this.work;
     if (!w) return;
-    if (w.kind === 'deliver' && !quiet) this.deliverUpTo(w, now());
+    // (Not when the shift's own catching up is what ended it: that's done already.)
+    if (w.kind === 'deliver' && !quiet && !why) this.deliverUpTo(w, now());
     if (!this.work) return;
     delete this.save.state.work;
     delete this.save.state.workLines;
@@ -5187,7 +5194,7 @@ export class Game {
         h.blood = Math.max(Math.round(h.maxBlood * 0.6), h.blood - 400);
         addFatigue(h, 12);
         const left = cents(pocketCash(this.inventory, fewest(pay)));
-        lines.push(`They unhook you and tape a cotton ball in the crook of your arm. At the desk, ${money(pay - left)} in cash.${left ? ` You’ve no room on you for ${money(left)}; they keep it on your account for next time.` : ''} You stand up too fast and the room tilts.`);
+        lines.push(`They unhook you and tape a cotton ball in the crook of your arm. At the desk, ${money(pay - left)} in cash.${left ? ` You’ve no room on you for the other ${money(left)}.` : ''} You stand up too fast and the room tilts.`);
       } else lines.push('You pull the tape and tell the nurse you have to go. She stops the machine with a sigh. No pay.');
     } else {
       lines.push(`${why ?? 'You go offline.'} ${w.drops ?? 0} drop${w.drops === 1 ? '' : 's'}, ${money(w.earned ?? 0)} into ${GIG_APP}. ${money(this.gig.balance)} waiting to cash out.`);

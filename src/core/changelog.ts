@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.34',
+    date: 'Nov 7',
+    items: [
+      'A Handoff delivery shift left running for ten hours now logs you off properly, instead of getting stuck on the work screen.',
+      'Walking somewhere no longer hides what you found there (like a stash that’s been taken) behind an older message.',
+      'Harbor Plasma no longer says they’ll keep money you had no room for: if it doesn’t fit on you, it’s gone.',
+    ],
+  },
+  {
     v: '2.33',
     date: 'Nov 7',
     items: [

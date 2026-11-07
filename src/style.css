@@ -6285,3 +6285,31 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
     display: none;
   }
 }
+/* Landscape: the map gets the width it needs (names don't break mid-word). */
+@media (orientation: landscape) and (max-height: 520px) {
+  #sheet.from-left .sheet-card:has(.places) {
+    width: min(86%, 600px);
+  }
+}
+/* "Forget this address": big enough to tap. */
+.map-forget {
+  min-height: 36px;
+}
+/* A home, a car, the hunt: whose it is still shows on a very short screen (two lines). */
+@media (orientation: landscape) and (max-height: 340px) {
+  #shop .shop-head:not(:has(> .shop-hours)) > p {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+.shop-head h2 {
+  line-height: 1.1;
+}
+/* Overlays in landscape: a little room under the heading. */
+@media (max-height: 420px) {
+  .lockup h2 {
+    margin-bottom: 4px;
+  }
+}

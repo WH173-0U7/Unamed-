@@ -6229,3 +6229,9 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+/* "Tap to dismiss" is the note's last line, in the flow: never pinned over the text above it. */
+#game:not(.in-shop) #note.sticky p.note-tap {
+  position: static;
+  background: none;
+  padding: 6px 0 0;
+}

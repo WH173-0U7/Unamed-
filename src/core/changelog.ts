@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.31',
+    date: 'Nov 7',
+    items: ['A long message on the street no longer has “Tap to dismiss” drawn over its last line: it’s the last line now, after the text.'],
+  },
+  {
     v: '2.30',
     date: 'Nov 6',
     items: ['The card for who you’ve seen no longer gives away their build or whether they’re a man or a woman: you find that out by sizing them up or getting a look at them.'],

@@ -31,7 +31,7 @@ import { mlOf } from './money';
 import { lootIcon, lootMark } from './lootIcon';
 import { STYLES, STYLE_HOW, STYLE_NAMES, stylesOf } from './styles';
 import { PLACE_AT, PLACE_ICON, addressAt, blocksBetween, mapHtml, type MapMark } from './map';
-import { MEDS, take, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, wouldLeave, kgLabel, carriedKg, carryLimit, OVERLOAD, TIRING_LOAD, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, hidingSpot, tooHeavy, reweigh, freeHand, type Inventory, type InvItem, type Spot as Pocket, type MedId } from './inventory';
+import { MEDS, take, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, wouldLeave, kgLabel, carriedKg, carryLimit, awayTo, OVERLOAD, TIRING_LOAD, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, tooHeavy, reweigh, freeHand, type Inventory, type InvItem, type Spot as Pocket, type MedId } from './inventory';
 
 /**
  * What's left of your humanity. Killing someone takes a lot of it; stamping
@@ -138,7 +138,7 @@ type Work = { kind: 'plasma' | 'deliver'; since: number; until?: number; drops?:
 /** The delivery app (made up). */
 const GIG_APP = 'Handoff';
 /** Held: since when, until when (real time), what for, and what's said when the door opens. */
-type Jail = { from: number; until: number; what: string; after?: string[]; triedAt?: number; tried?: string };
+type Jail = { from: number; until: number; what: string; after?: string[]; triedAt?: number; tried?: string; escaped?: boolean };
 /** Whether this one in the house (the owner, or whoever else lives there) has seen your face. */
 type FaceSeen = boolean | { owner?: boolean | number; other?: boolean | number };
 const sawFace = (j: { faceSeen?: FaceSeen } | undefined, owner: boolean) =>
@@ -1025,17 +1025,22 @@ export class Game {
       // Sometimes you see them first: a moment to get out of sight (Sneak).
       const sneak = this.stats.sneak?.level ?? 1;
       if (Math.random() < Math.min(0.7, 0.35 + sneak * 0.004)) {
+        // (Saved as a stop already: closing the game on the choice doesn't get you out of it.)
+        this.save.state.policeWhy = [...lines, why];
+        this.save.state.policeStop = true;
         this.showChoice('A patrol car', [...lines, 'A patrol car turns onto the block, slow.'], [
           {
             label: 'Duck into a doorway',
             act: () => {
               if (Math.random() < 0.45 + sneak * 0.004 - fatigueOdds(this.health) - (wanted ? 0.1 : 0)) {
+                delete this.save.state.policeStop;
+                delete this.save.state.policeWhy;
                 this.note(['You step into a doorway and wait, still, until its taillights turn the corner.']);
                 return;
               }
               // (Seen ducking: they're less inclined to believe a story.)
               this.save.state.policeDucked = true;
-              stop(['You step into a doorway, a second too late. The car stops, and both of them get out.']);
+              stop(['You step into a doorway, a second too late. The patrol car stops.']);
             },
           },
           { label: 'Stay where you are', act: () => stop([...lines, why]) },
@@ -1882,9 +1887,13 @@ export class Game {
       lines.push(`You pull the ${w.face!.toLowerCase()} down before you go in.`);
     }
     if (h.cold) lines.push("It’s warm in here. Stay a while and you’ll thaw out.");
-    const inHand = this.inventory.items.filter((x) => x.hand && x.kind === 'weapon');
+    // (Put away where there's room for it.)
+    const inHand = this.inventory.items.filter((x) => x.hand && x.kind === 'weapon' && awayTo(this.inventory, x));
     if (inHand.length) {
-      for (const x of inHand) delete x.hand;
+      for (const x of inHand) {
+        x.spot = awayTo(this.inventory, x)!.id;
+        delete x.hand;
+      }
       lines.push(`You put the ${inHand.map((x) => lc(x.name)).join(' and the ')} away before you go in.`);
     }
     if (this.smoking) {
@@ -3185,16 +3194,14 @@ export class Game {
     const inv = this.inventory;
     const it = inv.items[i];
     if (!it?.hand) return;
-    // (Its pocket went with the clothes you changed: somewhere else, if there's room.)
-    if (!inv.spots.some((s) => s.id === it.spot)) {
+    // (Its pocket went with the clothes you changed, or it won't go in now: somewhere else, if there's room.)
+    const to = awayTo(inv, it);
+    if (!to) {
       const rest = { ...inv, items: inv.items.filter((y) => y !== it) };
-      const to = hidingSpot(rest, it.size, it.kg, it);
-      if (!to) {
-        this.note([`There’s nowhere to put the ${lc(it.name)} away. ${noRoomWhy(rest, it.size, it.kg)}`]);
-        return;
-      }
-      it.spot = to.id;
+      this.note([`There’s nowhere to put the ${lc(it.name)} away. ${noRoomWhy(rest, it.size, it.kg)}`]);
+      return;
     }
+    it.spot = to.id;
     delete it.hand;
     const sp = inv.spots.find((s) => s.id === it.spot);
     this.refresh();
@@ -3361,7 +3368,7 @@ export class Game {
       pay(inv.purse, amt);
       if (Math.random() < odds) {
         bribed = true;
-        lines.push(`You hold out ${money(amt)}, folded small. The one in the passenger seat looks at the bills, then up the street. He takes them. “Go home.”`);
+        lines.push(`You hold out ${money(amt)}, folded small. One of them looks at the bills, then up the street. He takes them. “Go home.”`);
         f.heat = Math.max(0, f.heat - 5);
         const up = train(this.stats, 'speech', 4);
         if (up) lines.push(`Speech went up to ${up}.`);
@@ -3633,7 +3640,7 @@ export class Game {
         // Arrested again while out on bail: it's revoked, and the money's gone.
         const revoked = !!c.bailPaid;
         if (revoked) {
-          lines.push(`You were already out on bail. It’s revoked: the ${money(c.bailPaid!)} you put up is gone.`);
+          lines.push(`You were already out on bail. It’s revoked: the ${money(c.bailPaid!)} bail is gone.`);
           c.bailPaid = 0;
         }
         const noBail = revoked || !!c.jumped || c.charges.some((x) => chargeOf(x).bail === 0) || now() < ((this.save.state.probationUntil as number) ?? 0);
@@ -3789,9 +3796,12 @@ export class Game {
         c.charges = c.charges.filter((_, i) => i !== c.charges.indexOf(minor));
         sev -= chargeOf(minor).sev;
         lines.push(`The ${minor.toLowerCase()} charge is dropped.`);
-      } else {
+      } else if (sev <= 3 || sev > 6 || onProbation) {
         half = true;
         lines.push('The judge goes easier on you: half what it would have been.');
+      } else {
+        // (It was going to be probation anyway: nothing to halve.)
+        lines.push('The judge nods.');
       }
       const up = train(this.stats, 'speech', 4);
       if (up) lines.push(`Speech went up to ${up}.`);
@@ -4110,12 +4120,15 @@ export class Game {
         'You run, and keep running. There’ll be a warrant out for you by tonight.',
       ];
       j.until = now();
+      j.escaped = true;
+      this.record.lastOut = now();
       buzz([80, 40, 80, 40, 160]);
       return this.release();
     }
     // Caught: they add time for it.
     const left = j.until - now();
     j.until += Math.max(2 * 3_600_000, left * 0.5);
+    this.record.lastOut = j.until;
     const rec = this.record;
     rec.charges['Attempted escape'] = (rec.charges['Attempted escape'] ?? 0) + 1;
     h.stress = Math.min(100, (h.stress ?? 0) + 20);
@@ -4149,7 +4162,7 @@ export class Game {
   private release() {
     const j = this.jail;
     // Inside, people talk: sometimes about who's selling.
-    if (j && !this.connect.known && Math.random() < 0.5) j.after = [...(j.after ?? []), 'On your way out, the man from the next bunk catches your sleeve. “You need work? Dez. The alley behind the laundromat, after dark. Tell him Rook sent you.”', ...this.learnConnect('Rook')];
+    if (j && !j.escaped && !this.connect.known && Math.random() < 0.5) j.after = [...(j.after ?? []), 'On your way out, the man from the next bunk catches your sleeve. “You need work? Dez. The alley behind the laundromat, after dark. Tell him Rook sent you.”', ...this.learnConnect('Rook')];
     delete this.save.state.jail;
     document.getElementById('jail')?.remove();
     if (!j || this.dead) return;
@@ -4429,7 +4442,7 @@ export class Game {
         delete h.smokingUntil;
         if (h.dead) return this.die(lines);
         if (c.bailPaid) {
-          lines.push(`You were already out on bail. It’s revoked: the ${money(c.bailPaid)} you put up is gone.`);
+          lines.push(`You were already out on bail. It’s revoked: the ${money(c.bailPaid)} bail is gone.`);
           c.bailPaid = 0;
         }
         c.charges = [...c.charges, ...extra, 'Aiding an escape'];

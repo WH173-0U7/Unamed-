@@ -435,7 +435,7 @@ export function wear(inv: Inventory, slot: 'top' | 'bottom' | 'bag', name: strin
     // (In your hand, it stays in your hand: a weapon goes in a pocket if there's one for it.)
     if (it.hand) {
       const sp = it.kind === 'weapon' ? hidingSpot(trial, it.size, it.kg, it) : null;
-      const x = sp ? { ...it, spot: sp.id } : { ...it };
+      const x = sp ? { ...it, spot: sp.id } : { ...it, spot: '' };
       trial.items.push(x);
       placed.set(it, x);
       continue;
@@ -734,6 +734,13 @@ export function nextSpot(inv: Inventory, x: InvItem): Spot | null {
   return ok[(i + 1) % ok.length];
 }
 
+/** Somewhere to put a held thing away: its own pocket if that's still there and it fits, else the best one with room. Null: nowhere. */
+export function awayTo(inv: Inventory, it: InvItem): Spot | null {
+  const rest: Inventory = { ...inv, items: inv.items.filter((y) => y !== it) };
+  const sp = inv.spots.find((s) => s.id === it.spot);
+  if (sp && fitsIn(sp, it) && SIZE_RANK[sp.fits] >= SIZE_RANK[it.size] && usedKg(rest, sp.id) + it.kg <= sp.maxKg + 1e-9) return sp;
+  return it.kind === 'weapon' ? hidingSpot(rest, it.size, it.kg, it) : findRoom(rest, it.size, it.kg, it);
+}
 /** Is this spot in a bag (it takes a moment to get something out)? */
 export const inBag = (inv: Inventory, spotId: string) => /backpack|shoulder bag|tote|fanny|ankle/i.test(inv.spots.find((s) => s.id === spotId)?.on ?? '');
 

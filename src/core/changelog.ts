@@ -11,6 +11,19 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.55',
+    date: 'Nov 7',
+    items: [
+      'Closing the game while a patrol car is coming no longer gets you out of the stop.',
+      'Ducking a patrol too late no longer says they get out of the car twice.',
+      'Arguing at a hearing no longer promises “half” when you were getting probation anyway.',
+      'Escaping from jail no longer ends with a cellmate tipping you off on your way out.',
+      'Your record’s “last let out” date is right after an escape attempt.',
+      'A weapon you were holding always goes into a pocket it fits when you put it away.',
+      'Bribing at a car stop no longer mentions a passenger seat; losing bail Dez posted no longer says you put it up.',
+    ],
+  },
+  {
     v: '2.54',
     date: 'Nov 7',
     items: [

@@ -8,7 +8,7 @@ import { caffeineEdge } from './health';
 import { partOfDay } from './clock';
 import { knifeOf, type Knife } from './knives';
 import { gunOf } from './guns';
-import { freeHand, lootLabel, take, type Inventory } from './inventory';
+import { awayTo, freeHand, lootLabel, take, type Inventory } from './inventory';
 import {
   STAT_NAMES,
   toughnessResist,
@@ -1519,6 +1519,12 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           const it = inv.items[Number(id.slice(5))];
           if (!it || it.kind !== 'weapon') return impacts;
           if (id.startsWith('stow:')) {
+            const to = awayTo(inv, it);
+            if (!to) {
+              say('info', `There’s nowhere to put the ${lc(it.name)} away.`);
+              return impacts;
+            }
+            it.spot = to.id;
             delete it.hand;
             say('you', `You put the ${lc(it.name)} away.`);
           } else {

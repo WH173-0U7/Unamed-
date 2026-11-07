@@ -56,7 +56,7 @@ weather all keep going whether you're playing or not.
 ### Police and jail
 - Stops, searches, lying your way out, running, arrests and charges.
 - Bail, court dates, warrants, fines, probation and sentences.
-- **Jail is real time, but shorter**: a night in a cell is 2 real hours, waiting in County for a hearing 8, and a sentence much less than its length (a month is about a day).
+- **Jail is real time, but shorter**: a night in a cell is 1 real hour, waiting in County for a hearing 5, and a sentence much less than its length (a month is about 16 hours).
 - Give up on a jailed character and they stay inside: as someone new you can **visit, bail them out or break them out** (at the transport van), then choose who to go on as.
 - A full criminal record on the You tab.
 

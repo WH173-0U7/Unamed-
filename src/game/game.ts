@@ -69,10 +69,18 @@ const prisonTerm = (days: number) => {
 };
 /** A date, with the year when it isn't this year's (a debt that came due while you were inside). */
 /** Real hours behind the door: a night in a cell, the wait in County for a hearing. */
-const CELL_HOURS = 2;
-const COUNTY_HOURS = 8;
-/** A sentence, in real hours: a day of it is far less than a real day (a week is about 11 hours, a month 22, a year about 3 days). */
-const servedHours = (days: number) => Math.max(CELL_HOURS, Math.round(4 * Math.sqrt(days)));
+const CELL_HOURS = 1;
+const COUNTY_HOURS = 5;
+/** A sentence, in real hours: a day of it is far less than a real day (a week is about 8 hours, a month 16, a year about 2½ days). */
+const servedHours = (days: number) => Math.max(2, Math.round(3 * Math.sqrt(days)));
+/** The sentence named in "Serving 30 days in County" / "Serving 2 years in state prison", in days. */
+const termDays = (what: string) => {
+  const m = /(\d+) (day|month|year)s?|\ba (year)\b/i.exec(what);
+  if (!m) return null;
+  const n = m[3] ? 1 : Number(m[1]);
+  const unit = (m[2] ?? m[3]).toLowerCase();
+  return unit === 'day' ? n : unit === 'month' ? Math.round(n * 30.4) : n * 365;
+};
 const dueText = (t: number) => (new Date(t).getFullYear() === new Date(now()).getFullYear() ? dateText(t) : new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }));
 /** Days Dez's vig keeps compounding once you're late. */
 const VIG_DAYS = 14;
@@ -3892,19 +3900,19 @@ export class Game {
   /** Jail got shorter: time already set the old way is cut to the new lengths (once). */
   private shortenOldTerms() {
     const st = this.save.state;
-    if (st.termsV2) return;
-    st.termsV2 = true;
+    if (st.termsV3) return;
+    st.termsV3 = true;
     const t = now();
+    const hoursFor = (what: string) => (/holding cell/i.test(what) ? CELL_HOURS : /waiting for your hearing/i.test(what) ? COUNTY_HOURS : ((d) => (d ? servedHours(d) : null))(termDays(what)));
     const j = this.jail;
     if (j && j.until > t) {
-      const dur = j.until - j.from;
-      const hrs = /holding cell/i.test(j.what) ? CELL_HOURS : /waiting for your hearing/i.test(j.what) ? COUNTY_HOURS : dur >= 2 * 86_400_000 ? servedHours(Math.round(dur / 86_400_000)) : dur / 3_600_000;
-      j.until = Math.max(t, Math.min(j.until, j.from + hrs * 3_600_000));
+      const hrs = hoursFor(j.what);
+      if (hrs != null) j.until = Math.max(t, Math.min(j.until, j.from + hrs * 3_600_000));
     }
     for (const x of this.selves) {
       if (x.status !== 'inside' || x.hearingAt != null || x.until <= t) continue;
-      const left = x.until - t;
-      if (left > 2 * 86_400_000) x.until = Math.min(x.until, t + servedHours(Math.ceil(left / 86_400_000)) * 3_600_000);
+      const hrs = hoursFor(x.what);
+      if (hrs != null) x.until = Math.min(x.until, t + hrs * 3_600_000);
     }
   }
   /** Held: that many more real hours behind a door you can't open. */

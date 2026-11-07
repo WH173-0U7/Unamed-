@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.52',
+    date: 'Nov 7',
+    items: [
+      'Long sentences are much shorter in real time: three months is about 22 hours, a year about 29, five years about a day and a half. Up to a month stays as it was.',
+      'Anyone already serving a long sentence has their time cut to match.',
+    ],
+  },
+  {
     v: '2.51',
     date: 'Nov 7',
     items: [

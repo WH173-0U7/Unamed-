@@ -71,8 +71,12 @@ const prisonTerm = (days: number) => {
 /** Real hours behind the door: a night in a cell, the wait in County for a hearing. */
 const CELL_HOURS = 1;
 const COUNTY_HOURS = 5;
-/** A sentence, in real hours: a day of it is far less than a real day (a week is about 8 hours, a month 16, a year about 2½ days). */
-const servedHours = (days: number) => Math.max(2, Math.round(3 * Math.sqrt(days)));
+/**
+ * A sentence, in real hours: a day of it is far less than a real day. Up to a
+ * month it grows (a week is about 8 hours, a month 16); past that, only a little
+ * (three months about 22, a year about 29, five years about 37).
+ */
+const servedHours = (days: number) => Math.max(2, Math.round(days <= 30 ? 3 * Math.sqrt(days) : 3 * Math.sqrt(30) + 5 * Math.log(days / 30)));
 /** The sentence named in "Serving 30 days in County" / "Serving 2 years in state prison", in days. */
 const termDays = (what: string) => {
   const m = /(\d+) (day|month|year)s?|\ba (year)\b/i.exec(what);
@@ -3900,8 +3904,8 @@ export class Game {
   /** Jail got shorter: time already set the old way is cut to the new lengths (once). */
   private shortenOldTerms() {
     const st = this.save.state;
-    if (st.termsV3) return;
-    st.termsV3 = true;
+    if (st.termsV4) return;
+    st.termsV4 = true;
     const t = now();
     const hoursFor = (what: string) => (/holding cell/i.test(what) ? CELL_HOURS : /waiting for your hearing/i.test(what) ? COUNTY_HOURS : ((d) => (d ? servedHours(d) : null))(termDays(what)));
     const j = this.jail;

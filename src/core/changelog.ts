@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.53',
+    date: 'Nov 7',
+    items: [
+      'Waiting in County for your hearing takes half an hour now (was 5 hours), and the same for anyone you used to be who’s waiting on one.',
+      'Bailing out someone you used to be gives them a court date of their own, a day or so off, not the hearing they were about to have.',
+    ],
+  },
+  {
     v: '2.52',
     date: 'Nov 7',
     items: [

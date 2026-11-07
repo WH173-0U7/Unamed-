@@ -70,7 +70,8 @@ const prisonTerm = (days: number) => {
 /** A date, with the year when it isn't this year's (a debt that came due while you were inside). */
 /** Real hours behind the door: a night in a cell, the wait in County for a hearing. */
 const CELL_HOURS = 1;
-const COUNTY_HOURS = 5;
+/** (Half an hour: the hearing comes quickly.) */
+const COUNTY_HOURS = 0.5;
 /**
  * A sentence, in real hours: a day of it is far less than a real day. Up to a
  * month it grows (a week is about 8 hours, a month 16); past that, only a little
@@ -3904,8 +3905,8 @@ export class Game {
   /** Jail got shorter: time already set the old way is cut to the new lengths (once). */
   private shortenOldTerms() {
     const st = this.save.state;
-    if (st.termsV4) return;
-    st.termsV4 = true;
+    if (st.termsV5) return;
+    st.termsV5 = true;
     const t = now();
     const hoursFor = (what: string) => (/holding cell/i.test(what) ? CELL_HOURS : /waiting for your hearing/i.test(what) ? COUNTY_HOURS : ((d) => (d ? servedHours(d) : null))(termDays(what)));
     const j = this.jail;
@@ -3914,6 +3915,8 @@ export class Game {
       if (hrs != null) j.until = Math.max(t, Math.min(j.until, j.from + hrs * 3_600_000));
     }
     for (const x of this.selves) {
+      // (Held for a hearing: it comes quickly now.)
+      if (x.status === 'inside' && x.hearingAt != null && x.hearingAt > t + COUNTY_HOURS * 3_600_000) x.hearingAt = x.until = t + COUNTY_HOURS * 3_600_000;
       if (x.status !== 'inside' || x.hearingAt != null || x.until <= t) continue;
       const hrs = hoursFor(x.what);
       if (hrs != null) x.until = Math.min(x.until, t + hrs * 3_600_000);
@@ -4014,8 +4017,9 @@ export class Game {
     me.priors = Math.max(0, this.record.arrests - 1);
     if (c && this.save.state.bailOffer) {
       // Waiting on a judge: held till the hearing (out on bail before it, if someone pays).
-      me.hearingAt = c.courtAt;
-      me.until = c.courtAt;
+      // (The hearing comes quickly when you're held for it.)
+      me.hearingAt = Math.min(c.courtAt, now() + COUNTY_HOURS * 3_600_000);
+      me.until = me.hearingAt;
       me.charges = [...c.charges];
       if (this.save.state.bailOffer === 'bail' && c.bail) me.bail = c.bail * 100;
       me.what = 'In County, waiting for a hearing';
@@ -4183,7 +4187,8 @@ export class Game {
       // Out, with a court date of their own (and the bail back to whoever shows up for it).
       const c = (x.state.case ?? { charges: x.charges ?? [], bail: 0, courtAt: x.hearingAt }) as { charges: string[]; bail: number; courtAt: number; bailPaid?: number };
       c.bailPaid = want;
-      c.courtAt = x.hearingAt;
+      // (Out on bail: a court date of their own, like anyone's.)
+      c.courtAt = courtDate();
       x.state.case = c;
       x.status = 'free';
       x.at = x.metAt = now();
@@ -6862,9 +6867,9 @@ export class Game {
         (this.save.state.bailOffer === 'bail'
           ? ((have) =>
               `<button type="button" class="place" data-police="bail" ${have < (this.case?.bail ?? 0) * 100 ? 'disabled' : ''}><b>Pay bail: ${money((this.case?.bail ?? 0) * 100)}</b><small>${have < (this.case?.bail ?? 0) * 100 ? `You’ve only got ${money(have)}, cash and bank together` : 'Cash first, then your bank account. You get it back if you show up to court.'}</small></button>` +
-              `<button type="button" class="place" data-police="custody"><b>Wait in jail for the hearing</b><small>${COUNTY_HOURS} real hours in County, then the judge.</small></button>`)(Math.round(cashOf(this.inventory) * 100) + (this.account?.cents ?? 0))
+              `<button type="button" class="place" data-police="custody"><b>Wait in jail for the hearing</b><small>${Math.round(COUNTY_HOURS * 60)} real minutes in County, then the judge.</small></button>`)(Math.round(cashOf(this.inventory) * 100) + (this.account?.cents ?? 0))
           : this.save.state.bailOffer === 'custody'
-            ? `<button type="button" class="place" data-police="custody"><b>Wait for the hearing</b><small>${COUNTY_HOURS} real hours in County, then the judge.</small></button>`
+            ? `<button type="button" class="place" data-police="custody"><b>Wait for the hearing</b><small>${Math.round(COUNTY_HOURS * 60)} real minutes in County, then the judge.</small></button>`
             : `<button type="button" class="place" data-police="done"><b>Go on</b><small>${this.save.state.policeArrested ? 'It’s on your record (You: Criminal record).' : 'Back to the street.'}</small></button>`) +
         `</div>`;
       return;

@@ -84,7 +84,7 @@ export interface HuntState {
 export const REPORTED_HOURS = 3;
 export const reported = (c: { takenAt: number }, t: number) => t - c.takenAt > REPORTED_HOURS * 3_600_000;
 
-const COLORS = ['grey', 'white', 'black', 'silver', 'dark blue', 'maroon', 'green', 'beige'];
+const COLORS = ['gray', 'white', 'black', 'silver', 'dark blue', 'maroon', 'green', 'beige'];
 const STREETS = ['Alder St', 'Kestrel Ave', 'Larkin St', 'Halsey Ave', 'Pruitt St', 'Ninth St', 'Cobb Ave', 'Delmar St', 'Wexford Rd', 'Bellamy St', 'Fulton Ave', 'Grand Ave', 'Ivy St', 'Tanner Rd'];
 const any = <T>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)];
 

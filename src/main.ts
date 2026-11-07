@@ -250,7 +250,7 @@ function save(quiet = false): boolean {
   }
   if (!ok && (!quiet || performance.now() - failSaid > 60_000)) {
     failSaid = performance.now();
-    menu.toast("Couldn't save: storage is full or blocked");
+    menu.toast("Couldn’t save: storage is full or blocked");
   }
   return ok;
 }
@@ -264,7 +264,7 @@ function updatePauseInfo() {
 function startGame(fresh: boolean) {
   const data = fresh ? newSave() : loadSave();
   if (!data) {
-    menu.toast("Couldn't load the saved game");
+    menu.toast("Couldn’t load the saved game");
     menu.setSaveInfo(null);
     return;
   }
@@ -285,7 +285,7 @@ function startGame(fresh: boolean) {
       menu.toast('The save was damaged: loaded the one before it');
     } catch {
       game = null;
-      menu.toast("The saved game is damaged and can't be loaded");
+      menu.toast("The saved game is damaged and can’t be loaded");
       return;
     }
   }

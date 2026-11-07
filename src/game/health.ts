@@ -291,11 +291,11 @@ export function afterFight(h: Health, b: Body, result: Result): string[] {
       // Under for hours, not minutes.
       const gone = passHours(h, 1 + Math.floor(Math.random() * 3));
       if (h.dead) return gone;
-      return ['You come to on the sidewalk, sick and slow, with no idea how long you were gone.', ...gone, ...(h.bleeding ? ["You're still bleeding."] : []), ...lines];
+      return ['You come to on the sidewalk, sick and slow, with no idea how long you were gone.', ...gone, ...(h.bleeding ? ["You’re still bleeding."] : []), ...lines];
     }
     if (h.blood > h.maxBlood * (PASS_OUT + 0.01)) {
       h.concussion = Math.max(h.concussion, CONCUSSION_HOURS);
-      return ['You come to on the sidewalk a minute or two later, your head ringing. You\'re concussed.', ...(h.bleeding ? ["You're still bleeding."] : []), ...lines];
+      return ['You come to on the sidewalk a minute or two later, your head ringing. You’re concussed.', ...(h.bleeding ? ["You’re still bleeding."] : []), ...lines];
     }
     // Passed out from blood loss: out for hours, still bleeding. You may not wake up.
     const out = lieThere(h);
@@ -336,7 +336,7 @@ function lieThere(h: Health): string[] {
   h.blood = Math.round(Math.max(h.blood, h.maxBlood * (PASS_OUT + 0.03)));
   // (Hours lying on the sidewalk: the cold gets into you.)
   if ((h.cold ?? 0) > 0) h.cold = Math.min(3, (h.cold ?? 0) + 1);
-  return [h.bleeding ? "You're still bleeding." : 'The blood has dried on you.', ...off];
+  return [h.bleeding ? "You’re still bleeding." : 'The blood has dried on you.', ...off];
 }
 
 /**
@@ -380,7 +380,7 @@ export function passHours(h: Health, hours: number, resting = false, clock = tru
         if (!h.bleeding) lines.push('The bleeding has stopped.');
       }
       if (!awayFloor && h.blood <= h.maxBlood * PASS_OUT) {
-        lines.push("You've lost too much blood. You collapse.");
+        lines.push("You’ve lost too much blood. You collapse.");
         lines.push(...lieThere(h));
         if (h.dead) return lines;
         lines.push('You wake up hours later.');
@@ -549,7 +549,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
         status: true,
         meter: { k: Math.min(1, f / 100), text: `${Math.round(f)} / 100` },
         effects: [`Stamina in a fight: −${Math.round(f * 0.4)}%`, `Your blows, and the odds on everything you try: −${Math.round(Math.min(15, f * 0.15))}%`, ...(lv >= 4 ? ['Too worn out to lurk: you need to lie down'] : [])],
-        heals: `${h.restingSince != null ? 'Lying down: fresh' : 'In a bed (your motel room): fresh'} in about ${left < 1 ? `${Math.max(1, Math.round(left * 60))} minutes` : `${Math.round(left * 10) / 10} hours`}, real time. A car takes longer, a doorway longer still. Otherwise, game open or closed, it wears off by itself (about 5 hours from exhausted).`,
+        heals: `${h.restingSince != null ? 'Lying down: fresh' : 'In a bed (your motel room): fresh'} in about ${left < 1 ? `${Math.max(1, Math.round(left * 60))} minutes` : `${Math.round(left * 10) / 10} hour${Math.round(left * 10) === 10 ? '' : 's'}`}, real time. A car takes longer, a doorway longer still. Otherwise, game open or closed, it wears off by itself (about 5 hours from exhausted).`,
       });
     }
   }
@@ -608,10 +608,10 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
     }
     if (p === 'ribs') {
       effects.push(`Every move costs ${h.lung ? '2.4' : '1.8'}× the stamina`);
-      effects.push(`Fights start with ${h.lung ? '30% of' : 'half'} your stamina, and you can't get back more than that`);
+      effects.push(`Fights start with ${h.lung ? '30% of' : 'half'} your stamina, and you can’t get back more than that`);
       if (!h.lung) effects.push('A stomp or hard blow there can drive a rib into your lung');
     }
-    if (p === 'nose') effects.push('It hurts and it shows, but it doesn\'t slow you in a fight');
+    if (p === 'nose') effects.push('It hurts and it shows, but it doesn’t slow you in a fight');
     const left = h.mending[p] ?? 0;
     const splinted = h.splinted?.includes(p);
     out.push({
@@ -625,7 +625,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
   if (h.lung) {
     out.push({
       name: 'Punctured lung',
-      effects: ['Every move costs 2.4× the stamina', "Fights start with 30% of your stamina, and you can't get back more than that"],
+      effects: ['Every move costs 2.4× the stamina', "Fights start with 30% of your stamina, and you can’t get back more than that"],
       heals: 'Heals when your ribs do.',
     });
   }
@@ -649,10 +649,10 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
       meter: { k: Math.min(1, mins / (HIGH_HOURS[h.high] * 60)), text: mins < 90 ? `${mins} min left` : `${Math.round(mins / 60)} h left` },
       effects:
         h.high === 'meth'
-          ? ['Your blows do 12% more damage', 'Your blows land: −4% (you can\'t keep still)']
+          ? ['Your blows do 12% more damage', 'Your blows land: −4% (you can’t keep still)']
           : h.high === 'tranq'
             ? ['Your blows land: −8%', 'Their blows land: +6% (groggy)']
-            : ['Your blows land: −12%', 'Their blows land: +10% (you\'re slow to move)'],
+            : ['Your blows land: −12%', 'Their blows land: +10% (you’re slow to move)'],
       heals: `Wears off in about ${mins < 90 ? `${mins} minute${mins === 1 ? '' : 's'}` : `${Math.round(mins / 60)} hours`}.`,
     });
   }
@@ -665,7 +665,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
       status: true,
       meter: { k: Math.min(1, mg / 600), text: `${Math.round(mg)} mg (jittery at 400)` },
       effects: [`Your blows land: ${pct}`, `Their blows land: ${edge >= 0 ? '−' : '+'}${Math.abs(Math.round(edge * 100))}%`, ...(mg >= 400 ? ['Stress builds faster (your heart is pounding)'] : [])],
-      heals: `Half of it is gone every 5 hours (real time). Below 40 mg you won't feel it: about ${hrs(Math.log2(mg / 40) * 5)} from now.`,
+      heals: `Half of it is gone every 5 hours (real time). Below 40 mg you won’t feel it: about ${hrs(Math.log2(mg / 40) * 5)} from now.`,
     });
   }
   soberUp(h);
@@ -695,7 +695,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
     const left = h.markHours?.[k];
     return left ? `Heals in about ${hrs(left)}.` : 'Heals with time.';
   };
-  const looks = 'It shows on your face, nothing more: it doesn\'t slow you in a fight';
+  const looks = 'It shows on your face, nothing more: it doesn’t slow you in a fight';
   if (m.jaw) out.push({ mark: true, name: 'Broken jaw', effects: [looks], heals: markLeft('jaw') });
   if (m.eye) out.push({ mark: true, name: 'Black eye', effects: [looks], heals: markLeft('eye') });
   if (m.brow) out.push({ mark: true, name: 'Cut over one eye', effects: [looks], heals: `${markLeft('brow')} ${h.stitched?.brow ? 'Stitched: it’ll leave a faint line.' : 'Unstitched, it will leave a scar.'}` });
@@ -710,7 +710,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
     const face = places.filter((p) => !faint.includes(p) && /cheek|eyebrow|lip|jaw|face/.test(p));
     out.push({
       mark: true, name: `Scar${places.length > 1 ? 's' : ''}: ${places.join(', ')}`,
-      effects: [`On your ${andList([...(face.length ? [`face${face.some((p) => p !== 'face') ? ` (${face.filter((p) => p !== 'face').join(', ')})` : ''}`] : []), ...places.filter((p) => !face.includes(p) && !faint.includes(p)), ...(faint.length ? ['eyebrow (a faint line, where it was stitched)'] : [])])}.${face.length ? ' A scar on the face is what people remember.' : ''} It doesn't slow you in a fight.`],
+      effects: [`On your ${andList([...(face.length ? [`face${face.some((p) => p !== 'face') ? ` (${face.filter((p) => p !== 'face').join(', ')})` : ''}`] : []), ...places.filter((p) => !face.includes(p) && !faint.includes(p)), ...(faint.length ? ['eyebrow (a faint line, where it was stitched)'] : [])])}.${face.length ? ' A scar on the face is what people remember.' : ''} It doesn’t slow you in a fight.`],
       heals: 'For good.',
     });
   }

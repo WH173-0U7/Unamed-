@@ -8,16 +8,16 @@ const STAGE_TITLE: Record<string, string> = {
   surveil: 'What now?',
   violence: 'What now?',
   combat: 'Fight',
-  helpless: "They're out cold",
+  helpless: "They’re out cold",
   yielded: 'They gave up',
-  down: "They're down",
-  youDown: "You're on the floor",
+  down: "They’re down",
+  youDown: "You’re on the floor",
 };
 /** The tabs always in the same order, whatever the moment (so a thumb learns where they are). */
 const TAB_ORDER: Category[] = ['surveil', 'talk', 'violence', 'attack', 'stomp', 'torture', 'search', 'threaten', 'move'];
 
 export const RESULT: Record<string, string> = {
-  won: "They're down.",
+  won: "They’re down.",
   lost: 'You were beaten.',
   'they-fled': 'They got away.',
   'you-fled': 'You got away.',
@@ -25,7 +25,7 @@ export const RESULT: Record<string, string> = {
   sold: 'You made a sale.',
   left: 'You let them go.',
   walked: 'You walked away.',
-  killed: "They're dead.",
+  killed: "They’re dead.",
   mugged: 'You mugged them.',
 };
 
@@ -321,7 +321,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       logMore();
 
       q('.enc-title').textContent =
-        e.stage === 'over' ? (e.resident && e.result === 'walked' ? 'You leave them where they lie.' : RESULT[e.result ?? 'left']) : e.stage === 'combat' && e.chase ? "They're running" : e.stage === 'combat' && e.them.out ? STAGE_TITLE.helpless : e.stage === 'combat' && e.them.yielded ? STAGE_TITLE.yielded : e.stage === 'combat' && e.you.down ? STAGE_TITLE.youDown : e.stage === 'combat' && e.them.down ? STAGE_TITLE.down : STAGE_TITLE[e.stage];
+        e.stage === 'over' ? (e.resident && e.result === 'walked' ? 'You leave them where they lie.' : RESULT[e.result ?? 'left']) : e.stage === 'combat' && e.chase ? "They’re running" : e.stage === 'combat' && e.them.out ? STAGE_TITLE.helpless : e.stage === 'combat' && e.them.yielded ? STAGE_TITLE.yielded : e.stage === 'combat' && e.you.down ? STAGE_TITLE.youDown : e.stage === 'combat' && e.them.down ? STAGE_TITLE.down : STAGE_TITLE[e.stage];
       opts = options(e);
       const cats = [...new Set(opts.filter((o) => o.cat).map((o) => o.cat!))];
       const key = cats.join(',');

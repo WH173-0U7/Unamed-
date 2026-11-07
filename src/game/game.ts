@@ -45,15 +45,15 @@ interface Humanity {
 }
 const HUMANITY: { at: number; name: string; line: string }[] = [
   { at: 10, name: 'Cold', line: 'Something in you has gone cold.' },
-  { at: 20, name: 'Callous', line: "Their pain doesn't reach you the way it did." },
-  { at: 32, name: 'Cruel', line: "You've started to enjoy their pain." },
+  { at: 20, name: 'Callous', line: "Their pain doesn’t reach you the way it did." },
+  { at: 32, name: 'Cruel', line: "You’ve started to enjoy their pain." },
   { at: 46, name: 'Vicious', line: 'You hurt people more than you need to now. You know it.' },
   { at: 62, name: 'Heartless', line: 'You feel nothing for them. Nothing at all.' },
   { at: 80, name: 'Sadist', line: 'You take your time with them now. You like the begging.' },
   { at: 100, name: 'Monster', line: 'People cross the street when they see you coming. They are right to.' },
-  { at: 125, name: 'Butcher', line: "You've stopped counting what you've done." },
-  { at: 155, name: 'Devil', line: "When they talk about you on the street, they don't use your name." },
-  { at: 190, name: 'Husk', line: "There's nothing left inside you. You're a husk." },
+  { at: 125, name: 'Butcher', line: "You’ve stopped counting what you’ve done." },
+  { at: 155, name: 'Devil', line: "When they talk about you on the street, they don’t use your name." },
+  { at: 190, name: 'Husk', line: "There’s nothing left inside you. You’re a husk." },
 ];
 /** How evil you are shows: people are more scared of you, the further gone you are. */
 // Someone far gone carries it in how they look at you, a little (strangers can't
@@ -509,14 +509,14 @@ export class Game {
       h.cold = cold + 1;
       return [
         '',
-        snowing ? `Snow melts into your ${top.toLowerCase() || 'clothes'} and the cold gets in. You're chilled.` : warm < 1 ? "The rain gets in at your collar and cuffs. You're chilled." : `The rain soaks through your ${top.toLowerCase() || 'clothes'}. You're chilled.`,
-        snowing ? "The snow has worked its way in under everything. You're cold to the bone." : "Your clothes cling, cold and heavy. You're cold to the bone.",
-        "You can't stop shivering. Your fingers won't work properly. You're freezing.",
+        snowing ? `Snow melts into your ${top.toLowerCase() || 'clothes'} and the cold gets in. You’re chilled.` : warm < 1 ? "The rain gets in at your collar and cuffs. You’re chilled." : `The rain soaks through your ${top.toLowerCase() || 'clothes'}. You’re chilled.`,
+        snowing ? "The snow has worked its way in under everything. You’re cold to the bone." : "Your clothes cling, cold and heavy. You’re cold to the bone.",
+        "You can’t stop shivering. Your fingers won’t work properly. You’re freezing.",
       ][h.cold];
     }
     if (rain === 0 && cold > 0 && Math.random() < 0.35) {
       h.cold = cold - 1;
-      return h.cold ? 'You dry off a little.' : "You've dried off. You're warm enough again.";
+      return h.cold ? 'You dry off a little.' : "You’ve dried off. You’re warm enough again.";
     }
     return null;
   }
@@ -760,7 +760,7 @@ export class Game {
         return;
       }
       if (fatigueNow(this.health) < 3) {
-        this.note(["You're not hurt, and you're not tired. There's nothing to rest off."]);
+        this.note(["You’re not hurt, and you’re not tired. There’s nothing to rest off."]);
         return;
       }
       this.encounter = null;
@@ -778,7 +778,7 @@ export class Game {
     if (h.cold) {
       // Out of the wind you warm up a little; dry, you warm up more.
       h.cold = Math.max(0, h.cold - (raining ? 1 : 2));
-      lines.push(h.cold ? `You're still ${COLD_NAMES[h.cold].toLowerCase()}, but less.` : 'You stop shivering.');
+      lines.push(h.cold ? `You’re still ${COLD_NAMES[h.cold].toLowerCase()}, but less.` : 'You stop shivering.');
     }
     if (h.wired && h.wiredUntil == null) {
       h.wired = false;
@@ -949,7 +949,7 @@ export class Game {
     this.save.state.crowd = [];
     // Known around here: his people come to you.
     if (!this.connect.known && !this.connect.cutOff && this.infamy.rep >= 30 && Math.random() < 0.05) {
-      this.note(['A kid on a bike slows down beside you and doesn’t look at you. "Dez wants to meet you. The alley behind the laundromat, after dark." Then he’s gone.', ...this.learnConnect('a kid on a bike')]);
+      this.note(['A kid on a bike slows down beside you and doesn’t look at you. “Dez wants to meet you. The alley behind the laundromat, after dark.” Then he’s gone.', ...this.learnConnect('a kid on a bike')]);
       return;
     }
     if (fatigueNow(this.health) >= FATIGUE_SPENT) {
@@ -976,7 +976,7 @@ export class Game {
         lines.push(pack ? 'Your hand keeps going to the pack in your pocket.' : bottle ? 'You keep thinking about the bottle in your pocket.' : cravingLine(wd.worst.k));
       }
       if (wd.seizure > 0 && Math.random() < wd.seizure) {
-        lines.push('Your jaw locks, your arms jerk, and the street tilts away. When you come to, you\'re on the sidewalk, your tongue bitten, your whole body aching. A seizure.');
+        lines.push('Your jaw locks, your arms jerk, and the street tilts away. When you come to, you’re on the sidewalk, your tongue bitten, your whole body aching. A seizure.');
         lines.push(...passHours(this.health, 1));
         this.health.stress = Math.min(100, (this.health.stress ?? 0) + 25);
         this.health.concussion = Math.max(this.health.concussion, 2);
@@ -998,8 +998,8 @@ export class Game {
       this.save.state.policeWhy = [
         ...lines,
         wanted
-          ? oneOf(['A patrol car slows as it passes. The one in the passenger seat looks from you to his phone, and back.', "A patrol car rolls past, slow. The brake lights come on. They've had a description."])
-          : oneOf(['A patrol car slows alongside. The one in the passenger seat is looking at your pocket, at what shows.', "A patrol car slows alongside. The driver's eyes go to the shape under your clothes and stay there."]),
+          ? oneOf(['A patrol car slows as it passes. The one in the passenger seat looks from you to his phone, and back.', "A patrol car rolls past, slow. The brake lights come on. They’ve had a description."])
+          : oneOf(['A patrol car slows alongside. The one in the passenger seat is looking at your pocket, at what shows.', "A patrol car slows alongside. The driver’s eyes go to the shape under your clothes and stay there."]),
       ];
       this.save.state.policeStop = true;
       this.openSheet('police');
@@ -1076,7 +1076,7 @@ export class Game {
           e.recognised = true;
           e.byRep = true;
           e.grudge = 0;
-          e.history = "You've never met. But they know your face: people talk.";
+          e.history = "You’ve never met. But they know your face: people talk.";
         }
         e.lookAt = { anon, clothes };
       }
@@ -1204,7 +1204,7 @@ export class Game {
     for (const text of after) e.log.push({ by: 'info', text });
     // What finished you: the last thing they did.
     const lastHit = ([...e.log].reverse().find((l) => l.by === 'them' && l.hit === 'you') ?? [...e.log].reverse().find((l) => l.by === 'them'))?.text;
-    const hitText = lastHit?.replace(/(\s*(You're out cold|You're concussed|You're bleeding[^.]*|You're winded|Something cracks[^.]*)\.)+\s*$/, '');
+    const hitText = lastHit?.replace(/(\s*(You['’]re out cold|You['’]re concussed|You['’]re bleeding[^.]*|You['’]re winded|Something cracks[^.]*)\.)+\s*$/, '');
     const remember = hitText && !e.you.drugOut && e.result === 'lost' ? [`The last thing you remember: ${hitText[0].toLowerCase()}${hitText.slice(1)}`] : [];
     if (this.health.dead) {
       if (impacts.length) this.feel(impacts);
@@ -1298,7 +1298,7 @@ export class Game {
       lines = [
         ...lines,
         gone.length ? `They’ve been through your pockets. Gone to Dez: ${listOf(gone)}.` : 'They’ve been through your pockets and found nothing.',
-        dz && dz.owed ? `You still owe ${money(dz.owed)}.` : c > owed ? "That's the debt paid. Dez's man kept the rest, for the trouble." : "That's the debt paid.",
+        dz && dz.owed ? `You still owe ${money(dz.owed)}.` : c > owed ? "That’s the debt paid. Dez’s man kept the rest, for the trouble." : "That’s the debt paid.",
       ];
       if (dz && !dz.owed) delete this.save.state.debt;
     } else if (beaten?.resident && this.place === 'home') {
@@ -1823,7 +1823,7 @@ export class Game {
       lines.push(...this.checkCar());
       if (this.atCar) this.atCar.visited = true;
     }
-    if (!inside && WET_AMOUNT[this.weather.now] > 0) lines.push(`It's still ${isSnow(this.weather.now) ? 'snowing' : 'raining'} (${WEATHER_NAME[this.weather.now].toLowerCase()}).`);
+    if (!inside && WET_AMOUNT[this.weather.now] > 0) lines.push(`It’s still ${isSnow(this.weather.now) ? 'snowing' : 'raining'} (${WEATHER_NAME[this.weather.now].toLowerCase()}).`);
     this.note(lines);
     buzz(10);
   }
@@ -1840,7 +1840,7 @@ export class Game {
       w.masked = false;
       lines.push(`You pull the ${w.face!.toLowerCase()} down before you go in.`);
     }
-    if (h.cold) lines.push("It's warm in here. Stay a while and you'll thaw out.");
+    if (h.cold) lines.push("It’s warm in here. Stay a while and you’ll thaw out.");
     const inHand = this.inventory.items.filter((x) => x.hand && x.kind === 'weapon');
     if (inHand.length) {
       for (const x of inHand) delete x.hand;
@@ -1861,7 +1861,7 @@ export class Game {
     if (this.place !== 'pharmacy' || cashOf(inv) < m.price) return;
     const it = stow(inv, { kind: 'med', name: m.name, med: id });
     if (!it) {
-      this.note([`You've got nowhere to put ${withA(m.name)}. ${noRoomWhy(inv, measure({ kind: 'med', name: m.name, med: id }).size, measure({ kind: 'med', name: m.name, med: id }).kg)}`]);
+      this.note([`You’ve got nowhere to put ${withA(m.name)}. ${noRoomWhy(inv, measure({ kind: 'med', name: m.name, med: id }).size, measure({ kind: 'med', name: m.name, med: id }).kg)}`]);
       return;
     }
     const paid = this.payLine(m.price * 100);
@@ -1960,7 +1960,7 @@ export class Game {
     if (how === 'wear' && (s.slot === 'top' || s.slot === 'bottom' || s.slot === 'bag')) {
       const w = wouldLeave(inv, s.slot, s.name);
       if (w.cash) {
-        this.note([`If you swap to the ${lc(s.name)}, you'd have nowhere to put all your cash.`]);
+        this.note([`If you swap to the ${lc(s.name)}, you’d have nowhere to put all your cash.`]);
         return;
       }
       const armed = this.armedWear?.id === s.id && performance.now() - this.armedWear.at < 8000;
@@ -1995,15 +1995,15 @@ export class Game {
       if (!mine) {
         const fake = inv.items.some((x) => x.kind === 'id');
         if (fake) this.goTo('street');
-        this.note([fake ? 'He looks at the ID, then at you. "That\'s not you." He slides it back and doesn\'t take his eyes off you until you\'re out the door.' : '"ID first. Your own. Everybody gets the background check."']);
+        this.note([fake ? 'He looks at the ID, then at you. “That’s not you.” He slides it back and doesn’t take his eyes off you until you’re out the door.' : '“ID first. Your own. Everybody gets the background check.”']);
         return;
       }
       if (s.gun) {
         if (this.charged) {
-          this.note(['You fill in the form, and he phones it through. It doesn\'t take long. "Denied." He doesn\'t say why. He doesn\'t need to: you\'ve been charged with something.']);
+          this.note(['You fill in the form, and he phones it through. It doesn’t take long. “Denied.” He doesn’t say why. He doesn’t need to: you’ve been charged with something.']);
           return;
         }
-        idLine = `You fill in the federal form and he phones your ${lc(mine.name)} through for the background check. Twenty minutes of waiting, then: "Proceed."`;
+        idLine = `You fill in the federal form and he phones your ${lc(mine.name)} through for the background check. Twenty minutes of waiting, then: “Proceed.”`;
       } else idLine = `He checks your ${lc(mine.name)}.`;
     }
     let line: string;
@@ -2014,11 +2014,11 @@ export class Game {
       h.cold = Math.max(0, was - 1);
       h.stress = Math.max(0, (h.stress ?? 0) - 6);
       addCaffeine(h, 95);
-      line = `You buy a coffee and drink it at the counter, too hot to taste. ${was ? (h.cold ? "Some of the cold goes out of you." : "You're warm again.") : 'Your hands steady a little.'}`;
+      line = `You buy a coffee and drink it at the counter, too hot to taste. ${was ? (h.cold ? "Some of the cold goes out of you." : "You’re warm again.") : 'Your hands steady a little.'}`;
     } else if (s.med) {
       const m = medById(s.med);
       if (!stow(inv, { kind: 'med', name: m.name, med: s.med })) {
-        this.note([`You've got nowhere to put ${withA(m.name)}. ${noRoomWhy(inv, measure({ kind: 'med', name: m.name, med: s.med }).size, measure({ kind: 'med', name: m.name, med: s.med }).kg)}`]);
+        this.note([`You’ve got nowhere to put ${withA(m.name)}. ${noRoomWhy(inv, measure({ kind: 'med', name: m.name, med: s.med }).size, measure({ kind: 'med', name: m.name, med: s.med }).kg)}`]);
         return;
       }
       line = `You buy ${withA(m.name)} from behind the counter.`;
@@ -2046,7 +2046,7 @@ export class Game {
     } else if (s.slot === 'gear') {
       // Worn under your clothes, for a blade.
       if ((inv.gear ?? []).includes(s.name)) {
-        this.note([`You've already got ${withA(lc(s.name))}.`]);
+        this.note([`You’ve already got ${withA(lc(s.name))}.`]);
         return;
       }
       (inv.gear ??= []).push(s.name);
@@ -2136,7 +2136,7 @@ export class Game {
     if (mine) return place === 'pawn' ? `He glances at your ${lc(mine.name)} and copies the name into a book.` : 'The clerk glances at your ID and nods.';
     const id = inv.items.find((x) => x.kind === 'id' && !/expired/i.test(x.name));
     if (!id) {
-      this.note([place === 'pawn' ? '"I need to see some ID." He taps the sign: all customers must show photo ID.' : '"ID?" You haven\'t got any. "Then no."']);
+      this.note([place === 'pawn' ? '“I need to see some ID.” He taps the sign: all customers must show photo ID.' : '“ID?” You haven’t got any. “Then no.”']);
       return null;
     }
     // It isn't you, and they can tell... unless you talk them round. (Taken once today, it'll do again.)
@@ -2146,12 +2146,12 @@ export class Game {
     if (doubt && Math.random() < 0.15 + lieBonus(this.stats) * 0.8 - fatigueOdds(this.health)) {
       train(this.stats, 'speech', 5);
       this.save.state.idOk = { place, id: id.detail ?? '', until: now() + 3 * 3_600_000 };
-      return `${place === 'pawn' ? 'He looks' : 'The clerk looks'} at the photo, then at you, frowning. "Lost a lot of weight since then," you say, and laugh, and ${place === 'pawn' ? 'he lets' : 'they let'} it go.`;
+      return `${place === 'pawn' ? 'He looks' : 'The clerk looks'} at the photo, then at you, frowning. “Lost a lot of weight since then,” you say, and laugh, and ${place === 'pawn' ? 'he lets' : 'they let'} it go.`;
     }
     if (doubt) train(this.stats, 'speech', 1);
     if (doubt) {
       // It isn't you, and they can tell.
-      const line = place === 'pawn' ? `He looks at the ${lc(id.name)}, then at you, then at it again. "That's not you." He slides it back. "Get out of my shop."` : `The clerk looks at the photo, then at you. "Nice try." They keep the bottle, and the ID goes in a drawer under the counter.`;
+      const line = place === 'pawn' ? `He looks at the ${lc(id.name)}, then at you, then at it again. “That’s not you.” He slides it back. “Get out of my shop.”` : `The clerk looks at the photo, then at you. “Nice try.” They keep the bottle, and the ID goes in a drawer under the counter.`;
       if (place === 'liquor') inv.items.splice(inv.items.indexOf(id), 1);
       if (place === 'pawn') {
         this.save.state.pawnBan = now() + 30 * 60_000;
@@ -2208,7 +2208,7 @@ export class Game {
       if (urgent) lines.push('One look at you and triage takes you straight through, past everyone waiting.');
       else {
         const wait = h.bleeding >= 2 ? 1 : 2 + Math.floor(Math.random() * 3);
-        lines.push(wait === 1 ? 'Triage moves you up the list. Still an hour in a plastic chair, pressing a wad of paper towels to the wound.' : `You wait. ${wait} hours of plastic chairs, a TV nobody's watching, and a vending machine that eats your change.`);
+        lines.push(wait === 1 ? 'Triage moves you up the list. Still an hour in a plastic chair, pressing a wad of paper towels to the wound.' : `You wait. ${wait} hours of plastic chairs, a TV nobody’s watching, and a vending machine that eats your change.`);
         // (Sitting up in a chair, not lying down resting.)
         lines.push(...passHours(h, wait, false));
         if (h.dead) return this.die(lines, 'You died in the waiting room.');
@@ -2310,14 +2310,14 @@ export class Game {
       if (!teller) return;
       const mine = this.ownId();
       if (!mine) {
-        this.note(['"I\'ll need to see your ID." Your own. The City Records Office can make you one.']);
+        this.note(['“I’ll need to see your ID.” Your own. The City Records Office can make you one.']);
         return;
       }
       const acct = this.account;
       if (what === 'open') {
         if (acct) return;
         this.save.state.account = { cents: 0 };
-        line = `The teller checks your ${lc(mine.name)}, types for a long time, and slides a form across. "You're all set, ${this.me.name.split(' ')[0]}."`;
+        line = `The teller checks your ${lc(mine.name)}, types for a long time, and slides a form across. “You’re all set, ${this.me.name.split(' ')[0]}.”`;
       } else if (!acct) return;
       else if (what === 'deposit') {
         const c = Math.round(cashOf(inv) * 100);
@@ -2331,7 +2331,7 @@ export class Game {
         if (!Number.isFinite(want) || want <= 0) return;
         const have = Math.round(cashOf(inv) * 100);
         if (want > have) {
-          this.note([`You've only got ${money(have)} on you.`]);
+          this.note([`You’ve only got ${money(have)} on you.`]);
           return;
         }
         // You hand it all over; the teller counts it, keeps what you said,
@@ -2347,7 +2347,7 @@ export class Game {
         const asked = Math.min(acct.cents, want);
         // (No more than you can carry.)
         if (roomForCents(inv, asked) <= 0) {
-          this.note(['"Where are you going to put it?" Your pockets are full of cash already.']);
+          this.note(['“Where are you going to put it?” Your pockets are full of cash already.']);
           return;
         }
         // (The big bills first, as many as will go; the rest stays in the account.)
@@ -2437,7 +2437,7 @@ export class Game {
       card.drained = true;
       const limited = behind > cap && twenties === avail;
       lines.push(`You type ${card.pin}. It works. You take out ${twenties === 1 ? 'a single twenty' : `${money(twenties * 2000)} in twenties`}${credit ? ' on a cash advance' : ''}${twenties < avail ? ', all you can carry. The rest stays in the machine.' : limited ? `, as much as the machine gives in a day.${credit ? '' : ' There was more in there.'}` : credit ? ', all the card allows.' : behind - twenties * 2000 >= 100 ? `, all of it but ${money(behind - twenties * 2000)} the machine can’t give in twenties.` : ', all that was in there.'}`);
-      lines.push("By morning they'll have stopped the card.");
+      lines.push("By morning they’ll have stopped the card.");
       f.heat = Math.min(100, f.heat + 10 * (1 - anon));
     }
     this.refresh();
@@ -2483,7 +2483,7 @@ export class Game {
     }
     if (fire.doses > 0) return null;
     inv.items.splice(inv.items.indexOf(fire), 1);
-    return matches ? 'That was the last match. You drop the empty book.' : "The lighter sputters and dies. It's out of fuel. You toss it.";
+    return matches ? 'That was the last match. You drop the empty book.' : "The lighter sputters and dies. It’s out of fuel. You toss it.";
   }
 
   /**
@@ -2593,7 +2593,7 @@ export class Game {
       this.refresh();
       this.note([
         'You crack the can and drink it down. Sickly sweet, and fizzing.',
-        mg >= 600 ? "That's a lot of caffeine in you. Your heart's going to be pounding." : mg >= 400 ? 'Your hands are going to shake.' : "In half an hour you'll be sharp.",
+        mg >= 600 ? "That’s a lot of caffeine in you. Your heart’s going to be pounding." : mg >= 400 ? 'Your hands are going to shake.' : "In half an hour you’ll be sharp.",
         'You crush the can and drop it.',
       ]);
       buzz(6);
@@ -2611,12 +2611,12 @@ export class Game {
     h.stress = Math.max(0, (h.stress ?? 0) - 8);
     const lines = [beer ? 'You crack the can and drink it down. Cold, and a little sour.' : 'You take a long pull from the bottle. It burns all the way down.'];
     // It feels like warmth, but it opens up your skin and you lose heat faster.
-    if (h.cold) lines.push("A glow spreads out from your stomach. You're not any warmer, really: you just can't feel the cold as much.");
+    if (h.cold) lines.push("A glow spreads out from your stomach. You’re not any warmer, really: you just can’t feel the cold as much.");
     if ((it.doses ?? 0) <= 0) {
       if (beer || /vodka|whiskey|wine/i.test(it.name)) {
         inv.items.splice(inv.items.indexOf(it), 1);
         lines.push(beer ? 'You crush the can and drop it.' : 'That was the last of it. You leave the bottle in a doorway.');
-      } else lines.push("That's the last of it. The bottle's empty.");
+      } else lines.push("That’s the last of it. The bottle’s empty.");
     }
     const now_ = drunkLevel(h.drunk);
     if (h.drunk >= 90) {
@@ -2636,8 +2636,8 @@ export class Game {
       h.drunk = 40;
       h.drunkAt = now();
       lines.push('You come to in a doorway, hours later, with your mouth tasting of sick.');
-    } else if (h.drunk >= 78 && h.drunk < 90) lines.push("The street spins. You're close to blacking out.");
-    else if (now_ > was) lines.push(['', "You're tipsy. Everything's a bit funnier.", "You're drunk. The street sways when you turn your head.", "You're wasted. Your feet aren't where you left them.", "You're blackout drunk. One more and you're gone."][now_]);
+    } else if (h.drunk >= 78 && h.drunk < 90) lines.push("The street spins. You’re close to blacking out.");
+    else if (now_ > was) lines.push(['', "You’re tipsy. Everything’s a bit funnier.", "You’re drunk. The street sways when you turn your head.", "You’re wasted. Your feet aren’t where you left them.", "You’re blackout drunk. One more and you’re gone."][now_]);
     this.closeSheet();
     this.refresh();
     this.note(lines);
@@ -2804,7 +2804,7 @@ export class Game {
     const c = this.ensureCar(it);
     if (c) this.goCar(c.id);
     else if (it.car === 'gone') {
-      this.note(['You walk back to where the car was. It isn’t there any more.']);
+      this.note(['You walk back to where the car was. It isn’t there anymore.']);
       this.refresh();
     }
   }
@@ -3213,7 +3213,7 @@ export class Game {
     this.exposure = 0;
     if (this.inside && h.cold) {
       h.cold--;
-      this.note([h.cold ? 'The warmth is getting into you. You thaw out a little.' : "You've warmed up. You stop shivering."]);
+      this.note([h.cold ? 'The warmth is getting into you. You thaw out a little.' : "You’ve warmed up. You stop shivering."]);
       this.refresh();
     } else if (!this.inside) {
       const c = this.chill();
@@ -3300,7 +3300,7 @@ export class Game {
     // A warrant out for you: they run your name, and that's that.
     const pending = this.case;
     if (pending?.warrant && choice !== 'run') {
-      lines.push('One of them runs your name on the radio. A pause. "There\'s a warrant out for you. Turn around."');
+      lines.push('One of them runs your name on the radio. A pause. “There’s a warrant out for you. Turn around.”');
       arrested = true;
       if (pending.warrantFor !== 'sting' && pending.warrantFor !== 'escape') charges.push('Failure to appear');
       // (Wanted for an escape: that's what they book you on, now.)
@@ -3359,7 +3359,7 @@ export class Game {
     }
     // Asleep in a stolen car: they've run the plate.
     if (carStop && choice !== 'run') {
-      lines.push(carHow === 'searching' || carHow === 'trunk' ? (carReported ? 'They run the plate. It comes back stolen. "Hands on the roof."' : 'They run the plate, and get the owner on the phone. Nobody lent you this car. "Hands on the roof."') : 'They run the plate while you blink at the flashlight. It comes back stolen. "Out of the car. Slowly."');
+      lines.push(carHow === 'searching' || carHow === 'trunk' ? (carReported ? 'They run the plate. It comes back stolen. “Hands on the roof.”' : 'They run the plate, and get the owner on the phone. Nobody lent you this car. “Hands on the roof.”') : 'They run the plate while you blink at the flashlight. It comes back stolen. “Out of the car. Slowly.”');
       arrested = true;
       charges.push('Possession of stolen property');
       this.impound(stopCar, true);
@@ -3367,20 +3367,20 @@ export class Game {
     // A weapon in your hand when they pull up: that's the whole stop.
     const brandished = inv.items.find((x) => x.kind === 'weapon' && x.hand);
     if (brandished && choice !== 'run') {
-      lines.push(`"Drop it! DROP THE ${brandished.name.toUpperCase()}!" Two guns on you. You drop it. They put you face down on the sidewalk.`);
+      lines.push(`“Drop it! DROP THE ${brandished.name.toUpperCase()}!” Two guns on you. You drop it. They put you face down on the sidewalk.`);
       arrested = true;
       charges.push('Brandishing a weapon');
     }
     const talk = () => {
       const odds = Math.max(0.03, Math.min(0.9, 0.3 + lieBonus(this.stats) - fatigueOdds(h) - f.heat / 150 - exposure(inv) * 0.6 - (w.masked ? 0.15 : 0) - ((h.drunk ?? 0) >= 40 ? 0.15 : 0)));
       if (Math.random() < odds) {
-        lines.push(oneOf(['You tell them you\'re walking home from a late shift, and keep your voice bored. They look at each other. "Alright. Get going."', 'You give them a name, a street, a reason, all of it easy. One of them almost smiles. "Get home."', 'You apologize for nothing in particular and ask them for directions. They point the way, and drive off.']));
+        lines.push(oneOf(['You tell them you’re walking home from a late shift, and keep your voice bored. They look at each other. “Alright. Get going.”', 'You give them a name, a street, a reason, all of it easy. One of them almost smiles. “Get home.”', 'You apologize for nothing in particular and ask them for directions. They point the way, and drive off.']));
         f.heat = Math.max(0, f.heat - 3);
         const up = train(this.stats, 'speech', 6);
         if (up) lines.push(`Speech went up to ${up}.`);
         return true;
       }
-      lines.push(oneOf(['You start on a story. Halfway through, you hear how it sounds. So do they.', 'You talk too fast. "Uh-huh. Turn around, hands on the car."']));
+      lines.push(oneOf(['You start on a story. Halfway through, you hear how it sounds. So do they.', 'You talk too fast. “Uh-huh. Turn around, hands on the car.”']));
       lied = true;
       train(this.stats, 'speech', 2);
       return false;
@@ -3391,7 +3391,7 @@ export class Game {
       addFatigue(h, 6);
       const odds = 0.35 - tired - (burglary ? 0.15 : 0) + accuracyBonus(this.stats) - legs * 0.3 - (h.cold ?? 0) * 0.05 - (h.stress ?? 0) * 0.002 - (h.blood < h.maxBlood * 0.75 ? 0.15 : 0);
       if (Math.random() < odds) {
-        lines.push(burglary ? (upstairs ? 'Down the fire escape, the last ten feet in a drop, and away down the alley. Flashlights behind you, then fewer, then none.' : 'Out the back, over a fence, through somebody’s yard and a hedge that tears your face. Flashlights behind you, then fewer, then none.') : 'You bolt. Shouts behind you, a car door, footsteps. You go over a fence and through a yard and down an alley, and when you stop, they\'re gone.');
+        lines.push(burglary ? (upstairs ? 'Down the fire escape, the last ten feet in a drop, and away down the alley. Flashlights behind you, then fewer, then none.' : 'Out the back, over a fence, through somebody’s yard and a hedge that tears your face. Flashlights behind you, then fewer, then none.') : 'You bolt. Shouts behind you, a car door, footsteps. You go over a fence and through a yard and down an alley, and when you stop, they’re gone.');
         f.heat = Math.min(100, f.heat + (burglary ? 25 : 10));
         // (Away on foot: the car stays with them.)
         if (carStop) this.impound(stopCar, false);
@@ -3404,9 +3404,9 @@ export class Game {
           // (Already wanted for missing court, that stays the reason; otherwise it's the buy.)
           if (!c.warrant) c.warrantFor = 'sting';
           c.warrant = true;
-          lines.push("They've got the buy on camera. There'll be a warrant out for you by morning.");
+          lines.push("They’ve got the buy on camera. There’ll be a warrant out for you by morning.");
           if (c.bailPaid) {
-            lines.push(`You were out on bail. Not any more: the ${money(c.bailPaid)} is gone.`);
+            lines.push(`You were out on bail. Not anymore: the ${money(c.bailPaid)} is gone.`);
             c.bailPaid = 0;
             c.jumped = true;
           }
@@ -3454,7 +3454,7 @@ export class Game {
       // Weapons get taken off you, and they remember it. (A loaded syringe is evidence instead.)
       // A pat-down is your clothes. Your bag, only if they've reason to.
       const bagSearched = looks || lied || f.heat > 40 || Math.random() < 0.35;
-      if (!bagSearched && inv.items.some((x) => inBag(inv, x.spot))) lines.push("They don't look in your bag.");
+      if (!bagSearched && inv.items.some((x) => inBag(inv, x.spot))) lines.push("They don’t look in your bag.");
       const blades = inv.items.filter((x) => x.kind === 'weapon' && !(x.secret && x.secret !== 'empty') && (bagSearched || !inBag(inv, x.spot)));
       // A switchblade, a butterfly knife, a push dagger: illegal to carry, and that's an arrest.
       const banned = blades.filter((x) => /switchblade|butterfly|push dagger/i.test(x.name));
@@ -3465,7 +3465,7 @@ export class Game {
       if (blades.length) {
         inv.items = inv.items.filter((x) => !blades.includes(x));
         f.heat = Math.min(100, f.heat + 6);
-        lines.push(`They find ${list2(blades.map((x) => `the ${lc(x.name)}`))} and take ${blades.length > 1 ? 'them' : 'it'}. "${blades.length > 1 ? 'What are these' : "What's this"} for?"`);
+        lines.push(`They find ${list2(blades.map((x) => `the ${lc(x.name)}`))} and take ${blades.length > 1 ? 'them' : 'it'}. “${blades.length > 1 ? 'What are these' : "What’s this"} for?”`);
         // A gun on you: that's serious.
         if (blades.some((x) => gunOf(x.name))) {
           f.heat = Math.min(100, f.heat + 15);
@@ -3474,13 +3474,13 @@ export class Game {
       }
       const evidence = inv.items.filter((x) => (this.stolen(x) || (x.secret && x.secret !== 'empty')) && (bagSearched || !inBag(inv, x.spot)));
       if (evidence.length) {
-        lines.push(`They find ${evidence.length === 1 ? `the ${lc(evidence[0].name)}` : `${evidence.length} things that aren't yours`}. "${evidence.length === 1 ? 'Whose is this' : 'Whose are these'}?"`);
+        lines.push(`They find ${evidence.length === 1 ? `the ${lc(evidence[0].name)}` : `${evidence.length} things that aren’t yours`}. “${evidence.length === 1 ? 'Whose is this' : 'Whose are these'}?”`);
         arrested = true;
         if (evidence.some((x) => x.kind !== 'misc' && !(x.secret && x.secret !== 'empty'))) charges.push('Possession of stolen property');
         if (evidence.some((x) => x.secret && x.secret !== 'empty')) charges.push(this.intent() ? 'Possession with intent to distribute' : 'Possession of a controlled substance');
       }
       if (looks) {
-        lines.push('One of them looks at you a long time, then at his phone. "That\'s the one." The cuffs go on.');
+        lines.push('One of them looks at you a long time, then at his phone. “That’s the one.” The cuffs go on.');
         arrested = true;
         // Someone who saw your face went to them: picked out of a line-up.
         if ((f.killsSeen ?? 0) > 0 && f.heat > 60) {
@@ -3494,7 +3494,7 @@ export class Game {
           f.burglaries = 0;
         }
       } else if (!evidence.length && !banned.length) {
-        lines.push('They find nothing. "Stay out of trouble." They get back in the car and roll away.');
+        lines.push('They find nothing. “Stay out of trouble.” They get back in the car and roll away.');
         f.heat = Math.max(0, f.heat - 5);
       }
     }
@@ -3509,17 +3509,17 @@ export class Game {
       }
     }
     if (arrested && pending?.stingPending) {
-      if (pending.warrantFor === 'sting') lines.push('At the station they run your name. There\'s a warrant out for you: the buy you ran from.');
+      if (pending.warrantFor === 'sting') lines.push('At the station they run your name. There’s a warrant out for you: the buy you ran from.');
       serveStings();
     }
     // (Caught running, wanted for an escape: that's what they book you on.)
     if (arrested && pending?.warrant && pending.warrantFor === 'escape' && !charges.some((x) => /escape/i.test(x)) && pending.charges.some((x) => /escape/i.test(x))) {
-      lines.push('At the station they run your name. There\'s a warrant out for you: the escape.');
+      lines.push('At the station they run your name. There’s a warrant out for you: the escape.');
       charges.push(...pending.charges.filter((x) => /escape|^failure to appear$/i.test(x)));
       pending.charges = pending.charges.filter((x) => !/escape|^failure to appear$/i.test(x));
     }
     if (arrested && pending?.warrant && pending.warrantFor !== 'sting' && pending.warrantFor !== 'escape' && !charges.includes('Failure to appear')) {
-      lines.push('At the station they run your name. There\'s a warrant out for you, too.');
+      lines.push('At the station they run your name. There’s a warrant out for you, too.');
       charges.push('Failure to appear');
     }
     if (arrested) {
@@ -3538,7 +3538,7 @@ export class Game {
       rec.arrests++;
       for (const c of charges) rec.charges[c] = (rec.charges[c] ?? 0) + 1;
       rec.last = now();
-      lines.push(`You're arrested.${took ? ` They keep ${took === 1 ? 'the evidence' : `${took === 2 ? 'both' : `all ${took}`} things they took off you`}.` : ''}`);
+      lines.push(`You’re arrested.${took ? ` They keep ${took === 1 ? 'the evidence' : `${took === 2 ? 'both' : `all ${took}`} things they took off you`}.` : ''}`);
       lines.push(...custodyCare(h));
       delete h.smokingUntil;
       lines.push('You spend the night in a holding cell that smells of bleach and piss.');
@@ -3553,7 +3553,7 @@ export class Game {
         // Arrested again while out on bail: it's revoked, and the money's gone.
         const revoked = !!c.bailPaid;
         if (revoked) {
-          lines.push(`You were already out on bail. It's revoked: the ${money(c.bailPaid!)} you put up is gone.`);
+          lines.push(`You were already out on bail. It’s revoked: the ${money(c.bailPaid!)} you put up is gone.`);
           c.bailPaid = 0;
         }
         const noBail = revoked || !!c.jumped || c.charges.some((x) => chargeOf(x).bail === 0) || now() < ((this.save.state.probationUntil as number) ?? 0);
@@ -3563,11 +3563,11 @@ export class Game {
         delete c.warrantFor;
         delete c.jumped;
         this.save.state.case = c;
-        lines.push(`In the morning you're charged: ${charges.map((x) => x.toLowerCase()).join(', ')}.`);
+        lines.push(`In the morning you’re charged: ${charges.map((x) => x.toLowerCase()).join(', ')}.`);
         // Picked up holding his product: Dez hears about it, and wonders what you said.
         if (this.connect.known && charges.some((x) => /intent to distribute|Selling/.test(x))) lines.push(this.trustDez(-15) ?? 'Word will get back to Dez that you were picked up holding. He won’t like it.');
         if (noBail) {
-          lines.push(revoked ? 'No bail this time. You\'re held until your hearing.' : now() < ((this.save.state.probationUntil as number) ?? 0) ? 'You were on probation. The judge doesn\'t even look up: no bail. You\'re held for your hearing.' : 'No bail. You\'re held until your hearing.');
+          lines.push(revoked ? 'No bail this time. You’re held until your hearing.' : now() < ((this.save.state.probationUntil as number) ?? 0) ? 'You were on probation. The judge doesn’t even look up: no bail. You’re held for your hearing.' : 'No bail. You’re held until your hearing.');
           this.save.state.bailOffer = 'custody';
         } else {
           lines.push(`Bail is set at ${money(c.bail * 100)}. Pay it and you walk out today with a court date, and get it back when you show up. Or wait in jail for the hearing.`);
@@ -3616,7 +3616,7 @@ export class Game {
     delete this.save.state.bailOffer;
     this.save.state.policeResult = [
       `You pay the ${money(want)}${want > fromCash ? ' (some of it from your bank account)' : ''} and sign where they tell you to.`,
-      `Your court date: ${dateText(c.courtAt)}, at the County Courthouse (weekdays, 9 to 4). Show up and you get the bail back. Don't, and there'll be a warrant out for you.`,
+      `Your court date: ${dateText(c.courtAt)}, at the County Courthouse (weekdays, 9 to 4). Show up and you get the bail back. Don’t, and there’ll be a warrant out for you.`,
     ];
     sound.coin();
     this.refresh();
@@ -3654,7 +3654,7 @@ export class Game {
     // Convicted again while on probation: the old sentence comes back on top.
     const onProbation = now() < ((this.save.state.probationUntil as number) ?? 0);
     const sev = c.charges.reduce((n, x) => n + chargeOf(x).sev, 0) + (onProbation ? 4 : 0);
-    const lines: string[] = [`Your case is called: ${c.charges.map((x) => x.toLowerCase()).join(', ')}. A public defender you've never met reads your file in the hallway.`];
+    const lines: string[] = [`Your case is called: ${c.charges.map((x) => x.toLowerCase()).join(', ')}. A public defender you’ve never met reads your file in the hallway.`];
     // Talking to the judge.
     const talk = lieBonus(this.stats) - fatigueOdds(this.health);
     train(this.stats, 'speech', 4);
@@ -3666,7 +3666,7 @@ export class Game {
     }
     delete this.save.state.case;
     if (Math.random() < Math.max(0.03, Math.min(0.6, 0.38 - sev * 0.04 + talk * 0.5 - priors * 0.06))) {
-      lines.push('The evidence is thin and the prosecutor lets it go. "Dismissed." You\'re out the door before anyone changes their mind.');
+      lines.push('The evidence is thin and the prosecutor lets it go. “Dismissed.” You’re out the door before anyone changes their mind.');
       f.heat = Math.max(0, f.heat - 20);
       return lines;
     }
@@ -3691,14 +3691,14 @@ export class Game {
         return lines;
       }
       const days = Math.max(2, Math.round(fine / 100));
-      lines.push(`You plead guilty. ${/^\$(8|1[18](,|$))/.test(money(fine * 100)) ? 'An' : 'A'} ${money(fine * 100)} fine you can't pay, so it's ${days} days instead.`);
+      lines.push(`You plead guilty. ${/^\$(8|1[18](,|$))/.test(money(fine * 100)) ? 'An' : 'A'} ${money(fine * 100)} fine you can’t pay, so it’s ${days} days instead.`);
       return [...lines, ...this.serve(days)];
     }
     if (sev <= 6 && !onProbation) {
       this.save.state.probationUntil = now() + 30 * 24 * 3_600_000;
       this.record.convictions = (this.record.convictions ?? 0) + 1;
       this.record.probations = (this.record.probations ?? 0) + 1;
-      lines.push('Your lawyer takes the deal: you plead guilty and get probation. Get charged with anything while you\'re on it and you\'re held with no bail.');
+      lines.push('Your lawyer takes the deal: you plead guilty and get probation. Get charged with anything while you’re on it and you’re held with no bail.');
       f.heat = Math.max(0, f.heat - 30);
       return lines;
     }
@@ -3735,12 +3735,12 @@ export class Game {
     const c = this.case;
     if (this.place !== 'court' || !c || !isOpen(placeInfo('court').hours!) || this.inventory.items.some((x) => x.kind === 'weapon' && !/bottle|syringe/i.test(x.name))) return;
     if (!c.warrant && !hearingToday(c.courtAt)) {
-      this.note([`The clerk finds your name. "Your hearing's ${dateText(c.courtAt)}. Come back then."`]);
+      this.note([`The clerk finds your name. “Your hearing’s ${dateText(c.courtAt)}. Come back then.”`]);
       return;
     }
     const lines: string[] = [];
     if (c.warrant) {
-      lines.push('You give your name at the desk. The clerk looks at her screen, then at the deputy. You\'re cuffed in the hall: there\'s a warrant out for you.');
+      lines.push('You give your name at the desk. The clerk looks at her screen, then at the deputy. You’re cuffed in the hall: there’s a warrant out for you.');
       const fta = c.warrantFor !== 'sting' && c.warrantFor !== 'escape';
       if (fta) c.charges.push('Failure to appear');
       const escaped = c.warrantFor === 'escape';
@@ -3800,16 +3800,16 @@ export class Game {
     if (c && !c.warrant && !this.jail && !this.save.state.bailOffer) {
       const d = new Date(c.courtAt);
       d.setHours(8, 30, 0, 0);
-      out.push({ id: 3, at: d.getTime(), title: 'Court today', body: `${this.me.name}: your hearing is today at the County Courthouse, 9 to 4. Miss it and there's a warrant.` });
+      out.push({ id: 3, at: d.getTime(), title: 'Court today', body: `${this.me.name}: your hearing is today at the County Courthouse, 9 to 4. Miss it and there’s a warrant.` });
     }
     const room = this.room;
-    if (room && room.until > t) out.push({ id: 4, at: room.until - 2 * 3_600_000, title: 'Your room', body: `Room 14 is paid up until ${clockText(room.until)}. After that the motel clears it, and what's in it.` });
+    if (room && room.until > t) out.push({ id: 4, at: room.until - 2 * 3_600_000, title: 'Your room', body: `Room 14 is paid up until ${clockText(room.until)}. After that the motel clears it, and what’s in it.` });
     const d = this.debt;
     if (d && d.due > t) out.push({ id: 5, at: d.due - 3 * 3_600_000, title: 'Dez', body: `${money(d.owed)} due to Dez by ${clockText(d.due)}. Late, and he sends someone.` });
     this.selves.forEach((x, i) => {
       if (x.status !== 'inside' || i > 5) return;
       if (x.van != null && x.van > t) out.push({ id: 10 + i, at: x.van - 30 * 60_000, title: 'The van', body: `${x.name} gets moved in half an hour. The loading dock behind the County Courthouse.` });
-      if (x.hearingAt == null && x.until > t) out.push({ id: 20 + i, at: x.until, title: 'Out', body: `${x.name} has done their time. They're out on the streets.` });
+      if (x.hearingAt == null && x.until > t) out.push({ id: 20 + i, at: x.until, title: 'Out', body: `${x.name} has done their time. They’re out on the streets.` });
     });
     return out;
   }
@@ -3956,7 +3956,7 @@ export class Game {
   private release() {
     const j = this.jail;
     // Inside, people talk: sometimes about who's selling.
-    if (j && !this.connect.known && Math.random() < 0.5) j.after = [...(j.after ?? []), 'On your way out, the man from the next bunk catches your sleeve. "You need work? Dez. The alley behind the laundromat, after dark. Tell him Rook sent you."', ...this.learnConnect('Rook')];
+    if (j && !this.connect.known && Math.random() < 0.5) j.after = [...(j.after ?? []), 'On your way out, the man from the next bunk catches your sleeve. “You need work? Dez. The alley behind the laundromat, after dark. Tell him Rook sent you.”', ...this.learnConnect('Rook')];
     delete this.save.state.jail;
     document.getElementById('jail')?.remove();
     if (!j || this.dead) return;
@@ -4127,7 +4127,7 @@ export class Game {
       }
       if (x.van != null && x.van + 45 * 60_000 < t) delete x.van;
       const lines = [`You show your ID, sign the visitor log and wait an hour on a plastic chair. They bring ${x.name} out behind the glass, in orange.`];
-      lines.push(x.van != null ? `"They move me ${dueText(x.van)}, ${clockText(x.van)}," they say into the phone, low. "The van, out back by the loading dock." They look at you a long time.` : x.hearingAt != null ? '"My hearing’s today," they say. "Whatever happens, happens."' : '"Not long now," they say. "I just sit it out."');
+      lines.push(x.van != null ? `“They move me ${dueText(x.van)}, ${clockText(x.van)},” they say into the phone, low. “The van, out back by the loading dock.” They look at you a long time.` : x.hearingAt != null ? '“My hearing’s today,” they say. “Whatever happens, happens.”' : '“Not long now,” they say. “I just sit it out.”');
       this.note(lines);
       this.renderShop();
       return;
@@ -4225,7 +4225,7 @@ export class Game {
         delete h.smokingUntil;
         if (h.dead) return this.die(lines);
         if (c.bailPaid) {
-          lines.push(`You were already out on bail. It's revoked: the ${money(c.bailPaid)} you put up is gone.`);
+          lines.push(`You were already out on bail. It’s revoked: the ${money(c.bailPaid)} you put up is gone.`);
           c.bailPaid = 0;
         }
         c.charges = [...c.charges, ...extra, 'Aiding an escape'];
@@ -4338,7 +4338,7 @@ export class Game {
     if (r.sentences) rows.push(['Sentences served', `${r.sentences}${r.prison ? ` (${r.prison} in state prison)` : ''}`]);
     if (r.daysServed) rows.push(['Time served', span(r.daysServed)]);
     if (r.longest && (r.sentences ?? 0) > 1) rows.push(['Longest stretch', span(r.longest)]);
-    if (held) rows.push(['Held in a cell', held < 24 ? `${held} hours` : `${(held / 24).toFixed(held % 24 ? 1 : 0)} days`]);
+    if (held) rows.push(['Held in a cell', held < 24 ? `${held} hour${held === 1 ? '' : 's'}` : held === 24 ? '1 day' : `${(held / 24).toFixed(held % 24 ? 1 : 0)} days`]);
     if (r.fines) rows.push(['Fines paid', `${money(r.finedCents ?? 0)} (${r.fines})`]);
     if (r.probations) rows.push(['Probation', `${r.probations} time${r.probations === 1 ? '' : 's'}`]);
     if (r.lastOut && r.lastOut <= now()) rows.push(['Last let out', dueText(r.lastOut)]);
@@ -4374,13 +4374,13 @@ export class Game {
     return (
       `<section class="stat-card record"><h3><span>Criminal record</span><b>${r.arrests ? `${r.arrests} arrest${r.arrests > 1 ? 's' : ''}` : this.case?.warrant ? 'Wanted' : 'Clean'}</b></h3>` +
       (this.case ? `<p class="record-case${this.case.warrant ? ' warrant' : ''}">${this.case.warrant ? `WARRANT out for you: ${this.case.warrantFor === 'sting' ? 'the buy you ran from' : this.case.warrantFor === 'escape' ? 'the escape' : 'missed court'}. Any stop is an arrest. Turn yourself in at the County Courthouse to end it.` : `Court date: ${dateText(this.case.courtAt)}, County Courthouse (weekdays, 9 to 4). Charges: ${this.case.charges.map((x) => x.toLowerCase()).join(', ')}.${this.case.bailPaid ? ` Bail paid: ${money(this.case.bailPaid)} (back when you show up).` : ''}`}</p>` : '') +
-      ((d) => (d ? `<p class="record-case${now() > d.due ? ' warrant' : ''}">You owe Dez ${money(d.owed)}${now() > d.due ? `. You're late (it was due ${dueText(d.due)}), ${(d.vigDays ?? 0) >= VIG_DAYS ? "he's done waiting" : 'it grows every day'}, and he's sending someone.` : `, due ${dateText(d.due)} ${clockText(d.due)}. In the alley, at night.`}</p>` : ''))(this.debt) +
-      (now() < ((this.save.state.probationUntil as number) ?? 0) ? `<p class="record-case">On probation until ${dateText(this.save.state.probationUntil as number)} ${clockText(this.save.state.probationUntil as number)}: get charged with anything and you're held, no bail.</p>` : '') +
+      ((d) => (d ? `<p class="record-case${now() > d.due ? ' warrant' : ''}">You owe Dez ${money(d.owed)}${now() > d.due ? `. You’re late (it was due ${dueText(d.due)}), ${(d.vigDays ?? 0) >= VIG_DAYS ? "he’s done waiting" : 'it grows every day'}, and he’s sending someone.` : `, due ${dateText(d.due)} ${clockText(d.due)}. In the alley, at night.`}</p>` : ''))(this.debt) +
+      (now() < ((this.save.state.probationUntil as number) ?? 0) ? `<p class="record-case">On probation until ${dateText(this.save.state.probationUntil as number)} ${clockText(this.save.state.probationUntil as number)}: get charged with anything and you’re held, no bail.</p>` : '') +
       (r.arrests
         ? (rows.length ? `<ul class="record-list">${rows.map(([c, n]) => `<li><span>${c}</span><b>×${n}</b></li>`).join('')}</ul>` : '') +
           `<p class="record-note">${rows.length ? 'Each charge means a court date.' : 'Held, and let go without charge.'}${r.last ? ` Last arrested ${dueText(r.last)}.` : ''}</p>` +
           this.recordTimeHtml()
-        : `<p class="record-note">${this.case?.warrant ? "No arrests yet. They're looking for you." : 'No arrests. The police have nothing on this face.'}</p>`) +
+        : `<p class="record-note">${this.case?.warrant ? "No arrests yet. They’re looking for you." : 'No arrests. The police have nothing on this face.'}</p>`) +
       `</section>`
     );
   }
@@ -4434,7 +4434,7 @@ export class Game {
     if (!it) {
       // (Nowhere to carry it once it's off: put it back on.)
       wear(inv, slot, name);
-      this.note([`If you take off the ${lc(name)}, you'd have nowhere to carry it${slot === 'bag' ? ', and no free hand' : ''}.`]);
+      this.note([`If you take off the ${lc(name)}, you’d have nowhere to carry it${slot === 'bag' ? ', and no free hand' : ''}.`]);
       return;
     }
     const sp = inv.spots.find((x) => x.id === it.spot);
@@ -4457,7 +4457,7 @@ export class Game {
         // (No room for the old one: back as you were.)
         w[slot] = old;
         inv.items.splice(i, 0, it);
-        this.note([`You'd have nowhere to put the ${lc(old)}.`]);
+        this.note([`You’d have nowhere to put the ${lc(old)}.`]);
         return;
       }
       this.refresh();
@@ -4487,7 +4487,7 @@ export class Game {
       inv.items.push(...r.left);
       wear(inv, slot, r.old, true);
       inv.items.splice(i, 0, it);
-      this.note([`You'd have nowhere to put the ${lc(r.old)}.`]);
+      this.note([`You’d have nowhere to put the ${lc(r.old)}.`]);
       return;
     }
     this.refresh();
@@ -4498,7 +4498,7 @@ export class Game {
     const w = wearing(inv);
     if (what === 'mask' && w.face) {
       if (!w.masked && this.inside && !this.inOwnRoom) {
-        this.note([`Not in here. You'd be thrown out, or worse.`]);
+        this.note([`Not in here. You’d be thrown out, or worse.`]);
         return;
       }
       w.masked = !w.masked;
@@ -4539,7 +4539,7 @@ export class Game {
       const whose = it.detail ? it.detail.split(',')[0] : null;
       lines.push(
         it.kind === 'id'
-          ? `You hold the ${lc(it.name)} over the flame. The plastic bubbles and blackens, and ${whose ? `${whose}'s face` : 'the face'} curls away to nothing. You drop what's left down a drain.`
+          ? `You hold the ${lc(it.name)} over the flame. The plastic bubbles and blackens, and ${whose ? `${whose}’s face` : 'the face'} curls away to nothing. You drop what’s left down a drain.`
           : `You hold the ${lc(it.name)} in the flame until the chip pops and the numbers melt into a black, stinking lump. You flick it into the gutter.`,
       );
     }
@@ -4576,7 +4576,7 @@ export class Game {
       inv.items.splice(paper, 1);
     } else if (Math.random() < 0.6) kindling = 'some cardboard from a dumpster';
     else {
-      this.note(["You've got nothing to burn, and there's nothing dry lying around. You need some paper."]);
+      this.note(["You’ve got nothing to burn, and there’s nothing dry lying around. You need some paper."]);
       return;
     }
     const catches = { clear: 1, drizzle: 0.7, rain: 0.35, downpour: 0, flurries: 0.8, snow: 0.5, heavysnow: 0 }[this.weather.now];
@@ -4590,7 +4590,7 @@ export class Game {
       lines.push(`You get a fire going in an old oil drum, with ${kindling} for kindling. You hold your hands over it until the feeling comes back.`);
       lines.push(...passHours(h, 1));
       if (h.dead) return this.die(lines);
-      if (h.cold) lines.push("You're warm again, right through.");
+      if (h.cold) lines.push("You’re warm again, right through.");
       h.cold = 0;
     }
     // Keeping a flame going long enough to catch takes a lot of fuel.
@@ -4627,7 +4627,7 @@ export class Game {
       inv.items.splice(k, 1);
       line = 'You tip a few grains into the vial and shake it. The liquid turns a bright, clear blue: cocaine.';
     } else {
-      line = 'You rub a little on your gums. They go numb almost at once, and there\'s a bitter taste at the back of your throat. Cocaine.';
+      line = 'You rub a little on your gums. They go numb almost at once, and there’s a bitter taste at the back of your throat. Cocaine.';
     }
     it.known = true;
     it.name = 'Baggie of cocaine';
@@ -4715,7 +4715,7 @@ export class Game {
       h.highUntil = now() + HIGH_HOURS.meth * 3_600_000;
       h.stress = Math.min(100, (h.stress ?? 0) + 15);
     } else {
-      lines.push("A heavy, sick drowsiness pulls you down before you can get the needle out. You're out where you sit.");
+      lines.push("A heavy, sick drowsiness pulls you down before you can get the needle out. You’re out where you sit.");
       // (Hours out: whoever was lying here is long gone.)
       this.dropEncounter();
       this.unstick();
@@ -4799,7 +4799,7 @@ export class Game {
     this.save.state.sales = ((this.save.state.sales as number) ?? 0) + 1;
     // A regular who likes you: where to get more.
     if (!this.connect.known && e.regular && Math.random() < 0.35) {
-      (e.log ??= []).push({ by: 'them', text: '"You\'re gonna run out, way you\'re going. Talk to Dez. The alley behind the laundromat, nights. Say I sent you."' });
+      (e.log ??= []).push({ by: 'them', text: '“You’re gonna run out, way you’re going. Talk to Dez. The alley behind the laundromat, nights. Say I sent you.”' });
       for (const l of this.learnConnect(e.person.name ?? 'a regular')) e.log.push({ by: 'info', text: l });
     } else if (this.connect.known) {
       // (Moving his product without trouble: it gets back to him.)
@@ -4833,7 +4833,7 @@ export class Game {
     this.note([
       made
         ? `${this.place === 'room' ? 'At the little table by the window' : 'Hunched in a doorway'}, you tip it out and split it into ${made} little bag${made === 1 ? '' : 's'}, a point in each.${made < n ? ' You run out of room for the rest.' : ''}`
-        : "You've got nowhere to put the bags.",
+        : "You’ve got nowhere to put the bags.",
     ]);
   }
 
@@ -4908,24 +4908,24 @@ export class Game {
     const talk = lieBonus(this.stats);
     const odds = Math.max(0.03, Math.min(0.85, ({ junkie: 0.5, homeless: 0.3, drunk: 0.25, civilian: 0.05 } as Record<string, number>)[k] + (e.regular ? 0.35 : 0) + talk * 0.5 - e.suspicion / 200 - fatigueOdds(this.health)));
     const say = (by: 'you' | 'them' | 'info', text: string) => e.log.push({ by, text });
-    say('you', oneOf(['You keep your voice low. "You know anyone selling? Weight, not a bag."', '"Who\'s holding around here? I mean real amounts."', 'You lean in. "I\'m looking for a connect. Who do you go to?"']));
+    say('you', oneOf(['You keep your voice low. “You know anyone selling? Weight, not a bag.”', '“Who’s holding around here? I mean real amounts.”', 'You lean in. “I’m looking for a connect. Who do you go to?”']));
     train(this.stats, 'speech', 2);
     if (Math.random() < odds) {
       // Some want paying for it.
       const want = k === 'junkie' && Math.random() < 0.5 ? 2000 : 0;
       if (want && Math.round(cashOf(this.inventory) * 100) < want) {
-        say('them', '"Maybe. What\'s it worth to you?" They hold out a hand. "Twenty. Come back when you got it."');
+        say('them', '“Maybe. What’s it worth to you?” They hold out a hand. “Twenty. Come back when you got it.”');
         e.asked = e.asked.filter((x) => x !== 'connect');
         e.suspicion = Math.min(100, e.suspicion + 10);
         return;
       }
       const paid = want ? this.payLine(want) : '';
       const name = e.person.name ?? (k === 'junkie' ? 'the skinny one' : 'a friend');
-      say('them', `${want ? 'They pocket the twenty. ' : ''}${oneOf(['They look up and down the street. "Dez. The alley behind the laundromat, after dark. Tell him', '"You didn\'t hear it from me. Dez, out back of the laundromat, nights. Say', '"Dez. Behind the laundromat, where the steam comes out. Late. Tell him'])} ${name.split(' ')[0]} sent you."`);
+      say('them', `${want ? 'They pocket the twenty. ' : ''}${oneOf(['They look up and down the street. “Dez. The alley behind the laundromat, after dark. Tell him', '“You didn’t hear it from me. Dez, out back of the laundromat, nights. Say', '“Dez. Behind the laundromat, where the steam comes out. Late. Tell him'])} ${name.split(' ')[0]} sent you.”`);
       for (const l of this.learnConnect(name)) say('info', l);
       if (paid) say('info', paid);
     } else {
-      say('them', oneOf(['"I don\'t know nothing about that." They\'re already moving off.', 'They look at you a long second. "You a cop?"', '"Wrong person, man."', '"Get away from me."']));
+      say('them', oneOf(['“I don’t know nothing about that.” They’re already moving off.', 'They look at you a long second. “You a cop?”', '“Wrong person, man.”', '“Get away from me.”']));
       e.suspicion = Math.min(100, e.suspicion + 25);
       // (A straight citizen might mention it to someone in a uniform.)
       if (k === 'civilian' && Math.random() < 0.3) this.infamy.heat = Math.min(100, this.infamy.heat + 4);
@@ -4939,10 +4939,10 @@ export class Game {
     const k = e.person.kind;
     const h = this.health;
     const say = (by: 'you' | 'them' | 'info', text: string) => e.log.push({ by, text });
-    say('you', oneOf(['"Spare some change? Anything helps."', 'You hold out a hand. "Got a dollar? Anything."', '"Sorry to bother you. Any change at all?"']));
+    say('you', oneOf(['“Spare some change? Anything helps.”', 'You hold out a hand. “Got a dollar? Anything.”', '“Sorry to bother you. Any change at all?”']));
     // Somebody you hurt: not a cent.
     if (e.recognised && (e.grudge ?? 0) >= 30) {
-      say('them', oneOf(['"You? Get the hell away from me."', 'They know you. Their face goes hard and they keep walking.']));
+      say('them', oneOf(['“You? Get the hell away from me.”', 'They know you. Their face goes hard and they keep walking.']));
       e.suspicion = Math.min(100, e.suspicion + 20);
       return;
     }
@@ -4955,28 +4955,28 @@ export class Game {
     } else if (k === 'drunk') {
       if (roll < 0.4 + rough) amt = 100 * (1 + Math.floor(Math.random() * 10));
       else if (roll < 0.6) {
-        say('them', oneOf(['"Get a job, you bum!" They laugh at their own joke.', '"Change? I\'ll give you change." They spit near your feet.']));
+        say('them', oneOf(['“Get a job, you bum!” They laugh at their own joke.', '“Change? I’ll give you change.” They spit near your feet.']));
         return;
       }
     } else if (k === 'homeless') {
       if (roll < 0.1 + rough / 2) amt = 25;
     }
     if (k === 'junkie') {
-      say('them', oneOf(['"I was gonna ask you, man."', 'They laugh, a dry, empty sound. "Yeah. Me too."']));
+      say('them', oneOf(['“I was gonna ask you, man.”', 'They laugh, a dry, empty sound. “Yeah. Me too.”']));
       return;
     }
     if (!amt && k === 'homeless') {
-      say('them', oneOf(['They show you their own empty cup.', '"Wish I could, friend."', 'They shake their head slowly. "Nothing today."']));
+      say('them', oneOf(['They show you their own empty cup.', '“Wish I could, friend.”', 'They shake their head slowly. “Nothing today.”']));
       return;
     }
     if (!amt) {
-      say('them', oneOf(['They don’t even look at you.', '"Sorry, no cash." They keep walking.', 'They step around you like you’re a puddle.', 'A quick shake of the head. Eyes straight ahead.']));
+      say('them', oneOf(['They don’t even look at you.', '“Sorry, no cash.” They keep walking.', 'They step around you like you’re a puddle.', 'A quick shake of the head. Eyes straight ahead.']));
       // (A straight citizen might mention you to someone in a uniform.)
       if (k === 'civilian' && Math.random() < 0.15) this.infamy.heat = Math.min(100, this.infamy.heat + 3);
       return;
     }
     const left = cents(pocketCash(this.inventory, fewest(amt)));
-    say('them', amt >= 100 ? oneOf([`They dig out ${money(amt)} and press it into your hand.`, `"Here." ${money(amt)}, folded small. "Get something to eat."`]) : oneOf([`They drop ${money(amt)} in coins into your palm.`, `A few coins, ${money(amt)}, without a word.`]));
+    say('them', amt >= 100 ? oneOf([`They dig out ${money(amt)} and press it into your hand.`, `“Here.” ${money(amt)}, folded small. “Get something to eat.”`]) : oneOf([`They drop ${money(amt)} in coins into your palm.`, `A few coins, ${money(amt)}, without a word.`]));
     if (left) say('info', `You’ve no room for ${money(left)} of it, and it rolls into the gutter.`);
     else say('info', `+${money(amt)}`);
   }
@@ -5012,13 +5012,13 @@ export class Game {
     const have = inv.items.find((x) => x.name === 'Empty cans');
     const sp = have && inv.spots.find((s) => s.id === have.spot);
     const more = n * 0.015;
-    if (have && (!sp || usedKg(inv, sp.id) + more > sp.maxKg + 1e-9 || tooHeavy(inv, more))) lines.push(`${n} more can${n === 1 ? '' : 's'}, and nowhere to put them. ${noRoomWhy(inv, 'small', more)}`);
+    if (have && (!sp || usedKg(inv, sp.id) + more > sp.maxKg + 1e-9 || tooHeavy(inv, more))) lines.push(`${n} more can${n === 1 ? '' : 's'}, and nowhere to put ${n === 1 ? 'it' : 'them'}. ${noRoomWhy(inv, 'small', more)}`);
     else if (have) {
       have.doses = (have.doses ?? 0) + n;
       have.kg = Math.round((have.doses ?? 0) * 15) / 1000;
       lines.push(`${n} more can${n === 1 ? '' : 's'}. ${have.doses} in all.`);
     } else if (stow(inv, { kind: 'misc', name: 'Empty cans', detail: 'Rinsed out, crushed flat, in a plastic bag', doses: n, size: 'small', kg: Math.round(n * 15) / 1000 })) lines.push(`${n} can${n === 1 ? '' : 's'}, crushed flat into a plastic bag.`);
-    else lines.push(`${n} cans, and nowhere to put them. ${noRoomWhy(inv, 'small')}`);
+    else lines.push(`${n} can${n === 1 ? '' : 's'}, and nowhere to put ${n === 1 ? 'it' : 'them'}. ${noRoomWhy(inv, 'small')}`);
     // Now and then, something else.
     const f = Math.random();
     if (f < 0.05) {
@@ -5360,7 +5360,7 @@ export class Game {
     if (!e.them.dead && !e.them.out && Math.random() < 0.12 * n) {
       const b = c.shift()!;
       const who = (b.e.person.title ?? NAMES[b.e.person.kind]).toLowerCase();
-      say(oneOf([`The ${who} across the street shouts: "HEY! Get off them!"`, `The ${who} comes halfway over, shouting. "Leave them alone! I'm calling the cops!"`]));
+      say(oneOf([`The ${who} across the street shouts: “HEY! Get off them!”`, `The ${who} comes halfway over, shouting. “Leave them alone! I’m calling the cops!”`]));
       e.them.fear = Math.max(0, (e.them.fear ?? 0) - 25);
       e.them.stamina = Math.min(e.them.maxStamina, e.them.stamina + 20);
       say('It gives them a breath, and some nerve back.');
@@ -5399,7 +5399,7 @@ export class Game {
       rows += li('What you owe Dez', `${money(d.owed)}, ${late ? `late: it was due ${dueText(d.due)}, ${(d.vigDays ?? 0) >= VIG_DAYS ? 'and he’s done adding to it. Now he wants it, or you.' : 'and it grows a fifth every day.'}` : `due ${dateText(d.due)}.`}`, btn('dez', 'pay', c >= d.owed ? 'Pay it all' : 'Pay what you have', !c && 'No cash'));
     // Nobody's vouched for you: he doesn't know you.
     if (!con.known) {
-      rows += li('A man by the dumpsters', con.cutOff ? 'Dez. He looks straight through you. He’s done with you: you’d need someone to vouch for you again.' : 'He watches you come, hands in his pockets. "I don’t know you." Nobody sells to a stranger: someone has to vouch for you. Ask around on the street.', '');
+      rows += li('A man by the dumpsters', con.cutOff ? 'Dez. He looks straight through you. He’s done with you: you’d need someone to vouch for you again.' : 'He watches you come, hands in his pockets. “I don’t know you.” Nobody sells to a stranger: someone has to vouch for you. Ask around on the street.', '');
       return `<p class="shop-sub">Dez, by the dumpsters</p><ul class="shop-list">${rows}</ul>`;
     }
     const tier = this.tier;
@@ -5409,8 +5409,8 @@ export class Game {
     rows += li('Dez', `${standing}${con.via ? ` (${con.via.split(' ')[0]} vouched for you.)` : ''} ${next}`, '');
     for (const deal of DEZ_DEALS.filter((x) => x.tier <= tier)) {
       const price = deal.cash[tier - 1];
-      const why = (hot && '"You\'re hot. Come back when it cools down."') || (late && '"Not till you pay me."') || false;
-      rows += li(deal.tier === 3 ? `An ${deal.name.toLowerCase()}, from his supplier` : `${withA(deal.name).replace(/^./, (x) => x.toUpperCase())}`, `${deal.desc} Cash, or fronted: ${money(deal.front * 100)} in ${deal.days} days.`, (price ? btn('dez', `cash:${deal.id}`, money(price * 100), why || (c < price * 100 && 'Not enough cash')) : '') + btn('dez', `front:${deal.id}`, 'Front me', why || (!!d && '"You owe me already."') || (con.trust < 10 && deal.tier === 1 && '"Buy from me first. Then we talk."')));
+      const why = (hot && '“You’re hot. Come back when it cools down.”') || (late && '“Not till you pay me.”') || false;
+      rows += li(deal.tier === 3 ? `An ${deal.name.toLowerCase()}, from his supplier` : `${withA(deal.name).replace(/^./, (x) => x.toUpperCase())}`, `${deal.desc} Cash, or fronted: ${money(deal.front * 100)} in ${deal.days} days.`, (price ? btn('dez', `cash:${deal.id}`, money(price * 100), why || (c < price * 100 && 'Not enough cash')) : '') + btn('dez', `front:${deal.id}`, 'Front me', why || (!!d && '“You owe me already.”') || (con.trust < 10 && deal.tier === 1 && '“Buy from me first. Then we talk.”')));
     }
     return `<p class="shop-sub">Dez, by the dumpsters</p><ul class="shop-list">${rows}</ul>`;
   }
@@ -5433,7 +5433,7 @@ export class Game {
       // Paid up on time: he remembers. Late: he remembers that too.
       const t = done ? this.trustDez(now() <= d.due ? 12 : -10) : null;
       this.refresh();
-      this.note([done ? (now() <= d.due ? 'Dez counts it twice, slowly, and puts it away. "We\'re good. You\'re all right."' : 'Dez counts it twice and puts it away. "Late. Don\'t be late again."') : `Dez takes it without counting. "That's a start. ${money(d.owed)} to go."`, paid, ...(t ? [t] : [])]);
+      this.note([done ? (now() <= d.due ? 'Dez counts it twice, slowly, and puts it away. “We’re good. You’re all right.”' : 'Dez counts it twice and puts it away. “Late. Don’t be late again.”') : `Dez takes it without counting. “That’s a start. ${money(d.owed)} to go.”`, paid, ...(t ? [t] : [])]);
       return;
     }
     const [how, id] = what.split(':');
@@ -5453,7 +5453,7 @@ export class Game {
       const paid = this.payLine(price);
       const t = this.trustDez(3);
       this.refresh();
-      this.note([meet || (deal.tier === 1 ? 'Dez looks up and down the alley, then presses something small and hard into your hand. "Don\'t open it here."' : 'Dez takes your money and comes back from the dark with it wrapped in a paper bag. "Careful with that."'), paid, ...(t ? [t] : [])]);
+      this.note([meet || (deal.tier === 1 ? 'Dez looks up and down the alley, then presses something small and hard into your hand. “Don’t open it here.”' : 'Dez takes your money and comes back from the dark with it wrapped in a paper bag. “Careful with that.”'), paid, ...(t ? [t] : [])]);
       return;
     }
     if (how === 'front' && !d && (con.trust >= 10 || deal.tier > 1)) {
@@ -5464,7 +5464,7 @@ export class Game {
       if (deal.tier === 3) con.metBig = true;
       this.save.state.debt = { owed: deal.front * 100, base: deal.front * 100, due: now() + deal.days * 86_400_000, strikes: 0 };
       this.refresh();
-      this.note([meet, `Dez puts it in your hand and doesn't let go straight away. "${money(deal.front * 100)}. ${['', 'One day', 'Two days', 'Three days', 'Four days', 'Five days', 'Six days', 'A week'][deal.days]}. I know where you sleep."`].filter(Boolean));
+      this.note([meet, `Dez puts it in your hand and doesn’t let go straight away. “${money(deal.front * 100)}. ${['', 'One day', 'Two days', 'Three days', 'Four days', 'Five days', 'Six days', 'A week'][deal.days]}. I know where you sleep.”`].filter(Boolean));
     }
   }
 
@@ -6288,7 +6288,7 @@ export class Game {
     const t = now();
     if (t > r.until + 2 * 86_400_000) {
       delete this.save.state.room;
-      return ["Your key doesn't turn. The man in the cage doesn't look up: the rent ran out, so they cleared the room. Whatever you left is in a dumpster, or in someone's pocket."];
+      return ["Your key doesn’t turn. The man in the cage doesn’t look up: the rent ran out, so they cleared the room. Whatever you left is in a dumpster, or in someone’s pocket."];
     }
     const days = Math.max(0, (t - r.at) / 86_400_000);
     r.at = t;
@@ -6297,7 +6297,7 @@ export class Game {
       r.items = r.items.filter((x) => !took.includes(x));
       const had = r.cents;
       r.cents = 0;
-      if (had || took.length) return ["The lock's been scratched up. Someone's been in: " + [had ? 'the cash under the mattress' : '', took.length ? `what was under the board` : ''].filter(Boolean).join(' and ') + ' is gone.'];
+      if (had || took.length) return ["The lock’s been scratched up. Someone’s been in: " + [had ? 'the cash under the mattress' : '', took.length ? `what was under the board` : ''].filter(Boolean).join(' and ') + ' is gone.'];
     }
     return t > r.until ? ['The rent ran out. They hold the room two days, then clear it.'] : [];
   }
@@ -6327,7 +6327,7 @@ export class Game {
       const r = this.room!;
       const recent = now() - ((r as { slept?: number }).slept ?? 0) < 4 * 3_600_000 || !this.restHeals;
       if (recent && fatigueNow(h) < 3) {
-        this.note(["You lie down, but you're not tired. You stare at the water stain on the ceiling until you give up."]);
+        this.note(["You lie down, but you’re not tired. You stare at the water stain on the ceiling until you give up."]);
         return;
       }
       this.unstick();
@@ -6447,7 +6447,7 @@ export class Game {
     const lines = ['The desk clerk at the Hotel Marlow gives them your room. They search it too.'];
     const found = r.items.filter((x) => (x.secret && x.secret !== 'empty') || this.stolen(x) || x.name === 'Zip bags');
     if (found.length) {
-      lines.push(`They find what you'd hidden under the board by the radiator.`);
+      lines.push(`They find what you’d hidden under the board by the radiator.`);
       if (found.some((x) => x.secret && x.secret !== 'empty') && !charges.some((x) => /controlled substance|intent to distribute/.test(x))) charges.push(this.intent(found) ? 'Possession with intent to distribute' : 'Possession of a controlled substance');
       if (found.some((x) => this.stolen(x)) && !charges.includes('Possession of stolen property')) charges.push('Possession of stolen property');
       r.items = r.items.filter((x) => !found.includes(x));
@@ -6495,7 +6495,7 @@ export class Game {
     const lines = ['You do a bump off the end of a key. Your heart kicks, your teeth buzz, and everything goes sharp and bright.'];
     if (it.doses <= 0) {
       inv.items.splice(i, 1);
-      lines.push("That's the last of it.");
+      lines.push("That’s the last of it.");
     }
     this.refresh();
     this.note(lines);
@@ -6625,7 +6625,7 @@ export class Game {
       const have = (id: MedId) => inv.items.filter((x) => x.med === id).length;
       body =
         `<ul class="shop-list">${SOLD_MEDS().map((m) => li(named({ kind: 'med', name: m.name }), `${m.desc}${have(m.id) ? ` · You have ${have(m.id)}` : ''}`, btn('buy', m.id, money(m.price * 100), c < m.price * 100 && 'Not enough cash'))).join('')}</ul>` +
-        (c < Math.min(...SOLD_MEDS().map((m) => m.price)) * 100 ? `<p class="shop-broke">You can't afford anything. Cash only.</p>` : '');
+        (c < Math.min(...SOLD_MEDS().map((m) => m.price)) * 100 ? `<p class="shop-broke">You can’t afford anything. Cash only.</p>` : '');
     } else if (place === 'guns') {
       body = open
         ? `<ul class="shop-list">${GUN_STOCK.map((s) => li(named(stockThing(s)), s.gun ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.gun }))}, ${alarmStat(1)}.` : s.desc, this.stockBtns(s, c, btn))).join('')}</ul>` +
@@ -6648,12 +6648,12 @@ export class Game {
       const c = this.case;
       const metal = this.inventory.items.find((x) => x.kind === 'weapon' && !/bottle|syringe/i.test(x.name));
       body = open && metal
-        ? `<p class="shop-broke">The metal detector shrieks. The deputy finds the ${lc(metal.name)} and steps in front of you. "Not in here. Get rid of it and come back."</p>`
+        ? `<p class="shop-broke">The metal detector shrieks. The deputy finds the ${lc(metal.name)} and steps in front of you. “Not in here. Get rid of it and come back.”</p>`
         : open
         ? c
           ? `<ul class="shop-list">${li(c.warrant ? 'Turn yourself in' : 'Appear for your hearing', `${c.charges.map((x) => x.toLowerCase()).join(', ')}.${c.warrant ? ' There’s a warrant: they’ll hold you overnight first.' : ` Your date: ${hearingToday(c.courtAt) ? 'today' : dateText(c.courtAt)}.`}`, btn('court', 'appear', 'Go in'))}</ul>` +
             `<p class="shop-broke">Could go any way: dropped, a fine, probation, or jail time. Your record counts against you; a good story counts for you.</p>`
-          : `<p class="shop-broke">Your name isn't on any list. Nothing for you here.</p>`
+          : `<p class="shop-broke">Your name isn’t on any list. Nothing for you here.</p>`
         : `<p class="shop-closed">The doors are locked. Open weekdays, 9 to 4.</p>`;
       body += this.jailVisitHtml(open && !metal, btn, li);
     } else if (place === 'plasma') {
@@ -6677,14 +6677,14 @@ export class Game {
           return li(named(stockThing(s)), `${s.desc}${n ? ` · You have ${n}` : ''}`, this.stockBtns(s, c, btn));
         }).join('')}</ul>` +
         ((cans) => (cans ? `<ul class="shop-list">${li('Cash in cans', `The machine by the ice chest takes them back: 10¢ a can. You have ${cans}.`, btn('cans', 'cash', `Cash in · ${money(cans * 10)}`))}</ul>` : ''))(this.cansCount) +
-        (c < 100 ? `<p class="shop-broke">You can't afford anything. The clerk watches you anyway.</p>` : '');
+        (c < 100 ? `<p class="shop-broke">You can’t afford anything. The clerk watches you anyway.</p>` : '');
     } else if (place === 'pawn' || place === 'fence') {
-      if (!open) body = `<p class="shop-closed">${place === 'pawn' ? 'The shutter is down.' : "There's nobody back here right now."}</p>`;
+      if (!open) body = `<p class="shop-closed">${place === 'pawn' ? 'The shutter is down.' : "There’s nobody back here right now."}</p>`;
       else {
         const sell = inv.items
           .map((x, i) => ({ x, i, o: offer(place, x) }))
-          .map(({ x, i, o }) => li(named(x), 'cents' in o ? `${x.detail ? `${x.detail} · ` : ''}He'll give you ${money(o.cents)}` : o.why, 'cents' in o ? btn('sell', i, `Sell ${money(o.cents)}`) : ''));
-        body = `<h3>Sell</h3>` + (sell.length ? `<ul class="shop-list">${sell.join('')}</ul>` : `<p class="shop-broke">You've got nothing to sell.</p>`);
+          .map(({ x, i, o }) => li(named(x), 'cents' in o ? `${x.detail ? `${x.detail} · ` : ''}He’ll give you ${money(o.cents)}` : o.why, 'cents' in o ? btn('sell', i, `Sell ${money(o.cents)}`) : ''));
+        body = `<h3>Sell</h3>` + (sell.length ? `<ul class="shop-list">${sell.join('')}</ul>` : `<p class="shop-broke">You’ve got nothing to sell.</p>`);
         if (place === 'pawn') {
           body += `<h3>For sale</h3><ul class="shop-list">${PAWN_STOCK.map((s) => li(named(stockThing(s)), s.slot === 'top' || s.slot === 'bottom' || s.slot === 'bag' ? `${s.desc} ${hidesWord(s.name)}.` : s.knife ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.knife }))}, ${alarmStat(alarmOf({ kind: 'weapon', name: s.knife }))}.` : s.desc, this.stockBtns(s, c, btn))).join('')}</ul>`;
         }
@@ -6728,7 +6728,7 @@ export class Game {
       const cards = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind));
       const usable = cards.filter(({ x }) => x.pin && !x.drained);
       body += usable.length
-        ? usable.map(({ x, i }) => li(named(x, `Cash machine · ${x.name}`), `${x.detail ? `${x.detail}'s card · ` : ''}PIN ${x.pin}. There's a camera over the screen.`, btn('atm', i, 'Withdraw'))).join('')
+        ? usable.map(({ x, i }) => li(named(x, `Cash machine · ${x.name}`), `${x.detail ? `${x.detail}’s card · ` : ''}PIN ${x.pin}. There’s a camera over the screen.`, btn('atm', i, 'Withdraw'))).join('')
         : li('Cash machine', ((parts) => (parts.length ? parts.join(' ') : 'Any hour. You need a card, and its PIN.'))([
             ...(cards.some(({ x }) => x.drained && !x.empty) ? ['The cards you had PINs for have been stopped.'] : []),
             ...(cards.some(({ x }) => x.drained && x.empty) ? [cards.some(({ x }) => x.drained && !x.empty) ? 'One had nothing on it anyway.' : 'The cards you had PINs for have nothing on them.'] : []),
@@ -6826,7 +6826,7 @@ export class Game {
         `</div><div class="police-choice">` +
         (this.save.state.bailOffer === 'bail'
           ? ((have) =>
-              `<button type="button" class="place" data-police="bail" ${have < (this.case?.bail ?? 0) * 100 ? 'disabled' : ''}><b>Pay bail: ${money((this.case?.bail ?? 0) * 100)}</b><small>${have < (this.case?.bail ?? 0) * 100 ? `You've only got ${money(have)}, cash and bank together` : 'Cash first, then your bank account. You get it back if you show up to court.'}</small></button>` +
+              `<button type="button" class="place" data-police="bail" ${have < (this.case?.bail ?? 0) * 100 ? 'disabled' : ''}><b>Pay bail: ${money((this.case?.bail ?? 0) * 100)}</b><small>${have < (this.case?.bail ?? 0) * 100 ? `You’ve only got ${money(have)}, cash and bank together` : 'Cash first, then your bank account. You get it back if you show up to court.'}</small></button>` +
               `<button type="button" class="place" data-police="custody"><b>Wait in jail for the hearing</b><small>36 real hours in County, then the judge.</small></button>`)(Math.round(cashOf(this.inventory) * 100) + (this.account?.cents ?? 0))
           : this.save.state.bailOffer === 'custody'
             ? `<button type="button" class="place" data-police="custody"><b>Wait for the hearing</b><small>36 real hours in County, then the judge.</small></button>`
@@ -6842,30 +6842,30 @@ export class Game {
         (this.save.state.policeStop === 'burglary' && this.save.state.policeCuffed
           ? why
           : this.save.state.policeStop === 'burglary'
-          ? why + `<p>"POLICE! Show me your hands! Show me your HANDS!" Two flashlights in the hallway, and the guns under them.</p>`
+          ? why + `<p>“POLICE! Show me your hands! Show me your HANDS!” Two flashlights in the hallway, and the guns under them.</p>`
           : this.save.state.policeStop === 'sting'
-          ? why + `<p>"Police. Turn around. Hands behind your back." It was a buy. They were waiting for you to make it.</p>`
+          ? why + `<p>“Police. Turn around. Hands behind your back.” It was a buy. They were waiting for you to make it.</p>`
           : this.save.state.policeStop === 'car' && this.save.state.carStopHow === 'trunk'
-          ? why + `<p>A flashlight on you over the open trunk lid. "Step away from the car. Hands where I can see them."</p>`
+          ? why + `<p>A flashlight on you over the open trunk lid. “Step away from the car. Hands where I can see them.”</p>`
           : this.save.state.policeStop === 'car'
-          ? why + `<p>A second flashlight on the other window. "Step out of the vehicle. Slowly. Hands where I can see them."</p>`
+          ? why + `<p>A second flashlight on the other window. “Step out of the vehicle. Slowly. Hands where I can see them.”</p>`
           : why +
             `<p>${/patrol car/i.test(why) ? 'It pulls in beside you' : 'A patrol car pulls up beside you'}, lights off. Two of them get out. One has a hand on his belt.</p>` +
-            `<p>"${masked ? 'Take that off your face. ' : ''}Hold up. Where are you headed ${partOfDay() === 'night' || partOfDay() === 'dusk' ? 'tonight' : 'today'}?"</p>`) +
+            `<p>“${masked ? 'Take that off your face. ' : ''}Hold up. Where are you headed ${partOfDay() === 'night' || partOfDay() === 'dusk' ? 'tonight' : 'today'}?”</p>`) +
         `</div><div class="police-choice">` +
         (this.save.state.policeStop === 'burglary' && this.save.state.policeCuffed
-          ? `<button type="button" class="place" data-police="stay"><b>Go with them</b><small>Cuffed already. There's nothing else to do.</small></button>`
+          ? `<button type="button" class="place" data-police="stay"><b>Go with them</b><small>Cuffed already. There’s nothing else to do.</small></button>`
           : this.save.state.policeStop === 'burglary'
           ? `<button type="button" class="place" data-police="stay"><b>Hands up</b><small>On your knees, on someone else’s floor. They’ve got you in the house.</small></button>`
           : this.save.state.policeStop === 'sting'
-          ? `<button type="button" class="place" data-police="stay"><b>Hands behind your back</b><small>They've got the bag, the money, and you on camera.</small></button>`
+          ? `<button type="button" class="place" data-police="stay"><b>Hands behind your back</b><small>They’ve got the bag, the money, and you on camera.</small></button>`
           : this.save.state.policeStop === 'car' && this.save.state.carStopHow === 'trunk'
-          ? `<button type="button" class="place" data-police="stay"><b>Step away</b><small>Do as they say. They'll run the plate.</small></button>`
+          ? `<button type="button" class="place" data-police="stay"><b>Step away</b><small>Do as they say. They’ll run the plate.</small></button>`
           : this.save.state.policeStop === 'car'
-          ? `<button type="button" class="place" data-police="stay"><b>Step out</b><small>Do as they say. They'll run the plate.</small></button>`
-          : `<button type="button" class="place" data-police="stay"><b>Stay calm</b><small>Let them talk. They'll want to search you.</small></button>` +
+          ? `<button type="button" class="place" data-police="stay"><b>Step out</b><small>Do as they say. They’ll run the plate.</small></button>`
+          : `<button type="button" class="place" data-police="stay"><b>Stay calm</b><small>Let them talk. They’ll want to search you.</small></button>` +
             `<button type="button" class="place" data-police="talk"><b>Talk your way out</b><small>Speech. A good story and they move on without a search; a bad one and they look harder.</small></button>`) +
-        (this.save.state.policeCuffed ? '' : `<button type="button" class="place" data-police="run"><b>Run</b><small>Agility, and your legs. If they catch you, it'll hurt.</small></button>`) +
+        (this.save.state.policeCuffed ? '' : `<button type="button" class="place" data-police="run"><b>Run</b><small>Agility, and your legs. If they catch you, it’ll hurt.</small></button>`) +
         `</div>`;
       return;
     }
@@ -6910,7 +6910,7 @@ export class Game {
       `<p class="pocket-wear">Wearing ${[...inv.clothes, ...(inv.gear ?? [])].map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total + purseKg(inv))} of ${kgLabel(inv.maxKg ?? carryLimit(this.stats.strength.level))}${(total + purseKg(inv)) / (inv.maxKg ?? 99) > 0.85 ? ': about all you can carry' : ''}.</p>` +
       // What anyone looking at you can see you're carrying.
       (inv.items.some((x) => x.kind === 'weapon')
-        ? ((seen) => `<p class="pocket-shows${seen.length ? ' seen' : ''}">${seen.length ? `Anyone looking can see you're carrying: ${seen.map((x) => lc(x.name)).join(', ')}. People notice you sooner and scare easier, and the police notice too.` : 'Your weapons are out of sight.'}</p>`)(inv.items.filter((x) => x.kind === 'weapon' && showing(inv, x) >= 0.16))
+        ? ((seen) => `<p class="pocket-shows${seen.length ? ' seen' : ''}">${seen.length ? `Anyone looking can see you’re carrying: ${seen.map((x) => lc(x.name)).join(', ')}. People notice you sooner and scare easier, and the police notice too.` : 'Your weapons are out of sight.'}</p>`)(inv.items.filter((x) => x.kind === 'weapon' && showing(inv, x) >= 0.16))
         : '');
     // Your face: what's on it, and how hard you are to know.
     {
@@ -6991,7 +6991,7 @@ export class Game {
                               ? `${x.doses ?? 0} spray${x.doses === 1 ? '' : 's'} left · blinds them`
                               : `A weapon: +${x.weapon ?? 0} damage${x.cuts ? ', cuts' : ''}`
                             : x.kind === 'car keys'
-                            ? `${x.detail ?? 'Car keys'} · ${x.car === 'found' ? `${((c) => (c ? `the ${c.color} car, parked ${c.street}` : x.carOf ? 'the car out front of their place' : 'the car you found'))(this.carById(x.carId))} ${now() - (x.takenAt ?? 0) < REPORTED_HOURS * 3_600_000 ? '(the fence buys cars)' : '(reported stolen by now: the fence won’t touch it)'}` : x.car === 'gone' ? "the car's gone" : 'walk the blocks pressing it to find the car'}`
+                            ? `${x.detail ?? 'Car keys'} · ${x.car === 'found' ? `${((c) => (c ? `the ${c.color} car, parked ${c.street}` : x.carOf ? 'the car out front of their place' : 'the car you found'))(this.carById(x.carId))} ${now() - (x.takenAt ?? 0) < REPORTED_HOURS * 3_600_000 ? '(the fence buys cars)' : '(reported stolen by now: the fence won’t touch it)'}` : x.car === 'gone' ? "the car’s gone" : 'walk the blocks pressing it to find the car'}`
                             : /^(pack of )?cigarettes$/i.test(x.name)
                             ? `${x.detail ? `${x.detail} · ` : ''}${x.doses ?? 0} of 20`
                             : /^loose cigarettes$/i.test(x.name)
@@ -6999,7 +6999,7 @@ export class Game {
                             : x.kind === 'id' && x.card
                             ? idText((x.detail ?? '').split(',')[0], x.card)
                             : x.opens
-                            ? `${x.detail ? `${x.detail} · ` : ''}${((h) => (h ? `Opens ${h.addr}${this.atHome === h ? " (you're here)" : ''}` : 'Whose door, you’d need an address to know'))(this.homeById(x.opens))}`
+                            ? `${x.detail ? `${x.detail} · ` : ''}${((h) => (h ? `Opens ${h.addr}${this.atHome === h ? " (you’re here)" : ''}` : 'Whose door, you’d need an address to know'))(this.homeById(x.opens))}`
                             : x.kind === 'phone'
                             ? `${x.detail ? `${x.detail} · ` : ''}${this.phoneLocked(x) ? 'Locked: you can’t get in' : this.gig.signedUp ? `${GIG_APP} app: ${money(this.gig.balance)} to cash out` : 'Unlocked'}`
                             : /card/.test(x.kind) && (x.pin || x.drained)
@@ -7064,7 +7064,7 @@ export class Game {
         empty.map((sp) => `<li><span>${sp.on} · ${sp.name}</span><em>${sp.fits}, ${sp.maxKg} kg · ${hideWord(concealOf(sp, inv.clothes[0]))}</em></li>`).join('') +
         `</ul>`;
     }
-    if (!inv.spots.length) body += `<p class="pocket-empty">Nothing you're wearing has pockets.</p>`;
+    if (!inv.spots.length) body += `<p class="pocket-empty">Nothing you’re wearing has pockets.</p>`;
     // Keep your place in the list when it's redrawn.
     const scroll = card.querySelector('.sheet-body')?.scrollTop ?? 0;
     card.innerHTML = `<div class="sheet-head"><h2>Pockets</h2>${close}</div><div class="sheet-body">${this.noteHtml(this.sheetNote, 'sheet-note')}${body}</div>`;
@@ -7222,7 +7222,7 @@ export class Game {
       strength: 'Landing blows, and carrying a heavy load around (slowly).',
       unarmed: 'Landing blows, ambushes and techniques. Each new level can teach you a new move.',
       agility: 'Landing blows, and dodging theirs.',
-      stamina: "Fighting until you're exhausted.",
+      stamina: "Fighting until you’re exhausted.",
       toughness: 'Getting hurt, and nothing else: every blow you take, and more the worse off you are when it lands (bleeding, rattled, broken, on the floor).',
       weapons: 'Using a weapon in a fight (and pepper spray). Take them off the people who carry them.',
       intimidation: 'Mugging, threatening, making people give up, and torture. Scared people hand it over, tell the truth, and give up mid-fight.',
@@ -7459,7 +7459,7 @@ export class Game {
           e.byRep = true;
           e.lookAt = { anon, clothes: lookClothes(inv).join('|') };
           e.grudge = 0;
-          e.history = "You've never met. But they know your face: people talk.";
+          e.history = "You’ve never met. But they know your face: people talk.";
         }
         // How they were when it began (to tell, later, what you did this time).
         e.start = { blood: e.them.blood, broken: [...e.them.broken] };
@@ -7729,7 +7729,7 @@ export class Game {
         delete cs.warrantFor;
         cs.bailPaid = 0;
         this.infamy.heat = Math.min(100, this.infamy.heat + 40);
-        const missed = ['You missed your court date. There\'s a warrant out for you now, and your bail is gone.'];
+        const missed = ['You missed your court date. There’s a warrant out for you now, and your bail is gone.'];
         if (this.running && this.tvState.on) this.note(missed);
         else this.later(missed);
       }
@@ -7924,7 +7924,7 @@ const DRUG_TEST: Record<'heroin' | 'fentanyl' | 'meth' | 'tranq', { name: string
   heroin: { name: 'heroin', line: 'The liquid turns a deep purple: heroin.' },
   fentanyl: { name: 'fentanyl', line: 'The strip shows one line, not two. Fentanyl. A drop of this could kill you.' },
   meth: { name: 'meth', line: 'The liquid goes orange, then dark brown: methamphetamine.' },
-  tranq: { name: 'tranq', line: "The liquid doesn't change at all, but the little xylazine strip does. Tranq: an animal sedative." },
+  tranq: { name: 'tranq', line: "The liquid doesn’t change at all, but the little xylazine strip does. Tranq: an animal sedative." },
 };
 
 /** How well a pocket hides a weapon, in a word or two. */
@@ -7966,7 +7966,7 @@ function custodyCare(h: Health): string[] {
   const was = h.bleeding;
   h.bleeding = 0;
   h.blood = Math.max(h.blood, Math.round(h.maxBlood * 0.6));
-  return [was ? 'They see the blood and take you to the ER first, cuffed to a gurney. A nurse closes the wound without a word to you.' : "You're gray and shaking. They take you to the ER first, cuffed to a gurney, and someone hangs a bag of fluids."];
+  return [was ? 'They see the blood and take you to the ER first, cuffed to a gurney. A nurse closes the wound without a word to you.' : "You’re gray and shaking. They take you to the ER first, cuffed to a gurney, and someone hangs a bag of fluids."];
 }
 
 /** Your court date is today (the court sits weekdays, and the date is the afternoon it closes). */

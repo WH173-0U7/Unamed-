@@ -73,7 +73,7 @@ export function tierUpLine(key: string, t: Tier): string {
   const plural = !/work|pound|from the top/.test(n);
   return t === 1
     ? `Your ${n} ${plural ? 'are' : 'is'} starting to come naturally.`
-    : `Your ${n} ${plural ? 'have' : 'has'} gotten sharp: you don't have to think about ${plural ? 'them' : 'it'} anymore.`;
+    : `Your ${n} ${plural ? 'have' : 'has'} gotten sharp: you don’t have to think about ${plural ? 'them' : 'it'} anymore.`;
 }
 
 /** Your punch, landing. `where` is "in the ribs"; `into` is "into their ribs". */
@@ -102,7 +102,7 @@ export function punchText(t: Tier, where: string, into: string): string[] {
     `You slip inside and drive a fist ${into}.`,
     `A tight punch ${into}.`,
     `You feint high and put the real one ${into}.`,
-    `Jab, then the right ${into}. You're back out before they can answer.`,
+    `Jab, then the right ${into}. You’re back out before they can answer.`,
     `You turn your hips into it and the punch catches them ${where}.`,
   ];
 }
@@ -177,7 +177,7 @@ export function weaponText(t: Tier, kind: 'blade' | 'blunt' | 'bottle' | 'broken
         ? [`You slash at them with the ${w} and catch them ${where}.`, `The ${w} flashes, and catches them ${where}.`, `You cut at them with the ${w}, ${where}.`, `You lunge with the ${w} and open them up ${where}.`]
         : [
             `You keep the ${w} low and close, and flick it out ${where}.`,
-            `A feint, then the ${w}, ${where}. You're back out of reach before they feel it.`,
+            `A feint, then the ${w}, ${where}. You’re back out of reach before they feel it.`,
             `You step off the line and slice them ${where}.`,
           ];
   return t === 0
@@ -279,7 +279,7 @@ export const AMBUSH_TEXT: Record<string, [string[], string[], string[]]> = {
   slam: [
     ['You grab them by the neck and shove their face at the wall.'],
     ['You grab them by the back of the neck and drive their face into the wall.'],
-    ['One hand on the back of their neck, and you bounce their face off the wall before they know you\'re there.'],
+    ['One hand on the back of their neck, and you bounce their face off the wall before they know you’re there.'],
   ],
   'rear-choke': [
     ['You come up behind them and get an arm around their throat, more or less.'],
@@ -299,6 +299,6 @@ export function missText(t: Tier, kind: 'punch' | 'kick' | 'weapon' | 'stomp' | 
   if (t === 2)
     return kind === 'stomp'
       ? ['You stomp down; they roll just clear.']
-      : ["It's a good one; they're just a little faster.", 'They read it, barely.', 'They slip it by an inch.'];
+      : ["It’s a good one; they’re just a little faster.", 'They read it, barely.', 'They slip it by an inch.'];
   return kind === 'kick' ? ['You miss the kick.'] : kind === 'stomp' ? ['You stomp down, but they roll away from it.'] : kind === 'weapon' ? ['You swing and miss.', 'They jerk back out of reach.'] : ['They slip the punch.', 'You miss.', 'Your punch glances off.'];
 }

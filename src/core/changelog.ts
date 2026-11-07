@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.46',
+    date: 'Nov 7',
+    items: [
+      'A writing pass over all the game’s text: apostrophes and quotation marks are the same curly style everywhere.',
+      'Fixed “1 rounds left”, “1 hours”, “1 cans” and similar.',
+      'Spelling made consistent (paralyzed, gray, anymore).',
+    ],
+  },
+  {
     v: '2.45',
     date: 'Nov 7',
     items: ['On a small phone turned sideways, the main menu fits on the screen (Check for updates was off the bottom), and the Export / Import panel and What’s new fit their buttons in.'],
@@ -220,7 +229,7 @@ export const CHANGES: Release[] = [
     v: '2.21',
     date: 'Nov 6',
     items: [
-      'Honest money, a little at a time. Ask people on the street for change ("Spare some change?"): most walk past, some give a few coins, a drunk might give you a few dollars. Looking rough helps; someone you’ve hurt gives nothing.',
+      'Honest money, a little at a time. Ask people on the street for change (“Spare some change?”): most walk past, some give a few coins, a drunk might give you a few dollars. Looking rough helps; someone you’ve hurt gives nothing.',
       'Go through the bins at your corner (Go: Your corner) for empty cans, and now and then something else. They fill back up over a few hours. The gas station takes the cans back at 10¢ each.',
       'Harbor Plasma, on the map: about fifty minutes in a recliner, real time, for $60 the first time and $45 after. Your own ID, twice a week at most, and you leave light-headed. Leave early and you don’t get paid.',
       'Deliveries with the Handoff app: you need a phone that’s yours or unlocked (a prepaid one at the gas station, $45; most phones you take off people are locked) and your own ID. Go online from the street, on its own real-time screen; more orders at dinnertime and in bad weather, fewer when you’re worn out. Your pay builds up in the app: cash it out to your bank account, free once a week or $2 any time.',
@@ -1848,7 +1857,7 @@ export const CHANGES: Release[] = [
     v: '0.41',
     date: 'Nov 3',
     items: [
-      'Fight text fixes: someone on the floor or out cold no longer "staggers" or "limps"; the hard cases only spit blood when they’re bleeding.',
+      'Fight text fixes: someone on the floor or out cold no longer “staggers” or “limps”; the hard cases only spit blood when they’re bleeding.',
       'Afterwards, you only remember a name you actually saw (and on what: a license, an ID, a card).',
       'Your broken jaw takes weeks to heal, not two hours; Catch your breath respects broken ribs.',
       'Drinking warns you one drink before you black out.',

@@ -101,7 +101,7 @@ export function injuriesText(k: Pick<Known, 'broken'>): string[] {
       : p === 'ribs'
         ? 'Moves stiffly, ribs strapped'
         : p === 'spine'
-          ? 'In a wheelchair. Paralysed from the waist down'
+          ? 'In a wheelchair. Paralyzed from the waist down'
           : p === 'collarbone'
             ? 'Arm in a sling, a broken collarbone'
             : /(arm|hand|wrist)$/.test(p)

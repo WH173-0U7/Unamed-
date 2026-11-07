@@ -199,25 +199,25 @@ export function offer(place: 'pawn' | 'fence', x: InvItem): { cents: number } | 
   const v = worth(x);
   const kind = x.kind;
   if (place === 'pawn') {
-    if (kind === 'id' || kind === 'credit card' || kind === 'debit card') return { why: '"I don\'t touch that."' };
-    if (kind === 'car keys' || x.secret) return { why: '"Get that out of my shop."' };
-    if (kind === 'weapon') return { why: '"I don\'t buy weapons off the street."' };
+    if (kind === 'id' || kind === 'credit card' || kind === 'debit card') return { why: '“I don’t touch that.”' };
+    if (kind === 'car keys' || x.secret) return { why: '“Get that out of my shop.”' };
+    if (kind === 'weapon') return { why: '“I don’t buy weapons off the street.”' };
     if (x.med || /cigarettes|lighter|matches|groceries|lunch|receipt|note|keys|baggie/i.test(x.name)) return { why: "Not worth his time" };
-    if (v <= 0) return { why: "He won't take it" };
+    if (v <= 0) return { why: "He won’t take it" };
     // Pawn shops pay a fraction, rounded down to the quarter.
     return { cents: Math.max(25, Math.floor((v * 0.2 * 100) / 25) * 25) };
   }
   // Car keys: worth something only with the car, and only while it isn't hot yet.
   if (kind === 'car keys') {
     const fresh = (x as InvItem).car === 'found' && Date.now() - ((x as InvItem).takenAt ?? 0) < 3 * 3_600_000;
-    if (!fresh) return { why: (x as InvItem).car === 'found' ? '"That car\'s been reported by now. Every cop in the city has the plate."' : '"Where\'s the car? Keys on their own are nothing to me."' };
+    if (!fresh) return { why: (x as InvItem).car === 'found' ? '“That car’s been reported by now. Every cop in the city has the plate.”' : '“Where’s the car? Keys on their own are nothing to me.”' };
     // A chop shop pays a few hundred for a car, whatever it's worth.
     const seed = [...(x.detail ?? '')].reduce((n, ch) => n + ch.charCodeAt(0), 0);
     return { cents: (300 + (seed % 7) * 50) * 100 };
   }
-  if (v <= 0 || /receipt|note|house keys|transfer|slip|photo/i.test(x.name)) return { why: '"What am I gonna do with that?"' };
+  if (v <= 0 || /receipt|note|house keys|transfer|slip|photo/i.test(x.name)) return { why: '“What am I gonna do with that?”' };
   // Drugs, or a needle: that's a dealer's business, not his.
-  if (x.secret || /syringe/i.test(x.name)) return { why: '"I don\'t touch that. Talk to Dez."' };
+  if (x.secret || /syringe/i.test(x.name)) return { why: '“I don’t touch that. Talk to Dez.”' };
   // The fence pays less, but takes anything stolen; whole dollars, small bills.
   const rate = x.kind === 'phone' ? 0.08 : 0.12;
   return { cents: Math.max(100, Math.floor(v * rate) * 100) };

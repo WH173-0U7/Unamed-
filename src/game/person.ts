@@ -111,7 +111,7 @@ export const PERSONALITIES: Record<Personality, PersonalityInfo> = {
   sly: { name: 'Sly', desc: 'Watchful, a little smile. Will say whatever gets them out of it.', fear: 0, cowed: 0.9, maxYield: 0.9, yield: 0.05, flee: 1.2, fight: -0.05, truth: 0.4, holdBack: 1.8 },
   proud: { name: 'Proud', desc: 'Chin up, takes up the sidewalk. Hates to lose face.', fear: -10, cowed: 0.75, maxYield: 0.8, yield: -0.1, flee: 0.6, fight: 0.1, truth: 1, holdBack: 1.3 },
   hothead: { name: 'Hothead', desc: 'Already angry about something. Quick to swing.', fear: -15, cowed: 0.7, maxYield: 0.75, yield: -0.08, flee: 0.5, fight: 0.3, truth: 0.8, holdBack: 1, carry: { Knife: 0.12, 'Box cutter': 0.1, Bottle: 0.1 } },
-  hard: { name: 'Hard', desc: "Seen worse than you. Won't scare, won't run.", fear: -22, cowed: 0.5, maxYield: 0.6, yield: -0.15, flee: 0.3, fight: 0.2, truth: 1, holdBack: 1.4, carry: { Knife: 0.1 } },
+  hard: { name: 'Hard', desc: "Seen worse than you. Won’t scare, won’t run.", fear: -22, cowed: 0.5, maxYield: 0.6, yield: -0.15, flee: 0.3, fight: 0.2, truth: 1, holdBack: 1.4, carry: { Knife: 0.1 } },
 };
 const PERSONALITY_CHANCES: Record<Kind, [Personality, number][]> = {
   civilian: [['timid', 3], ['jumpy', 2], ['calm', 3], ['sly', 1], ['proud', 2], ['hothead', 1], ['hard', 0.5]],
@@ -439,17 +439,17 @@ function spotsOf(name: string): string[] {
 
 /** A name for someone (or for you, when you start as someone new). */
 export const randomName = yourName;
-const STORES = ['Corner Mart', 'Gas & Go', "Lucky's Liquor", 'Dollar Barn', 'Pho 88', 'QuickWash Laundromat', 'Night Owl Diner', 'Rite Way Pharmacy', 'Metro Transit'];
+const STORES = ['Corner Mart', 'Gas & Go', "Lucky’s Liquor", 'Dollar Barn', 'Pho 88', 'QuickWash Laundromat', 'Night Owl Diner', 'Rite Way Pharmacy', 'Metro Transit'];
 const NOTES = [
-  'A note: "Call Dee back. Don\'t tell Mom."',
-  'A folded note with a phone number and one word: "tonight."',
+  'A note: “Call Dee back. Don’t tell Mom.”',
+  'A folded note with a phone number and one word: “tonight.”',
   'A shopping list: milk, bread, eggs, insulin.',
   'A pawn slip for a gold ring.',
   'A bus transfer, already expired.',
   'A photo of a kid, worn soft at the corners.',
-  'A note: "Rent is late again. Last warning." It\'s signed by the landlord.',
+  'A note: “Rent is late again. Last warning.” It’s signed by the landlord.',
   'An appointment card for a clinic, next Tuesday at 9:15.',
-  'A note with an address on it, and "back door, after 2."',
+  'A note with an address on it, and “back door, after 2.”',
   'A lottery ticket. Not a winner.',
 ];
 const PHONES = ['Cracked screen', 'Locked with a passcode', 'An old flip phone', 'Battery nearly dead', 'In a glitter case', 'A dog on the lock screen'];

@@ -373,9 +373,9 @@ export function noRoomWhy(inv: Inventory, size: Size, kg = 0.01): string {
   // (A sheath or a holster takes only what it's made for.)
   const spots = inv.spots.filter((s) => fitsIn(s));
   if (!spots.some((s) => SIZE_RANK[s.fits] >= SIZE_RANK[size])) {
-    return size === 'large' ? 'Too big to carry without a backpack.' : size === 'medium' ? "Won't fit in a pocket. You'd need a bag." : 'You have no pockets.';
+    return size === 'large' ? 'Too big to carry without a backpack.' : size === 'medium' ? "Won’t fit in a pocket. You’d need a bag." : 'You have no pockets.';
   }
-  if (!spots.some((s) => SIZE_RANK[s.fits] >= SIZE_RANK[size] && s.maxKg >= kg - 1e-9)) return "Too heavy for any pocket you've got. You'd need a bag.";
+  if (!spots.some((s) => SIZE_RANK[s.fits] >= SIZE_RANK[size] && s.maxKg >= kg - 1e-9)) return "Too heavy for any pocket you’ve got. You’d need a bag.";
   return cashBulk(inv) > 0.35 ? 'Your pockets are stuffed with cash.' : 'There is no room left.';
 }
 
@@ -443,7 +443,7 @@ export function wear(inv: Inventory, slot: 'top' | 'bottom' | 'bag', name: strin
         left.push(it);
         continue;
       }
-      return { ok: false, why: `You'd have nowhere to put the ${it.name.toLowerCase()}.` };
+      return { ok: false, why: `You’d have nowhere to put the ${it.name.toLowerCase()}.` };
     }
     const x = { ...it, spot: spot.id };
     trial.items.push(x);
@@ -451,7 +451,7 @@ export function wear(inv: Inventory, slot: 'top' | 'bottom' | 'bag', name: strin
   }
   // (In the order you had them.)
   trial.items = inv.items.filter((it) => placed.has(it)).map((it) => placed.get(it)!);
-  if (cashFits(inv) && !cashFits(trial)) return { ok: false, why: "You'd have nowhere to put all your cash." };
+  if (cashFits(inv) && !cashFits(trial)) return { ok: false, why: "You’d have nowhere to put all your cash." };
   inv.clothes = clothes;
   inv.spots = spots;
   inv.items = trial.items;
@@ -544,7 +544,7 @@ export const MEDS: Med[] = [
     name: 'Bandages',
     price: 8,
     desc: 'Wrap a wound: slows bleeding a level.',
-    blocked: (h) => (h.bleeding ? null : "You aren't bleeding"),
+    blocked: (h) => (h.bleeding ? null : "You aren’t bleeding"),
     use(h) {
       h.bleeding = Math.max(0, h.bleeding - 1);
       return h.bleeding ? 'You wrap the wound tight. The bleeding slows.' : 'You wrap the wound. The bleeding stops.';
@@ -555,7 +555,7 @@ export const MEDS: Med[] = [
     name: 'Gauze and tape',
     price: 15,
     desc: 'Pack a deep wound: slows bleeding two levels.',
-    blocked: (h) => (h.bleeding ? null : "You aren't bleeding"),
+    blocked: (h) => (h.bleeding ? null : "You aren’t bleeding"),
     use(h) {
       h.bleeding = Math.max(0, h.bleeding - 2);
       return h.bleeding ? 'You pack the wound with gauze and tape it down. It still seeps.' : 'You pack the wound with gauze and tape it down. The bleeding stops.';
@@ -609,7 +609,7 @@ MEDS.push({
   price: 5,
   desc: '200 mg. Sharper in a fight for hours; too many and your hands shake.',
   // (What's still on its way counts: pills take a while to hit.)
-  blocked: (h) => (caffeineNow(h, Date.now() + 45 * 60_000) >= 600 ? "Your heart's already pounding" : null),
+  blocked: (h) => (caffeineNow(h, Date.now() + 45 * 60_000) >= 600 ? "Your heart’s already pounding" : null),
   use(h) {
     addCaffeine(h, 200);
     return 'You dry-swallow two of the pills. Nothing yet; in half an hour or so you’ll feel it.';

@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.47',
+    date: 'Nov 7',
+    items: [
+      'Opening a pocket knife or razor no longer says it takes both hands (one free hand is enough).',
+      'Shoving someone from behind no longer says “with both hands” when you’re holding something.',
+      'Going back to a car that’s already been towed no longer says you walk to the car first: you walk to where it was parked.',
+      'After a character is left inside, the end screen says plainly that you can visit who you were at the County Courthouse.',
+    ],
+  },
+  {
     v: '2.46',
     date: 'Nov 7',
     items: [

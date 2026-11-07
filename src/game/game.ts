@@ -1530,7 +1530,7 @@ export class Game {
       `</dl>` +
       `<p class="death-after">${
         jailed
-          ? 'What you came in with is in a plastic bag with your name on it, on a shelf. As someone new, you can visit them at the County Courthouse.'
+          ? 'What you came in with is in a plastic bag with your name on it, on a shelf. As someone new, you can visit who you were at the County Courthouse.'
           : robbed
           ? 'Someone went through your pockets before you were cold. Whatever you had is out there now, on somebody.'
           : indoors && !inEr
@@ -1804,7 +1804,7 @@ export class Game {
         guns: 'A buzzer sounds as you push the door. The man behind the counter looks up, and keeps looking.',
         court: 'A deputy at the door watches you put your keys and phone in a plastic tray for the metal detector.',
         room: 'You climb the stairs to the Hotel Marlow. The man in the cage looks up, then down again.',
-        car: ((c, s) => (c ? `You walk ${c.visited ? 'back ' : ''}to the ${c.color} ${c.make}, parked ${c.street}.` : s ? `You start down the block with the ${makeOf(this.keysFor(s.car) ?? {})} fob in your hand.` : ''))(this.atCar, this.hunt),
+        car: ((c, s) => (c ? (now() >= c.towAt ? `You walk ${c.visited ? 'back ' : ''}to where the ${c.color} ${c.make} was parked, ${c.street}.` : `You walk ${c.visited ? 'back ' : ''}to the ${c.color} ${c.make}, parked ${c.street}.`) : s ? `You start down the block with the ${makeOf(this.keysFor(s.car) ?? {})} fob in your hand.` : ''))(this.atCar, this.hunt),
         home: this.atHome?.type === 'room' ? `You walk to ${this.atHome.addr}. The street door’s propped open with a brick; you go up to their floor.` : `You walk to ${this.atHome?.addr ?? 'the address'}, and take a look at it from across the street.`,
       }[p] ?? '',
     ];
@@ -2826,7 +2826,7 @@ export class Game {
   private checkCar(): string[] {
     const c = this.atCar;
     if (!c || now() < c.towAt) return [];
-    return this.towed(c, `Where you left the ${c.make}, there’s ${c.home ? 'an empty space at the curb' : 'an empty space, and someone else’s car pulling into it'}. Towed, or found and taken home.`);
+    return this.towed(c, `${c.visited ? `Where you left the ${c.make}` : 'Where it was'}, there’s ${c.home ? 'an empty space at the curb' : 'an empty space, and someone else’s car pulling into it'}. Towed, or found and taken home.`);
   }
   /** At a car that's been towed while you stood there (the app left open, or reopened): it's gone. */
   private carTowedNow(): boolean {

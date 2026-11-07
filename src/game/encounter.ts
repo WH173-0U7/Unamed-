@@ -2149,7 +2149,7 @@ function openKnife(k: Knife): boolean {
   }
   if (k.open === 'nail') {
     opened();
-    say('you', `You dig a thumbnail into the ${k.name === 'Straight razor' ? 'razor' : 'blade'} and pull it open. It takes both hands.`);
+    say('you', `You dig a thumbnail into the ${k.name === 'Straight razor' ? 'razor' : 'blade'} and pull it open.`);
     return false;
   }
   // A butterfly knife.

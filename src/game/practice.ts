@@ -270,7 +270,7 @@ export const AMBUSH_TEXT: Record<string, [string[], string[], string[]]> = {
     ['Three quiet steps, and you put a short, perfect punch behind their ear.', 'You time it to their step, and your fist catches the side of their head from behind.'],
   ],
   bumrush: [['You run at them, head down, and crash into them.'], ['You bum rush them.'], ['You close the gap fast and low and drive your shoulder into them.']],
-  shove: [['You shove them, hard, with both hands.'], ['You shove them hard.'], ['You catch them mid-step and shove, right when their weight is wrong.']],
+  shove: [['You shove them, hard, all your weight behind it.'], ['You shove them hard.'], ['You catch them mid-step and shove, right when their weight is wrong.']],
   kneecap: [
     ['You come up behind them and kick at the back of their knee as hard as you can.'],
     ['You come up behind them and kick the back of their knee as hard as you can.'],

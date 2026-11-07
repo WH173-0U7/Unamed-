@@ -1699,8 +1699,8 @@ export class Game {
       this.mapPick = b.dataset.mappick;
       const fromList = !!b.closest('.map-list');
       this.renderSheet();
-      // (Picked from the list under the map: bring its card into view.)
-      if (fromList) this.sheetEl.querySelector('.map-card')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      // (Bring its card into view: from the list under the map, or a pin with the card below the fold.)
+      this.sheetEl.querySelector(fromList ? '.map-card' : '.map-card button')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     } else if (b.dataset.place) this.goTo(b.dataset.place as Place);
     else if (b.dataset.home) this.goHome(b.dataset.home);
     else if (b.dataset.use) this.useMed(Number(b.dataset.use));

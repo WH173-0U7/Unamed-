@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.36',
+    date: 'Nov 7',
+    items: [
+      'Map pins are easier to tap, especially with the phone turned sideways.',
+      'Tapping a place on the map brings its “Walk there” button into view.',
+      'At the bank, the amount box sits on its own line, with Deposit and Withdraw together under it.',
+      'On a small phone turned sideways, a place’s name fits on one line, so what just happened there has room to show.',
+    ],
+  },
+  {
     v: '2.35',
     date: 'Nov 7',
     items: [

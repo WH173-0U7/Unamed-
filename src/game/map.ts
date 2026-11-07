@@ -159,7 +159,7 @@ function overSvg(): string {
     mark(66, 128, 'M12 2.5v19 M6 8h12 M7 21.5h10', 'ST. AGNES'),
     mark(18, 223, 'M5 5h14v14H5z M8 12a4 4 0 1 0 8 0a4 4 0 1 0-8 0', 'LAUNDROMAT', 'start'),
     mark(282, 30, 'M8 21.5l2-11h4l2 11 M7 10.5h10v-4a5 5 0 0 0-10 0z', 'WATER TOWER'),
-    mark(26, 300, 'M3 20h18 M5 20V9l7-5 7 5v11 M9 20v-6h6v6', 'SHELTER', 'start'),
+    mark(26, 292, 'M3 20h18 M5 20V9l7-5 7 5v11 M9 20v-6h6v6', 'SHELTER', 'start'),
   ].join('');
   // A compass, and how long a block is.
   const compass = `<g class="compass" transform="translate(281 64)"><circle r="8"/><path d="M0 -6.5L2 0H-2Z" class="n"/><path d="M0 6.5L2 0H-2Z"/><text y="-10" text-anchor="middle">N</text></g>`;

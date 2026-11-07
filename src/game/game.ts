@@ -62,21 +62,21 @@ const HUMANITY: { at: number; name: string; line: string }[] = [
 const oneOf = <T,>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)];
 /** A lock that never gets changed (nobody left to change it). */
 const NEVER = 8.64e15;
-/** A date, with the year when it isn't this year's (a debt that came due while you were inside). */
 /** A prison sentence, said the way a judge would: whole years, else months. */
 const prisonTerm = (days: number) => {
   const months = Math.round(days / 30.4);
   return months % 12 ? `${months} months` : months === 12 ? 'a year' : `${months / 12} years`;
 };
+/** A date, with the year when it isn't this year's (a debt that came due while you were inside). */
 const dueText = (t: number) => (new Date(t).getFullYear() === new Date(now()).getFullYear() ? dateText(t) : new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }));
 /** Days Dez's vig keeps compounding once you're late. */
 const VIG_DAYS = 14;
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 /** At an address: outside, or in, and what's happened so far. */
 /** Everything in the save that's this character's (not the world's). */
-const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'laterLines', 'restLines', 'connect', 'work', 'workLines', 'plasma', 'gig', 'bins', 'crowd'];
+const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'policeArrested', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'laterLines', 'restLines', 'connect', 'work', 'workLines', 'plasma', 'gig', 'bins', 'crowd'];
 /** What only makes sense in the moment (a stop, a fight, a door you're at): not kept when you stop being them. */
-const MOMENT_KEYS = ['work', 'workLines', 'laterLines', 'restLines', 'crowd', 'encounter', 'policeStop', 'policeResult', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow'];
+const MOMENT_KEYS = ['work', 'workLines', 'laterLines', 'restLines', 'crowd', 'encounter', 'policeStop', 'policeResult', 'policeArrested', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow'];
 /**
  * Someone you used to be: kept whole (stats, body, pockets, record), inside
  * or out on the streets, to free, to meet, and to go on as again.
@@ -1675,6 +1675,7 @@ export class Game {
       else if (b?.dataset.police === 'custody') this.heldForCourt();
       else if (b?.dataset.police === 'done') {
         delete this.save.state.policeResult;
+        delete this.save.state.policeArrested;
         this.closeSheet();
         this.refresh();
       } else if (b?.dataset.police && !this.save.state.policeResult) this.police(b.dataset.police as 'run' | 'stay' | 'talk');
@@ -3297,8 +3298,8 @@ export class Game {
       if (pending.warrantFor !== 'sting' && pending.warrantFor !== 'escape') charges.push('Failure to appear');
       // (Wanted for an escape: that's what they book you on, now.)
       if (pending.warrantFor === 'escape') {
-        charges.push(...pending.charges.filter((x) => /escape/i.test(x)));
-        pending.charges = pending.charges.filter((x) => !/escape/i.test(x));
+        charges.push(...pending.charges.filter((x) => /escape|^failure to appear$/i.test(x)));
+        pending.charges = pending.charges.filter((x) => !/escape|^failure to appear$/i.test(x));
       }
     }
     /** The sting(s) you ran from: charged now, at the station, like any other (so they go on your record). */
@@ -3320,8 +3321,9 @@ export class Game {
       delete this.save.state.stingCash;
     };
     if (sting && choice !== 'run') {
+      const hadMarked = ((this.save.state.stingCash as number) ?? 0) > 0;
       takeMarked();
-      lines.push(((this.save.state.stingCash as number) ?? 0) > 0 ? 'The cuffs go on. The twenty you took is marked; the bag is already in an evidence envelope.' : 'The cuffs go on. The bag is already in an evidence envelope.');
+      lines.push(hadMarked ? 'The cuffs go on. The twenty you took is marked; the bag is already in an evidence envelope.' : 'The cuffs go on. The bag is already in an evidence envelope.');
       arrested = true;
       charges.push('Selling a controlled substance');
     }
@@ -3506,8 +3508,8 @@ export class Game {
     // (Caught running, wanted for an escape: that's what they book you on.)
     if (arrested && pending?.warrant && pending.warrantFor === 'escape' && !charges.some((x) => /escape/i.test(x)) && pending.charges.some((x) => /escape/i.test(x))) {
       lines.push('At the station they run your name. There\'s a warrant out for you: the escape.');
-      charges.push(...pending.charges.filter((x) => /escape/i.test(x)));
-      pending.charges = pending.charges.filter((x) => !/escape/i.test(x));
+      charges.push(...pending.charges.filter((x) => /escape|^failure to appear$/i.test(x)));
+      pending.charges = pending.charges.filter((x) => !/escape|^failure to appear$/i.test(x));
     }
     if (arrested && pending?.warrant && pending.warrantFor !== 'sting' && pending.warrantFor !== 'escape' && !charges.includes('Failure to appear')) {
       lines.push('At the station they run your name. There\'s a warrant out for you, too.');
@@ -3571,6 +3573,7 @@ export class Game {
     }
     // What happened stays on the screen until you've read it (once they let you out).
     this.save.state.policeResult = lines;
+    this.save.state.policeArrested = arrested;
     this.refresh();
     this.renderSheet();
     if (arrested) this.lockUp(8, 'A night in a holding cell');
@@ -3627,6 +3630,7 @@ export class Game {
     if (h.dead) return this.die(lines);
     wearOff(h);
     this.save.state.policeResult = lines;
+    this.save.state.policeArrested = true;
     this.refresh();
     this.renderSheet();
   }
@@ -3738,7 +3742,7 @@ export class Game {
       const rec = this.record;
       rec.arrests++;
       if (fta) rec.charges['Failure to appear'] = (rec.charges['Failure to appear'] ?? 0) + 1;
-      if (escaped) for (const x of c.charges.filter((y) => /escape/i.test(y))) rec.charges[x] = (rec.charges[x] ?? 0) + 1;
+      if (escaped) for (const x of c.charges.filter((y) => /escape|^failure to appear$/i.test(y))) rec.charges[x] = (rec.charges[x] ?? 0) + 1;
       if (c.stingPending) rec.charges['Selling a controlled substance'] = (rec.charges['Selling a controlled substance'] ?? 0) + c.stingPending;
       delete c.stingPending;
       rec.last = now();
@@ -3970,7 +3974,8 @@ export class Game {
     } else {
       me.until = j?.until ?? now();
       me.what = j?.what ?? 'Inside';
-      delete me.state.case;
+      // (Out on bail with a court date: that still stands when they walk out.)
+      if (!c?.courtAt) delete me.state.case;
     }
     this.selves.push(me);
     // (Only so many lives anyone keeps track of.)
@@ -4017,6 +4022,8 @@ export class Game {
     delete x.hearingAt;
     delete x.bail;
     delete x.van;
+    // (Judged: those charges are done with. A break-out after this is a new case.)
+    delete x.charges;
     delete x.state.case;
     const rec = (x.state.record ?? { arrests: 1, charges: {} }) as CrimeRecord;
     x.state.record = rec;
@@ -4182,7 +4189,20 @@ export class Game {
         const h = this.health;
         const rec = this.record;
         const lines = ['You wait behind the dumpsters by the loading dock. The door clanks, and two deputies walk them out toward the van.', `You go. You don’t get close: a third deputy you didn’t see has you face down on the asphalt, a knee in your neck. Through the van’s mesh window, ${x.name} watches them cuff you.`];
+        const c = this.case ?? { charges: [], bail: 0, courtAt: 0 };
+        // (Booked like anyone: what they were already after you for goes on the record too, and what's on you.)
+        const fta = !!c.warrant && c.warrantFor !== 'sting' && c.warrantFor !== 'escape' && !c.charges.includes('Failure to appear');
+        if (fta) c.charges.push('Failure to appear');
+        const was = c.warrant ? c.charges.filter((y) => (fta && y === 'Failure to appear') || (c.warrantFor === 'escape' && /escape|^failure to appear$/i.test(y))) : [];
+        for (const y of was) rec.charges[y] = (rec.charges[y] ?? 0) + 1;
+        if (c.stingPending) rec.charges['Selling a controlled substance'] = (rec.charges['Selling a controlled substance'] ?? 0) + c.stingPending;
+        delete c.stingPending;
+        const extra: string[] = [];
+        if (inv.items.some((y) => this.stolen(y))) extra.push('Possession of stolen property');
+        if (inv.items.some((y) => y.secret && y.secret !== 'empty')) extra.push(this.intent() ? 'Possession with intent to distribute' : 'Possession of a controlled substance');
+        if (inv.items.some((y) => y.kind === 'weapon' && /switchblade|butterfly|push dagger/i.test(y.name))) extra.push('Carrying an illegal weapon');
         inv.items = inv.items.filter((y) => !(this.stolen(y) || y.kind === 'weapon' || (y.secret && y.secret !== 'empty') || y.name === 'Zip bags'));
+        for (const y of extra) rec.charges[y] = (rec.charges[y] ?? 0) + 1;
         rec.arrests++;
         rec.charges['Aiding an escape'] = (rec.charges['Aiding an escape'] ?? 0) + 1;
         rec.last = t;
@@ -4191,23 +4211,22 @@ export class Game {
         h.cold = 0;
         delete h.smokingUntil;
         if (h.dead) return this.die(lines);
-        const c = this.case ?? { charges: [], bail: 0, courtAt: 0 };
-        if (c.warrant && c.warrantFor !== 'sting' && c.warrantFor !== 'escape' && !c.charges.includes('Failure to appear')) c.charges.push('Failure to appear');
         if (c.bailPaid) {
           lines.push(`You were already out on bail. It's revoked: the ${money(c.bailPaid)} you put up is gone.`);
           c.bailPaid = 0;
         }
-        c.charges = [...c.charges, 'Aiding an escape'];
+        c.charges = [...c.charges, ...extra, 'Aiding an escape'];
         c.bail = 0;
         c.courtAt = courtDate();
         c.warrant = false;
         delete c.warrantFor;
         this.save.state.case = c;
         this.save.state.bailOffer = 'custody';
-        lines.push('In the morning you’re charged: aiding an escape. No bail. You’re held until your hearing.');
+        lines.push(`In the morning you’re charged: aiding an escape${extra.length ? `, and ${extra.map((y) => y.toLowerCase()).join(' and ')}` : ''}. No bail. You’re held until your hearing.`);
         this.infamy.heat = Math.min(100, this.infamy.heat + 40);
         h.stress = Math.min(100, (h.stress ?? 0) + 25);
         this.save.state.policeResult = lines;
+        this.save.state.policeArrested = true;
         this.refresh();
         this.openSheet('police');
         this.lockUp(8, 'A night in a holding cell');
@@ -6791,7 +6810,7 @@ export class Game {
               `<button type="button" class="place" data-police="custody"><b>Wait in jail for the hearing</b><small>36 real hours in County, then the judge.</small></button>`)(Math.round(cashOf(this.inventory) * 100) + (this.account?.cents ?? 0))
           : this.save.state.bailOffer === 'custody'
             ? `<button type="button" class="place" data-police="custody"><b>Wait for the hearing</b><small>36 real hours in County, then the judge.</small></button>`
-            : `<button type="button" class="place" data-police="done"><b>Go on</b><small>${this.record.arrests ? 'It’s on your record (You: Criminal record).' : 'Back to the street.'}</small></button>`) +
+            : `<button type="button" class="place" data-police="done"><b>Go on</b><small>${this.save.state.policeArrested ? 'It’s on your record (You: Criminal record).' : 'Back to the street.'}</small></button>`) +
         `</div>`;
       return;
     }

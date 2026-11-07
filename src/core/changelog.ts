@@ -11,6 +11,18 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.37',
+    date: 'Nov 7',
+    items: [
+      'Arrested in a sting, you’re now told the twenty you took was marked.',
+      'A former self broken out of the van is no longer tried again for what they were already sentenced for.',
+      'Giving up on a character who’s out on bail no longer wipes their court date.',
+      'Caught at the van, what you were already wanted for (and anything on you) now goes on your record too.',
+      'A missed court date stays on your record when an escape warrant comes on top of it.',
+      'After a stop that wasn’t an arrest, “Go on” no longer says it’s on your record.',
+    ],
+  },
+  {
     v: '2.36',
     date: 'Nov 7',
     items: [

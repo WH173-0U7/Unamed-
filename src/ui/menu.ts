@@ -1,5 +1,6 @@
 import { uiGlitch } from '../fx/uiGlitch';
 import { CHANGES, VERSION } from '../core/changelog';
+import { newer } from '../core/update';
 import { isMobile } from '../core/quality';
 import { onSettingsChange, updateSettings, type ButtonStyle, type FontStyle, type GraphicsQuality } from '../core/settings';
 import { formatAgo, formatPlayTime, type SaveData } from '../core/save';
@@ -7,8 +8,8 @@ import { formatAgo, formatPlayTime, type SaveData } from '../core/save';
 export type Screen = 'main' | 'pause' | 'settings' | 'confirm' | 'news';
 
 const QUALITY_NOTES: Record<GraphicsQuality, string> = {
-  auto: 'Adjusts resolution on the fly to keep things smooth.',
-  low: 'Fewer particles and lower resolution. Best for older phones and battery life.',
+  auto: 'Picks a resolution to suit this device.',
+  low: 'Lower resolution. Best for older phones and battery life.',
   medium: 'A balance of detail and smoothness.',
   high: 'Full detail at full resolution. Needs a powerful device.',
 };
@@ -56,7 +57,11 @@ export function createMenu(handlers: MenuHandlers) {
   }
 
   function back() {
+    // (Backing out of a question: whatever asked it gets its say.)
+    const cancel = current === 'confirm' ? confirmCancel : null;
+    confirmCancel = null;
     show(history.pop() ?? 'main');
+    cancel?.();
   }
 
   function hide() {
@@ -66,7 +71,9 @@ export function createMenu(handlers: MenuHandlers) {
   }
 
   let confirmAction: (() => void) | null = null;
-  function confirm(opts: { title: string; body: string; ok: string; onOk: () => void }) {
+  let confirmCancel: (() => void) | null = null;
+  function confirm(opts: { title: string; body: string; ok: string; onOk: () => void; onCancel?: () => void }) {
+    confirmCancel = opts.onCancel ?? null;
     $('confirm-title').textContent = opts.title;
     $('confirm-body').textContent = opts.body;
     $('confirm-ok').textContent = opts.ok;
@@ -76,6 +83,7 @@ export function createMenu(handlers: MenuHandlers) {
   $('confirm-ok').addEventListener('click', () => {
     const action = confirmAction;
     confirmAction = null;
+    confirmCancel = null;
     back();
     action?.();
   });
@@ -178,12 +186,14 @@ export function createMenu(handlers: MenuHandlers) {
   root.querySelectorAll<HTMLElement>('[data-go="news"]').forEach((b) => b.addEventListener('click', () => fillNews(null)));
   // Updated since you last played: say what changed (not for automated test runs).
   // (Not for someone playing for the first time: there's nothing to compare.)
-  if (seen && seen !== VERSION && !new URLSearchParams(location.search).has('debug')) {
+  // (An older copy of the page, loaded after a newer one: nothing new to say, and it doesn't count as seen.)
+  const isNewer = !seen || newer(VERSION, seen);
+  if (seen && isNewer && !new URLSearchParams(location.search).has('debug')) {
     fillNews(seen);
     requestAnimationFrame(() => show('news', true));
   }
   try {
-    localStorage.setItem(SEEN, VERSION);
+    if (isNewer) localStorage.setItem(SEEN, VERSION);
   } catch {
     /* no storage */
   }

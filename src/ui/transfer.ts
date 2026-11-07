@@ -41,7 +41,7 @@ export async function showExport(toast: (t: string) => void) {
 }
 
 /** Paste a code in; it replaces the game saved here (asked first). */
-export function showImport(toast: (t: string) => void, confirmReplace: (go: () => void) => void, loaded: (s: SaveData) => void) {
+export function showImport(toast: (t: string) => void, confirmReplace: (go: () => void, cancel: () => void) => void, loaded: (s: SaveData) => void) {
   const el = panel(
     `<h3>Load a game from a code</h3>` +
       `<p>Paste the code from the other device. It replaces the game saved here.</p>` +
@@ -56,6 +56,10 @@ export function showImport(toast: (t: string) => void, confirmReplace: (go: () =
     el.hidden = true;
     confirmReplace(() => {
       void importCode(code).then((s) => {
+        if (s === 'storage') {
+          el.hidden = false;
+          return toast('Couldn’t save it here: this device’s storage is full.');
+        }
         if (!s) {
           el.hidden = false;
           return toast('That isn’t a whole code. Copy all of it and try again.');
@@ -63,6 +67,6 @@ export function showImport(toast: (t: string) => void, confirmReplace: (go: () =
         el.remove();
         loaded(s);
       });
-    });
+    }, () => (el.hidden = false));
   });
 }

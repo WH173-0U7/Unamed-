@@ -178,7 +178,7 @@ export async function exportCode(): Promise<string | null> {
   return CODE_PREFIX + btoa(bin);
 }
 /** A code back into a saved game, replacing what's here. Returns what it loaded, or null if the code isn't one. */
-export async function importCode(code: string): Promise<SaveData | null> {
+export async function importCode(code: string): Promise<SaveData | null | 'storage'> {
   try {
     const body = code.replace(/\s+/g, '');
     if (!body.startsWith(CODE_PREFIX)) return null;
@@ -187,8 +187,13 @@ export async function importCode(code: string): Promise<SaveData | null> {
     if (!data) return null;
     // (It takes over from whatever was here: counted on from that, so nothing thinks it's stale.)
     data.rev = Math.max(data.rev ?? 0, parse(localStorage.getItem(KEY))?.rev ?? 0) + 1;
+    // (Written first: if it won't go, the old game and its backup are still there.)
+    try {
+      localStorage.setItem(KEY, JSON.stringify(data));
+    } catch {
+      return 'storage';
+    }
     localStorage.removeItem(BACKUP_KEY);
-    localStorage.setItem(KEY, JSON.stringify(data));
     return data;
   } catch {
     return null;

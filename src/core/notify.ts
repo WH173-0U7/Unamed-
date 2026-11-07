@@ -36,7 +36,15 @@ async function allowed(): Promise<boolean> {
 }
 
 /** Replaces whatever was scheduled with these (the ones still to come). */
-export async function scheduleAll(list: Upcoming[]) {
+/** One at a time: leaving and coming straight back mustn't leave reminders set behind you. */
+let queue: Promise<void> = Promise.resolve();
+export function scheduleAll(list: Upcoming[]): Promise<void> {
+  return (queue = queue.then(() => doSchedule(list)));
+}
+export function clearAll(): Promise<void> {
+  return (queue = queue.then(doClear));
+}
+async function doSchedule(list: Upcoming[]) {
   if (!isApp()) return;
   try {
     const pending = await LocalNotifications.getPending();
@@ -52,7 +60,7 @@ export async function scheduleAll(list: Upcoming[]) {
   }
 }
 /** Back in the game: what was scheduled would only repeat what's on the screen. */
-export async function clearAll() {
+async function doClear() {
   if (!isApp()) return;
   try {
     const pending = await LocalNotifications.getPending();

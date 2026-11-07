@@ -11,6 +11,19 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.44',
+    date: 'Nov 7',
+    items: [
+      'The back button (and Escape) closes the Export / Import panel first, instead of changing the menu behind it.',
+      'Cancelling “Replace this game?” brings the import panel back with your code still in it.',
+      'Messages like “Copied” show clearly over the Export / Import panel.',
+      'If a game can’t be loaded because the phone’s storage is full, it says so, and your old game is kept.',
+      '“What’s new” no longer shows again for an update you’ve already seen.',
+      'The Auto graphics setting describes what it actually does.',
+      'Leaving the app and coming straight back no longer leaves reminders set to go off while you play.',
+    ],
+  },
+  {
     v: '2.43',
     date: 'Nov 7',
     items: ['Stress settles much faster, minute by minute: from full panic you stop panicking in about ten minutes, and you’re only on edge after about half an hour. It’s gone within a couple of hours (faster lying down).'],

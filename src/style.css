@@ -6338,3 +6338,7 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
   position: absolute;
   inset: -8px 0 0;
 }
+/* Messages show over the Export / Import panel too. */
+#toast {
+  z-index: 41;
+}

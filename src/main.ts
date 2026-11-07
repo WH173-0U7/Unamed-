@@ -207,9 +207,9 @@ $('btn-import').addEventListener('click', () => {
   }
   showImport(
     (t) => menu.toast(t, 4500),
-    (go) =>
+    (go, cancel) =>
       hasSave()
-        ? menu.confirm({ title: 'Replace this game?', body: 'The game saved here is replaced by the one from the code. This can’t be undone.', ok: 'Replace', onOk: go })
+        ? menu.confirm({ title: 'Replace this game?', body: 'The game saved here is replaced by the one from the code. This can’t be undone.', ok: 'Replace', onOk: go, onCancel: cancel })
         : go(),
     () => {
       menu.setSaveInfo(loadSave());
@@ -370,9 +370,17 @@ addEventListener('storage', (ev) => {
   if (ev.key === 'darcvoyd.save' && game) openedElsewhere();
 });
 
+/** The Export / Import panel, if it's open: back closes it first. */
+function closeTransfer(): boolean {
+  const t = document.getElementById('transfer');
+  if (!t || t.hidden) return false;
+  t.remove();
+  return true;
+}
 $('pause-btn').addEventListener('click', pause);
 addEventListener('keydown', (e) => {
   if (e.code !== 'Escape') return;
+  if (closeTransfer()) return;
   if (state === 'playing') pause();
   else if (menu.current === 'settings' || menu.current === 'confirm' || menu.current === 'news') menu.back();
   else if (state === 'paused') resume();
@@ -455,6 +463,7 @@ if (!reloading) void checkForUpdates(true);
 // The Android back button: the pause menu (and back out of it).
 if (isApp()) {
   void App.addListener('backButton', () => {
+    if (closeTransfer()) return;
     if (state === 'playing') pause();
     else if (menu.current === 'settings' || menu.current === 'confirm' || menu.current === 'news') menu.back();
     else if (state === 'paused') resume();

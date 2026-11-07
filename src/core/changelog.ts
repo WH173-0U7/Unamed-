@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.57',
+    date: 'Nov 7',
+    items: [
+      'A police stop with four choices no longer squeezes what’s happening down to nothing: the story always has room, and the screen scrolls if it needs to.',
+      'With the phone turned sideways, a long address no longer pushes “Go at them” off the bottom of a break-in screen.',
+    ],
+  },
+  {
     v: '2.56',
     date: 'Nov 7',
     items: ['When Dez posts your bail, you get three days to pay it, even if you were already late with him: everything you owe him is due then.'],

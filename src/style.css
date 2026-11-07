@@ -6365,3 +6365,33 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
     margin-top: 6px;
   }
 }
+/* A stop with four choices: the story above them keeps room to read, and the card scrolls if it must. */
+.sheet-body.police {
+  min-height: min(4.6em, 22vh);
+}
+.sheet-card:has(> .police-choice) {
+  overflow-y: auto;
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  .police-choice:has(> .place:nth-child(4)) .place:not([disabled]) small {
+    display: none;
+  }
+  /* A long heading (an address) can't push the list past the card: the list scrolls. */
+  #shop,
+  #game.in-shop #shop {
+    grid-template-rows: minmax(0, auto) minmax(min(3.6em, 30%), 1fr) minmax(0, auto);
+  }
+  #shop > .shop-head {
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+@media (orientation: landscape) and (max-height: 400px) {
+  #shop > .shop-head h2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 20px;
+  }
+}

@@ -358,7 +358,11 @@ export const carryLimit = (strength: number) => Math.round((15 + (Math.max(1, st
 /** Everything on you, cash and all. */
 export const carriedKg = (inv: Inventory) => inv.items.reduce((n, i) => n + i.kg, 0) + kgOf(inv.purse);
 /** That much more would be more than you can carry. */
-export const tooHeavy = (inv: Inventory, kg: number) => inv.maxKg != null && carriedKg(inv) + kg > inv.maxKg + 1e-9;
+/** Over your limit you can still go on, weighed down (walking wears you out), up to a quarter more. */
+export const OVERLOAD = 1.25;
+/** From this much of your limit, walking tires you. */
+export const TIRING_LOAD = 0.9;
+export const tooHeavy = (inv: Inventory, kg: number) => inv.maxKg != null && carriedKg(inv) + kg > inv.maxKg * OVERLOAD + 1e-9;
 export function findRoom(inv: Inventory, size: Size, kg: number, x?: { kind: string; name: string; cuts?: boolean }): Spot | null {
   if (tooHeavy(inv, kg)) return null;
   const ok = inv.spots
@@ -369,7 +373,7 @@ export function findRoom(inv: Inventory, size: Size, kg: number, x?: { kind: str
 
 /** Why it won't go anywhere. */
 export function noRoomWhy(inv: Inventory, size: Size, kg = 0.01): string {
-  if (tooHeavy(inv, kg)) return `It’s more than you can carry: ${kgLabel(inv.maxKg!)} is your limit. Strength raises it.`;
+  if (tooHeavy(inv, kg)) return `It’s more than you can carry: ${kgLabel(Math.round(inv.maxKg! * OVERLOAD * 10) / 10)} is the most you can manage, weighed down. Strength raises it.`;
   // (A sheath or a holster takes only what it's made for.)
   const spots = inv.spots.filter((s) => fitsIn(s));
   if (!spots.some((s) => SIZE_RANK[s.fits] >= SIZE_RANK[size])) {

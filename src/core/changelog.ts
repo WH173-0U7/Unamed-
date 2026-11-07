@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.51',
+    date: 'Nov 7',
+    items: [
+      'You can carry up to a quarter more than your carry limit, weighed down. Pockets tells you when you’re over it.',
+      'Walking only tires you when what you carry weighs 90% of your limit or more, and more the further over you go. Below that, walking is free.',
+      'The You tab shows your carry limit and the most you can manage weighed down.',
+    ],
+  },
+  {
     v: '2.50',
     date: 'Nov 7',
     items: [

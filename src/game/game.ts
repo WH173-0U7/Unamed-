@@ -31,7 +31,7 @@ import { mlOf } from './money';
 import { lootIcon, lootMark } from './lootIcon';
 import { STYLES, STYLE_HOW, STYLE_NAMES, stylesOf } from './styles';
 import { PLACE_AT, PLACE_ICON, addressAt, blocksBetween, mapHtml, type MapMark } from './map';
-import { MEDS, take, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, wouldLeave, kgLabel, carriedKg, carryLimit, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, hidingSpot, tooHeavy, reweigh, freeHand, type Inventory, type InvItem, type Spot as Pocket, type MedId } from './inventory';
+import { MEDS, take, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, wouldLeave, kgLabel, carriedKg, carryLimit, OVERLOAD, TIRING_LOAD, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, hidingSpot, tooHeavy, reweigh, freeHand, type Inventory, type InvItem, type Spot as Pocket, type MedId } from './inventory';
 
 /**
  * What's left of your humanity. Killing someone takes a lot of it; stamping
@@ -1776,11 +1776,11 @@ export class Game {
       return;
     }
     if (p !== 'street') this.save.state.crowd = [];
-    // (On foot, walking light costs nothing; a heavy load wears you down, and builds you up a little too.)
+    // (On foot: free, unless you're loaded up to your limit or past it. A heavy load builds you up a little too.)
     {
       const inv = this.inventory;
       const load = carriedKg(inv) / (inv.maxKg ?? 15);
-      if (load > 0.5) addFatigue(this.health, 0.4 * (1 + (load - 0.5) * 2));
+      if (load >= TIRING_LOAD) addFatigue(this.health, 0.4 * (1 + (load - TIRING_LOAD) * 5));
       if (load > 0.5) {
         const up = train(this.stats, 'strength', 1 + Math.round(load * 2));
         if (up) this.later([`Strength went up to ${up}. You can carry ${kgLabel(carryLimit(up))} now.`]);
@@ -6938,7 +6938,7 @@ export class Game {
       `<div class="pocket-cash"><span>Cash</span><b>${money(Math.round(cashOf(inv) * 100))}</b></div>` +
       `<p class="pocket-purse">${this.purseHtml()}</p>` +
       this.cashWhereHtml() +
-      `<p class="pocket-wear">Wearing ${[...inv.clothes, ...(inv.gear ?? [])].map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total + purseKg(inv))} of ${kgLabel(inv.maxKg ?? carryLimit(this.stats.strength.level))}${(total + purseKg(inv)) / (inv.maxKg ?? 99) > 0.85 ? ': about all you can carry' : ''}.</p>` +
+      `<p class="pocket-wear">Wearing ${[...inv.clothes, ...(inv.gear ?? [])].map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total + purseKg(inv))} of ${kgLabel(inv.maxKg ?? carryLimit(this.stats.strength.level))}${((k) => (k > 1 ? ': over your limit, so walking wears you out' : k >= TIRING_LOAD ? ': near your limit, so walking tires you' : ''))((total + purseKg(inv)) / (inv.maxKg ?? 99))}.</p>` +
       // What anyone looking at you can see you're carrying.
       (inv.items.some((x) => x.kind === 'weapon')
         ? ((seen) => `<p class="pocket-shows${seen.length ? ' seen' : ''}">${seen.length ? `Anyone looking can see you’re carrying: ${seen.map((x) => lc(x.name)).join(', ')}. People notice you sooner and scare easier, and the police notice too.` : 'Your weapons are out of sight.'}</p>`)(inv.items.filter((x) => x.kind === 'weapon' && showing(inv, x) >= 0.16))
@@ -7211,7 +7211,8 @@ export class Game {
       strength: [
         ['Damage from your blows', `+${pct(strengthDamage(st))}`],
         ['Fear of you', `+${strengthFear(st)}`],
-        ['Most you can carry', kgLabel(carryLimit(st.strength.level))],
+        ['Your carry limit', kgLabel(carryLimit(st.strength.level))],
+        ['Most, weighed down', kgLabel(Math.round(carryLimit(st.strength.level) * OVERLOAD * 10) / 10)],
       ],
       unarmed: [
         ['Damage from your blows', `+${pct(unarmedDamage(st))}`],

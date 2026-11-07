@@ -54,8 +54,8 @@ weather all keep going whether you're playing or not.
 - **Cars**: find the car for a stolen fob, search it, sleep in it, get it towed.
 
 ### Police and jail
-- Stops, searches, lying your way out, running, arrests and charges.
-- Bail, court dates, warrants, fines, probation and sentences.
+- Stops (sometimes you see the patrol coming and can duck away), searches, lying your way out, bribes, running, arrests and charges.
+- Bail (or call Dez to post it), court dates, arguing your case, warrants, fines, probation, sentences, and escape attempts.
 - **Jail is real time, but shorter**: a night in a cell is 1 real hour, waiting in County for a hearing half an hour, and a sentence much less than its length (a month is about 16 hours, a year about 29).
 - Give up on a jailed character and they stay inside: as someone new you can **visit, bail them out or break them out** (at the transport van), then choose who to go on as.
 - A full criminal record on the You tab.

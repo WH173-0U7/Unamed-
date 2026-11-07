@@ -138,7 +138,7 @@ type Work = { kind: 'plasma' | 'deliver'; since: number; until?: number; drops?:
 /** The delivery app (made up). */
 const GIG_APP = 'Handoff';
 /** Held: since when, until when (real time), what for, and what's said when the door opens. */
-type Jail = { from: number; until: number; what: string; after?: string[] };
+type Jail = { from: number; until: number; what: string; after?: string[]; triedAt?: number; tried?: string };
 /** Whether this one in the house (the owner, or whoever else lives there) has seen your face. */
 type FaceSeen = boolean | { owner?: boolean | number; other?: boolean | number };
 const sawFace = (j: { faceSeen?: FaceSeen } | undefined, owner: boolean) =>
@@ -1013,15 +1013,36 @@ export class Game {
       this.phase = 'idle';
       this.refresh();
       // What happened while you waited, and why they've stopped: at the top of the stop.
-      this.save.state.policeWhy = [
-        ...lines,
-        wanted
-          ? oneOf(['A patrol car slows as it passes. The one in the passenger seat looks from you to his phone, and back.', "A patrol car rolls past, slow. The brake lights come on. They’ve had a description."])
-          : oneOf(['A patrol car slows alongside. The one in the passenger seat is looking at your pocket, at what shows.', "A patrol car slows alongside. The driver’s eyes go to the shape under your clothes and stay there."]),
-      ];
-      this.save.state.policeStop = true;
-      this.openSheet('police');
-      buzz([30, 30, 30]);
+      const why = wanted
+        ? oneOf(['A patrol car slows as it passes. The one in the passenger seat looks from you to his phone, and back.', "A patrol car rolls past, slow. The brake lights come on. They’ve had a description."])
+        : oneOf(['A patrol car slows alongside. The one in the passenger seat is looking at your pocket, at what shows.', "A patrol car slows alongside. The driver’s eyes go to the shape under your clothes and stay there."]);
+      const stop = (said: string[]) => {
+        this.save.state.policeWhy = said;
+        this.save.state.policeStop = true;
+        this.openSheet('police');
+        buzz([30, 30, 30]);
+      };
+      // Sometimes you see them first: a moment to get out of sight (Sneak).
+      const sneak = this.stats.sneak?.level ?? 1;
+      if (Math.random() < Math.min(0.7, 0.35 + sneak * 0.004)) {
+        this.showChoice('A patrol car', [...lines, 'A patrol car turns onto the block, slow.'], [
+          {
+            label: 'Duck into a doorway',
+            act: () => {
+              if (Math.random() < 0.45 + sneak * 0.004 - fatigueOdds(this.health) - (wanted ? 0.1 : 0)) {
+                this.note(['You step into a doorway and wait, still, until its taillights turn the corner.']);
+                return;
+              }
+              // (Seen ducking: they're less inclined to believe a story.)
+              this.save.state.policeDucked = true;
+              stop(['You step into a doorway, a second too late. The car stops, and both of them get out.']);
+            },
+          },
+          { label: 'Stay where you are', act: () => stop([...lines, why]) },
+        ]);
+        return;
+      }
+      stop([...lines, why]);
       return;
     }
     this.refresh();
@@ -1697,13 +1718,15 @@ export class Game {
       // No walking away from this one: you answer.
       const b = t.closest('button');
       if (b?.dataset.police === 'bail' && !b.hasAttribute('disabled')) this.payBail();
+      else if (b?.dataset.police === 'dez') this.dezBail();
+      else if (b?.dataset.police === 'bribe' && b.hasAttribute('disabled')) return;
       else if (b?.dataset.police === 'custody') this.heldForCourt();
       else if (b?.dataset.police === 'done') {
         delete this.save.state.policeResult;
         delete this.save.state.policeArrested;
         this.closeSheet();
         this.refresh();
-      } else if (b?.dataset.police && !this.save.state.policeResult) this.police(b.dataset.police as 'run' | 'stay' | 'talk');
+      } else if (b?.dataset.police && !this.save.state.policeResult) this.police(b.dataset.police as 'run' | 'stay' | 'talk' | 'bribe');
       return;
     }
     if (t === this.sheetEl) return this.closeSheet(); // tapped outside the card
@@ -3267,7 +3290,18 @@ export class Game {
    * told, and you're arrested. Run: agility against your injuries; get
    * caught and they put you on the ground first.
    */
-  private police(choice: 'run' | 'stay' | 'talk') {
+  /** “Offer them cash”, on an ordinary stop (not with a warrant out, or a weapon in your hand). */
+  private bribeBtn(): string {
+    if (this.case?.warrant || this.inventory.items.some((x) => x.kind === 'weapon' && x.hand)) return '';
+    const low = cashOf(this.inventory) < 20;
+    return `<button type="button" class="place" data-police="bribe"${low ? ' disabled' : ''}><b>Offer them cash</b><small>${low ? 'You’ve less than $20 on you' : `${money(this.bribeCents())}. Speech. If they won’t take it, it’s another charge.`}</small></button>`;
+  }
+  /** What you'd offer them to look the other way: $40 or a quarter of your cash, whichever's more, up to $300 (cents). */
+  private bribeCents(): number {
+    const cash = Math.round(cashOf(this.inventory) * 100);
+    return Math.min(cash, 30_000, Math.max(4000, Math.floor(cash / 400) * 100));
+  }
+  private police(choice: 'run' | 'stay' | 'talk' | 'bribe') {
     const inv = this.inventory;
     const h = this.health;
     const f = this.infamy;
@@ -3282,6 +3316,12 @@ export class Game {
     const cuffed = !!this.save.state.policeCuffed;
     delete this.save.state.policeCuffed;
     if (cuffed) choice = 'stay';
+    const ducked = !!this.save.state.policeDucked;
+    delete this.save.state.policeDucked;
+    // (A new stop: a new call, if it comes to that.)
+    delete this.save.state.dezCalled;
+    // (Only for an ordinary stop, with cash on you and nothing they're already after you for.)
+    if (choice === 'bribe' && (sting || burglary || !!this.case?.warrant || inv.items.some((x) => x.kind === 'weapon' && x.hand) || cashOf(inv) < 20)) choice = 'stay';
     const upstairs = (this.atHome?.type === 'apartment' && this.atHome.floor > 1) || this.atHome?.type === 'room';
     // (Out of the house either way; whether you got away is settled below.)
     // At a car (or out looking for one): the car, if they've come for it.
@@ -3313,6 +3353,25 @@ export class Game {
     const charges: string[] = [];
     /** You lied to them and they didn't buy it: they look harder. */
     let lied = false;
+    // Cash, folded, held low: they take it and go, or it's another charge.
+    let bribed = false;
+    if (choice === 'bribe') {
+      const amt = this.bribeCents();
+      const odds = Math.max(0.03, Math.min(0.85, 0.25 + (this.stats.speech?.level ?? 1) * 0.004 + Math.min(0.2, amt / 150_000) - f.heat / 300 - (exposure(inv) > 0.15 ? 0.2 : 0)));
+      pay(inv.purse, amt);
+      if (Math.random() < odds) {
+        bribed = true;
+        lines.push(`You hold out ${money(amt)}, folded small. The one in the passenger seat looks at the bills, then up the street. He takes them. “Go home.”`);
+        f.heat = Math.max(0, f.heat - 5);
+        const up = train(this.stats, 'speech', 4);
+        if (up) lines.push(`Speech went up to ${up}.`);
+      } else {
+        lines.push(`You hold out ${money(amt)}, folded small. He looks at it, then at you. “You just made this a lot worse.” The money goes in an evidence bag, and the cuffs go on.`);
+        arrested = true;
+        charges.push('Bribery');
+        train(this.stats, 'speech', 2);
+      }
+    }
     // Talking your way out: a story, a calm face. Harder the hotter you are,
     // and with a weapon showing or a mask on.
     // A warrant out for you: they run your name, and that's that.
@@ -3376,7 +3435,7 @@ export class Game {
       }
     }
     // Asleep in a stolen car: they've run the plate.
-    if (carStop && choice !== 'run') {
+    if (carStop && choice !== 'run' && !bribed) {
       lines.push(carHow === 'searching' || carHow === 'trunk' ? (carReported ? 'They run the plate. It comes back stolen. “Hands on the roof.”' : 'They run the plate, and get the owner on the phone. Nobody lent you this car. “Hands on the roof.”') : 'They run the plate while you blink at the flashlight. It comes back stolen. “Out of the car. Slowly.”');
       arrested = true;
       charges.push('Possession of stolen property');
@@ -3390,7 +3449,7 @@ export class Game {
       charges.push('Brandishing a weapon');
     }
     const talk = () => {
-      const odds = Math.max(0.03, Math.min(0.9, 0.3 + lieBonus(this.stats) - fatigueOdds(h) - f.heat / 150 - exposure(inv) * 0.6 - (w.masked ? 0.15 : 0) - ((h.drunk ?? 0) >= 40 ? 0.15 : 0)));
+      const odds = Math.max(0.03, Math.min(0.9, 0.3 + lieBonus(this.stats) - fatigueOdds(h) - f.heat / 150 - exposure(inv) * 0.6 - (w.masked ? 0.15 : 0) - ((h.drunk ?? 0) >= 40 ? 0.15 : 0) - (ducked ? 0.1 : 0)));
       if (Math.random() < odds) {
         lines.push(oneOf(['You tell them you’re walking home from a late shift, and keep your voice bored. They look at each other. “Alright. Get going.”', 'You give them a name, a street, a reason, all of it easy. One of them almost smiles. “Get home.”', 'You apologize for nothing in particular and ask them for directions. They point the way, and drive off.']));
         f.heat = Math.max(0, f.heat - 3);
@@ -3407,7 +3466,8 @@ export class Game {
       const legs = new Set(h.broken.filter((p) => /(leg|ankle)$/.test(p)).map((p) => p.split(' ')[0])).size;
       const tired = fatigueOdds(h) * 2;
       addFatigue(h, 6);
-      const odds = 0.35 - tired - (burglary ? 0.15 : 0) + accuracyBonus(this.stats) - legs * 0.3 - (h.cold ?? 0) * 0.05 - (h.stress ?? 0) * 0.002 - (h.blood < h.maxBlood * 0.75 ? 0.15 : 0);
+      // (Agility counts through accuracyBonus; Sneak, for losing them once you're away.)
+      const odds = 0.5 - tired - (burglary ? 0.15 : 0) + accuracyBonus(this.stats) + (this.stats.sneak?.level ?? 1) * 0.002 - legs * 0.3 - (h.cold ?? 0) * 0.05 - (h.stress ?? 0) * 0.002 - (h.blood < h.maxBlood * 0.75 ? 0.15 : 0);
       if (Math.random() < odds) {
         lines.push(burglary ? (upstairs ? 'Down the fire escape, the last ten feet in a drop, and away down the alley. Flashlights behind you, then fewer, then none.' : 'Out the back, over a fence, through somebody’s yard and a hedge that tears your face. Flashlights behind you, then fewer, then none.') : 'You bolt. Shouts behind you, a car door, footsteps. You go over a fence and through a yard and down an alley, and when you stop, they’re gone.');
         f.heat = Math.min(100, f.heat + (burglary ? 25 : 10));
@@ -3461,6 +3521,8 @@ export class Game {
       // (Nothing to talk about.)
     } else if (choice === 'talk' && talk()) {
       // Talked your way out: no search.
+    } else if (bribed) {
+      // Paid off: no search.
     } else {
       if (w.masked) {
         w.masked = false;
@@ -3640,6 +3702,34 @@ export class Game {
     this.refresh();
     this.renderSheet();
   }
+  /** Your one call: Dez, if he’d pick up for you (once an arrest). */
+  private get canCallDez(): boolean {
+    const con = this.connect;
+    return con.known && !con.cutOff && con.trust >= 30 && !this.save.state.dezCalled;
+  }
+  /** Dez posts your bail. You owe him for it, and a fifth on top. */
+  private dezBail() {
+    const c = this.case;
+    if (!c || this.save.state.bailOffer !== 'bail' || !this.canCallDez) return;
+    const want = c.bail * 100;
+    this.save.state.dezCalled = true;
+    const owe = Math.round(want * 1.2);
+    const d = this.debt;
+    if (d) {
+      d.base = (d.base ?? d.owed) + owe;
+      d.owed += owe;
+    } else this.save.state.debt = { owed: owe, base: owe, due: now() + 3 * 86_400_000, strikes: 0 };
+    c.bailPaid = want;
+    c.courtAt = courtDate();
+    delete this.save.state.bailOffer;
+    this.save.state.policeResult = [
+      'You get one call. Dez picks up on the fourth ring, listens, and sighs. “You owe me.” An hour later, you’re out.',
+      `You owe him ${money(owe)} now.`,
+      `Your court date: ${dateText(c.courtAt)}, at the County Courthouse (weekdays, 9 to 4). Show up and you get the bail back. Don’t, and there’ll be a warrant out for you.`,
+    ];
+    this.refresh();
+    this.renderSheet();
+  }
   /** No bail (or you wouldn't pay it): County until the hearing, then the judge. */
   private heldForCourt() {
     const c = this.case;
@@ -3671,7 +3761,7 @@ export class Game {
     const priors = Math.max(0, rec.arrests - 1);
     // Convicted again while on probation: the old sentence comes back on top.
     const onProbation = now() < ((this.save.state.probationUntil as number) ?? 0);
-    const sev = c.charges.reduce((n, x) => n + chargeOf(x).sev, 0) + (onProbation ? 4 : 0);
+    let sev = c.charges.reduce((n, x) => n + chargeOf(x).sev, 0) + (onProbation ? 4 : 0);
     const lines: string[] = [`Your case is called: ${c.charges.map((x) => x.toLowerCase()).join(', ')}. A public defender you’ve never met reads your file in the hallway.`];
     // Talking to the judge.
     const talk = lieBonus(this.stats) - fatigueOdds(this.health);
@@ -3690,8 +3780,24 @@ export class Game {
     }
     // (Convicted while on it: the probation's done with, one way or another.)
     if (onProbation) delete this.save.state.probationUntil;
+    // Speaking up for yourself (Speech): a charge dropped, or the sentence cut.
+    let half = false;
+    if (Math.random() < Math.min(0.55, 0.15 + (this.stats.speech?.level ?? 1) * 0.004)) {
+      lines.push('You speak up for yourself, calm and clear. The judge listens.');
+      if (c.charges.length >= 2) {
+        const minor = c.charges.reduce((a, b) => (chargeOf(b).sev < chargeOf(a).sev ? b : a));
+        c.charges = c.charges.filter((_, i) => i !== c.charges.indexOf(minor));
+        sev -= chargeOf(minor).sev;
+        lines.push(`The ${minor.toLowerCase()} charge is dropped.`);
+      } else {
+        half = true;
+        lines.push('The judge goes easier on you: half what it would have been.');
+      }
+      const up = train(this.stats, 'speech', 4);
+      if (up) lines.push(`Speech went up to ${up}.`);
+    }
     if (sev <= 3 && !onProbation) {
-      const fine = Math.round(c.charges.reduce((n, x) => n + chargeOf(x).fine, 0) * (1 + priors * 0.25));
+      const fine = Math.round(c.charges.reduce((n, x) => n + chargeOf(x).fine, 0) * (1 + priors * 0.25) * (half ? 0.5 : 1));
       const have = Math.round(cashOf(this.inventory) * 100) + (this.account?.cents ?? 0);
       if (have >= fine * 100) {
         let left = fine * 100;
@@ -3720,7 +3826,7 @@ export class Game {
       f.heat = Math.max(0, f.heat - 30);
       return lines;
     }
-    const days = Math.round(c.charges.reduce((n, x) => n + chargeOf(x).days, 0) * (1 + priors * 0.3));
+    const days = Math.round(c.charges.reduce((n, x) => n + chargeOf(x).days, 0) * (1 + priors * 0.3) * (half ? 0.5 : 1));
     lines.push(days >= 365 ? `Found guilty. ${prisonTerm(days).replace(/^a/, 'A')} in state prison.` : `Found guilty. ${days} days in County.`);
     return [...lines, ...this.serve(days)];
   }
@@ -3952,9 +4058,13 @@ export class Game {
       `<p class="jail-left"></p>` +
       `<p class="jail-out"></p>` +
       (c?.charges.length ? `<p class="jail-charges">${/holding/.test(j.what) ? 'Held on' : 'Charged with'} ${c.charges.map((x) => x.toLowerCase()).join(', ')}.</p>` : '') +
+      (j.tried ? `<p class="jail-charges">${j.tried}</p>` : '') +
       `<p class="jail-how">Time inside is real time. Your body mends while you wait, and the streets, your room and what you owe run on without you. Come back when they let you out.</p>` +
-      `<button type="button" class="jail-quit">Give up on this life</button>`;
-    const btn = el.querySelector('button')!;
+      // Serving time: a way out that isn't the door.
+      (/^Serving/.test(j.what) ? `<button type="button" class="jail-quit jail-escape"${this.escapeSoon ? ' disabled' : ''}>${this.escapeSoon ? 'Try to escape: not yet' : 'Try to escape'}</button>` : '') +
+      `<button type="button" class="jail-quit jail-giveup">Give up on this life</button>`;
+    el.querySelector('.jail-escape')?.addEventListener('click', () => this.tryEscape());
+    const btn = el.querySelector<HTMLButtonElement>('.jail-giveup')!;
     let armed = 0;
     btn.addEventListener('click', () => {
       if (performance.now() - armed < 4000) return this.giveUp();
@@ -3970,6 +4080,49 @@ export class Game {
     this.tickJail();
   }
   private jailTick = -1;
+  /** Tried to get out not long ago (once every few hours). */
+  private get escapeSoon(): boolean {
+    const j = this.jail;
+    return !!j?.triedAt && now() - j.triedAt < 6 * 3_600_000;
+  }
+  /** Out over the fence, or in a laundry cart: free and wanted. Caught: more time. */
+  private tryEscape() {
+    const j = this.jail;
+    if (!j || !/^Serving/.test(j.what) || this.escapeSoon || j.until <= now() || this.dead) return;
+    const st = this.stats;
+    const h = this.health;
+    j.triedAt = now();
+    const odds = Math.min(0.5, 0.2 + (st.agility?.level ?? 1) * 0.002 + (st.sneak?.level ?? 1) * 0.002 + (st.strength?.level ?? 1) * 0.001 - fatigueOdds(h));
+    if (Math.random() < odds) {
+      const c = this.case ?? { charges: [], bail: 0, courtAt: now() };
+      c.charges = [...c.charges, 'Escape'];
+      c.warrant = true;
+      c.warrantFor = 'escape';
+      this.save.state.case = c;
+      this.infamy.heat = 100;
+      delete this.save.state.policeResult;
+      delete this.save.state.policeArrested;
+      j.after = [
+        oneOf([
+          'Laundry day. You fold yourself into a cart under a pile of gray sheets and hold your breath while it rolls through two doors and out onto the loading dock.',
+          'In the yard, you wait for the guard on the corner to light a cigarette, then go up the fence where the wire sags. It tears your hands. You don’t stop.',
+        ]),
+        'You run, and keep running. There’ll be a warrant out for you by tonight.',
+      ];
+      j.until = now();
+      buzz([80, 40, 80, 40, 160]);
+      return this.release();
+    }
+    // Caught: they add time for it.
+    const left = j.until - now();
+    j.until += Math.max(2 * 3_600_000, left * 0.5);
+    const rec = this.record;
+    rec.charges['Attempted escape'] = (rec.charges['Attempted escape'] ?? 0) + 1;
+    h.stress = Math.min(100, (h.stress ?? 0) + 20);
+    j.tried = 'You got as far as the yard fence. A guard dragged you down by the ankle, and they added time for it.';
+    buzz([80, 60, 120]);
+    this.showJail();
+  }
   /** Once a second: the countdown, and the door when it's time. */
   private tickJail() {
     const j = this.jail;
@@ -3978,6 +4131,8 @@ export class Game {
     if (left <= 0) return this.release();
     const el = document.getElementById('jail');
     if (!el) return this.showJail();
+    // (Able to try again: the button comes back.)
+    if (el.querySelector<HTMLButtonElement>('.jail-escape')?.disabled && !this.escapeSoon) return this.showJail();
     const sec = Math.ceil(left / 1000);
     if (sec === this.jailTick) return;
     this.jailTick = sec;
@@ -4067,9 +4222,18 @@ export class Game {
   }
   /** Their day in court (without you there): dropped, probation, or time. */
   private judgeSelf(x: Self) {
-    const charges = x.charges ?? [];
+    let charges = x.charges ?? [];
     const priors = x.priors ?? 0;
     const at = x.hearingAt ?? now();
+    // (They speak up for themselves too, as well as they can: a charge dropped, or the time cut.)
+    const speech = (x.state.stats as Stats | undefined)?.speech?.level;
+    let cut = 1;
+    if (speech != null && Math.random() < Math.min(0.55, 0.15 + speech * 0.004)) {
+      if (charges.length >= 2) {
+        const minor = charges.reduce((a, b) => (chargeOf(b).sev < chargeOf(a).sev ? b : a));
+        charges = charges.filter((_, i) => i !== charges.indexOf(minor));
+      } else cut = 0.5;
+    }
     const sev = charges.reduce((n, c) => n + chargeOf(c).sev, 0);
     delete x.hearingAt;
     delete x.bail;
@@ -4081,12 +4245,12 @@ export class Game {
     x.state.record = rec;
     let days = 0;
     if (Math.random() < Math.max(0.03, Math.min(0.6, 0.38 - sev * 0.04 - priors * 0.06))) days = 0;
-    else if (sev <= 3) days = Math.max(2, Math.round(charges.reduce((n, c) => n + chargeOf(c).fine, 0) / 100));
+    else if (sev <= 3) days = Math.max(2, Math.round((charges.reduce((n, c) => n + chargeOf(c).fine, 0) * cut) / 100));
     else if (sev <= 6) {
       x.state.probationUntil = at + 30 * 24 * 3_600_000;
       rec.convictions = (rec.convictions ?? 0) + 1;
       rec.probations = (rec.probations ?? 0) + 1;
-    } else days = Math.round(charges.reduce((n, c) => n + chargeOf(c).days, 0) * (1 + priors * 0.3));
+    } else days = Math.round(charges.reduce((n, c) => n + chargeOf(c).days, 0) * (1 + priors * 0.3) * cut);
     if (days) {
       rec.convictions = (rec.convictions ?? 0) + 1;
       rec.sentences = (rec.sentences ?? 0) + 1;
@@ -6867,6 +7031,7 @@ export class Game {
         (this.save.state.bailOffer === 'bail'
           ? ((have) =>
               `<button type="button" class="place" data-police="bail" ${have < (this.case?.bail ?? 0) * 100 ? 'disabled' : ''}><b>Pay bail: ${money((this.case?.bail ?? 0) * 100)}</b><small>${have < (this.case?.bail ?? 0) * 100 ? `You’ve only got ${money(have)}, cash and bank together` : 'Cash first, then your bank account. You get it back if you show up to court.'}</small></button>` +
+              (have < (this.case?.bail ?? 0) * 100 && this.canCallDez ? `<button type="button" class="place" data-police="dez"><b>Call Dez</b><small>He posts your bail, and you owe him for it, and then some.</small></button>` : '') +
               `<button type="button" class="place" data-police="custody"><b>Wait in jail for the hearing</b><small>${Math.round(COUNTY_HOURS * 60)} real minutes in County, then the judge.</small></button>`)(Math.round(cashOf(this.inventory) * 100) + (this.account?.cents ?? 0))
           : this.save.state.bailOffer === 'custody'
             ? `<button type="button" class="place" data-police="custody"><b>Wait for the hearing</b><small>${Math.round(COUNTY_HOURS * 60)} real minutes in County, then the judge.</small></button>`
@@ -6900,11 +7065,12 @@ export class Game {
           : this.save.state.policeStop === 'sting'
           ? `<button type="button" class="place" data-police="stay"><b>Hands behind your back</b><small>They’ve got the bag, the money, and you on camera.</small></button>`
           : this.save.state.policeStop === 'car' && this.save.state.carStopHow === 'trunk'
-          ? `<button type="button" class="place" data-police="stay"><b>Step away</b><small>Do as they say. They’ll run the plate.</small></button>`
+          ? `<button type="button" class="place" data-police="stay"><b>Step away</b><small>Do as they say. They’ll run the plate.</small></button>` + this.bribeBtn()
           : this.save.state.policeStop === 'car'
-          ? `<button type="button" class="place" data-police="stay"><b>Step out</b><small>Do as they say. They’ll run the plate.</small></button>`
+          ? `<button type="button" class="place" data-police="stay"><b>Step out</b><small>Do as they say. They’ll run the plate.</small></button>` + this.bribeBtn()
           : `<button type="button" class="place" data-police="stay"><b>Stay calm</b><small>Let them talk. They’ll want to search you.</small></button>` +
-            `<button type="button" class="place" data-police="talk"><b>Talk your way out</b><small>Speech. A good story and they move on without a search; a bad one and they look harder.</small></button>`) +
+            `<button type="button" class="place" data-police="talk"><b>Talk your way out</b><small>Speech. A good story and they move on without a search; a bad one and they look harder.</small></button>` +
+            this.bribeBtn()) +
         (this.save.state.policeCuffed ? '' : `<button type="button" class="place" data-police="run"><b>Run</b><small>Agility, and your legs. If they catch you, it’ll hurt.</small></button>`) +
         `</div>`;
       return;

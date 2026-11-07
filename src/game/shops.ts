@@ -333,5 +333,7 @@ export const CHARGES: Record<string, { bail: number; fine: number; days: number;
   // Out of custody without leave, and helping someone do it.
   Escape: { bail: 0, fine: 0, days: 730, sev: 14 },
   'Aiding an escape': { bail: 0, fine: 0, days: 1095, sev: 14 },
+  Bribery: { bail: 1000, fine: 1000, days: 30, sev: 5 },
+  'Attempted escape': { bail: 0, fine: 0, days: 180, sev: 8 },
 };
 export const chargeOf = (c: string) => CHARGES[c] ?? { bail: 300, fine: 300, days: 3, sev: 2 };

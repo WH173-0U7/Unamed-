@@ -11,6 +11,18 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.54',
+    date: 'Nov 7',
+    items: [
+      'Sometimes you see a patrol car turn onto the block before it gets to you: duck into a doorway (Sneak helps), or stay where you are.',
+      'Running from the police works more often (about half the time when you’re fresh), and Sneak helps.',
+      'At a stop, you can offer them cash. Speech and how much you offer decide it; if they won’t take it, it’s a bribery charge.',
+      'Can’t make bail? If Dez trusts you enough, call him: he posts it, and you owe him for it, and then some.',
+      'At your hearing, Speech gives you a chance to get a charge dropped or your sentence cut.',
+      'Serving a sentence, you can try to escape. Get away and there’s a warrant out for you; get caught and they add time.',
+    ],
+  },
+  {
     v: '2.53',
     date: 'Nov 7',
     items: [

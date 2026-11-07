@@ -47,7 +47,8 @@ const hash = (s: string) => {
 /** Where an address is: on its street, by its number ("115 Fulton Ave, Apt 3C"). */
 export function addressAt(addr: string, salt = ''): { x: number; y: number } {
   const num = Number(/^(\d+)/.exec(addr)?.[1] ?? 0);
-  const t = 0.06 + 0.88 * (((num % 997) / 997 + hash(addr + salt) * 0.1) % 1);
+  // (No house number, "on Fulton Ave": anywhere along it, not bunched at one end.)
+  const t = 0.06 + 0.88 * (num ? ((num % 997) / 997 + hash(addr + salt) * 0.1) % 1 : hash(addr + salt));
   for (const [name, x] of Object.entries(AVES)) if (addr.includes(name)) return { x: x + (num % 2 ? 7 : -7), y: 12 + t * (MAP_H - 24) };
   for (const [name, y] of Object.entries(STS)) if (addr.includes(name)) return { x: 12 + t * (MAP_W - 24), y: y + (num % 2 ? 7 : -7) };
   for (const [name, [x1, y1, x2, y2]] of Object.entries({ ...ROADS, ...STUBS })) if (addr.includes(name)) return { x: x1 + (x2 - x1) * t, y: y1 + (y2 - y1) * t - 6 };

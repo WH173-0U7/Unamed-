@@ -2959,7 +2959,7 @@ export class Game {
     // The first time in: the fob, the clunk of the locks.
     const firstIn = !c.looked || !Object.keys(c.looked).length;
     if (what === 'sleep') {
-      if (c.slept != null && now() - c.slept < 4 * 3_600_000 && fatigueNow(this.health) < 3) {
+      if (((c.slept != null && now() - c.slept < 4 * 3_600_000) || !this.restHeals) && fatigueNow(this.health) < 3) {
         this.note(['You lie down across the back seat, but you’re not tired. You watch the windows fog, and give up.']);
         return;
       }
@@ -5514,12 +5514,13 @@ export class Game {
         if (h && h.lockAt == null) h.lockAt = h.deadAt && h.household === 'alone' ? NEVER : now() + (10 + Math.random() * 38) * 3_600_000;
       }
       // (The spare off the hook: you've got that car now.)
-      if (x.kind === 'car keys' && x.carOf && x.car === 'found') {
+      // (Their keys, from the hook or their pocket: that car isn't out front for anyone else to take.)
+      if (x.kind === 'car keys' && x.carOf) {
         const h = this.homeById(x.carOf);
         if (h) h.car = null;
         // (And it's out front, where they left it: a car you know about.)
         // (A fob from before, its car long gone: it's gone.)
-        if (this.inventory.items.includes(x)) {
+        if (x.car === 'found' && this.inventory.items.includes(x)) {
           this.ensureCar(x);
         }
       } else if (x.kind === 'car keys' && x.car === 'found' && x.carId && !this.carById(x.carId) && this.inventory.items.includes(x)) x.car = 'gone';
@@ -6500,6 +6501,11 @@ export class Game {
     const inv = this.inventory;
     const it = inv.items[i];
     if (!it) return;
+    // (The keys to the car you're at: you're walking away from it, properly.)
+    if (it.kind === 'car keys' && this.save.state.place === 'car' && it.carId && (it.carId === this.save.state.carAt || it.carId === (this.save.state.hunt as HuntState | undefined)?.car)) {
+      this.leaveCar();
+      this.place = 'street';
+    }
     inv.items.splice(i, 1);
     this.refresh();
     this.note([`You throw the ${lc(it.name)} away.`]);
@@ -6535,7 +6541,7 @@ export class Game {
     }
     for (const c of this.myCars) {
       const h = c.home ? this.homeById(c.home) : undefined;
-      const at = h ? ((a) => ({ x: a.x + 9, y: a.y + 9 }))(addressAt(h.addr)) : addressAt(c.street.replace(/^on /, ''), c.id);
+      const at = h ? ((a) => ({ x: a.x + 9, y: a.y + 9 }))(addressAt(h.addr)) : addressAt(c.street.replace(/^(on|out front of) /, ''), c.id);
       const notes = [`Parked ${c.street}`, ...(reported(c, now()) ? ['reported by now'] : []), ...(c.items.length || c.cents ? ['your things in the trunk'] : [])];
       spots.push({ key: `car:${c.id}`, x: at.x, y: at.y, icon: PLACE_ICON.car, tone: 'car', name: `The ${c.color} ${c.make}`, small: notes.join(' · '), go: `data-car="${c.id}"` });
     }
@@ -6564,7 +6570,7 @@ export class Game {
     const mine = spots.filter((x) => (x.tone === 'home' || x.tone === 'car') && x.key !== 'hunt');
     const list = mine.length
       ? `<p class="map-list-head">Addresses and cars you know</p><div class="map-list">${mine
-          .map((x) => `<button type="button" data-mappick="${x.key}" data-tone="${x.tone}" class="${x === picked ? 'on' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${x.icon}"/></svg><span><b>${x.name}</b><small>${x === here ? 'You’re here' : `${blocksBetween(here, x)} block${blocksBetween(here, x) === 1 ? '' : 's'} away · ${x.small.replace(/<[^>]+>/g, '').split(' · ')[0]}`}</small></span></button>`)
+          .map((x) => `<button type="button" data-mappick="${x.key}" data-tone="${x.tone}" class="${x === picked ? 'on' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${x.icon}"/></svg><span><b>${x.name}</b><small>${x === here ? 'You’re here' : `${blocksBetween(here, x) ? `${blocksBetween(here, x)} block${blocksBetween(here, x) === 1 ? '' : 's'} away` : 'Just round the corner'} · ${x.small.replace(/<[^>]+>/g, '').split(' · ')[0]}`}</small></span></button>`)
           .join('')}</div>`
       : '';
     return `${mapHtml(marks)}${card}<p class="map-hint">Tap a place on the map${mine.length ? ', or an address below' : ''}.</p>${list}`;

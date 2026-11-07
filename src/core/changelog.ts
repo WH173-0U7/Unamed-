@@ -11,6 +11,18 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.39',
+    date: 'Nov 7',
+    items: [
+      'Cars parked along a street show where they really are on the map, not all bunched at one end of it.',
+      'A car outside an address you’ve forgotten stays where it’s parked on the map.',
+      'The map’s list says “Just round the corner” instead of “0 blocks away”, the same as the card.',
+      'Throwing away the keys while you’re at a car now counts as walking away from it (if someone called the police, they still come).',
+      'Taking someone’s car keys means their car isn’t “parked out front” at their place for a second set of keys any more.',
+      'Sleeping in a car when you’re not tired and rested not long ago now says so, like the motel and the street do.',
+    ],
+  },
+  {
     v: '2.38',
     date: 'Nov 7',
     items: ['Messages on the street could squash down to nothing and not show at all (like the one when you get out of jail). They always show now, under Lurk.'],

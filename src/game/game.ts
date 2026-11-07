@@ -3725,6 +3725,9 @@ export class Game {
     if (d) {
       d.base = (d.base ?? d.owed) + owe;
       d.owed += owe;
+      // (He gives you a few days for this, like any new money: it's all due then.)
+      d.due = Math.max(d.due, now() + 3 * 86_400_000);
+      delete d.vigAt;
     } else this.save.state.debt = { owed: owe, base: owe, due: now() + 3 * 86_400_000, strikes: 0 };
     c.bailPaid = want;
     c.courtAt = courtDate();

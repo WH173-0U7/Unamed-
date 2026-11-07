@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.56',
+    date: 'Nov 7',
+    items: ['When Dez posts your bail, you get three days to pay it, even if you were already late with him: everything you owe him is due then.'],
+  },
+  {
     v: '2.55',
     date: 'Nov 7',
     items: [

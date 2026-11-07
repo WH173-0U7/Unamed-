@@ -6235,3 +6235,23 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
   background: none;
   padding: 6px 0 0;
 }
+/* What just happened in Pockets stays in sight wherever you've scrolled to. */
+#sheet .sheet-body > .sheet-note {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #1a1a1d;
+}
+/* Landscape shops: the bills always show at least one row, and fade where there's more to scroll. */
+@media (orientation: landscape) and (max-height: 560px) {
+  #shop > .pocket-purse {
+    mask-image: linear-gradient(#000 calc(100% - 10px), transparent);
+    -webkit-mask-image: linear-gradient(#000 calc(100% - 10px), transparent);
+  }
+}
+/* Short landscape: no room for the bills under the note (your cash is in the top corner). */
+@media (orientation: landscape) and (max-height: 400px) {
+  #shop > .pocket-purse {
+    display: none;
+  }
+}

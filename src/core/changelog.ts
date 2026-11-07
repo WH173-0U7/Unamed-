@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.38',
+    date: 'Nov 7',
+    items: ['Messages on the street could squash down to nothing and not show at all (like the one when you get out of jail). They always show now, under Lurk.'],
+  },
+  {
     v: '2.37',
     date: 'Nov 7',
     items: [

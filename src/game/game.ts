@@ -716,6 +716,11 @@ export class Game {
       }
     }
     const note = this.noteEl;
+    // (In a shop, its own rules place it.)
+    if (this.view.classList.contains('in-shop')) {
+      note.style.top = note.style.bottom = note.style.maxHeight = '';
+      return;
+    }
     if (note.hidden) return;
     note.classList.remove('over');
     note.classList.toggle('tight', vr.height < 460);
@@ -725,6 +730,8 @@ export class Game {
     const top = under + 6;
     const bottom = (you ? you.top : vr.bottom) - 6;
     note.style.top = `${Math.round(top - vr.top)}px`;
+    // (Its top is set here: its bottom comes from what's in it, never from an older rule.)
+    note.style.bottom = 'auto';
     note.style.maxHeight = `${Math.max(44, Math.round(bottom - top))}px`;
   }
   /** The note that waits for you (see note): up until you tap, lurk, rest or go somewhere. */

@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.45',
+    date: 'Nov 7',
+    items: ['On a small phone turned sideways, the main menu fits on the screen (Check for updates was off the bottom), and the Export / Import panel and What’s new fit their buttons in.'],
+  },
+  {
     v: '2.44',
     date: 'Nov 7',
     items: [

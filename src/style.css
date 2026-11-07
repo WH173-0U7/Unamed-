@@ -6342,3 +6342,26 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
 #toast {
   z-index: 41;
 }
+/* Very short landscape: the main menu, the Export / Import card and What's new fit without hiding their last button. */
+@media (orientation: landscape) and (max-height: 340px) {
+  #screen-main {
+    gap: 8px;
+  }
+  #screen-main .nav button {
+    min-height: 36px;
+  }
+  #screen-main .title {
+    font-size: 38px;
+  }
+  .transfer-card {
+    gap: 6px;
+    padding: 12px;
+  }
+  .transfer-card textarea {
+    min-height: 64px;
+  }
+  .news-ok {
+    min-height: 36px;
+    margin-top: 6px;
+  }
+}

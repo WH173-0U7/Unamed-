@@ -536,7 +536,7 @@ export interface Med {
 }
 
 /** Broken arms and legs that haven't been splinted yet. */
-const limbs = (h: Health) => h.broken.filter((p) => p !== 'nose' && p !== 'ribs' && !h.splinted?.includes(p));
+const limbs = (h: Health) => h.broken.filter((p) => /(arm|leg|wrist|ankle|hand)$/.test(p) && !h.splinted?.includes(p));
 
 export const MEDS: Med[] = [
   {

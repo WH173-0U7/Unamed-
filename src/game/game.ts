@@ -2169,7 +2169,7 @@ export class Game {
     const limbs = h.broken.filter((p) => /arm|leg/.test(p) && !h.splinted?.includes(p));
     return {
       stitches: h.bleeding > 0 || (!!h.marks?.brow && !h.stitched?.brow) || (!!h.marks?.lip && !h.stitched?.lip),
-      nose: h.broken.includes('nose') && !h.noseSet && (h.mending.nose ?? 0) > 6,
+      nose: h.broken.includes('nose') && !h.noseSet && (h.mending.nose ?? 0) > 1,
       cast: limbs,
       lung: !!h.lung,
       blood: h.blood < h.maxBlood * 0.8,
@@ -2636,7 +2636,7 @@ export class Game {
       h.drunk = 40;
       h.drunkAt = now();
       lines.push('You come to in a doorway, hours later, with your mouth tasting of sick.');
-    } else if (h.drunk >= 78 && h.drunk < 90) lines.push("The street spins. One more and you'll black out.");
+    } else if (h.drunk >= 78 && h.drunk < 90) lines.push("The street spins. You're close to blacking out.");
     else if (now_ > was) lines.push(['', "You're tipsy. Everything's a bit funnier.", "You're drunk. The street sways when you turn your head.", "You're wasted. Your feet aren't where you left them.", "You're blackout drunk. One more and you're gone."][now_]);
     this.closeSheet();
     this.refresh();
@@ -7233,7 +7233,7 @@ export class Game {
           .map(
             (i) =>
               `<div class="injury"><h4>${i.name}</h4>` +
-              (i.meter ? `<div class="spot-bar status-bar${/withdraw|hooked|craving|panick|stressed|blackout|drunk/i.test(i.name) ? ' harm' : ''}"><i style="width:${Math.round(i.meter.k * 100)}%"></i><span>${i.meter.text}</span></div>` : '') +
+              (i.meter ? `<div class="spot-bar status-bar${/withdraw|hooked|craving|panick|stressed|stress: high|blackout|drunk/i.test(i.name) ? ' harm' : ''}"><i style="width:${Math.round(i.meter.k * 100)}%"></i><span>${i.meter.text}</span></div>` : '') +
               `<ul>${i.effects.map((x) => `<li>${x}</li>`).join('')}</ul><p class="stat-how">${i.heals}</p></div>`,
           )
           .join('') +

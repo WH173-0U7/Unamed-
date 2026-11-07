@@ -364,16 +364,13 @@ export function passHours(h: Health, hours: number, resting = false, clock = tru
     if (h.bleeding) {
       h.blood -= BLEED_PER_HOUR[h.bleeding];
       // (Called away from the game: it leaves you weak, just short of passing out, never dead.)
-      const floor = h.maxBlood * (PASS_OUT + 0.05);
-      if (awayFloor && h.blood < floor) {
-        h.blood = Math.max(h.blood, floor);
-        continue;
-      }
+      // (Held there: the rest of the hour still goes by, a clot, bones mending.)
+      if (awayFloor) h.blood = Math.max(h.blood, h.maxBlood * (PASS_OUT + 0.05));
       if (Math.random() < CLOT[h.bleeding] * (resting ? 1.5 : 1)) {
         h.bleeding--;
         if (!h.bleeding) lines.push('The bleeding has stopped.');
       }
-      if (h.blood <= h.maxBlood * PASS_OUT) {
+      if (!awayFloor && h.blood <= h.maxBlood * PASS_OUT) {
         lines.push("You've lost too much blood. You collapse.");
         lines.push(...lieThere(h));
         if (h.dead) return lines;
@@ -439,6 +436,7 @@ export function skipClock(h: Health, hours: number): string[] {
     }
   }
   if (h.smokingUntil != null && (h.smokingUntil -= ms) <= t) delete h.smokingUntil;
+  if (h.numbUntil != null && (h.numbUntil -= ms) <= t) delete h.numbUntil;
   if (h.drunk) {
     soberUp(h, t);
     if (h.drunk) h.drunkAt = (h.drunkAt ?? t) - ms;
@@ -457,10 +455,11 @@ export function skipClock(h: Health, hours: number): string[] {
 export function clampClock(h: Health, t = Date.now()) {
   if (h.high && h.highUntil != null) h.highUntil = Math.min(h.highUntil, t + HIGH_HOURS[h.high] * 3_600_000);
   if (h.wiredUntil != null) h.wiredUntil = Math.min(h.wiredUntil, t + HIGH_HOURS.meth * 3_600_000);
+  if (h.numbUntil != null) h.numbUntil = Math.min(h.numbUntil, t + 4 * 3_600_000);
 }
 
 /** One injury, for the stats sheet: what it is, what it does to you, how long it lasts. */
-/** Fatigue off an hour, lying down (exhausted to fresh: about 8 hours) and on your feet (a quarter of that). */
+/** Fatigue off an hour, lying down (exhausted to fresh: about 8 hours) and on your feet (about half that). */
 export const FATIGUE_REST_PER_HOUR = 37.5;
 export const FATIGUE_IDLE_PER_HOUR = 19;
 /** Lying down, by where: a bed is best (exhausted to fresh: about 6 h), a car (8 h), a doorway (10 h). */
@@ -611,7 +610,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
       effects,
       heals:
         `Heals in about ${hrs(left)}.` +
-        (/(arm|leg|wrist|ankle|hand)$/.test(p) ? (splinted ? '' : ' Left loose, it heals slowly: a splint gets it done in a third of the time, a cast at the ER in a quarter.') : ''),
+        (/(arm|leg|wrist|ankle|hand)$/.test(p) ? (splinted ? '' : ` Left loose, it heals slowly: a splint gets it done in a third of the time${/(arm|leg)$/.test(p) ? ', a cast at the ER in a quarter' : ''}.`) : ''),
     });
   }
   if (h.lung) {

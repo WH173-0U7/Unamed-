@@ -11,6 +11,19 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.41',
+    date: 'Nov 7',
+    items: [
+      'Bleeding when you left the game no longer stopped everything else healing while you were away: bones mend, your head clears and the bleeding can stop.',
+      'The ER can set a broken nose again (the button always said there was nothing to treat).',
+      'A broken wrist, ankle or hand no longer says the ER will cast it: casts are for arms and legs. A splint is still for any of them.',
+      'A splint goes on a broken arm, leg, wrist, ankle or hand, never a collarbone.',
+      'Painkillers wear off while you rest or sleep, instead of lasting the full four hours after.',
+      'Very drunk, the warning no longer says one more will black you out when it won’t.',
+      'High stress shows as a red bar, like panicking.',
+    ],
+  },
+  {
     v: '2.40',
     date: 'Nov 7',
     items: [

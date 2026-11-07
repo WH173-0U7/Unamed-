@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.35',
+    date: 'Nov 7',
+    items: [
+      'Buying a new bag or coat to wear now warns you first if your old one would have to go in the bin: tap Wear again to go ahead, or Carry it instead.',
+      'You can take off a backpack even when nothing else is big enough to hold it: you carry it in your hand. It shows in Pockets under “In your hands”.',
+      'Changing clothes keeps your things in the pockets you put them in, as long as those pockets are still there.',
+      'Things get lighter as you use them up: a box of rounds, a pack of cigarettes, a drink or a bottle.',
+    ],
+  },
+  {
     v: '2.34',
     date: 'Nov 7',
     items: [

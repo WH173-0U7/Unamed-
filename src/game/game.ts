@@ -31,7 +31,7 @@ import { mlOf } from './money';
 import { lootIcon, lootMark } from './lootIcon';
 import { STYLES, STYLE_HOW, STYLE_NAMES, stylesOf } from './styles';
 import { PLACE_AT, PLACE_ICON, addressAt, blocksBetween, mapHtml, type MapMark } from './map';
-import { MEDS, take, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, wouldLeave, kgLabel, carriedKg, carryLimit, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, hidingSpot, tooHeavy, type Inventory, type InvItem, type MedId } from './inventory';
+import { MEDS, take, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, wouldLeave, kgLabel, carriedKg, carryLimit, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, hidingSpot, tooHeavy, reweigh, freeHand, type Inventory, type InvItem, type Spot as Pocket, type MedId } from './inventory';
 
 /**
  * What's left of your humanity. Killing someone takes a lot of it; stamping
@@ -1833,7 +1833,7 @@ export class Game {
       lines.push(`You pull the ${w.face!.toLowerCase()} down before you go in.`);
     }
     if (h.cold) lines.push("It's warm in here. Stay a while and you'll thaw out.");
-    const inHand = this.inventory.items.filter((x) => x.hand);
+    const inHand = this.inventory.items.filter((x) => x.hand && x.kind === 'weapon');
     if (inHand.length) {
       for (const x of inHand) delete x.hand;
       lines.push(`You put the ${inHand.map((x) => lc(x.name)).join(' and the ')} away before you go in.`);
@@ -1956,9 +1956,20 @@ export class Game {
         return;
       }
       const armed = this.armedWear?.id === s.id && performance.now() - this.armedWear.at < 8000;
-      if (w.items.length && !armed) {
+      // (And what you have on now: if there's nowhere to carry it, it goes in the bin.)
+      const binned = ((): string | null => {
+        const copy: Inventory = { ...inv, items: [...inv.items], clothes: [...inv.clothes], spots: [...inv.spots] };
+        const r = wear(copy, s.slot as 'top' | 'bottom' | 'bag', s.name, true);
+        const old = r.ok && r.old && !(s.slot === 'top' && /^t-shirt$/i.test(r.old)) ? r.old : null;
+        return old && !stow(copy, { kind: 'wear', name: old, slot: s.slot }) ? old : null;
+      })();
+      if ((w.items.length || binned) && !armed) {
         this.armedWear = { id: s.id, at: performance.now() };
-        this.note([`If you wear the ${lc(s.name)}, there’d be nowhere for ${list2(w.items.map((x) => `the ${lc(x.name)}`))}. Tap Wear again to wear it anyway and leave ${w.items.length > 1 ? 'them' : 'it'} here, or Carry it instead.`]);
+        const parts = [
+          w.items.length ? `there’d be nowhere for ${list2(w.items.map((x) => `the ${lc(x.name)}`))}` : '',
+          binned ? `there’s nowhere to carry your old ${lc(binned)}: it goes in the bin` : '',
+        ].filter(Boolean);
+        this.note([`If you wear the ${lc(s.name)}, ${parts.join(', and ')}. Tap Wear again to go ahead${w.items.length ? ` and leave ${w.items.length > 1 ? 'them' : 'it'} here` : ''}, or Carry it instead.`]);
         return;
       }
       this.armedWear = null;
@@ -4377,11 +4388,21 @@ export class Game {
       inv.clothes = inv.clothes.filter((c, i) => i !== 3 || c);
       inv.spots = spotsFor(inv.clothes, inv.gear);
     }
-    const it = stow(inv, { kind: 'wear', name, slot });
+    let it = stow(inv, { kind: 'wear', name, slot });
+    // (A bag with nowhere to go: you carry it by the strap, if you've a hand free.)
+    const hand = !it && slot === 'bag' ? freeHand(inv, this.health.broken) : null;
+    if (!it && hand) {
+      const m = measure({ kind: 'wear', name });
+      it = { kind: 'wear', name, slot, size: m.size, kg: m.kg, spot: '', hand };
+      inv.items.push(it);
+      this.refresh();
+      this.note([`You take off the ${lc(name)} and carry it in your ${hand} hand.`]);
+      return;
+    }
     if (!it) {
       // (Nowhere to carry it once it's off: put it back on.)
       wear(inv, slot, name);
-      this.note([`If you take off the ${lc(name)}, you'd have nowhere to carry it.`]);
+      this.note([`If you take off the ${lc(name)}, you'd have nowhere to carry it${slot === 'bag' ? ', and no free hand' : ''}.`]);
       return;
     }
     const sp = inv.spots.find((x) => x.id === it.spot);
@@ -6878,16 +6899,20 @@ export class Game {
     const cashAt = new Map((cashWhere(inv) ?? []).map((x) => [x.spot.id, x.share]));
     const allCash = Math.round(cashOf(inv) * 100);
     const empty = inv.spots.filter((sp) => !inv.items.some((x) => x.spot === sp.id) && !cashAt.has(sp.id));
-    for (const sp of inv.spots) {
-      const xs = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.spot === sp.id);
-      const share = cashAt.get(sp.id) ?? 0;
+    // (And what you're carrying with no pocket for it: a bag by the strap.)
+    const hands: Pocket = { id: '', name: 'In your hands', on: '', fits: 'large', maxKg: 1 };
+    for (const sp of [...inv.spots, hands]) {
+      const xs = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => (sp === hands ? !inv.spots.some((y) => y.id === x.spot) : x.spot === sp.id));
+      const share = sp === hands ? 0 : (cashAt.get(sp.id) ?? 0);
       if (!xs.length && !share) continue;
       const used = usedKg(inv, sp.id) + share * purseKg(inv);
       // (Full by weight, or full by bulk: bills take room long before they weigh much.)
       const fill = Math.min(100, 100 * Math.max(used / sp.maxKg, usedKg(inv, sp.id) / sp.maxKg + (share * mlOf(inv.purse)) / spotMl(sp)));
       body +=
-        `<div class="spot"><h3><span>${sp.on} · ${sp.name}</span><em>${sp.fits} · ${hideWord(concealOf(sp, inv.clothes[0]))}</em></h3>` +
-        `<div class="spot-bar"><i style="width:${fill}%"></i><span>${kgLabel(used)} / ${sp.maxKg} kg</span></div>` +
+        (sp === hands
+          ? `<div class="spot"><h3><span>${sp.name}</span></h3>`
+          : `<div class="spot"><h3><span>${sp.on} · ${sp.name}</span><em>${sp.fits} · ${hideWord(concealOf(sp, inv.clothes[0]))}</em></h3>` +
+            `<div class="spot-bar"><i style="width:${fill}%"></i><span>${kgLabel(used)} / ${sp.maxKg} kg</span></div>`) +
         (share ? `<p class="pocket-empty">${share > 0.999 ? 'Your cash' : Math.round((allCash * share) / 100) >= 1 ? `About ${money(Math.round((allCash * share) / 100) * 100)} of your cash` : 'Some of your cash'}, ${BILLS.some((d) => inv.purse[d]) ? 'folded in here' : 'loose in here'}.</p>` : '') +
         (xs.length
           ? `<ul class="pocket-list">${xs
@@ -6986,7 +7011,7 @@ export class Game {
                 // Into another pocket (to hide it better, or have it to hand).
                 if (!x.hand) acts += act('move', 'Move', nextSpot(inv, x) ? null : 'Nowhere else');
                 return (
-                  `<li><div><b>${named(x)}</b><small>${small ? `${small} · ` : ''}${kgLabel(x.kg)}${x.kind === 'weapon' ? ` · ${hideStat(bulkOf(x))}, ${alarmStat(alarmOf(x))} · <span class="shows${showing(inv, x) >= 0.16 ? ' seen' : ''}">${x.hand ? `In your ${x.hand} hand` : showWord(showing(inv, x))}${inBag(inv, x.spot) ? ' (a moment to get out)' : ''}</span>` : ''}</small></div>` +
+                  `<li><div><b>${named(x)}</b><small>${small ? `${small} · ` : ''}${kgLabel(x.kg)}${x.hand && x.kind !== 'weapon' ? ` · In your ${x.hand} hand` : ''}${x.kind === 'weapon' ? ` · ${hideStat(bulkOf(x))}, ${alarmStat(alarmOf(x))} · <span class="shows${showing(inv, x) >= 0.16 ? ' seen' : ''}">${x.hand ? `In your ${x.hand} hand` : showWord(showing(inv, x))}${inBag(inv, x.spot) ? ' (a moment to get out)' : ''}</span>` : ''}</small></div>` +
                   `<span class="acts">${acts}<button type="button" class="drop" data-drop="${i}" aria-label="Throw away ${x.name}">Trash</button></span></li>`
                 );
               })
@@ -7031,6 +7056,7 @@ export class Game {
       ? inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind) && x.detail === e.holder && !x.pin && !x.pinAsked).map(({ x, i }) => ({ i, name: x.name }))
       : [];
     e.canAsk = this.world.thieves.length > 0 && !e.person.thief;
+    e.carrying = inv.items.filter((x) => x.hand && x.kind !== 'weapon').length;
     e.weapons = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'weapon').map(({ x, i }) => ({ i, name: x.name, weapon: x.weapon, cuts: x.cuts, spray: x.spray, doses: x.doses, loaded: x.secret && x.secret !== 'empty' && x.secret !== 'cocaine' ? x.secret : undefined, known: x.known, hand: x.hand, ...(gunOf(x.name) ? { gun: true, ammo: inv.items.filter((y) => y.name === gunOf(x.name)!.ammo).reduce((n, y) => n + (y.doses ?? 0), 0) } : {}) }));
     e.wet = WET_AMOUNT[this.weather.now] > 0 && !this.inside;
     // How much of what you're carrying shows (a handle out of a pocket, the shape of a blade).
@@ -7043,6 +7069,8 @@ export class Game {
   private refresh() {
     // (Anything that changed what's on screen changed the game: it's saved a moment later.)
     this.onChanged?.();
+    // (What's used up weighs less.)
+    for (const x of this.inventory.items) reweigh(x);
     this.learnHomes();
     this.syncButtons();
     const e = this.encounter;

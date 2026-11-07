@@ -242,6 +242,31 @@ export function measure(x: { kind: string; name: string; med?: MedId }): { size:
   return { size: 'small', kg: 0.005 };
 }
 
+/** What's used up weighs less: [name, full count, full kg, empty kg]. */
+const EMPTIES: [RegExp, number, number, number][] = [
+  [/^(9mm|\.38) rounds$/i, 50, 0.55, 0.05],
+  [/^12-gauge shells$/i, 25, 1, 0.05],
+  [/^(pack of )?cigarettes$/i, 20, 0.03, 0.01],
+];
+const DRINKS: [RegExp, number, number, number][] = [
+  [/^beer$/i, 1, 0.37, 0.015],
+  [/energy drink/i, 1, 0.3, 0.015],
+  [/wine/i, 5, 1.2, 0.5],
+  [/vodka|whiskey/i, 6, 0.55, 0.2],
+];
+/** Its weight by what's left in it: a half-empty bottle, a box with ten rounds left. */
+export function reweigh(it: InvItem) {
+  if (it.doses == null) return;
+  if (/^loose cigarettes$/i.test(it.name)) {
+    it.kg = Math.round(Math.max(1, it.doses)) / 1000;
+    return;
+  }
+  const row = (it.drink ? DRINKS : EMPTIES).find(([re]) => re.test(it.name));
+  if (!row) return;
+  const [, full, kg, empty] = row;
+  it.kg = Math.round((empty + (kg - empty) * Math.min(1, Math.max(0, it.doses / full))) * 1000) / 1000;
+}
+
 export const usedKg = (inv: Inventory, spot: string) => inv.items.filter((i) => i.spot === spot).reduce((s, i) => s + i.kg, 0);
 
 // ---------- Cash takes room ----------
@@ -385,15 +410,30 @@ export function wear(inv: Inventory, slot: 'top' | 'bottom' | 'bag', name: strin
   const old = clothes[at] ?? null;
   clothes[at] = name;
   const spots = spotsFor(clothes, inv.gear);
-  // Pack it all again, biggest things first.
   const trial: Inventory = { purse: inv.purse, items: [], clothes, spots, maxKg: inv.maxKg };
-  const order = [...inv.items].sort((a, b) => SIZE_RANK[b.size] - SIZE_RANK[a.size] || b.kg - a.kg);
+  const placed = new Map<InvItem, InvItem>();
+  // What's in a pocket that's still there (the same garment, the same pocket) stays where you put it.
+  const kept = (it: InvItem) => {
+    const was = inv.spots.find((s) => s.id === it.spot);
+    const sp = was && spots.find((s) => s.id === was.id && s.on === was.on && s.name === was.name);
+    return sp && fitsIn(sp, it) && SIZE_RANK[sp.fits] >= SIZE_RANK[it.size] && usedKg(trial, sp.id) + it.kg <= sp.maxKg + 1e-9 ? sp : null;
+  };
+  for (const it of inv.items) {
+    if (!kept(it)) continue;
+    const x = { ...it };
+    trial.items.push(x);
+    placed.set(it, x);
+  }
+  // The rest packed again, biggest things first.
+  const order = inv.items.filter((it) => !placed.has(it)).sort((a, b) => SIZE_RANK[b.size] - SIZE_RANK[a.size] || b.kg - a.kg);
   const left: InvItem[] = [];
   for (const it of order) {
-    // (In your hand, it stays in your hand: it goes in a pocket if there's one for it.)
+    // (In your hand, it stays in your hand: a weapon goes in a pocket if there's one for it.)
     if (it.hand) {
-      const sp = hidingSpot(trial, it.size, it.kg, it);
-      trial.items.push(sp ? { ...it, spot: sp.id } : it);
+      const sp = it.kind === 'weapon' ? hidingSpot(trial, it.size, it.kg, it) : null;
+      const x = sp ? { ...it, spot: sp.id } : { ...it };
+      trial.items.push(x);
+      placed.set(it, x);
       continue;
     }
     const spot = it.kind === 'weapon' ? hidingSpot(trial, it.size, it.kg, it) : findRoom(trial, it.size, it.kg, it);
@@ -405,8 +445,12 @@ export function wear(inv: Inventory, slot: 'top' | 'bottom' | 'bag', name: strin
       }
       return { ok: false, why: `You'd have nowhere to put the ${it.name.toLowerCase()}.` };
     }
-    trial.items.push({ ...it, spot: spot.id });
+    const x = { ...it, spot: spot.id };
+    trial.items.push(x);
+    placed.set(it, x);
   }
+  // (In the order you had them.)
+  trial.items = inv.items.filter((it) => placed.has(it)).map((it) => placed.get(it)!);
   if (cashFits(inv) && !cashFits(trial)) return { ok: false, why: "You'd have nowhere to put all your cash." };
   inv.clothes = clothes;
   inv.spots = spots;
@@ -630,8 +674,8 @@ export function bulkOf(x: { kind: string; name: string }): number {
 
 /** How much of this weapon shows, where it is (0 hidden .. 1 out in the open). */
 export function showing(inv: Inventory, x: InvItem): number {
-  // In your hand: everyone can see it.
-  if (x.hand) return 1;
+  // In your hand: everyone can see it (a bag by the strap is just a bag).
+  if (x.hand) return x.kind === 'weapon' ? 1 : 0;
   const sp = inv.spots.find((s) => s.id === x.spot);
   // (A shotgun sticks out of anything.)
   const v = bulkOf(x) * (1 - (sp ? concealOf(sp, inv.clothes[0]) : 0));

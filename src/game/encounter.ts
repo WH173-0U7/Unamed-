@@ -327,6 +327,8 @@ export interface Encounter {
   cardsHeld?: { i: number; name: string }[];
   canAsk?: boolean;
   /** Your weapons (index in your items), set by the game as it draws. */
+  /** How many hands are full with something that isn't a weapon (a bag by the strap). */
+  carrying?: number;
   weapons?: { i: number; name: string; weapon?: number; cuts?: boolean; spray?: boolean; doses?: number; loaded?: string; known?: boolean; gun?: boolean; ammo?: number; hand?: 'left' | 'right' }[];
   /** Shots you've fired this fight (each one gets called in). */
   shots?: number;
@@ -418,7 +420,7 @@ function searchOptions(e: Encounter): Option[] {
 }
 
 /** Something in each hand already. */
-const handsFull = (e: Encounter) => (e.weapons ?? []).filter((w) => w.hand).length >= 2;
+const handsFull = (e: Encounter) => (e.weapons ?? []).filter((w) => w.hand).length + (e.carrying ?? 0) >= 2;
 /** Your weapons, as attacks (pepper spray, while it lasts). */
 /** A weapon by what it is, short ("knife", "bat"), for the buttons. */
 function shortName(n: string): string {

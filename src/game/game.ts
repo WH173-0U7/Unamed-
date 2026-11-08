@@ -5346,7 +5346,7 @@ export class Game {
       `<p class="shop-broke">They screen everyone: your own ID, a finger prick, a few questions. Twice a week at most, two days apart.</p>`;
   }
   private donatePlasma() {
-    if (this.place !== 'plasma' || this.plasmaWhy() || this.work) return;
+    if (this.place !== 'hospital' || this.plasmaWhy() || this.work) return;
     this.startWork({ kind: 'plasma', since: now(), until: now() + 50 * 60_000 }, ['A finger prick, a blood pressure cuff, a form with too many questions. Then a recliner, a needle in the crook of your arm, and the machine starts to hum.']);
   }
 
@@ -5430,7 +5430,7 @@ export class Game {
     const lines = ((this.save.state.workLines as string[] | undefined) ?? []).slice(-2);
     el.innerHTML =
       `<h2>${w.kind === 'plasma' ? 'Plasma' : 'Delivering'}</h2>` +
-      `<p class="jail-what">${w.kind === 'plasma' ? 'In a recliner at Harbor Plasma, the machine humming.' : `Online with ${GIG_APP}, bag on your back, phone in your hand.`}</p>` +
+      `<p class="jail-what">${w.kind === 'plasma' ? 'In a recliner in the hospital’s plasma room, the machine humming.' : `Online with ${GIG_APP}, bag on your back, phone in your hand.`}</p>` +
       lines.map((l) => `<p class="rest-line">${esc(l)}</p>`).join('') +
       (w.kind === 'plasma' ? `<div class="rest-bar"><i></i></div>` : '') +
       `<p class="jail-left"></p><p class="jail-out"></p>` +
@@ -6943,7 +6943,9 @@ export class Game {
         row('lung', 'Chest tube', 'For a punctured lung: lets you breathe again.', need.lung) +
         row('blood', 'Blood', 'A transfusion, when you’ve lost too much.', need.blood) +
         `</ul>` +
-        `<p class="shop-broke">${this.erSeen ? 'You’ve been seen. They’ll fit you in.' : 'First you wait, unless you’re bleeding badly or can’t breathe.'} No insurance: they want cash before you leave. They can’t do anything for ribs or a concussion but tell you to rest.</p>`;
+        `<p class="shop-broke">${this.erSeen ? 'You’ve been seen. They’ll fit you in.' : 'First you wait, unless you’re bleeding badly or can’t breathe.'} No insurance: they want cash before you leave. They can’t do anything for ribs or a concussion but tell you to rest.</p>` +
+        // (Plasma donation: down the hall, in the same building.)
+        `<h3>Plasma donation, down the hall</h3>${this.plasmaHtml(btn, li)}`;
     } else if (place === 'court') {
       const c = this.case;
       const metal = this.inventory.items.find((x) => x.kind === 'weapon' && !/bottle|syringe/i.test(x.name));

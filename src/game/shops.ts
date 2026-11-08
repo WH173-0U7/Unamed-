@@ -147,7 +147,7 @@ export const ROOM_RENT = 175;
 export const DEZ_CASH = 180;
 export const DEZ_FRONT = 280;
 /** Places that exist but aren't open to the player yet (the gun store: not yet). Remove one to bring it back. */
-export const HIDDEN_PLACES: ReadonlySet<Place> = new Set<Place>(['guns']);
+export const HIDDEN_PLACES: ReadonlySet<Place> = new Set<Place>(['guns', 'plasma']);
 
 /** The bank lobby (coin machine) is open all hours. */
 export const COIN_MACHINE_FEE = 0.1;

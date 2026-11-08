@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.61',
+    date: 'Nov 8',
+    items: [
+      'Pickpocketing: follow someone close after seeing what they carry, and you can see what’s in their pockets and try to lift their wallet, phone, keys or cash. Sneak helps; if they feel it, they’ll know.',
+      'An unlocked phone sells for more, and unlocking someone’s phone puts their address on your map.',
+      'You can eat lunches and groceries, and drink water bottles, that you find: it takes the edge off being tired.',
+    ],
+  },
+  {
     v: '2.60',
     date: 'Nov 8',
     items: ['A new, more realistic map: real blocks of buildings (big ones downtown, rows of houses with yards and alleys further out, parking lots), proper roads with names along them, a park with trees, the river and its bridge, and the rail line.'],

@@ -154,7 +154,7 @@ export const COIN_MACHINE_FEE = 0.1;
 
 // ---------- What things are worth (to someone who'd buy them new) ----------
 
-export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'known' | 'doses'> & { drained?: boolean }): number {
+export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'known' | 'doses'> & { drained?: boolean; locked?: boolean; own?: number }): number {
   const n = x.name.toLowerCase();
   // Not knowing what it is, nobody can tell you what it's worth (or give it away).
   if (x.secret && !x.known) return x.secret === 'cocaine' ? 40 : 20;
@@ -162,7 +162,8 @@ export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'kno
   if (x.secret && x.secret !== 'empty') return { heroin: 40, fentanyl: 50, meth: 35, tranq: 15 }[x.secret];
   if (x.med) return { bandages: 8, gauze: 15, painkillers: 6, splint: 22, iron: 12, testkit: 10, caffeine: 5 }[x.med];
   if (/^old phone$/i.test(n)) return 60;
-  if (x.kind === 'phone') return 180;
+  // (Someone else's, and open: wiped and sold on as working, it's worth half as much again.)
+  if (x.kind === 'phone') return x.locked === false && x.own == null ? 270 : 180;
   if (/^laptop$/i.test(n)) return 300;
   if (/^tablet$/i.test(n)) return 220;
   if (/^cordless drill$/i.test(n)) return 110;

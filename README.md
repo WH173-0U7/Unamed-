@@ -30,7 +30,7 @@ weather all keep going whether you're playing or not.
 ### Fighting
 - Turn-based fights with blood, stamina, falls, knock-outs and real injuries (broken bones, a punctured lung, paralysis).
 - **Five fighting styles:** Strikes, Kicks & knees, Clinch & takedowns, Ground, Locks & chokes. Each levels up from its own moves and teaches harder ones; better moves replace the basic ones.
-- Ambushes, chases, weapons, torture, mugging, and searching bodies.
+- Ambushes, chases, weapons, torture, mugging, pickpocketing, and searching bodies.
 - **Toughness** grows only by taking a beating.
 - Every injury carries over and heals on the real clock: yours and theirs.
 

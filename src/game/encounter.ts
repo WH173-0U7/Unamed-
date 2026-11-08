@@ -222,7 +222,7 @@ export interface Encounter {
   /** How far they've been warned off already (signs they've noticed you: 1, then 2). */
   warned?: number;
   /** What you've made out about them (race and sex take a proper look; face to face, you see). */
-  known: { build: boolean; carrying: boolean; awareness: boolean; sex: boolean; race?: boolean; personality?: boolean };
+  known: { build: boolean; carrying: boolean; awareness: boolean; sex: boolean; race?: boolean; personality?: boolean; pockets?: boolean };
   you: Body;
   them: Body & { weaponOut: string | null; sprayed: boolean };
   log: LogLine[];
@@ -338,6 +338,11 @@ export interface Encounter {
   toldHome?: boolean;
   /** They swore they'd keep quiet (and meant it): how scared they were when they did. */
   hushed?: number;
+  /** Set by the game as it draws: how worn out you are (fatigueOdds), and what you've no room on you to lift (see liftables). */
+  tiredOdds?: number;
+  liftNoRoom?: string[];
+  /** How many things you've lifted off them without their noticing. */
+  lifted?: number;
   canAsk?: boolean;
   /** Your weapons (index in your items), set by the game as it draws. */
   /** How many hands are full with something that isn't a weapon (a bag by the strap). */
@@ -871,6 +876,10 @@ function rawOptions(e: Encounter): Option[] {
         ...(e.suspicion >= 35 && !e.recognised ? [{ id: 'bluff', label: 'Act natural', hint: 'Speech: look like you belong here', cat: 'surveil' as Category }] : []),
         ...(e.known.sex && e.known.race ? [] : [{ id: 'sex', label: 'Get a look at them', hint: e.distance < 1 ? 'Hard to tell from here' : 'Their face, their build', cat: 'surveil' as Category }]),
         ...(e.known.personality ? [] : [{ id: 'read', label: 'Read them', hint: e.distance < 1 ? 'Need to be closer' : 'What kind of person?', disabled: e.distance < 1, cat: 'surveil' as Category }]),
+        // Right behind them, and you've seen what's in their pockets: lift it.
+        ...(e.known.pockets && e.distance >= 2 && !e.them.down
+          ? liftables(e).map((L) => ({ id: `lift:${L.key}`, label: L.label, hint: e.liftNoRoom?.includes(L.key) ? 'No room' : 'Sneak. If they feel it, they’ll know', disabled: !!e.liftNoRoom?.includes(L.key), cat: 'surveil' as Category }))
+          : []),
         // Talking to them (asking for change, a supplier, selling): walk up first.
         { id: 'approach', label: 'Walk up to them', hint: 'Face to face: talk, sell, ask', cat: 'surveil' as Category },
         ...(e.them.down
@@ -1170,7 +1179,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
   // Surveil and violence are tabs: picking an option from either one is
   // what decides which you're doing.
   if (e.stage === 'menu' || e.stage === 'surveil' || e.stage === 'violence') {
-    if (SURVEIL_IDS.includes(id)) e.stage = 'surveil';
+    if (SURVEIL_IDS.includes(id) || id.startsWith('lift:')) e.stage = 'surveil';
     else if (VIOLENCE_IDS.includes(id)) e.stage = 'violence';
   }
   // Walking up to them: face to face now (you see them properly; they see you).
@@ -1200,11 +1209,53 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
     const watch = (base: number) => {
       e.suspicion += base * [0.4, 0.8, 1.4, 2.0][aw] * (1 + e.distance * 0.4) * (0.7 + Math.random() * 0.6) * noticeRate(stats) * (e.conspicuous ? 1.6 : 1) * (1 + (e.exposed ?? 0) * 1.3);
     };
+    if (id.startsWith('lift:')) {
+      const L = liftables(e).find((x) => x.key === id.slice(5));
+      if (!L || !e.known.pockets || e.distance < 2 || !inv || e.liftNoRoom?.includes(L.key)) return impacts;
+      const drunkish = p.kind === 'drunk' || p.kind === 'junkie';
+      const odds = clamp(0.3 + (e.sneakLevel ?? 1) * 0.005 - (aw / 3) * 0.4 - (e.tiredOdds ?? 0) + (drunkish ? 0.1 : 0) - (L.inside ? 0.15 : 0), 0.05, 0.85);
+      if (Math.random() < odds) {
+        // Off them and into your pockets, as if you'd taken it any other way.
+        const got: string[] = [];
+        const picks = [...L.picks].sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+        for (const [gi, li] of picks) {
+          const g = p.clothes[gi];
+          const l = g?.loot[li];
+          if (!l) continue;
+          const words = lootWords(l);
+          const rr = take(inv, l);
+          if (rr.ok) {
+            g.loot.splice(li, 1);
+            got.push(words);
+          } else if (rr.cents) got.push(money(rr.cents));
+        }
+        // (What they were carrying, as you saw it: gone from them now.)
+        if (!liftables(e).some((x) => x.key === L.key)) {
+          const name = { wallet: 'Wallet', phone: 'Phone', keys: 'Keys', cash: 'Cash' }[L.key];
+          const ci = p.carrying.findIndex((x) => x.name === name);
+          if (ci >= 0) p.carrying.splice(ci, 1);
+        }
+        e.lifted = (e.lifted ?? 0) + 1;
+        say('you', oneOf([`You match their step, and your fingers find ${L.noun}. ${L.key === 'keys' || L.key === 'cash' ? 'They come' : 'It comes'} away clean. They walk on.`, `A bump, a mumbled “sorry”, and ${L.noun} ${L.key === 'keys' || L.key === 'cash' ? 'are' : 'is'} in your hand. They don’t look back.`, `You lift ${L.noun} between two fingers, light as anything. They never feel it.`]));
+        if (L.key === 'wallet' && got.length) say('info', `In the wallet: ${list(got)}.`);
+        watch(4);
+        you.gain('sneak', 8);
+      } else {
+        say('you', `Your fingers are on ${L.noun} when they turn. “Hey—!”`);
+        // (Caught with your hand in their pocket: that's theft, and they know your face now.)
+        e.mugged = true;
+        e.suspicion = 100;
+        you.gain('sneak', 2);
+        spotted();
+        return impacts;
+      }
+    }
     switch (id) {
       case 'follow':
         if (e.distance < 2) {
           e.distance++;
           say('you', e.distance === 1 ? 'You cross over and fall in behind them.' : "You close the gap. You’re right behind them now.");
+          if (e.distance === 2 && e.known.carrying && !e.known.pockets) seePockets(e);
         } else {
           say('you', oneOf(['They turn a corner. You follow.', 'You match their pace, a few steps back.', 'They stop at a crossing. So do you.']));
         }
@@ -1230,6 +1281,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           const shows = p.carrying.filter((i) => /\bbags?\b|backpack|cart|blanket|bottle|\bbat\b|pipe|crowbar|umbrella|case|tote|stick|tire iron|machete|hammer/i.test(i.name));
           say('info', shows.length ? `You can see: ${shows.map((i) => i.name.toLowerCase()).join(', ')}. Anything else is in their pockets.` : 'Nothing in their hands. Anything they have is in their pockets.');
         }
+        if (e.distance >= 2 && !e.known.pockets) seePockets(e);
         const armed = p.carrying.find((i) => (i.weapon || i.spray) && /bottle|\bbat\b|pipe|crowbar|tire iron|machete|hammer|stick/i.test(i.name));
         if (armed) say('info', `The ${armed.name.toLowerCase()} could be trouble.`);
         watch(8);
@@ -3762,6 +3814,12 @@ function threatAct(id: string, inv?: Inventory): boolean {
       phone.locked = false;
       say('them', `${oneOf(['They press their thumb to it. The screen lights up, open.', 'They tap in the code and hold it out to you. It’s open.'])} ${vary(demandVoice(e, 'unlock', 'comply'))}`);
       you.gain('intimidation', 4);
+      // (Their address is in it: the game puts it on your map.)
+      const home = e.person.home;
+      if (home && !e.homeKnown && !e.toldHome) {
+        e.toldHome = true;
+        say('info', `Their address is in it: ${home.addr}. It’s on your map now.`);
+      }
     } else {
       phone.locked = true;
       say('them', oneOf(['They tap in a code, fast. The screen shakes: wrong. “It— I must have—” They won’t meet your eye.', 'They jab at the screen and hand it back. Still locked. “It does that. I don’t know why.”']));
@@ -4022,6 +4080,49 @@ const lc = (s: string) => s.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase());
 /** A thing's name, in a list: "a state ID (expired)", not "a state ID, expired". */
 const named = (s: string) => a(lc(s)).replace(/^(an? [^,]+), ([^,]+)$/, '$1 ($2)');
 export const a = (s: string) => (/^(pepper spray|cash|loose|folded|groceries|house keys|car keys|cigarettes|headphones|matches|some |your |bills|bandages|gauze|iron tablets|painkillers)/.test(s) || plural(s) ? s : /^[aeiou]/.test(s) ? `an ${s}` : `a ${s}`);
+/** What's in their pockets (not a closed bag, not their shoes) that you could lift, right behind them. */
+export interface Liftable {
+  key: 'wallet' | 'phone' | 'keys' | 'cash';
+  label: string;
+  /** "their wallet": for the lines. */
+  noun: string;
+  /** Where it is on them: [garment, loot] indexes. */
+  picks: [number, number][];
+  /** Inside a jacket: harder to get at. */
+  inside: boolean;
+  /** What you can see from right behind them. */
+  seen: string;
+}
+export function liftables(e: Encounter): Liftable[] {
+  const by: Partial<Record<Liftable['key'], Liftable>> = {};
+  e.person.clothes.forEach((g, gi) => {
+    if (/backpack|\bbag\b|shoe|boot|sneaker|loafer|slide/i.test(g.name)) return;
+    g.loot.forEach((l, li) => {
+      if (l.hidden) return;
+      const key: Liftable['key'] | null = l.where === 'wallet' && !/bills/i.test(l.name) ? 'wallet' : l.kind === 'phone' ? 'phone' : l.kind === 'car keys' || /^(house )?keys$/i.test(l.name) ? 'keys' : l.kind === 'cash' && !/change/i.test(l.name) ? 'cash' : null;
+      if (!key) return;
+      const jacket = gi === 0 && /jacket|coat|blazer|parka|puffer|windbreaker|flannel|hoodie/i.test(g.name);
+      const inside = jacket && (key === 'wallet' || /inside/i.test(l.where));
+      const L = (by[key] ??= {
+        key,
+        label: { wallet: 'Lift their wallet', phone: 'Lift their phone', keys: 'Lift their keys', cash: 'Lift the cash' }[key],
+        noun: { wallet: 'their wallet', phone: 'their phone', keys: 'their keys', cash: 'the folded bills' }[key],
+        picks: [],
+        inside: false,
+        seen: { wallet: gi === 1 ? 'a wallet in their back pocket' : `a wallet inside their ${g.name.toLowerCase()}`, phone: 'a phone', keys: 'keys', cash: 'folded bills' }[key],
+      });
+      L.picks.push([gi, li]);
+      if (inside) L.inside = true;
+    });
+  });
+  return Object.values(by) as Liftable[];
+}
+/** Right behind them: what shows in their pockets. */
+function seePockets(e: Encounter) {
+  e.known.pockets = true;
+  const L = liftables(e);
+  say('info', L.length ? `Right behind them, you can make out more: ${list(L.map((x) => x.seen))}.` : 'Right behind them: nothing in their pockets worth the risk.');
+}
 export const list = (xs1: string[]) => {
   // (Money of the same kind, different amounts: one sum. "$30 of your cash" and "$50 of your cash" are $80 of it.)
   const xs0: string[] = [];

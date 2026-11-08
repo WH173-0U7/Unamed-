@@ -2,7 +2,7 @@ import type * as THREE from 'three';
 import { writeSave, type SaveData } from '../core/save';
 import { createTv } from './tv';
 import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf, randomName, type Loot } from './person';
-import { ENCOUNTER_VERSION, act, indoors, newEncounter, options as encounterOptions, type Encounter } from './encounter';
+import { ENCOUNTER_VERSION, act, indoors, liftables, newEncounter, options as encounterOptions, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
 import { toughnessResist } from './stats';
 import { STAT_NAMES, lieBonus, persuadeBonus, train, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
@@ -1790,6 +1790,8 @@ export class Game {
     else if (b.dataset.putaway) this.putAway(Number(b.dataset.putaway));
     else if (b.dataset.load) this.loadGun(Number(b.dataset.load));
     else if (b.dataset.drink) this.drink(Number(b.dataset.drink));
+    else if (b.dataset.eat) this.eat(Number(b.dataset.eat));
+    else if (b.dataset.water) this.eat(Number(b.dataset.water));
   }
 
   /** Walk somewhere else. */
@@ -1949,6 +1951,7 @@ export class Game {
     const it = inv.items[i];
     const place = this.place;
     if (!it || (place !== 'pawn' && place !== 'fence') || !isOpen(placeInfo(place).hours!)) return;
+    if (it.kind === 'phone') this.phoneLocked(it);
     const o = offer(place, it);
     if (!('cents' in o)) return;
     const lines: string[] = [];
@@ -2630,6 +2633,37 @@ export class Game {
    * the edge off the cold, and makes you worse in a fight. Too much and you
    * black out where you are.
    */
+  /** Someone else's lunch, groceries, a bottle of water: it takes the edge off. */
+  private eat(i: number) {
+    const inv = this.inventory;
+    const it = inv.items[i];
+    const h = this.health;
+    if (!it || !this.canOpenSheet) return;
+    const water = /^water bottle$/i.test(it.name);
+    const groceries = /^groceries$/i.test(it.name);
+    if (!water && !groceries && !/^lunch in a plastic tub$/i.test(it.name)) return;
+    if (this.inside && !this.inOwnRoom) {
+      this.note(['Not in here. Someone behind the counter is already watching you.']);
+      return;
+    }
+    h.fatigue = Math.max(0, fatigueNow(h) - (water ? 3 : 6));
+    if (!water) h.stress = Math.max(0, (h.stress ?? 0) - 3);
+    let line: string;
+    if (groceries) {
+      it.doses ??= 3;
+      it.doses--;
+      line = oneOf(['You tear into the groceries standing up: whatever you can eat without cooking it.', 'You eat out of the grocery bag on the sidewalk, like an animal. It helps.']);
+      if (it.doses <= 0) {
+        inv.items.splice(i, 1);
+        line += ' That’s the last of it.';
+      }
+    } else {
+      inv.items.splice(i, 1);
+      line = water ? oneOf(['You drink the water down in one go.', 'You drain the water bottle and toss it.']) : oneOf(['You eat someone else’s lunch with your fingers, standing up. It helps.', 'You pop the lid and wolf down someone else’s lunch. Cold, but it’s food.']);
+    }
+    this.refresh();
+    this.note([line]);
+  }
   private drink(i: number) {
     const inv = this.inventory;
     const it = inv.items[i];
@@ -6917,7 +6951,7 @@ export class Game {
       if (!open) body = `<p class="shop-closed">${place === 'pawn' ? 'The shutter is down.' : "There’s nobody back here right now."}</p>`;
       else {
         const sell = inv.items
-          .map((x, i) => ({ x, i, o: offer(place, x) }))
+          .map((x, i) => ({ x, i, o: (x.kind === 'phone' && this.phoneLocked(x), offer(place, x)) }))
           .map(({ x, i, o }) => li(named(x), 'cents' in o ? `${x.detail ? `${x.detail} · ` : ''}He’ll give you ${money(o.cents)}` : o.why, 'cents' in o ? btn('sell', i, `Sell ${money(o.cents)}`) : ''));
         body = `<h3>Sell</h3>` + (sell.length ? `<ul class="shop-list">${sell.join('')}</ul>` : `<p class="shop-broke">You’ve got nothing to sell.</p>`);
         if (place === 'pawn') {
@@ -7247,6 +7281,9 @@ export class Game {
                 if (/^(lighter|matches)$/i.test(x.name)) acts += act('fire', 'Fire', this.fireBlocked());
                 if (/^(loose |pack of )?cigarettes$/i.test(x.name)) acts += act('smoke', this.smoking ? 'Smoking' : 'Smoke', (x.doses ?? 1) <= 0 ? 'Empty' : this.smokeBlocked());
                 if (x.drink) acts += act('drink', 'Drink', (x.doses ?? 0) <= 0 ? 'Empty' : this.canOpenSheet ? null : 'Not now');
+                // Food and water: someone else's, but it does you good.
+                if (/^(lunch in a plastic tub|groceries)$/i.test(x.name)) acts += act('eat', 'Eat', this.canOpenSheet ? null : 'Not now');
+                if (/^water bottle$/i.test(x.name)) acts += act('water', 'Drink', this.canOpenSheet ? null : 'Not now');
                 if (x.kind === 'wear' && x.slot) acts += act('puton', 'Put on', this.canOpenSheet ? null : 'Not now');
                 // A phone: the delivery app, if it's yours or unlocked.
                 if (x.kind === 'phone') acts += this.phoneActs(x, i);
@@ -7328,6 +7365,19 @@ export class Game {
       if (!e.seenAs || anon < e.seenAs.anon) e.seenAs = { anon, looked: describe(inv), clothes: lookClothes(inv) };
     }
     e.flame = !!this.flame();
+    e.tiredOdds = fatigueOdds(this.health);
+    // What you'd have no room for, lifted off them (tried on a copy of your pockets).
+    e.liftNoRoom = e.known.pockets
+      ? liftables(e)
+          .filter((L) => {
+            const sim = JSON.parse(JSON.stringify(inv)) as Inventory;
+            return L.picks.some(([gi, li]) => {
+              const l = e.person.clothes[gi]?.loot[li];
+              return l && !take(sim, JSON.parse(JSON.stringify(l))).ok;
+            });
+          })
+          .map((L) => L.key)
+      : [];
     e.cardsHeld = e.holder
       ? inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind) && x.detail === e.holder && !x.pin && !x.pinAsked).map(({ x, i }) => ({ i, name: x.name }))
       : [];

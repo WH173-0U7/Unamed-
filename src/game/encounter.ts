@@ -3432,7 +3432,7 @@ function sellOption(e: Encounter): Option {
   if (!k || !e.wantAmt || !known) return { id: 'sell', label: '“You looking?”', hint: (e.zips ?? 0) < 1 ? 'No baggies' : 'Sell them something · Speech', disabled: (e.zips ?? 0) < 1, cat: 'talk' };
   const p = keyProduct(k);
   const bags = e.wantBags ?? 1;
-  const what = `${bags} bag${bags === 1 ? '' : 's'} of ${keyName(k).toLowerCase()} (${amountText(p, e.bagSize ?? e.wantAmt)})`;
+  const what = `${bags} bag${bags === 1 ? '' : 's'} of ${keyName(k).toLowerCase()} (${amountText(p, e.bagSize ?? e.wantAmt)}${bags > 1 ? ' each' : ''})`;
   const short = have < e.wantAmt ? (have ? `You’ve only got ${amountText(p, have)}` : `You’ve got no ${keyName(k).toLowerCase()}`) : (e.zips ?? 0) < bags ? 'No baggies' : null;
   return { id: 'sell', label: `Sell ${what}`, hint: short ?? `$${Math.round((e.quote?.cents ?? 0) / 100)} · Speech`, disabled: !!short, cat: 'talk' };
 }

@@ -497,7 +497,8 @@ export function wouldLeave(inv: Inventory, slot: 'top' | 'bottom' | 'bag', name:
 }
 
 export const spotLabel = (s: Spot) => `${s.on}, ${s.name.toLowerCase()}`;
-export const kgLabel = (kg: number) => (kg <= 0 ? '0\u00a0kg' : kg < 0.01 ? '<0.01\u00a0kg' : `${kg < 1 ? kg.toFixed(2) : kg.toFixed(1)}\u00a0kg`);
+/** A weight, as people say it: grams under a kilo ("9 g", "400 g"), kilos above ("1.2 kg"). */
+export const kgLabel = (kg: number) => (kg <= 0 ? '0\u00a0g' : kg < 0.001 ? '<1\u00a0g' : kg < 1 ? `${Math.round(kg * 1000)}\u00a0g` : `${kg.toFixed(1)}\u00a0kg`);
 
 /**
  * Puts something you took into your pockets. `ok` is false (and it stays

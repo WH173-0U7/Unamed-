@@ -108,6 +108,8 @@ export function packageMeasure(p: Product, amt: number, full = amt): { size: 'sm
 }
 /** An amount in words: "3.2 g", "12 pills". */
 export const amountText = (p: Product, amt: number) => (p === 'pills' ? `${amt} pill${amt === 1 ? '' : 's'}` : `${(amt / DG).toFixed(amt % DG ? 1 : 0)} g`);
+/** A package's size, as you'd say it before “package”: "20-pill", "7 g". */
+export const pkgAmount = (p: Product, amt: number) => (p === 'pills' ? `${amt}-pill` : amountText(p, amt));
 /** A request in words: "half a gram", "an eighth", "3 pills". */
 export function sizeWord(p: Product, amt: number): string {
   if (p === 'pills') return amt === 1 ? 'a pill' : `${amt} pills`;

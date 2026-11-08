@@ -107,6 +107,34 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
 
   /** Violence looks and feels different from everything else. */
   const HARM = new Set(['violence', 'attack', 'stomp', 'torture']);
+  /**
+   * What kind of move it is, for its coloured edge: violence (red), a threat or
+   * demand (amber), sneaky (green), talk and selling (blue), leaving or neutral (grey).
+   */
+  const TALK_IDS = /^(approach|sell|beg|connect|bluff-talk)(:|$)|^sell/;
+  const kindOf = (o: Option): 'harm' | 'threat' | 'sneak' | 'talk' | 'leave' => {
+    const c = o.cat;
+    if (c && HARM.has(c)) return 'harm';
+    if (c === 'threaten') return 'threat';
+    if (c === 'talk') return 'talk';
+    if (c === 'surveil') return TALK_IDS.test(o.id) ? 'talk' : 'sneak';
+    if (c === 'search') return /^(pin|unlock|ask-home)/.test(o.id) ? 'threat' : 'leave';
+    if (/^(punch|kick|choke|stomp|wpn|tech|floor|ground|smash|grapple|whip)/.test(o.id)) return 'harm';
+    return 'leave';
+  };
+  /** Small line icons for the tabs (24 × 24, stroked like the place icons). */
+  const TAB_ICON: Partial<Record<Category, string>> = {
+    surveil: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6',
+    talk: 'M4 5h16v11H10l-5 4v-4H4z',
+    violence: 'M7 11V8a2 2 0 0 1 4 0v2 M11 10V7a2 2 0 0 1 4 0v3 M15 10V8a2 2 0 0 1 4 0v5a7 7 0 0 1-7 7h-1a6 6 0 0 1-6-6v-1a2 2 0 0 1 2-2h4',
+    attack: 'M7 11V8a2 2 0 0 1 4 0v2 M11 10V7a2 2 0 0 1 4 0v3 M15 10V8a2 2 0 0 1 4 0v5a7 7 0 0 1-7 7h-1a6 6 0 0 1-6-6v-1a2 2 0 0 1 2-2h4',
+    stomp: 'M7 11V8a2 2 0 0 1 4 0v2 M11 10V7a2 2 0 0 1 4 0v3 M15 10V8a2 2 0 0 1 4 0v5a7 7 0 0 1-7 7h-1a6 6 0 0 1-6-6v-1a2 2 0 0 1 2-2h4',
+    search: 'M8 13V6a1.5 1.5 0 0 1 3 0v5 M11 11V4.5a1.5 1.5 0 0 1 3 0V11 M14 11V6a1.5 1.5 0 0 1 3 0v7 M17 12a1.5 1.5 0 0 1 3 0v2a7 7 0 0 1-7 7h-1a6 6 0 0 1-5.2-3L4.3 15a1.5 1.5 0 0 1 2.5-1.6L8 15',
+    threaten: 'M12 3l10 18H2z M12 10v5 M12 18v.5',
+    torture: 'M4 20l9-9 M13 11l7-7-1 5-4 4z M6 16l2 2',
+    move: 'M5 12h14 M13 6l6 6-6 6',
+  };
+  const tabIcon = (c: Category) => (TAB_ICON[c] ? `<svg class="tab-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${TAB_ICON[c]}"/></svg>` : '');
   const attr = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
   /**
    * A hint as a few short tags ("Sneak", "a turn", "Their phone") rather than
@@ -127,7 +155,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
   /** (Where a thing is in their pockets reads as it is: no tags.) */
   const small = (o: Option) => (!o.hint ? '' : o.id.startsWith('take') ? `<small>${o.hint}</small>` : `<small class="chips">${chips(o.hint).map((c) => `<span>${c}</span>`).join('')}</small>`);
   const button = (o: Option, extra = '') =>
-    `<button type="button" data-id="${o.id}" ${o.cat && HARM.has(o.cat) ? 'data-tone="harm"' : ''} ${o.tone ? `data-loot="${o.tone}"` : ''} ${o.disabled ? 'disabled' : ''} ${o.hint ? `title="${attr(o.hint)}" aria-label="${attr(`${o.label}. ${o.hint}`)}"` : ''} ${extra}>${o.icon && o.tone ? glyphSvg(o.icon, o.tone) : ''}${o.label}${small(o)}</button>`;
+    `<button type="button" data-id="${o.id}" data-kind="${kindOf(o)}" ${o.cat && HARM.has(o.cat) ? 'data-tone="harm"' : ''} ${o.tone ? `data-loot="${o.tone}"` : ''} ${o.disabled ? 'disabled' : ''} ${o.hint ? `title="${attr(o.hint)}" aria-label="${attr(`${o.label}. ${o.hint}`)}"` : ''} ${extra}>${o.icon && o.tone ? glyphSvg(o.icon, o.tone) : ''}${o.label}${small(o)}</button>`;
   /** Which thing in their pockets has its row open ("gi:li|its name": a list that shifts doesn't open the wrong one). */
   let expanded: string | null = null;
 
@@ -181,7 +209,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     tabs.innerHTML = cats
       .map((c) => {
         const n = all.filter((o) => o.cat === c && !o.disabled).length;
-        return `<button type="button" role="tab" data-tab="${c}" ${HARM.has(c) ? 'data-tone="harm"' : ''} aria-selected="${c === tab}" class="${c === tab ? 'on' : ''}">${CATEGORY_NAMES[c]}${c === 'search' && n ? `<i>${n}</i>` : ''}</button>`;
+        return `<button type="button" role="tab" data-tab="${c}" ${HARM.has(c) ? 'data-tone="harm"' : ''} aria-selected="${c === tab}" aria-label="${CATEGORY_NAMES[c]}" class="${c === tab ? 'on' : ''}">${tabIcon(c)}<span class="tab-name">${CATEGORY_NAMES[c]}</span>${c === 'search' && n ? `<i>${n}</i>` : ''}</button>`;
       })
       .join('');
     // What makes sense next (unless it's right there in the open tab already).

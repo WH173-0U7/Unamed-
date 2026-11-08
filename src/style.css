@@ -6897,3 +6897,213 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
     animation-name: floater-fade;
   }
 }
+/* ---------- Layout sweep (v2.74) ---------- */
+/* Pairs that read as one (a district and its word) stay on one line. */
+.nw {
+  white-space: nowrap;
+}
+/* Your customers: the name, then what they buy under it, not three ragged lines. */
+.stat-now.cust-list div {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+.stat-now.cust-list dd {
+  text-align: left;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+/* A card heading and its badge: the badge drops under it when there's no room. */
+.stat-card h3 {
+  flex-wrap: wrap;
+  gap: 0 8px;
+}
+.stat-card h3 b {
+  white-space: nowrap;
+}
+/* Bag sizes: − size +, the same buttons every time. */
+.sz-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.sz-stepper .sz-step {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  justify-content: center;
+}
+.sz-stepper .sz-now {
+  min-width: 4.2em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* The log before anything's been said: no empty box. */
+.enc-log:empty {
+  display: none;
+}
+/* Very short landscape: the clock gives way to what's happening. */
+@media (orientation: landscape) and (max-height: 340px) {
+  #game.in-encounter #clock {
+    display: none;
+  }
+}
+/* A fight: the folded status keeps its height; the log (it scrolls) gives way. */
+#enc[data-stage='combat'] .enc-status,
+#enc[data-stage='over'] .enc-status,
+#enc[data-stage='combat'] .enc-card,
+#enc[data-stage='over'] .enc-card {
+  flex-shrink: 0;
+}
+#enc[data-stage='combat'] .enc-log,
+#enc[data-stage='over'] .enc-log {
+  flex-shrink: 1;
+  min-height: 44px;
+}
+/* Short portrait with the status open: the bottom row always on screen. */
+@media (orientation: portrait) and (max-height: 600px) {
+  #enc.status-open .enc-status {
+    max-height: 28dvh;
+  }
+  #enc.status-open .enc-opts:not(.enc-extra) {
+    max-height: 80px;
+  }
+}
+/* Numbers that read as one stay together (“5.0 L / 5.0 L”). */
+.enc-bar em {
+  white-space: nowrap;
+}
+/* Landscape fights: the bottom row's labels on one line. */
+@media (orientation: landscape) and (max-height: 560px) {
+  /* (Each label its own width, side by side, on one line.) */
+  #enc[data-stage] .enc-extra button {
+    flex: 1 1 auto;
+    width: auto;
+    padding: 4px 4px;
+    font-size: 11px;
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
+}
+/* The jail screen: You beside the other button, like the rest screen (escape gets its own row). */
+.lockup .lockup-btns .jail-escape {
+  flex-basis: 100%;
+}
+.lockup .lockup-btns:has(.jail-giveup) {
+  flex-wrap: wrap;
+}
+.lockup .lockup-btns .jail-giveup {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 260px;
+  white-space: normal;
+  line-height: 1.3;
+}
+.lockup .lockup-btns .lockup-you {
+  flex: none;
+}
+/* Headings in places split evenly, never a word alone on a line. */
+.shop-body h3 {
+  text-wrap: balance;
+}
+/* Settings: a disabled button in a disabled row reads as disabled, not invisible. */
+.row.disabled .btn[disabled] {
+  opacity: 1;
+}
+@media (max-width: 360px) {
+  #row-reset .label-sub {
+    font-size: 11px;
+    line-height: 1.3;
+  }
+}
+/* ---------- Encounter options by kind: a thin coloured edge, tags tinted to match ---------- */
+:root {
+  --kind-harm: #e0606a;
+  --kind-threat: #d9a548;
+  --kind-sneak: #79c08a;
+  --kind-talk: #79a6d9;
+  --kind-leave: rgba(236, 235, 230, 0.32);
+}
+#enc button[data-kind='harm'] { --kind: var(--kind-harm); }
+#enc button[data-kind='threat'] { --kind: var(--kind-threat); }
+#enc button[data-kind='sneak'] { --kind: var(--kind-sneak); }
+#enc button[data-kind='talk'] { --kind: var(--kind-talk); }
+#enc button[data-kind='leave'] { --kind: var(--kind-leave); }
+/* (An inset edge: works with every button style, and moves nothing.) */
+#enc .enc-opts button[data-kind],
+#enc .enc-next button[data-kind] {
+  box-shadow: inset 3px 0 0 var(--kind);
+  padding-left: 12px;
+}
+#enc .enc-opts button[data-kind]:disabled,
+#enc .enc-next button[data-kind]:disabled {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--kind) 35%, transparent);
+}
+#enc button[data-kind] small.chips span {
+  border-color: color-mix(in srgb, var(--kind) 55%, transparent);
+  color: color-mix(in srgb, var(--kind) 70%, var(--ink-dim));
+}
+#enc button[data-kind='leave'] small.chips span {
+  border-color: var(--line);
+  color: var(--ink-dim);
+}
+/* ---------- Tab icons ---------- */
+.enc-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.enc-tabs .tab-ic {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+/* Narrow phones: the icon over a small label, so every tab fits. */
+@media (max-width: 379px) {
+  .enc-tabs button {
+    flex-direction: column;
+    gap: 2px;
+    min-height: 44px;
+    padding: 4px 2px;
+  }
+  .enc-tabs .tab-name {
+    font-size: 9.5px;
+    letter-spacing: 0.06em;
+  }
+  .enc-tabs button i {
+    top: 2px;
+    right: 4px;
+  }
+}
+/* Short landscape with three or more tabs: icon over label, like narrow phones. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .enc-tabs:has(> button:nth-child(3)) button {
+    flex-direction: column;
+    gap: 1px;
+    min-height: 42px;
+    padding: 3px 2px;
+  }
+  .enc-tabs:has(> button:nth-child(3)) .tab-name {
+    font-size: 9.5px;
+    letter-spacing: 0.06em;
+  }
+}
+/* The Search count stays in the tab's corner when the icon sits over the label. */
+@media (max-width: 379px) {
+  .enc-tabs button i {
+    position: absolute;
+    top: 2px;
+    right: 6px;
+    margin: 0;
+  }
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  .enc-tabs:has(> button:nth-child(3)) button i {
+    position: absolute;
+    top: 1px;
+    right: 4px;
+    margin: 0;
+  }
+}

@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.74',
+    date: 'Nov 9',
+    items: [
+      'Encounter buttons are colour-coded by kind: red for violence, amber for threats, green for sneaky moves, blue for talking and selling, grey for leaving. Tabs have icons.',
+      'Layout fixes: the bottom buttons never go off a small screen, your status no longer spills over the log in a fight, the title no longer runs into the clock on a small sideways phone, and the motel’s “Your business” row looks right.',
+      'Polish: weights in grams under a kilo, “20-pill package”, “0.5 g each” on sales, a tidier market and customer list, bag-size buttons that line up and show the size, and cleaner headings in a few places.',
+    ],
+  },
+  {
     v: '2.73',
     date: 'Nov 9',
     items: [

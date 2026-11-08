@@ -227,7 +227,7 @@ const MUG_COST = 0.5;
 import { worth as worthOf, chargeOf, COIN_MACHINE_FEE, ER_PRICES, ROOM_RENT, DEZ_FRONT, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place, type Stock } from './shops';
 import { BILLS, COINS, addTo, cents, type Purse, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
 import { hoursText, isOpen } from './clock';
-import { DISTRICTS, DISTRICT_NAMES, EVENT_LINES, HOME_DISTRICT, MARKET_KEYS, PILLS, PRODUCTS, SELL_SIZE, SIZES, STANDING_NAMES, bagsFor, addLocalSupply, amountText, districtWord, keyName, keyOf, keyProduct, marketWord, newMarket, nextStandingAt, priceFactor, productOf, qualityOf, qualityWord, quote, requestFor, returnHours, sizePrice, standingOf, standingScore, streetPrice, tickMarket, wantFor, type Market, type MarketKey, type PillKind, type Product } from './drugs';
+import { DISTRICTS, DISTRICT_NAMES, EVENT_LINES, HOME_DISTRICT, MARKET_KEYS, PILLS, PRODUCTS, SELL_SIZE, SIZES, STANDING_NAMES, bagsFor, addLocalSupply, amountText, pkgAmount, districtWord, keyName, keyOf, keyProduct, marketWord, newMarket, nextStandingAt, priceFactor, productOf, qualityOf, qualityWord, quote, requestFor, returnHours, sizePrice, standingOf, standingScore, streetPrice, tickMarket, wantFor, type Market, type MarketKey, type PillKind, type Product } from './drugs';
 import { anyoneIn, idText, nameFor, ROOM_DESC, ROOM_SEARCH, roomLoot, roomName, roomsOf, steady, whoIsIn, type Home, type Presence, type RoomId } from './homes';
 import { createHitUi } from '../fx/hitUi';
 import { CAR_PARTS, PART_DESC, PART_NAME, REPORTED_HOURS, makeCar, makeOf, partLoot, reported, rollHunt, searchLine, type Car, type CarPart, type HuntState } from './cars';
@@ -5391,7 +5391,7 @@ export class Game {
   /** A package in a line: “Powder · 20 g package · 12.5 g left · Decent”. */
   private packageLine(x: InvItem): string {
     const p = productOf(x) ?? 'powder';
-    return `${x.pill ? PILLS[x.pill].street : PRODUCTS[p].name} · ${x.pkg && x.pkg !== x.doses ? `${amountText(p, x.pkg)} package · ${amountText(p, x.doses ?? 0)} left` : x.pkg ? `${amountText(p, x.pkg)} package` : amountText(p, x.doses ?? 0)} · ${qualityWord(qualityOf(x))}${x.pressed ? ' · pressed' : ''}`;
+    return `${x.pill ? PILLS[x.pill].street : PRODUCTS[p].name} · ${x.pkg && x.pkg !== x.doses ? `${pkgAmount(p, x.pkg)} package · ${amountText(p, x.doses ?? 0)} left` : x.pkg ? `${pkgAmount(p, x.pkg)} package` : amountText(p, x.doses ?? 0)} · ${qualityWord(qualityOf(x))}${x.pressed ? ' · pressed' : ''}`;
   }
   /** What's to hand in your room: on you, or left in it. */
   private inRoom(): { x: InvItem; where: 'inv' | 'room'; i: number }[] {
@@ -5466,7 +5466,12 @@ export class Game {
     const pk = all.filter(({ x }) => x.secret === 'cocaine' && x.known && productOf(x));
     const prods = [...new Set(pk.map(({ x }) => productOf(x)!))];
     const sizes = prods
-      .map((p) => li(`Sell ${PRODUCTS[p].name.toLowerCase()} in`, `${amountText(p, this.sellSize(p))} bags. Buyers ask for one, sometimes two or three.`, btn('sellsz', `${p}:-1`, '−', this.sellSize(p) <= SELL_SIZE[p][1] && 'Smallest') + btn('sellsz', `${p}:1`, '+', this.sellSize(p) >= SELL_SIZE[p][2] && 'Biggest')))
+      .map((p) => {
+        const sz = this.sellSize(p);
+        // (− size +: the same two buttons every time, greyed at the ends.)
+        const step = (d: number, label: string, off: boolean, why: string) => `<button type="button" class="sz-step" data-sellsz="${p}:${d}" ${off ? `disabled title="${why}" aria-label="${why}"` : `aria-label="${d < 0 ? 'Smaller' : 'Bigger'} bags"`}>${label}</button>`;
+        return li(`Sell ${PRODUCTS[p].name.toLowerCase()} in`, 'Bags of this much. Buyers ask for one, sometimes two or three.', `<span class="sz-stepper">${step(-1, '−', sz <= SELL_SIZE[p][1], 'Smallest')}<b class="sz-now">${amountText(p, sz)}</b>${step(1, '+', sz >= SELL_SIZE[p][2], 'Biggest')}</span>`);
+      })
       .join('');
     const prod = pk
       .map(({ x, where, i }) => li(x.name, `${this.packageLine(x)} · ${where === 'room' ? 'In the room' : 'On you'}`, where === 'room' ? btn('unstash', `room:${i}`, 'Take') : btn('stash', String(i), 'Leave it here')))
@@ -5482,7 +5487,7 @@ export class Game {
       `<h3>Product</h3><ul class="shop-list">${prod || li('Nothing here', 'Buy from Dez in the alley.', '')}${sizes}</ul>` +
       this.cutHtml(btn, li) +
       `<h3>Gear</h3><ul class="shop-list">${gear}</ul>` +
-      this.marketHtml() +
+      this.marketHtml(true) +
       this.customersHtml()
     );
   }
@@ -6161,15 +6166,16 @@ export class Game {
     return `<p class="shop-sub">Dez, by the dumpsters</p><ul class="shop-list">${rows}</ul>${this.marketHtml()}`;
   }
   /** What's moving on the street: each thing, its price and which way it's going, and where it sells. */
-  private marketHtml(): string {
+  private marketHtml(asSection = false): string {
     const m = this.market;
     const short: Record<string, string> = { downtown: 'Dtn', flats: 'Flats', oldtown: 'Old T', southside: 'South' };
     const rows = MARKET_KEYS.map((k) => {
       const { word, arrow } = marketWord(m, k);
-      const where = DISTRICTS.map((d) => `${short[d]} ${districtWord(m, k, d)}`).join(' · ');
-      return `<li><div><b>${keyName(k)} <span class="mkt-arrow">${arrow}</span></b><small>${((p) => (p === 'pills' ? `${money(streetPrice(m, k) * 100)} a pill` : `${money(Math.round(streetPrice(m, k)) * 100)} a gram · ${money(Math.round(sizePrice(k, SIZES[p][0].amt) * (streetPrice(m, k) / PRODUCTS[p].price)) * 100)} ${SIZES[p][0].word}`))(keyProduct(k))} · ${word}</small><small class="mkt-where">${where}</small></div></li>`;
+      // (Each pair kept together when it wraps.)
+      const where = DISTRICTS.map((d) => `<span class="nw">${short[d]} ${districtWord(m, k, d)}</span>`).join(' · ');
+      return `<li><div><b>${keyName(k)} <span class="mkt-arrow">${arrow}</span></b><small>${((p) => (p === 'pills' ? `${money(streetPrice(m, k) * 100)} a pill` : `${money(Math.round(streetPrice(m, k)) * 100)} a gram${SIZES[p][0].amt === 10 ? '' : ` · ${money(Math.round(sizePrice(k, SIZES[p][0].amt) * (streetPrice(m, k) / PRODUCTS[p].price)) * 100)} ${SIZES[p][0].word}`}`))(keyProduct(k))} · ${word}</small><small class="mkt-where">${where}</small></div></li>`;
     }).join('');
-    return `<p class="shop-sub">What’s moving (street prices, ${DISTRICT_NAMES[HOME_DISTRICT]})</p><ul class="shop-list market-list">${rows}</ul>`;
+    return `${asSection ? `<h3>What’s moving</h3><p class="shop-sub">Street prices, ${DISTRICT_NAMES[HOME_DISTRICT]}</p>` : `<p class="shop-sub">What’s moving (street prices, ${DISTRICT_NAMES[HOME_DISTRICT]})</p>`}<ul class="shop-list market-list">${rows}</ul>`;
   }
 
   /** Buying from Dez, or paying him back. */
@@ -7321,7 +7327,7 @@ export class Game {
         // (A double tap doesn't count: it has to be meant.)
         if (this.armedDrop?.item !== it || t - this.armedDrop.at >= 5000) this.armedDrop = { item: it, at: t };
         this.refresh();
-        this.note([`Tap again to throw away the ${it.secret === 'cocaine' && it.known && productOf(it) && it.pkg ? `${amountText(productOf(it)!, it.pkg)} package of ${PRODUCTS[productOf(it)!].name.toLowerCase()}` : lc(it.name)}.`]);
+        this.note([`Tap again to throw away the ${it.secret === 'cocaine' && it.known && productOf(it) && it.pkg ? `${pkgAmount(productOf(it)!, it.pkg)} package of ${PRODUCTS[productOf(it)!].name.toLowerCase()}` : lc(it.name)}.`]);
         return;
       }
       this.armedDrop = null;
@@ -7452,7 +7458,7 @@ export class Game {
       `<section class="stat-card customers-card"><h3><span>Your customers</span><b>${STANDING_NAMES[lvl]}</b></h3>` +
       (Number.isFinite(next) ? `<div class="spot-bar status-bar"><i style="width:${Math.round(Math.min(100, (pts / next) * 100))}%"></i><span>${pts} / ${next}</span></div>` : '') +
       `<p class="stat-how">${sales} sold · ${regs.length} regular${regs.length === 1 ? '' : 's'}.${Number.isFinite(next) ? ` More sales and regulars make you a ${STANDING_NAMES[lvl + 1].toLowerCase()}.` : ''}</p>` +
-      (rows ? `<dl class="stat-now">${rows}${regs.length > 8 ? `<div><dt>And</dt><dd>${regs.length - 8} more</dd></div>` : ''}</dl>` : '') +
+      (rows ? `<dl class="stat-now cust-list">${rows}${regs.length > 8 ? `<div><dt>And</dt><dd>${regs.length - 8} more</dd></div>` : ''}</dl>` : '') +
       `</section>`
     );
   }
@@ -7617,8 +7623,9 @@ export class Game {
         `<ul class="shop-list">` +
         (rented ? li('Your room, upstairs', `Room 14, paid up until ${dateText(r!.until)}. A bed, a lock that mostly works, a window onto the fire escape. Warm, and nobody bothers you.`, btn('room', 'sleep', 'Sleep')) : '') +
         li(rented ? 'Another week' : 'A room for a week', rented ? "Pay ahead. Fall behind and they clear it after two days." : 'Cash up front. No lease, no ID, no questions.', btn('room', 'rent', money(ROOM_RENT * 100), c < ROOM_RENT * 100 && (rented ? 'Not enough cash for another week' : 'Not enough cash'))) +
+        (rented ? li('Your business', 'The table by the window: your product, the gear, the street, your customers.', btn('room', 'business', 'Open')) : '') +
         `</ul>` +
-        (rented ? li('Your business', 'The table by the window: your product, the gear, the street, your customers.', btn('room', 'business', 'Open')) + this.stashHtml('room') : '');
+        (rented ? this.stashHtml('room') : '');
       if (rented && this.roomView === 'business') body = this.businessHtml(btn, li);
     }
     // The alley's loose brick: there whenever you are, whoever's about.
@@ -8204,7 +8211,7 @@ export class Game {
         const need = xpToNext(level);
         return (
           `<section class="stat-card"><h3><span>${STAT_NAMES[k]}</span><b>${level}${max ? ' · max' : ''}</b></h3>` +
-          `<div class="spot-bar"><i style="width:${max ? 100 : (100 * xp) / need}%"></i><span>${max ? 'Maxed out' : `${Math.floor(xp)} / ${need} to level ${level + 1}`}</span></div>` +
+          `<div class="spot-bar"><i style="width:${max ? 100 : Math.min(100, (100 * xp) / need)}%"></i><span>${max ? 'Maxed out' : `${Math.floor(xp)} / ${need} to level ${level + 1}`}</span></div>` +
           `<dl class="stat-now">${rows(now[k])}</dl><p class="stat-how">Grows by: ${how[k]}</p></section>`
         );
       })
@@ -8221,7 +8228,7 @@ export class Game {
         const next = ALL_TECHNIQUES.find((t) => t.style === k && t.level > level);
         return (
           `<div class="style-row"><h4><span>${STYLE_NAMES[k]}</span><b>${level}</b></h4>` +
-          `<div class="spot-bar"><i style="width:${max ? 100 : (100 * xp) / need}%"></i><span>${max ? 'Maxed out' : `${Math.floor(xp)} / ${need}`}</span></div>` +
+          `<div class="spot-bar"><i style="width:${max ? 100 : Math.min(100, (100 * xp) / need)}%"></i><span>${max ? 'Maxed out' : `${Math.floor(xp)} / ${need}`}</span></div>` +
           `<p class="stat-how">${known.length ? known.join(', ') : 'Just the basics'}.${next ? ` Next: ${next.name} at ${next.level}.` : ''} Grows by ${STYLE_HOW[k]}.</p></div>`
         );
       }).join('') +
@@ -8316,7 +8323,7 @@ export class Game {
     this.statsEl.innerHTML = (Object.keys(STAT_NAMES) as StatName[])
       .map((k) => {
         const { level, xp } = st[k];
-        const pct = level >= MAX_LEVEL ? 100 : (100 * xp) / xpToNext(level);
+        const pct = level >= MAX_LEVEL ? 100 : Math.min(100, (100 * xp) / xpToNext(level));
         return `<div class="stat" data-stat="${k}"><span><em class="long">${STAT_NAMES[k]}</em><em class="short">${STAT_SHORT[k]}</em></span><b>${level}</b><i><u style="width:${pct}%"></u></i></div>`;
       })
       .join('');

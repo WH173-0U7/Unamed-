@@ -203,7 +203,7 @@ export function offer(place: 'pawn' | 'fence', x: InvItem): { cents: number } | 
     if (kind === 'id' || kind === 'credit card' || kind === 'debit card') return { why: '“I don’t touch that.”' };
     if (kind === 'car keys' || x.secret) return { why: '“Get that out of my shop.”' };
     if (kind === 'weapon') return { why: '“I don’t buy weapons off the street.”' };
-    if (x.med || /cigarettes|lighter|matches|groceries|lunch|receipt|note|keys|baggie/i.test(x.name)) return { why: "Not worth his time" };
+    if (x.med || /cigarettes|lighter|matches|groceries|lunch|sandwich|water|receipt|note|keys|baggie/i.test(x.name)) return { why: "Not worth his time" };
     if (v <= 0) return { why: "He won’t take it" };
     // Pawn shops pay a fraction, rounded down to the quarter.
     return { cents: Math.max(25, Math.floor((v * 0.2 * 100) / 25) * 25) };
@@ -262,6 +262,8 @@ export const ID_FEE = 30;
 export const GAS_STOCK: Stock[] = [
   { id: 'coffee', name: 'Hot coffee', price: 2, desc: 'Burnt, and scalding. Warms you through; about 95 mg of caffeine.', drink: true },
   { id: 'energy', name: 'Energy drink', price: 4, desc: '160 mg of caffeine in a can. Kicks in after half an hour; lasts for hours.', doses: 1, drinkType: 'energy' },
+  { id: 'sandwich', name: 'Sandwich', price: 4, desc: 'Plastic-wrapped, from the cooler. Ham and cheese, mostly bread.' },
+  { id: 'water', name: 'Bottle of water', price: 1.5, desc: 'Cold, from the cooler.' },
   { id: 'cigs', name: 'Pack of cigarettes', price: 9, desc: '20 in a pack. Takes the edge off stress.', doses: 20 },
   { id: 'lighter', name: 'Lighter', price: 3, desc: 'Full of fuel.', doses: 100 },
   { id: 'phone', name: 'Prepaid phone', price: 45, desc: 'A cheap smartphone in a plastic clamshell, minutes on it. Yours, and unlocked: enough for a delivery app.' },

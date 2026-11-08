@@ -56,6 +56,9 @@ export interface Health {
   stress?: number;
   /** When stress last eased on the real clock. */
   stressAt?: number;
+  /** When you last ate, and last drank water (you can only eat so often). */
+  ateAt?: number;
+  drankAt?: number;
   /** How used to violence you are, 0..100: at 100 it doesn't stress you. */
   nerve?: number;
   /** Smoking a cigarette until this time (ms, real clock). */

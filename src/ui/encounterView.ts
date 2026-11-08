@@ -44,6 +44,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     <div class="enc-log" role="log" aria-live="polite"></div>
     <div class="enc-actions">
       <div class="enc-title"></div>
+      <div class="enc-next" hidden></div>
       <div class="enc-tabs" role="tablist"></div>
       <div class="enc-opts" role="tabpanel"></div>
       <div class="enc-opts enc-extra"></div>
@@ -66,71 +67,16 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
   q('.enc-status').addEventListener('click', () => {
     if (root.dataset.stage === 'combat' || root.dataset.stage === 'over') root.classList.toggle('status-open');
   });
-  log.addEventListener('click', () => {
-    root.classList.toggle('log-open');
-    markOld();
+  // The whole log, newest at the bottom: it scrolls, and each move brings the newest line into view.
+  const toNewest = () => {
     log.scrollTop = log.scrollHeight;
-  });
-  /**
-   * Only the latest turn shows (from your last move on, at least the last
-   * three lines) until the log is opened; the rest are 'earlier'.
-   */
-  const KEEP = 3;
-  /** Where the latest turn starts. */
-  let turnStart: HTMLElement | null = null;
-  const markOld = () => {
-    const ps = [...log.querySelectorAll<HTMLElement>('p:not(.log-more)')];
-    // From the first line the latest move added (or the last three, if more).
-    let from = ps.length - KEEP;
-    const first = ps.findIndex((p) => p.classList.contains('turn-start'));
-    if (first >= 0) from = Math.min(from, first);
-    from = Math.max(0, from);
-    turnStart = ps[from] ?? null;
-    ps.forEach((p, i) => p.classList.toggle('old', i < from));
-    let more = log.querySelector<HTMLElement>('.log-more');
-    const hidden = from;
-    if (!more) {
-      more = document.createElement('p');
-      more.className = 'log-more';
-      log.prepend(more);
-    }
-    more.hidden = hidden === 0;
-    more.textContent = root.classList.contains('log-open') ? 'Tap to show less' : `▴ ${hidden} earlier line${hidden === 1 ? '' : 's'}`;
-  };
-  /** The newest turn's first line at the top of the box (under the "earlier lines" bar). */
-  const pinTurn = () => {
-    if (root.classList.contains('log-open') || !turnStart) return;
-    const more = log.querySelector<HTMLElement>('.log-more');
-    const bar = more && !more.hidden ? more.getBoundingClientRect().height : 0;
-    log.scrollTop += turnStart.getBoundingClientRect().top - log.getBoundingClientRect().top - bar - 2;
-    // A small box and a long turn: the newest lines matter most, from the
-    // start of a line (never one sliced in half at the top).
-    const last = log.lastElementChild as HTMLElement | null;
-    const below = last ? last.getBoundingClientRect().bottom - log.getBoundingClientRect().bottom : 0;
-    if (below > 0 && last) {
-      const ps = [...log.querySelectorAll<HTMLElement>('p:not(.log-more):not(.old)')];
-      const room = log.clientHeight - bar - 6;
-      const top = log.getBoundingClientRect().top;
-      const end = last.getBoundingClientRect().bottom;
-      // The earliest line from which the rest still fits.
-      const from = ps.find((p) => end - p.getBoundingClientRect().top <= room) ?? last;
-      log.scrollTop += from.getBoundingClientRect().top - top - bar - 4;
-    }
-    // (And no line half under the "earlier lines" bar: one cut in two scrolls out of sight.)
-    const limit = more && !more.hidden ? more.getBoundingClientRect().bottom : log.getBoundingClientRect().top + parseFloat(getComputedStyle(log).paddingTop || '0');
-    for (const p of log.querySelectorAll<HTMLElement>('p:not(.log-more):not(.old)')) {
-      const r = p.getBoundingClientRect();
-      if (r.bottom <= limit + 1) continue;
-      if (r.top < limit - 1) log.scrollTop += r.bottom - limit + 2;
-      break;
-    }
   };
   // More of the log below what shows: a fade at the bottom.
   const logMore = () => log.classList.toggle('more', log.scrollTop + log.clientHeight < log.scrollHeight - 4);
   log.addEventListener('scroll', logMore);
   // Resized (the status panel opened, another tab): keep the newest turn in view.
   new ResizeObserver(() => {
-    pinTurn();
+    toNewest();
     logMore();
   }).observe(log);
   q('.enc-opts:not(.enc-extra)').addEventListener('scroll', (ev) => {
@@ -141,6 +87,12 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
   q('.enc-actions').addEventListener('click', (ev) => {
     const b = (ev.target as HTMLElement).closest('button');
     if (!b || b.disabled) return;
+    // A thing in their pockets with questions to ask about it: its own little row, open or shut.
+    if (b.dataset.expand) {
+      expanded = expanded === b.dataset.expand ? null : b.dataset.expand;
+      drawOptions();
+      return;
+    }
     if (b.dataset.tab) {
       // Switching tabs is instant and costs nothing.
       if (tab !== b.dataset.tab) {
@@ -155,30 +107,95 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
 
   /** Violence looks and feels different from everything else. */
   const HARM = new Set(['violence', 'attack', 'stomp', 'torture']);
-  const button = (o: Option) =>
-    `<button type="button" data-id="${o.id}" ${o.cat && HARM.has(o.cat) ? 'data-tone="harm"' : ''} ${o.tone ? `data-loot="${o.tone}"` : ''} ${o.disabled ? 'disabled' : ''}>${o.icon && o.tone ? glyphSvg(o.icon, o.tone) : ''}${o.label}${o.hint ? `<small>${o.hint}</small>` : ''}</button>`;
+  const attr = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  /**
+   * A hint as a few short tags ("Sneak", "a turn", "Their phone") rather than
+   * a sentence: its pieces, where they're short; else its first short clause.
+   * (The whole hint stays on the button, for a long press or a screen reader.)
+   */
+  const chips = (hint: string): string[] => {
+    const parts = hint
+      .split(/\s+·\s+|:\s+|(?<=[.!?])\s+|;\s+/)
+      .map((x) => x.trim().replace(/[.]$/, ''))
+      .filter(Boolean);
+    const short = parts.filter((x) => x.length <= 34).slice(0, 3);
+    if (short.length) return short;
+    const first = parts[0] ?? hint;
+    const cut = first.slice(0, 34);
+    return [first.length > 34 ? `${cut.slice(0, Math.max(cut.lastIndexOf(' '), 12)).replace(/[,\s]+$/, '')}…` : first];
+  };
+  /** (Where a thing is in their pockets reads as it is: no tags.) */
+  const small = (o: Option) => (!o.hint ? '' : o.id.startsWith('take') ? `<small>${o.hint}</small>` : `<small class="chips">${chips(o.hint).map((c) => `<span>${c}</span>`).join('')}</small>`);
+  const button = (o: Option, extra = '') =>
+    `<button type="button" data-id="${o.id}" ${o.cat && HARM.has(o.cat) ? 'data-tone="harm"' : ''} ${o.tone ? `data-loot="${o.tone}"` : ''} ${o.disabled ? 'disabled' : ''} ${o.hint ? `title="${attr(o.hint)}" aria-label="${attr(`${o.label}. ${o.hint}`)}"` : ''} ${extra}>${o.icon && o.tone ? glyphSvg(o.icon, o.tone) : ''}${o.label}${small(o)}</button>`;
+  /** Which thing in their pockets has its row open ("gi:li|its name": a list that shifts doesn't open the wrong one). */
+  let expanded: string | null = null;
+
+  /**
+   * What makes sense next, from how things stand: a few of the options
+   * already there, up top (the same buttons, nothing new).
+   */
+  const nextIds = (e: Encounter, all: Option[]): string[] => {
+    const can = (id: string) => all.some((o) => o.id === id && !o.disabled);
+    const first = (f: (o: Option) => boolean) => all.find((o) => !o.disabled && f(o))?.id;
+    const out: (string | undefined)[] = [];
+    if (e.stage === 'combat' || e.stage === 'over') {
+      if (e.you.stamina < e.you.maxStamina * 0.25 && !e.them.yielded && !e.them.out) out.push(first((o) => o.id === 'breathe'));
+      if (e.them.yielded && !e.them.out) {
+        if (can('empty')) out.push('empty');
+        else if (!e.person.clothes.some((g) => g.searched) && can('patdown')) out.push('patdown');
+      }
+      if ((e.them.out || e.them.dead) && !e.chase) out.push(first((o) => o.id.startsWith('search:')));
+      if (can('take-all')) out.push('take-all');
+      if (e.them.down && !e.them.out && !e.them.dead && !e.them.yielded && !e.chase) out.push(first((o) => o.id.startsWith('stomp') || o.id.startsWith('ground:') || o.id.startsWith('floor:')));
+    } else if (e.stage === 'surveil' && (e.distance ?? 0) < 2 && can('follow')) out.push('follow');
+    return [...new Set(out.filter((x): x is string => !!x))].slice(0, 3);
+  };
 
   /** The tab bar, the options under the chosen tab, and the ones always shown. */
   /** Which options were showing last time (a new list starts at its top). */
   let shownKey = '';
   function drawOptions(switched = false) {
-    const cats = [...new Set(opts.filter((o) => o.cat).map((o) => o.cat!))].sort((a, b) => TAB_ORDER.indexOf(a) - TAB_ORDER.indexOf(b));
+    // Demands about one thing in their pockets go with that thing (in Search);
+    // about what you took off them already, under "What you took".
+    const takes = new Set(opts.filter((o) => o.id.startsWith('take:')).map((o) => o.id.slice(5)));
+    const asks = new Map<string, Option[]>();
+    const tookOnes: Option[] = [];
+    const listed: Option[] = [];
+    for (const o of opts) {
+      if (o.item && takes.has(o.item)) asks.set(o.item, [...(asks.get(o.item) ?? []), o]);
+      else if (o.took || o.item) tookOnes.push(o);
+      else listed.push(o);
+    }
+    const hasSearch = listed.some((o) => o.cat === 'search');
+    const tookCat: Category = hasSearch ? 'search' : 'threaten';
+    const all = [...tookOnes.map((o) => ({ ...o, cat: tookCat })), ...listed];
+    const cats = [...new Set(all.filter((o) => o.cat).map((o) => o.cat!))].sort((a, b) => TAB_ORDER.indexOf(a) - TAB_ORDER.indexOf(b));
     const tabs = q('.enc-tabs');
     // It's over: no tabs and no greyed-out moves, just how it ended and the way on.
     const done = !!current?.finished;
     // Just the one choice of tab: no bar, it's open.
     if (cats.length === 1) tab = cats[0];
+    if (tab && !cats.includes(tab)) tab = cats[0] ?? null;
     tabs.hidden = cats.length <= 1 || done;
     tabs.innerHTML = cats
       .map((c) => {
-        const n = opts.filter((o) => o.cat === c && !o.disabled).length;
+        const n = all.filter((o) => o.cat === c && !o.disabled).length;
         return `<button type="button" role="tab" data-tab="${c}" ${HARM.has(c) ? 'data-tone="harm"' : ''} aria-selected="${c === tab}" class="${c === tab ? 'on' : ''}">${CATEGORY_NAMES[c]}${c === 'search' && n ? `<i>${n}</i>` : ''}</button>`;
       })
       .join('');
+    // What makes sense next (unless it's right there in the open tab already).
+    const next = q('.enc-next');
+    const inTab = new Set((tab ? all.filter((o) => o.cat === tab) : []).map((o) => o.id));
+    const ids = !done && current ? nextIds(current, opts).filter((id) => !inTab.has(id)) : [];
+    next.innerHTML = ids.length ? `<span>Next</span>${ids.map((id) => opts.find((o) => o.id === id)!).map((o) => button({ ...o, hint: undefined })).join('')}` : '';
+    next.hidden = !ids.length;
     const panel = q('.enc-opts');
     // Loot lists get long: smaller buttons.
     panel.classList.toggle('compact', tab === 'search');
-    const shown = done ? [] : tab ? opts.filter((o) => o.cat && o.cat === tab) : [];
+    const shown = done ? [] : tab ? all.filter((o) => o.cat && o.cat === tab) : [];
+    // (The open row: still the same thing, or shut.)
+    if (expanded && !shown.some((o) => o.id.startsWith('take:') && `${o.id.slice(5)}|${o.label}` === expanded && asks.has(o.id.slice(5)))) expanded = null;
     // Sections (Strikes, Weapons, On the ground, Torture) when there's more than
     // one, and they're worth it: a list long enough, or a group with a few moves in it.
     const groups = shown.map((o) => o.group).filter(Boolean);
@@ -186,13 +203,26 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     const sections = sizes.length > 1 && (shown.length > 10 || sizes.filter((n) => n >= 2).length >= 2);
     // A long list: two columns, where there's the width.
     panel.classList.toggle('dense', shown.length >= 8);
+    // (Words to say and things to do read as lines: on a narrow phone, one to a row. Fight moves stay two up.)
+    panel.classList.toggle('long-labels', !!tab && !HARM.has(tab));
     let lastGroup: string | undefined;
+    const tookShown = shown.filter((o) => tookOnes.some((t) => t.id === o.id));
+    const rest = shown.filter((o) => !tookOnes.some((t) => t.id === o.id));
+    const item = (o: Option) => {
+      const key = o.id.startsWith('take:') ? o.id.slice(5) : '';
+      const qs = key ? asks.get(key) : undefined;
+      if (!qs?.length) return button(o);
+      const open = expanded === `${key}|${o.label}`;
+      const head = button({ ...o, hint: o.hint ? `${o.hint} · ${qs.length === 1 ? '1 question' : `${qs.length} questions`}` : undefined }, `data-expand="${attr(`${key}|${o.label}`)}" aria-expanded="${open}" class="has-asks${open ? ' open' : ''}"`);
+      return open ? `${head}<div class="enc-sub">${button({ ...o, label: 'Take it', hint: undefined, icon: undefined })}${qs.map((x) => button({ ...x, hint: undefined })).join('')}</div>` : head;
+    };
     panel.innerHTML = tab
-      ? shown
+      ? (tookShown.length ? `<p class="enc-group">What you took</p>${tookShown.map((o) => button({ ...o, hint: o.took ?? o.hint })).join('')}${rest.length ? '<p class="enc-group">On them</p>' : ''}` : '') +
+        rest
           .map((o) => {
             const head = sections && o.group && o.group !== lastGroup ? `<p class="enc-group">${o.group}</p>` : '';
             lastGroup = o.group;
-            return head + button(o);
+            return head + item(o);
           })
           .join('')
       : cats.length && !done
@@ -213,7 +243,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     // More than fits: a fade at the bottom says there's more to scroll to.
     requestAnimationFrame(() => panel.classList.toggle('more', panel.scrollHeight > panel.clientHeight + 4 && panel.scrollTop + panel.clientHeight < panel.scrollHeight - 4));
     const extra = q('.enc-extra');
-    extra.innerHTML = opts.filter((o) => !o.cat && !(done && o.disabled)).map(button).join('');
+    extra.innerHTML = opts.filter((o) => !o.cat && !(done && o.disabled)).map((o) => button(o)).join('');
     extra.hidden = !extra.innerHTML;
   }
 
@@ -245,7 +275,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
       if (e !== current || e.log.length < shown) {
         log.replaceChildren();
         shown = 0;
-        root.classList.remove('log-open', 'status-open');
+        root.classList.remove('status-open');
         if (e !== current) {
           tab = null;
           tabsKey = '';
@@ -298,13 +328,10 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         : `<div class="enc-note">${distanceLabel(e)}</div>` + bar('Noticed', Math.min(100, Math.round(e.suspicion)), 100, 'notice');
 
       // New log lines.
-      if (shown < e.log.length) for (const p of log.querySelectorAll('p.turn-start')) p.classList.remove('turn-start');
-      // (Drawing it all afresh, after a reload: the turn starts at your last move.)
-      const turnFrom = shown === 0 ? Math.max(0, e.log.map((l) => l.by).lastIndexOf('you')) : shown;
       for (; shown < e.log.length; shown++) {
         const line = e.log[shown];
         const el = document.createElement('p');
-        el.className = `by-${line.by}${line.hit ? ` hit-${line.hit}` : ''}${line.end ? ' end' : ''}${shown === turnFrom ? ' turn-start' : ''}`;
+        el.className = `by-${line.by}${line.hit ? ` hit-${line.hit}` : ''}${line.end ? ' end' : ''}`;
         // The blood it cost stands out on a hit.
         const m = line.hit ? /^(.*?)(\(−\d+\s?ml\))(.*)$/.exec(line.text) : null;
         if (m) {
@@ -314,10 +341,9 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         } else el.textContent = line.text;
         log.append(el);
       }
-      markOld();
-      // The newest turn from its first line (not its last, cut off at the top).
-      log.scrollTop = log.scrollHeight;
-      pinTurn();
+      // The newest line in view.
+      toNewest();
+      requestAnimationFrame(toNewest);
       logMore();
 
       q('.enc-title').textContent =

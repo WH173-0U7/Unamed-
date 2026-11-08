@@ -3986,23 +3986,7 @@ body[data-buttons] .enc-opts button:disabled {
 #enc.status-open .enc-status::after {
   content: '▴';
 }
-/* The log: the last three lines; tap for the rest. */
-#enc:not(.log-open) .enc-log p.old {
-  display: none;
-}
-.enc-log {
-  cursor: pointer;
-}
-.enc-log .log-more {
-  margin: 0 0 4px;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.enc-log .log-more[hidden] {
-  display: none;
-}
+/* The log: all of it, scrolling, newest at the bottom. */
 /* Folded, the log only takes the room its lines need; open, it can grow. */
 #enc:not(.log-open) .enc-log {
   align-self: start;
@@ -4127,15 +4111,6 @@ body[data-buttons] .enc-opts button:disabled {
   #enc.log-open .enc-actions {
     max-height: 40%;
   }
-}
-/* The count of earlier lines stays at the top of the log as it scrolls. */
-.enc-log .log-more {
-  position: sticky;
-  top: -10px;
-  z-index: 1;
-  padding: 6px 0 4px;
-  /* (Solid where its words are, so no line shows through them.) */
-  background: linear-gradient(to bottom, rgb(14, 14, 14) 0 calc(100% - 4px), transparent);
 }
 
 /* Shops: what just happened shows inside the card (the street note is hidden
@@ -4459,11 +4434,6 @@ body[data-buttons] #enc .enc-extra button {
   letter-spacing: 0.22em;
   color: var(--ink-dim);
   text-shadow: 0 0 6px #000, 0 0 2px #000;
-}
-/* The log's "earlier lines" count covers a line cut off under it. */
-.enc-log .log-more {
-  background: rgb(16, 16, 16);
-  box-shadow: 0 6px 6px -2px rgb(16, 16, 16);
 }
 
 /* The choice after an arrest: always in view, under the text (which scrolls). */
@@ -6605,4 +6575,193 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
   #enc.status-open .enc-opts:not(.enc-extra) {
     max-height: 96px;
   }
+}
+/* ---------- Encounter options: tags, what's next, things with questions ---------- */
+/* A hint as short tags, not a sentence. */
+.enc-opts small.chips,
+.enc-next small.chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: inherit;
+  gap: 3px 4px;
+  margin-top: 2px;
+}
+.enc-opts small.chips span {
+  padding: 0 5px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  max-width: 100%;
+}
+/* What makes sense next: a slim row of the same buttons, above the tabs. */
+.enc-next {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  overflow: hidden;
+}
+.enc-next[hidden] {
+  display: none;
+}
+.enc-next > span {
+  flex: none;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.enc-next button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 34px;
+  padding: 4px 8px;
+  border: 1px dashed var(--ink-faint);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.enc-next button[data-tone='harm'] {
+  border-color: rgba(214, 64, 64, 0.6);
+}
+/* A thing in their pockets with questions to ask: it opens a row of its own. */
+.enc-opts button.has-asks::after {
+  content: '▸';
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.enc-opts button.has-asks {
+  position: relative;
+}
+.enc-opts button.has-asks.open {
+  border-color: var(--ink-dim);
+}
+.enc-opts button.has-asks.open::after {
+  content: '▾';
+}
+.enc-opts .enc-sub {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -2px 0 4px 12px;
+  padding-left: 10px;
+  border-left: 1px solid var(--ink-faint);
+}
+.enc-opts .enc-sub button {
+  flex: 1 1 130px;
+  min-height: 40px;
+}
+/* Narrow phones: one column, so labels keep to a line. */
+@media (max-width: 379px) {
+  #enc .enc-opts.long-labels:not(.enc-extra),
+  body[data-buttons] #enc .enc-opts.long-labels.dense:not(.compact) {
+    grid-template-columns: 1fr !important;
+  }
+}
+/* Who's on the street, as one list: whoever you're watching first, then the others. */
+#seen.list {
+  gap: 6px;
+}
+#seen.list .seen-btn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'kind tap' 'race tap';
+  align-items: center;
+  justify-items: start;
+  gap: 0 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(10, 10, 12, 0.55);
+  color: var(--ink);
+  text-align: left;
+}
+#seen.list .seen-btn:first-child {
+  border-color: var(--ink-dim);
+  background: var(--glass);
+}
+#seen.list .seen-kind {
+  grid-area: kind;
+  font-size: clamp(20px, min(6vw, 6vh), 28px);
+  line-height: 1.1;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#seen.list .seen-other .seen-kind {
+  font-size: clamp(17px, min(5vw, 5vh), 22px);
+  color: var(--ink-dim);
+  text-shadow: none;
+}
+#seen.list .seen-race {
+  grid-area: race;
+  font-size: 11px;
+}
+#seen.list .seen-race:empty {
+  display: none;
+}
+#seen.list .seen-tap {
+  grid-area: tap;
+  margin: 0;
+  font-size: 10px;
+  white-space: nowrap;
+}
+#seen.list .seen-btn:first-child .seen-tap {
+  color: var(--ink-dim);
+}
+#seen.list.compact .seen-btn {
+  min-height: 44px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+#seen.list.compact .seen-race {
+  display: none;
+}
+#seen.list.compact .seen-tap {
+  display: block;
+}
+/* A short landscape screen: the people side by side, clear of Lurk. */
+@media (max-height: 420px) {
+  #seen.list {
+    flex-direction: row;
+    align-items: stretch;
+  }
+  #seen.list .seen-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'kind' 'race' 'tap';
+    justify-items: center;
+    text-align: center;
+    padding: 6px 8px;
+  }
+}
+/* The jail and rest screens' buttons: side by side where they fit, wrapping where they don't. */
+.lockup .lockup-btns {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 10px;
+  max-width: 100%;
+}
+/* Your page, opened from the jail or rest screen: that screen waits behind it. */
+.lockup.behind {
+  display: none;
+}
+#game.lockup-you #sheet {
+  background: rgba(0, 0, 0, 0.92);
 }

@@ -11,6 +11,20 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.69',
+    date: 'Nov 8',
+    items: [
+      'Encounter buttons reorganised: a “Next” row with the obvious move, short tags instead of long hints, and one column on narrow phones.',
+      'Search: tap a card, phone or keys to see what you can do with it (take it, the PIN, unlock it, where they live). Threaten holds only threats aimed at the person.',
+      'Up to three people on the street show as one list. Tap someone else and the one you were watching walks on.',
+      'The log only changes when you make a move, and nothing is folded away: it all scrolls.',
+      'Witnesses are weaker: Sneak and covering your face make them miss things, they call the police far less, and nobody steps in.',
+      'The You page shows your police heat as a bar with a number, how often patrols will stop you and when it drops; your bank balance; and how much Dez trusts you.',
+      'The gas station sells a sandwich and a bottle of water. You can only eat every couple of hours, and drink water every half hour.',
+      'You can open your You page from jail and while resting.',
+    ],
+  },
+  {
     v: '2.68',
     date: 'Nov 8',
     items: ['Plasma donation has moved into the hospital: go to the ER and it’s down the hall, same pay, same wait. It’s no longer a separate place on the map.'],

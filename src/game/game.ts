@@ -639,9 +639,10 @@ export class Game {
     if (this.sheet === 'stats' || this.sheet === 'pockets') {
       this.sheetNote = lines;
       this.renderSheet();
-      // (A note waiting on the street stays as it was; and mid-fight, the log has it too.)
+      // (A note waiting on the street stays as it was; and mid-fight, the log has it too, if it's yours.)
       if (fight && fight.stage !== 'seen' && this.tvState.on) {
-        for (const text of lines) fight.log.push({ by: 'info', text });
+        if (this.ticking) this.later(lines);
+        else for (const text of lines) fight.log.push({ by: 'info', text });
         return;
       }
       if (this.noteSticky && !this.noteEl.hidden) return;
@@ -650,8 +651,13 @@ export class Game {
       this.heldNote = [...this.heldNote, ...lines];
       return;
     }
-    // Mid-fight, it goes in the fight's log (not over the top of it).
+    // Mid-fight, it goes in the fight's log (not over the top of it); unless it's the
+    // clock's doing, not yours: that waits till it's over (the log is what you do).
     // (And on the screen where it ended, or beside a body: under the last of the log.)
+    if (fight && fight.stage !== 'seen' && this.tvState.on && this.ticking) {
+      this.later(lines);
+      return;
+    }
     if (fight && fight.stage !== 'seen' && this.tvState.on) {
       for (const text of lines) fight.log.push({ by: 'info', text });
       this.refresh();
@@ -850,9 +856,11 @@ export class Game {
       `<p class="jail-left"></p>` +
       `<p class="jail-out"></p>` +
       `<p class="jail-how">Rest is real time. Come back later, or get up now with what you’ve got back so far.${h.restWhere === 'room' ? '' : ' A bed in a motel room gets you there quicker.'}</p>` +
-      `<button type="button" class="jail-quit">Get up</button>`;
+      `<div class="lockup-btns"><button type="button" class="jail-quit">Get up</button><button type="button" class="jail-quit lockup-you">You</button></div>`;
     const shown = performance.now();
     el.querySelector('button')!.addEventListener('click', () => performance.now() - shown > 800 && this.getUp(false));
+    el.querySelector('.lockup-you')!.addEventListener('click', () => this.openSheet('stats'));
+    if (this.sheet === 'stats') el.classList.add('behind');
     this.view.append(el);
     this.restTick = -1;
     this.tickRest();
@@ -1699,7 +1707,9 @@ export class Game {
 
   private openSheet(kind: 'places' | 'pockets' | 'stats' | 'police') {
     // Stopped by the police: nothing else opens over that.
-    if (this.sheet === 'police' && kind !== 'police') return;
+    if (this.sheet === 'police' && kind !== 'police' && !(kind === 'stats' && this.lockedAway)) return;
+    // (Held, or lying down: only the You page, nothing else.)
+    if (this.lockedAway && kind !== 'stats' && kind !== 'police') return;
     // Your stats can be looked at any time, even mid-fight; the police don't ask.
     if (kind === 'stats' || kind === 'police' ? !this.tvState.on || this.dead || this.ending : !this.canOpenSheet) return;
     this.sheet = kind;
@@ -1710,11 +1720,21 @@ export class Game {
     this.sheetEl.classList.toggle('from-right', kind === 'pockets');
     this.sheetEl.classList.toggle('from-bottom', kind === 'stats');
     this.sheetEl.hidden = false;
+    // (Over the jail or rest screen: that waits behind, its clock still running.)
+    const lock = document.querySelector<HTMLElement>('#jail.lockup, #rest.lockup');
+    if (kind === 'stats' && lock) {
+      lock.classList.add('behind');
+      this.view.classList.add('lockup-you');
+    }
     sound.whoosh();
     uiGlitch(this.sheetEl.firstElementChild, 0.4);
     buzz(6);
   }
 
+  /** Held, or lying down: a screen of its own you can't leave (but you can look at yourself). */
+  private get lockedAway(): boolean {
+    return !this.dead && (!!this.jailed || this.health.restingSince != null);
+  }
   /** What happened while Places or the police were open, shown when they close. */
   private heldNote: string[] = [];
   private closeSheet() {
@@ -1722,6 +1742,8 @@ export class Game {
     if (this.sheet) uiGlitch(null, 0.25);
     this.sheet = null;
     this.sheetEl.hidden = true;
+    for (const el of document.querySelectorAll('.lockup.behind')) el.classList.remove('behind');
+    this.view.classList.remove('lockup-you');
     const held = this.heldNote;
     this.heldNote = [];
     if (held.length && !this.closed && this.tvState.on) requestAnimationFrame(() => !this.closed && this.note(held));
@@ -2646,13 +2668,21 @@ export class Game {
     const it = inv.items[i];
     const h = this.health;
     if (!it || !this.canOpenSheet) return;
-    const water = /^water bottle$/i.test(it.name);
+    const water = /^(water bottle|bottle of water)$/i.test(it.name);
     const groceries = /^groceries$/i.test(it.name);
-    if (!water && !groceries && !/^lunch in a plastic tub$/i.test(it.name)) return;
+    const sandwich = /^sandwich$/i.test(it.name);
+    if (!water && !groceries && !sandwich && !/^lunch in a plastic tub$/i.test(it.name)) return;
     if (this.inside && !this.inOwnRoom) {
       this.note(['Not in here. Someone behind the counter is already watching you.']);
       return;
     }
+    // (Only so often: you're not hungry again for a couple of hours, or thirsty for half an hour.)
+    if (water ? this.thirstWait : this.hungerWait) {
+      this.note([water ? 'You’re not thirsty. You just had some water.' : 'You’re not hungry. You just ate.']);
+      return;
+    }
+    if (water) h.drankAt = now();
+    else h.ateAt = now();
     h.fatigue = Math.max(0, fatigueNow(h) - (water ? 3 : 6));
     if (!water) h.stress = Math.max(0, (h.stress ?? 0) - 3);
     let line: string;
@@ -2664,12 +2694,22 @@ export class Game {
         inv.items.splice(i, 1);
         line += ' That’s the last of it.';
       }
+    } else if (sandwich) {
+      inv.items.splice(i, 1);
+      line = oneOf(['You tear the plastic off with your teeth and eat the sandwich in a few bites.', 'You eat the sandwich standing up. Mostly bread. It helps.']);
     } else {
       inv.items.splice(i, 1);
       line = water ? oneOf(['You drink the water down in one go.', 'You drain the water bottle and toss it.']) : oneOf(['You eat someone else’s lunch with your fingers, standing up. It helps.', 'You pop the lid and wolf down someone else’s lunch. Cold, but it’s food.']);
     }
     this.refresh();
     this.note([line]);
+  }
+  /** Ate not long ago (2 hours) / drank water not long ago (half an hour). */
+  private get hungerWait(): boolean {
+    return now() - (this.health.ateAt ?? 0) < 2 * 3_600_000;
+  }
+  private get thirstWait(): boolean {
+    return now() - (this.health.drankAt ?? 0) < 30 * 60_000;
   }
   private drink(i: number) {
     const inv = this.inventory;
@@ -4128,9 +4168,13 @@ export class Game {
       (j.tried ? `<p class="jail-charges">${j.tried}</p>` : '') +
       `<p class="jail-how">Time inside is real time. Your body mends while you wait, and the streets, your room and what you owe run on without you. Come back when they let you out.</p>` +
       // Serving time: a way out that isn't the door.
+      `<div class="lockup-btns">` +
       (/^Serving/.test(j.what) ? `<button type="button" class="jail-quit jail-escape"${this.escapeSoon ? ' disabled' : ''}>${this.escapeSoon ? 'Try to escape: not yet' : 'Try to escape'}</button>` : '') +
-      `<button type="button" class="jail-quit jail-giveup">Give up on this life</button>`;
+      `<button type="button" class="jail-quit jail-giveup">Give up on this life</button>` +
+      `<button type="button" class="jail-quit lockup-you">You</button></div>`;
     el.querySelector('.jail-escape')?.addEventListener('click', () => this.tryEscape());
+    el.querySelector('.lockup-you')!.addEventListener('click', () => this.openSheet('stats'));
+    if (this.sheet === 'stats') el.classList.add('behind');
     const btn = el.querySelector<HTMLButtonElement>('.jail-giveup')!;
     let armed = 0;
     btn.addEventListener('click', () => {
@@ -5569,8 +5613,7 @@ export class Game {
     const b = c[i];
     if (!b || !e || e.stage !== 'seen' || !this.canLurk) return;
     c.splice(i, 1);
-    c.unshift({ e, leaveAt: now() + (15 + Math.random() * 40) * 1000 });
-    // (Straight across: not settled or remembered, they're still there.)
+    // (Whoever you were watching walks on: you'd let them go. Not settled or remembered: nothing happened.)
     this.save.state.encounter = b.e;
     this.act('open');
   }
@@ -5587,8 +5630,8 @@ export class Game {
       const line = e?.witnessed || gone.every((b) => b.saw)
         ? gone.length > 1 ? 'The ones who saw it are gone.' : `The ${who(gone[0])} who saw it is gone.`
         : gone.length > 1 ? 'The others walk on.' : `The ${who(gone[0])} walks on.`;
+      // (Mid-encounter, the log is what you do: who's left shows as the Watched count.)
       if (e && e.stage !== 'seen' && e.stage !== 'over') {
-        e.log.push({ by: 'info', text: line });
         e.watchers = this.crowd.length;
       } else if (this.place === 'street' && this.tvState.on && !e?.witnessed && !gone.every((b) => b.saw)) this.note([line], false, 'crowd');
       this.refresh();
@@ -5614,16 +5657,22 @@ export class Game {
     if (!c.length || e.witnessed || e.resident || this.place !== 'street') return;
     const violent = !!e.fought || !!e.mugged || (e.tortured ?? 0) > 0 || e.them.down || e.them.out || e.them.dead || e.stage === 'combat' || e.stage === 'violence';
     if (!violent || (e.stage === 'violence' && !e.fought)) return;
-    const n = c.length;
-    e.witnessed = n;
     const f = this.infamy;
     const anon = anonymity(this.inventory);
-    const say = (text: string) => e.log.push({ by: 'info', text });
-    say(n === 1 ? 'Someone on the street sees it.' : 'The others on the street see it.');
-    // (Low-key, they're less sure what they saw: Sneak.)
     const q = this.quiet;
+    // Each of them catches it, or doesn't: Sneak (kept low-key) and a covered face make it easy to miss.
+    const sees = c.filter(() => Math.random() < (1 - q) * (1 - anon * 0.5));
+    const n = sees.length;
+    e.witnessed = Math.max(1, n);
+    if (!n) {
+      e.watchers = c.length;
+      return;
+    }
+    const say = (text: string) => e.log.push({ by: 'info', text });
+    say(n === 1 ? (c.length === 1 ? 'Someone on the street sees it.' : 'One of the others on the street sees it.') : 'The others on the street see it.');
+    // (Low-key, they're less sure what they saw: Sneak.)
     f.heat = Math.min(100, f.heat + 5 * n * (1 - q * 0.5));
-    if (Math.random() < (0.3 + 0.15 * n) * (1 - q)) {
+    if (Math.random() < (0.3 + 0.15 * n) * (1 - q) * 0.35) {
       say(oneOf(['One of them has a phone out. They’re calling it in.', 'Someone’s on the phone already, backing away, looking right at you.']));
       f.heat = Math.min(100, f.heat + 15);
     }
@@ -5632,17 +5681,9 @@ export class Game {
       f.reports = (f.reports ?? 0) + 1;
       say('They got a good look at you.');
     }
-    // Now and then, someone steps in: once, and they don't stick around.
-    if (!e.them.dead && !e.them.out && Math.random() < 0.12 * n) {
-      const b = c.shift()!;
-      const who = (b.e.person.title ?? NAMES[b.e.person.kind]).toLowerCase();
-      say(oneOf([`The ${who} across the street shouts: “HEY! Get off them!”`, `The ${who} comes halfway over, shouting. “Leave them alone! I’m calling the cops!”`]));
-      e.them.fear = Math.max(0, (e.them.fear ?? 0) - 25);
-      e.them.stamina = Math.min(e.them.maxStamina, e.them.stamina + 20);
-      say('It gives them a breath, and some nerve back.');
-    }
-    // Then everyone who saw it gets out of there.
-    for (const b of this.crowd) {
+    // (Nobody steps in: they keep their distance.)
+    // Then whoever saw it gets out of there.
+    for (const b of sees) {
       b.leaveAt = Math.min(b.leaveAt, now() + (3 + Math.random() * 6) * 1000);
       b.saw = true;
     }
@@ -6884,8 +6925,31 @@ export class Game {
   /** The You sheet. */
   private renderStatsSheet(card: HTMLElement, close: string) {
     const h = this.health;
-    const summary = `<p class="you-summary"><span>Blood <b>${(h.blood / 1000).toFixed(1)} L</b></span><span>Cash <b>${money(Math.round(cashOf(this.inventory) * 100))}</b></span><span>Character <b>#${this.world.lives}</b></span></p>`;
-    card.innerHTML = `<div class="sheet-head"><h2>You</h2>${close}</div><div class="sheet-body">${this.noteHtml(this.sheetNote, 'sheet-note')}${summary}${this.statsHtml()}${this.marksHtml()}${this.recordHtml()}${this.selvesHtml()}</div>`;
+    const summary = `<p class="you-summary"><span>Blood <b>${(h.blood / 1000).toFixed(1)} L</b></span><span>Cash <b>${money(Math.round(cashOf(this.inventory) * 100))}</b></span>${this.account ? `<span>Bank <b>${money(this.account.cents)}</b></span>` : ''}<span>Character <b>#${this.world.lives}</b></span></p>`;
+    card.innerHTML = `<div class="sheet-head"><h2>You</h2>${close}</div><div class="sheet-body">${this.noteHtml(this.sheetNote, 'sheet-note')}${summary}${this.policeHtml()}${this.statsHtml()}${this.marksHtml()}${this.recordHtml()}${this.selvesHtml()}</div>`;
+  }
+  /**
+   * The police, at the top of the You tab: how hot you are, how often a patrol
+   * stops you on a lurk right now (the same odds the lurk uses), and how long
+   * till it cools to the next level down (it fades 15 a day).
+   */
+  private policeHtml(): string {
+    const heat = this.infamy.heat;
+    const lvl = heatLevel(heat);
+    const shows = exposure(this.inventory);
+    const w = heat > 5 ? Math.min(0.3, heat / 250) : 0;
+    const s = shows > 0.15 ? shows * 0.08 : 0;
+    const p = w + (1 - w) * s;
+    const odds = p <= 0 ? 'No patrol is looking for you.' : p < 0.02 ? 'A patrol stops you rarely.' : `A patrol stops you about 1 in ${Math.max(2, Math.round(1 / p))} lurks.`;
+    const floor = [0, 8, 30, 60][lvl];
+    const hours = (heat - floor) / (15 / 24);
+    const when = hours < 1.5 ? 'under an hour' : hours < 36 ? `about ${Math.round(hours)} hours` : `about ${Math.round(hours / 24)} days`;
+    const drop = lvl ? ` Drops to ${HEAT_NAMES[lvl - 1]} in ${when}.` : '';
+    return (
+      `<section class="stat-card police-card"><h3><span>The police</span><b>${HEAT_NAMES[lvl]} (${Math.round(heat)})</b></h3>` +
+      `<div class="spot-bar status-bar${lvl >= 2 ? ' harm' : ''}"><i style="width:${Math.round(Math.min(100, heat))}%"></i><span>${Math.round(heat)} / 100</span></div>` +
+      `<p class="stat-how">${odds}${drop}</p></section>`
+    );
   }
   /** Where the cash is on you, and how much room it's taking. */
   private cashWhereHtml(): string {
@@ -7317,8 +7381,8 @@ export class Game {
                 if (/^(loose |pack of )?cigarettes$/i.test(x.name)) acts += act('smoke', this.smoking ? 'Smoking' : 'Smoke', (x.doses ?? 1) <= 0 ? 'Empty' : this.smokeBlocked());
                 if (x.drink) acts += act('drink', 'Drink', (x.doses ?? 0) <= 0 ? 'Empty' : this.canOpenSheet ? null : 'Not now');
                 // Food and water: someone else's, but it does you good.
-                if (/^(lunch in a plastic tub|groceries)$/i.test(x.name)) acts += act('eat', 'Eat', this.canOpenSheet ? null : 'Not now');
-                if (/^water bottle$/i.test(x.name)) acts += act('water', 'Drink', this.canOpenSheet ? null : 'Not now');
+                if (/^(lunch in a plastic tub|groceries|sandwich)$/i.test(x.name)) acts += act('eat', 'Eat', !this.canOpenSheet ? 'Not now' : this.hungerWait ? 'You’re full' : null);
+                if (/^(water bottle|bottle of water)$/i.test(x.name)) acts += act('water', 'Drink', !this.canOpenSheet ? 'Not now' : this.thirstWait ? 'Not thirsty' : null);
                 if (x.kind === 'wear' && x.slot) acts += act('puton', 'Put on', this.canOpenSheet ? null : 'Not now');
                 // A phone: the delivery app, if it's yours or unlocked.
                 if (x.kind === 'phone') acts += this.phoneActs(x, i);
@@ -7446,44 +7510,41 @@ export class Game {
     this.seenEl.replaceChildren();
     this.seenEl.hidden = !(e && e.stage === 'seen');
     if (e && e.stage === 'seen') {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'seen-btn';
-      btn.dataset.kind = e.person.kind;
-      const k = document.createElement('span');
-      k.className = 'seen-kind';
-      k.textContent = e.resident ? 'Lives here' : (e.person.title ?? NAMES[e.person.kind]);
-      const r = document.createElement('span');
-      r.className = 'seen-race';
-      // From here you can't make out who they are: only their size, and whether it's a man or a woman.
       const p = e.person;
       // (Only what you've found out: their build and sex wait for you to size them up or get a look.)
       const what = [e.known.build ? p.build : '', e.known.sex ? (p.sex === 'Male' ? 'man' : 'woman') : ''].filter(Boolean).join(' ');
-      r.textContent = e.resident || e.enforcer || p.title || !what ? 'Across the street' : `${what.replace(/^./, (x) => x.toUpperCase())}, across the street`;
+      const crowd = this.crowd;
+      // Others on the street too: one list, whoever you're watching first. Tap another to go over to them instead.
+      this.seenEl.classList.toggle('list', crowd.length > 0);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'seen-btn';
+      btn.dataset.kind = p.kind;
+      const k = document.createElement('span');
+      k.className = 'seen-kind';
+      k.textContent = e.resident ? 'Lives here' : (p.title ?? NAMES[p.kind]);
+      const r = document.createElement('span');
+      r.className = 'seen-race';
+      r.textContent = crowd.length
+        ? what && !e.resident && !e.enforcer && !p.title ? what.replace(/^./, (x) => x.toUpperCase()) : ''
+        : e.resident || e.enforcer || p.title || !what ? 'Across the street' : `${what.replace(/^./, (x) => x.toUpperCase())}, across the street`;
       const tap = document.createElement('span');
       tap.className = 'seen-tap';
-      tap.textContent = 'Tap to approach';
+      tap.textContent = crowd.length ? 'Watching' : 'Tap to approach';
       btn.append(k, r, tap);
       btn.onclick = () => this.act('open');
       this.seenEl.append(btn);
-      // Others on the street, too: tap one to go over to them instead.
-      const crowd = this.crowd;
-      if (crowd.length) {
-        const row = document.createElement('div');
-        row.className = 'seen-others';
-        crowd.forEach((b, i) => {
-          const o = document.createElement('button');
-          o.type = 'button';
-          o.className = 'seen-other';
-          o.dataset.kind = b.e.person.kind;
-          const pp = b.e.person;
-          o.innerHTML = `<b>${pp.title ?? NAMES[pp.kind]}</b><small>Passing by</small>`;
-          o.onclick = () => this.approachOther(i);
-          row.append(o);
-        });
-        this.seenEl.append(row);
-      }
-    }
+      crowd.forEach((b, i) => {
+        const o = document.createElement('button');
+        o.type = 'button';
+        o.className = 'seen-btn seen-other';
+        o.dataset.kind = b.e.person.kind;
+        const pp = b.e.person;
+        o.innerHTML = `<span class="seen-kind">${pp.title ?? NAMES[pp.kind]}</span><span class="seen-race"></span><span class="seen-tap">Passing by</span>`;
+        o.onclick = () => this.approachOther(i);
+        this.seenEl.append(o);
+      });
+    } else this.seenEl.classList.remove('list');
     this.fitStreet();
     if (e) this.prime(e);
     this.encView.render(this.tvState.on ? e : null);
@@ -7629,6 +7690,7 @@ export class Game {
         ['Stress', `${Math.round(stress)} / 100${stress >= 1 ? ` (blows land ${sign(-stress / 400)}, dodging ${sign(-stress / 400)})` : ''}`],
         ['Nerve', `${Math.round(nerve)} / 100 (violence stresses you ${pct(1 - nerve / 100)} as much)`],
         ['Humanity', `${lvl?.name ?? (hu.lost ? 'Shaken' : 'Intact')} · ${hu.kills} killed`],
+        ...this.dezRow(),
         ...this.extraStatRows(),
       ]) +
       `</dl><p class="stat-how">Stress builds in fights and eases with time and cigarettes. Nerve grows with every fight you live through.</p></section>`;
@@ -7678,6 +7740,15 @@ export class Game {
     return Math.max(0, Math.min(100, Math.round(fear)));
   }
 
+  /** Dez, if you know him: how far he trusts you, and what that gets you. */
+  private dezRow(): [string, string][] {
+    const c = this.connect;
+    if (c.cutOff) return [['Dez', 'Cut you off']];
+    if (!c.known) return [];
+    const t = Math.round(c.trust);
+    const word = t < 0 ? 'Wary of you' : t < 30 ? 'Knows you' : t < 70 ? 'Trusts you a little' : 'Trusts you';
+    return [['Dez', `${word} (${t}) · ${['', 'eight-balls', 'up to a quarter', 'up to an ounce'][this.tier]}`]];
+  }
   /** More rows for the stats sheet (reputation, anonymity...). */
   private extraStatRows(): [string, string][] {
     const f = this.infamy;
@@ -7685,7 +7756,6 @@ export class Game {
     const anon = anonymity(inv);
     return [
       ['Reputation', `${repName(f.rep)} (${Math.round(f.rep)})`],
-      ['Police', HEAT_NAMES[heatLevel(f.heat)]],
       ['Anonymity', `${Math.round(anon * 100)}%${conspicuous(inv) ? ' · masked: people notice you faster' : ''}`],
       ['People who remember you', `${this.people.filter((k) => !k.memory.otherLife).length}`],
     ];
@@ -8037,7 +8107,17 @@ export class Game {
     this.tv.freeze(t);
   }
 
+  /** In the clock's tick (not something you did): see note(). */
+  private ticking = false;
   update(dt: number) {
+    this.ticking = true;
+    try {
+      this.tick(dt);
+    } finally {
+      this.ticking = false;
+    }
+  }
+  private tick(dt: number) {
     // (The body first: hours spent inside or lying down heal as that, before the door opens or you get up.)
     this.healOnClock();
     this.tickCrowd();

@@ -377,6 +377,10 @@ export interface Option {
   cat?: Category;
   /** A section within the tab (Strikes, Weapons, On the ground, Torture...). */
   group?: string;
+  /** A demand about one thing in their pockets ("gi:li", the same as its take: option): shown with that thing. */
+  item?: string;
+  /** A demand about something you took off them already: what it is (shown under “What you took”). */
+  took?: string;
   /** Something to take: its symbol, and what kind of thing it is (see lootIcon.ts). */
   icon?: LootGlyph;
   tone?: LootTone;
@@ -524,20 +528,26 @@ function yieldedOptions(e: Encounter): Option[] {
   if (e.emptied && !patted && !asked.includes('rest')) out.push({ id: 'ask-rest', label: '“Is that everything?”', hint: 'Are they holding out on you?', cat: 'threaten' });
   e.person.clothes.forEach((g, gi) =>
     g.loot.forEach((l, li) => {
-      if (g.searched && !l.hidden && /card/.test(l.kind) && !l.pin && !l.pinAsked && !l.yours) out.push({ id: `pin:${gi}:${li}`, label: '“What’s the PIN?”', hint: `Their ${l.name.toLowerCase()}`, cat: 'threaten' });
+      if (g.searched && !l.hidden && /card/.test(l.kind) && !l.pin && !l.pinAsked && !l.yours) out.push({ id: `pin:${gi}:${li}`, label: '“What’s the PIN?”', hint: `Their ${l.name.toLowerCase()}`, cat: 'threaten', item: `${gi}:${li}` });
     }),
   );
-  for (const c of e.cardsHeld ?? []) out.push({ id: `pin-mine:${c.i}`, label: '“What’s the PIN?”', hint: `The ${c.name.toLowerCase()} you took`, cat: 'threaten' });
+  for (const c of e.cardsHeld ?? []) out.push({ id: `pin-mine:${c.i}`, label: '“What’s the PIN?”', hint: `The ${c.name.toLowerCase()} you took`, cat: 'threaten', took: c.name });
   e.person.clothes.forEach((g, gi) =>
     g.loot.forEach((l, li) => {
-      if (g.searched && !l.hidden && l.kind === 'phone' && l.locked !== false && !l.unlockAsked && !l.yours) out.push({ id: `unlock:${gi}:${li}`, label: '“Unlock it.”', hint: l.detail ? `Their phone: ${l.detail.replace(/^./, (c) => c.toLowerCase())}` : 'Their phone', cat: 'threaten' });
+      if (g.searched && !l.hidden && l.kind === 'phone' && l.locked !== false && !l.unlockAsked && !l.yours) out.push({ id: `unlock:${gi}:${li}`, label: '“Unlock it.”', hint: l.detail ? `Their phone: ${l.detail.replace(/^./, (c) => c.toLowerCase())}` : 'Their phone', cat: 'threaten', item: `${gi}:${li}` });
     }),
   );
-  for (const p of e.phonesHeld ?? []) out.push({ id: `unlock-mine:${p.i}`, label: '“Unlock it.”', hint: 'The phone you took', cat: 'threaten' });
+  for (const p of e.phonesHeld ?? []) out.push({ id: `unlock-mine:${p.i}`, label: '“Unlock it.”', hint: 'The phone you took', cat: 'threaten', took: p.name });
   // Their house keys, and no address to go with them.
   const home = e.person.home;
   if (home && !e.resident && !e.homeKnown && !e.toldHome && (e.keysHeld || e.person.clothes.some((g) => g.searched && g.loot.some((l) => !l.hidden && l.opens === home.id))) && (e.addrAskedTier == null || fearTier(T.fear ?? 0) > e.addrAskedTier))
-    out.push({ id: 'ask-home', label: '“Where do you live?”', hint: 'Their keys', cat: 'threaten' });
+    out.push(((at) => ({ id: 'ask-home', label: '“Where do you live?”', hint: 'Their keys', cat: 'threaten' as Category, ...(at ? { item: at } : { took: 'House keys' }) }))(
+      (() => {
+        // (The keys still in their pockets: asked about with them. Taken already: with what you took.)
+        for (const [gi, g] of e.person.clothes.entries()) for (const [li, l] of g.loot.entries()) if (g.searched && !l.hidden && l.opens === home.id) return `${gi}:${li}`;
+        return undefined;
+      })(),
+    ));
   // Their address, and they know you know it.
   if (home && !e.resident && (e.homeKnown || e.toldHome) && !asked.includes('home-threat')) out.push({ id: 'home-threat', label: '“I know where you live.”', hint: (T.fear ?? 0) >= 88 ? 'They can’t get any more scared' : 'Scare them more', cat: 'threaten' });
   if (!asked.includes('hush')) out.push({ id: 'hush', label: '“You didn’t see anything.”', hint: 'Keep them quiet: no police, no telling anyone', cat: 'threaten' });

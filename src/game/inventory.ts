@@ -209,6 +209,8 @@ export function measure(x: { kind: string; name: string; med?: MedId }): { size:
   if (/^(9mm|\.38) rounds$/i.test(n)) return { size: 'small', kg: 0.55 };
   if (/12-gauge shells/i.test(n)) return { size: 'medium', kg: 1 };
   if (/^beer$/i.test(n)) return { size: 'medium', kg: 0.37 };
+  if (/^sandwich$/i.test(n)) return { size: 'small', kg: 0.2 };
+  if (/^bottle of water$/i.test(n)) return { size: 'small', kg: 0.5 };
   if (/energy drink|soda|\bcan\b/i.test(n)) return { size: 'medium', kg: 0.3 };
   if (/coffee/i.test(n)) return { size: 'medium', kg: 0.4 };
   if (/vodka|whiskey|wine/i.test(n)) return { size: 'medium', kg: /wine/i.test(n) ? 1.2 : 0.55 };

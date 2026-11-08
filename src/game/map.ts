@@ -2,8 +2,8 @@
  * The city, as a map: a grid of avenues (north–south) and streets (east–west),
  * two old roads cutting across, and everywhere you can go at a fixed spot on
  * it. Addresses you know sit on their own street, by house number; a car sits
- * where it was parked. Drawn the way the rest of the game is: thin lines in
- * the dark, a red/cyan fringe, the same symbols as everything else.
+ * where it was parked. Drawn like a city plan at night: blocks and the
+ * buildings on them, the roads over them, the names along the roads.
  */
 import type { Place } from './shops';
 
@@ -94,68 +94,159 @@ export const PLACE_ICON: Record<string, string> = {
 /** A number from two others (the same block, the same buildings, every time). */
 const rnd = (a: number, b: number) => hash(`${a}:${b}`);
 
+/** How wide each kind of road is drawn (map units). */
+const AVE_W = 8;
+const ST_W = 6;
+const ROAD_W = 5.5;
+const STUB_W = 3.6;
+/** Where the river starts, at the bottom. */
+const RIVER_Y = MAP_H - 24;
+/** Distance from a point to a road's centre line. */
+const distTo = (px: number, py: number, [x1, y1, x2, y2]: [number, number, number, number]) => {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+};
+const SLANTS = Object.values(ROADS);
+/** Clear of the slanted roads and the lane and court (nothing built on a road). */
+const clear = (x: number, y: number, w: number, h: number) =>
+  SLANTS.every((r) => distTo(x + w / 2, y + h / 2, r) > ROAD_W / 2 + Math.max(w, h) / 2 + 0.6) &&
+  Object.values(STUBS).every((r) => distTo(x + w / 2, y + h / 2, r) > STUB_W / 2 + Math.max(w, h) / 2 + 0.4);
+const f1 = (n: number) => n.toFixed(1);
+
+/** What part of town a block is in (the district names on the map). */
+function districtOf(cx: number, cy: number): 'downtown' | 'flats' | 'oldtown' | 'southside' {
+  if (cy < 150 && cx > 120) return 'downtown';
+  if (cy >= 260) return 'southside';
+  if (cx >= 150) return 'oldtown';
+  return 'flats';
+}
+
 /**
- * What the city is made of, under the streets: the buildings on every block
- * (each its own footprint, the same every time), the park with its trees and
- * pond, the rail line across the top, the river with its bridge, and the
- * names people call the parts of town.
+ * Under the streets: the ground, the blocks with their sidewalks, and what's
+ * built on them (row houses along the street, yards behind, an alley; bigger
+ * buildings downtown; a parking lot or an empty lot here and there), the park,
+ * the rail line across the top and the river along the bottom. The same every time.
  */
 function decorSvg(): string {
   const xs = [0, ...Object.values(AVES), MAP_W];
-  const ys = [0, ...Object.values(STS), MAP_H - 24];
+  const ys = [0, ...Object.values(STS), RIVER_Y];
+  const halfX = (x: number) => (x === 0 || x === MAP_W ? 0 : AVE_W / 2);
+  const halfY = (y: number) => (y === 0 || y === RIVER_Y ? 0 : ST_W / 2);
+  const blocks: string[] = [];
   const blds: string[] = [];
-  const lit: string[] = [];
+  const lots: string[] = [];
   for (let i = 0; i < xs.length - 1; i++)
     for (let j = 0; j < ys.length - 1; j++) {
-      const x0 = xs[i] + 5;
-      const x1 = xs[i + 1] - 5;
-      const y0 = ys[j] + 5;
-      const y1 = ys[j + 1] - 5;
-      if (x1 - x0 < 8 || y1 - y0 < 8) continue;
+      // The block, out to the curb (a sidewalk all round, rounded at the corners).
+      const bx0 = xs[i] + halfX(xs[i]) + 0.6;
+      const bx1 = xs[i + 1] - halfX(xs[i + 1]) - 0.6;
+      const by0 = Math.max(ys[j] + halfY(ys[j]) + 0.6, j === 0 ? 19 : 0);
+      const by1 = ys[j + 1] - halfY(ys[j + 1]) - 0.6;
+      if (bx1 - bx0 < 6 || by1 - by0 < 6) continue;
+      blocks.push(`<rect x="${f1(bx0)}" y="${f1(by0)}" width="${f1(bx1 - bx0)}" height="${f1(by1 - by0)}" rx="2.2"/>`);
+      // Inside the sidewalk: the lots.
+      const x0 = bx0 + 1.8;
+      const x1 = bx1 - 1.8;
+      const y0 = by0 + 1.8;
+      const y1 = by1 - 1.8;
+      const w = x1 - x0;
+      const h = y1 - y0;
       // The park's block is the park.
       if (xs[i] === 150 && ys[j] === 205) continue;
-      // Split the block into two or three buildings, one way or the other.
-      const n = 1 + Math.floor(rnd(i, j) * 3);
-      const across = rnd(j, i) < 0.5;
-      let at = across ? x0 : y0;
-      const end = across ? x1 : y1;
-      for (let k = 0; k < n; k++) {
-        const share = k === n - 1 ? end - at : (end - at) * (0.35 + rnd(i * 7 + k, j) * 0.3);
-        const w = Math.max(4, share - 2);
-        const bx = across ? at : x0;
-        const by = across ? y0 : at;
-        const bw = across ? w : x1 - x0;
-        const bh = across ? y1 - y0 : w;
-        const tone = 0.025 + rnd(i + k, j * 3) * 0.035;
-        blds.push(`<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="1.2" fill="rgba(236,235,230,${tone.toFixed(3)})"/>`);
-        // A lit window or two, here and there.
-        if (rnd(i * 3 + k, j * 5) < 0.45) lit.push(`<rect x="${(bx + bw * rnd(k, i + j)).toFixed(1)}" y="${(by + bh * rnd(j, k + i)).toFixed(1)}" width="1.6" height="1.6"/>`);
-        at += share;
+      const cx = (x0 + x1) / 2;
+      const cy = (y0 + y1) / 2;
+      const d = districtOf(cx, cy);
+      const r = rnd(i * 13 + 1, j * 7 + 2);
+      const tone = (k: number) => {
+        const t = rnd(i * 31 + k, j * 17 + k);
+        const g = Math.round(d === 'downtown' ? 48 + t * 18 : 40 + t * 20);
+        return `rgb(${g},${g},${g + 3})`;
+      };
+      const bld = (x: number, y: number, bw: number, bh: number, k: number) => {
+        if (bw < 1.6 || bh < 1.6 || !clear(x, y, bw, bh)) return;
+        blds.push(`<rect x="${f1(x)}" y="${f1(y)}" width="${f1(bw)}" height="${f1(bh)}" fill="${tone(k)}"/>`);
+      };
+      // A parking lot, now and then (not downtown's every block).
+      if (r < (d === 'downtown' ? 0.12 : 0.1) && w > 20) {
+        const lw = w * (0.45 + rnd(i, j + 9) * 0.3);
+        const lx = rnd(j, i + 3) < 0.5 ? x0 : x1 - lw;
+        if (clear(lx, y0, lw, h)) lots.push(`<rect x="${f1(lx)}" y="${f1(y0)}" width="${f1(lw)}" height="${f1(h)}" fill="url(#m-stalls)"/>`);
+        // The rest of the block: a couple of buildings.
+        const ox = lx === x0 ? x0 + lw + 1 : x0;
+        const ow = w - lw - 1;
+        bld(ox, y0, ow, h * 0.45, 1);
+        bld(ox, y0 + h * 0.55, ow, h * 0.45, 2);
+        continue;
+      }
+      if (d === 'downtown') {
+        // Big footprints: towers and office blocks, two or three to a block, a plaza between.
+        const n = 2 + Math.floor(rnd(i + 5, j) * 2);
+        let at = x0;
+        for (let k = 0; k < n; k++) {
+          const bw = k === n - 1 ? x1 - at : (w / n) * (0.8 + rnd(k, i + j) * 0.4);
+          const top = y0 + (rnd(k + 3, j) < 0.3 ? h * 0.12 : 0);
+          const bot = y1 - (rnd(k + 4, i) < 0.3 ? h * 0.15 : 0);
+          bld(at, top, bw - 1.4, bot - top, k);
+          at += bw;
+        }
+        continue;
+      }
+      // Row houses along both street fronts: narrow lots, varied depths, yards behind, an alley down the middle.
+      const alley = h > 22;
+      const depthMax = alley ? (h - 3) / 2 : h;
+      const unit = d === 'southside' ? 5.2 : d === 'flats' ? 6.2 : 7.4;
+      for (const side of alley ? [0, 1] : [0]) {
+        let at = x0;
+        let k = side * 50;
+        while (at < x1 - 2) {
+          const lw = Math.min(x1 - at, unit * (0.75 + rnd(k + i * 3, j + side) * 0.6));
+          k++;
+          // An empty lot, sometimes.
+          if (rnd(k, i * 5 + j + side) < 0.07) {
+            at += lw;
+            continue;
+          }
+          const depth = depthMax * (0.45 + rnd(i + k, j * 3 + side) * 0.45);
+          const y = side === 0 ? y0 : y1 - depth;
+          bld(at + 0.3, y, lw - 0.6, depth, k);
+          // A shed or garage out back, sometimes, on the alley.
+          if (alley && rnd(k * 3, i + j) < 0.18) {
+            const sd = 2.4;
+            bld(at + lw * 0.2, side === 0 ? y0 + depthMax - sd : y1 - depthMax, lw * 0.6, sd, k + 99);
+          }
+          at += lw;
+        }
       }
     }
-  // The park: grass, a path, trees, a pond.
-  const trees = Array.from({ length: 9 }, (_, k) => `<circle cx="${(160 + rnd(k, 1) * 40).toFixed(1)}" cy="${(214 + rnd(k, 2) * 36).toFixed(1)}" r="${(1.6 + rnd(k, 3) * 1.4).toFixed(1)}"/>`).join('');
-  const park = `<rect class="park" x="155" y="210" width="50" height="45" rx="3"/><path class="park-path" d="M155 250 Q170 236 182 238 T205 214"/><ellipse class="pond" cx="190" cy="243" rx="7" ry="4"/><g class="trees">${trees}</g>`;
-  // The river, its ripples, and the bridge Grand Ave crosses it on.
-  const river = `<text class="area river-name" x="120" y="414" text-anchor="middle">THE RIVER</text><path class="river" d="M0 398 C60 388 120 410 180 400 S260 392 300 404 L300 420 L0 420Z"/>` + `<path class="ripple" d="M20 409 q6 -2 12 0 M70 412 q6 -2 12 0 M120 408 q6 -2 12 0 M205 410 q6 -2 12 0 M255 413 q6 -2 12 0"/>` + `<rect class="bridge" x="143" y="392" width="14" height="22" rx="1"/>`;
-  // The rail line along the top, with its ties.
-  const ties = Array.from({ length: 31 }, (_, k) => `M${k * 10 + 2} 10v6`).join(' ');
-  const rail = `<path class="rail" d="M0 11.5h300 M0 14.5h300"/><path class="ties" d="${ties}"/>`;
-  // What the parts of town are called.
+  // The park: lawn, trees, a path that winds, the pond.
+  const trees = Array.from({ length: 22 }, (_, k) => {
+    const x = 156 + rnd(k, 11) * 48;
+    const y = 211 + rnd(k, 12) * 42;
+    if (Math.hypot(x - 190, y - 243) < 9) return '';
+    return `<circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(2.2 + rnd(k, 13) * 2.4)}" fill="url(#m-tree)"/>`;
+  }).join('');
+  const park = `<rect x="154" y="209" width="52" height="47" rx="2" fill="#16231a"/><path d="M154 249 C166 240 172 236 182 238 S198 228 206 213" fill="none" stroke="#2d3328" stroke-width="1.6"/><ellipse cx="190" cy="243" rx="7.5" ry="4.2" fill="#0f1c26" stroke="#1d2c36" stroke-width="0.6"/>${trees}`;
+  // The river, its banks, a few ripples.
+  const river = `<path d="M0 ${RIVER_Y + 2} C60 ${RIVER_Y - 6} 120 ${RIVER_Y + 10} 180 ${RIVER_Y + 3} S260 ${RIVER_Y - 3} 300 ${RIVER_Y + 6} L300 ${MAP_H} L0 ${MAP_H}Z" fill="url(#m-water)" stroke="#202629" stroke-width="1.4"/>` +
+    `<path d="M24 410 q5 -1.2 10 0 M78 414 q5 -1.2 10 0 M118 409 q5 -1.2 10 0 M206 412 q5 -1.2 10 0 M252 415 q5 -1.2 10 0" fill="none" stroke="rgba(150,180,205,0.12)" stroke-width="0.5"/>`;
+  // The rail line along the top: ballast, ties, two rails.
+  const rail = `<rect x="0" y="8.2" width="${MAP_W}" height="8.6" fill="#1a1918"/><rect x="0" y="9.6" width="${MAP_W}" height="5.8" fill="url(#m-ties)"/><path d="M0 11h${MAP_W} M0 14h${MAP_W}" stroke="#55534f" stroke-width="0.55"/>`;
+  return `${river}${rail}<g class="m-blocks">${blocks.join('')}</g>${lots.join('')}<g class="m-blds">${blds.join('')}</g>${park}`;
+}
+/** Over the streets: what parts of town are called, landmarks that aren't places to go, a compass, the scale. */
+function overSvg(): string {
   const districts = [
     [205, 34, 'DOWNTOWN'],
     [62, 186, 'THE FLATS'],
     [236, 248, 'OLD TOWN'],
     [86, 352, 'SOUTHSIDE'],
   ]
-    .map(([x, y, t]) => `<text class="district" x="${x}" y="${y}" text-anchor="middle">${t}</text>`)
+    .map(([x, y, t]) => `<text class="m-district" x="${x}" y="${y}" text-anchor="middle">${t}</text>`)
     .join('');
-  return `${river}${rail}<g class="blds">${blds.join('')}</g><g class="lit">${lit.join('')}</g>${park}<g class="districts">${districts}</g>`;
-}
-/** Over the streets: landmarks that aren't places to go, a compass, the scale. */
-function overSvg(): string {
   const mark = (x: number, y: number, d: string, label: string, anchor = 'middle') =>
-    `<g class="landmark"><path transform="translate(${x - 4} ${y - 4}) scale(0.34)" d="${d}"/><text x="${x}" y="${y + 9}" text-anchor="${anchor}">${label}</text></g>`;
+    `<g class="m-landmark"><circle cx="${x}" cy="${y}" r="3.6"/><path transform="translate(${x - 2.6} ${y - 2.6}) scale(0.22)" d="${d}"/><text x="${anchor === 'start' ? x - 3 : x}" y="${y + 8.6}" text-anchor="${anchor}">${label}</text></g>`;
   const marks = [
     mark(66, 128, 'M12 2.5v19 M6 8h12 M7 21.5h10', 'ST. AGNES'),
     mark(18, 223, 'M5 5h14v14H5z M8 12a4 4 0 1 0 8 0a4 4 0 1 0-8 0', 'LAUNDROMAT', 'start'),
@@ -163,37 +254,59 @@ function overSvg(): string {
     mark(26, 292, 'M3 20h18 M5 20V9l7-5 7 5v11 M9 20v-6h6v6', 'SHELTER', 'start'),
   ].join('');
   // A compass, and how long a block is.
-  const compass = `<g class="compass" transform="translate(281 64)"><circle r="8"/><path d="M0 -6.5L2 0H-2Z" class="n"/><path d="M0 6.5L2 0H-2Z"/><text y="-10" text-anchor="middle">N</text></g>`;
-  const scale = `<g class="scale"><path d="M4 27h57 M4 24.5v5 M61 24.5v5"/><text x="32" y="22.5" text-anchor="middle">1 BLOCK</text></g>`;
-  return `<g class="landmarks">${marks}</g>${compass}${scale}`;
+  const compass = `<g class="m-compass" transform="translate(281 64)"><circle r="7.5"/><path d="M0 -6L2 0H-2Z" class="n"/><path d="M0 6L2 0H-2Z"/><text y="-9.5" text-anchor="middle">N</text></g>`;
+  const scale = `<g class="m-scale"><rect x="3" y="20.5" width="62" height="11" rx="1.5"/><path d="M6 28.5h57 M6 26.5v4 M63 26.5v4 M34.5 27.5v2"/><text x="34.5" y="25.4" text-anchor="middle">1 BLOCK</text></g>`;
+  return `<g class="m-districts">${districts}</g><g class="m-landmarks">${marks}</g>${compass}${scale}`;
 }
 
-/** The streets themselves, as SVG. */
+/** The streets themselves, as SVG: the curbs, then the asphalt, then the names. */
 function streetsSvg(): string {
-  const lines: string[] = [];
+  const casing: string[] = [];
+  const fill: string[] = [];
+  const centre: string[] = [];
   const labels: string[] = [];
-  for (const [name, x] of Object.entries(AVES)) {
-    lines.push(`<line x1="${x}" y1="0" x2="${x}" y2="${MAP_H}"/>`);
-    labels.push(`<text x="${x + 3}" y="${MAP_H - 6}" transform="rotate(-90 ${x + 3} ${MAP_H - 6})">${name.toUpperCase()}</text>`);
-  }
-  for (const [name, y] of Object.entries(STS)) {
-    lines.push(`<line x1="0" y1="${y}" x2="${MAP_W}" y2="${y}"/>`);
-    labels.push(`<text x="36" y="${y - 3}">${name.toUpperCase()}</text>`);
-  }
+  const road = (x1: number, y1: number, x2: number, y2: number, w: number) => {
+    casing.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${w + 1.4}"/>`);
+    fill.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${w}"/>`);
+  };
+  const label = (x: number, y: number, a: number, name: string) =>
+    labels.push(`<text x="${f1(x)}" y="${f1(y)}" text-anchor="middle" dominant-baseline="central"${a ? ` transform="rotate(${a.toFixed(1)} ${f1(x)} ${f1(y)})"` : ''}>${name.toUpperCase()}</text>`);
   for (const [name, [x1, y1, x2, y2]] of Object.entries(ROADS)) {
-    lines.push(`<line class="road" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`);
+    road(x1, y1, x2, y2, ROAD_W);
     const a = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
-    // (Along the road where nothing else is written.)
-    const at = name === 'Tanner Rd' ? 0.3 : 0.62;
-    const mx = x1 + (x2 - x1) * at;
-    const my = y1 + (y2 - y1) * at;
-    labels.push(`<text x="${mx}" y="${my - 3}" transform="rotate(${a.toFixed(1)} ${mx} ${my})">${name.toUpperCase()}</text>`);
+    const at = name === 'Tanner Rd' ? 0.47 : 0.6;
+    label(x1 + (x2 - x1) * at, y1 + (y2 - y1) * at, a, name);
   }
   for (const [name, [x1, y1, x2, y2]] of Object.entries(STUBS)) {
-    lines.push(`<line class="stub" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`);
-    labels.push(x1 === x2 ? `<text x="${x1 + 3}" y="${y2 - 2}" transform="rotate(-90 ${x1 + 3} ${y2 - 2})">${name.toUpperCase()}</text>` : `<text x="${x1 + 3}" y="${y1 - 3}">${name.toUpperCase()}</text>`);
+    road(x1, y1, x2, y2, STUB_W);
+    if (x1 === x2) label(x1, (y1 + y2) / 2, -90, name);
+    else label((x1 + x2) / 2, y1, 0, name);
   }
-  return `<svg class="map-streets" viewBox="0 0 ${MAP_W} ${MAP_H}" preserveAspectRatio="none" aria-hidden="true">${decorSvg()}<g class="lines">${lines.join('')}</g><g class="labels">${labels.join('')}</g>${overSvg()}</svg>`;
+  // Streets run across, avenues up and down (avenues on top, wider).
+  const stLabelAt: Record<string, number> = { 'Alder St': 60, 'Larkin St': 120, 'Pruitt St': 60, 'Ninth St': 240, 'Delmar St': 60, 'Bellamy St': 120, 'Ivy St': 240 };
+  for (const [name, y] of Object.entries(STS)) {
+    road(0, y, MAP_W, y, ST_W);
+    label(stLabelAt[name] ?? 60, y, 0, name);
+  }
+  const aveLabelAt: Record<string, number[]> = { 'Kestrel Ave': [67, 342], 'Halsey Ave': [122, 342], 'Grand Ave': [67, 287], 'Fulton Ave': [177, 342], 'Cobb Ave': [232, 122] };
+  for (const [name, x] of Object.entries(AVES)) {
+    road(x, 0, x, RIVER_Y, AVE_W);
+    centre.push(`<line x1="${x}" y1="0" x2="${x}" y2="${RIVER_Y}"/>`);
+    for (const y of aveLabelAt[name] ?? [67]) label(x, y, -90, name);
+  }
+  // Grand Ave crosses the river on its bridge: railings either side.
+  casing.push(`<line x1="150" y1="${RIVER_Y}" x2="150" y2="${MAP_H}" stroke-width="${AVE_W + 3}" class="bridge"/>`);
+  fill.push(`<line x1="150" y1="${RIVER_Y}" x2="150" y2="${MAP_H}" stroke-width="${AVE_W}"/>`);
+  centre.push(`<line x1="150" y1="${RIVER_Y}" x2="150" y2="${MAP_H}"/>`);
+  const defs =
+    `<defs>` +
+    `<pattern id="m-stalls" width="4" height="9" patternUnits="userSpaceOnUse"><rect width="4" height="9" fill="#141516"/><path d="M0 0v3.6 M0 5.4v3.6" stroke="rgba(220,220,210,0.16)" stroke-width="0.35"/></pattern>` +
+    `<pattern id="m-ties" width="3.2" height="5.8" patternUnits="userSpaceOnUse"><rect x="0.6" width="1.3" height="5.8" fill="#2c2a27"/></pattern>` +
+    `<radialGradient id="m-tree"><stop offset="0" stop-color="#2b4630"/><stop offset="0.7" stop-color="#1f3624"/><stop offset="1" stop-color="#1f3624" stop-opacity="0"/></radialGradient>` +
+    `<linearGradient id="m-water" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f1a22"/><stop offset="1" stop-color="#0a1218"/></linearGradient>` +
+    `<filter id="m-shade" x="-5%" y="-5%" width="110%" height="110%"><feDropShadow dx="0.7" dy="0.9" stdDeviation="0.35" flood-color="#000" flood-opacity="0.75"/></filter>` +
+    `</defs>`;
+  return `<svg class="map-streets" viewBox="0 0 ${MAP_W} ${MAP_H}" preserveAspectRatio="none" aria-hidden="true">${defs}<rect width="${MAP_W}" height="${MAP_H}" fill="#0b0c0d"/>${decorSvg()}<g class="m-casing">${casing.join('')}</g><g class="m-road">${fill.join('')}</g><g class="m-centre">${centre.join('')}</g><g class="m-labels">${labels.join('')}</g>${overSvg()}</svg>`;
 }
 
 /** The map, with everything on it. */

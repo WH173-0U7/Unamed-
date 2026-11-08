@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.60',
+    date: 'Nov 8',
+    items: ['A new, more realistic map: real blocks of buildings (big ones downtown, rows of houses with yards and alleys further out, parking lots), proper roads with names along them, a park with trees, the river and its bridge, and the rail line.'],
+  },
+  {
     v: '2.59',
     date: 'Nov 8',
     items: [

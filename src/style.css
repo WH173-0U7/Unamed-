@@ -6395,3 +6395,101 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
     font-size: 20px;
   }
 }
+
+/* ================= The map, as a city plan ================= */
+.sheet-body.places .map {
+  background: #0b0c0d;
+}
+.map-streets {
+  filter: none;
+}
+.map-streets .m-blocks rect {
+  fill: #1a1b1d;
+  stroke: #232427;
+  stroke-width: 0.4;
+}
+.map-streets .m-blds {
+  filter: url(#m-shade);
+}
+.map-streets .m-blds rect {
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 0.3;
+}
+.map-streets .m-casing line {
+  stroke: #050506;
+  stroke-linecap: butt;
+}
+.map-streets .m-casing line.bridge {
+  stroke: #3a3b3d;
+}
+.map-streets .m-road line {
+  stroke: #2a2b2e;
+  stroke-linecap: butt;
+}
+.map-streets .m-centre line {
+  stroke: rgba(214, 196, 140, 0.22);
+  stroke-width: 0.35;
+  stroke-dasharray: 2.4 2.4;
+}
+.map-streets .m-labels text {
+  font: 600 4.7px var(--font-ui);
+  letter-spacing: 0.06em;
+  fill: rgba(232, 231, 224, 0.78);
+  stroke: #1b1c1e;
+  stroke-width: 1.3px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+.map-streets .m-district {
+  font: 700 7px var(--font-ui);
+  letter-spacing: 0.55em;
+  fill: rgba(236, 235, 230, 0.2);
+  stroke: rgba(0, 0, 0, 0.5);
+  stroke-width: 1px;
+  paint-order: stroke;
+}
+.map-streets .m-landmark circle {
+  fill: #24262a;
+  stroke: rgba(236, 235, 230, 0.3);
+  stroke-width: 0.4;
+}
+.map-streets .m-landmark path {
+  fill: none;
+  stroke: rgba(236, 235, 230, 0.7);
+  stroke-width: 3.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.map-streets .m-landmark text {
+  font: 600 3.8px var(--font-ui);
+  letter-spacing: 0.1em;
+  fill: rgba(236, 235, 230, 0.5);
+  stroke: #0b0c0d;
+  stroke-width: 1.1px;
+  paint-order: stroke;
+}
+.map-streets .m-compass circle {
+  fill: rgba(16, 17, 19, 0.9);
+  stroke: rgba(236, 235, 230, 0.25);
+  stroke-width: 0.5;
+}
+.map-streets .m-compass path {
+  fill: rgba(236, 235, 230, 0.35);
+}
+.map-streets .m-compass path.n {
+  fill: rgba(255, 107, 127, 0.8);
+}
+.map-streets .m-compass text,
+.map-streets .m-scale text {
+  font: 700 4.2px var(--font-ui);
+  letter-spacing: 0.12em;
+  fill: rgba(236, 235, 230, 0.55);
+}
+.map-streets .m-scale rect {
+  fill: rgba(11, 12, 13, 0.85);
+}
+.map-streets .m-scale path {
+  fill: none;
+  stroke: rgba(236, 235, 230, 0.5);
+  stroke-width: 0.6;
+}

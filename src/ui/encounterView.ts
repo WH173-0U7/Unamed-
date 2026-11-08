@@ -1,7 +1,7 @@
 import { glyphSvg } from '../game/lootIcon';
 import { uiGlitch } from '../fx/uiGlitch';
 import { BUILDS, NAMES, personalityOf } from '../game/person';
-import { CATEGORY_NAMES, FEAR_NAMES, PASS_OUT, conditions, fearLevel, distanceLabel, options, type Body, type Category, type Encounter, type Option } from '../game/encounter';
+import { CATEGORY_NAMES, FEAR_TIER_NAMES, PASS_OUT, conditions, fearTier, distanceLabel, options, type Body, type Category, type Encounter, type Option } from '../game/encounter';
 
 const STAGE_TITLE: Record<string, string> = {
   menu: 'What now?',
@@ -230,7 +230,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     bar('Awake', f.dead ? 0 : Math.max(0, f.awake ?? 100), 100, 'awake', awakeWord(f)) +
     bar('Blood', f.blood, f.maxBlood, 'blood', `${ml(f.blood)}<span class="of"> / ${ml(f.maxBlood)}</span>`) +
     bar('Stamina', f.stamina, f.maxStamina, 'stamina') +
-    (cls === 'them' && f.fear != null && !f.dead ? bar('Fear', f.fear, 100, 'fear', FEAR_NAMES[fearLevel(f.fear)]) : '') +
+    (cls === 'them' && f.fear != null && !f.dead ? bar('Fear', f.fear, 100, 'fear', FEAR_TIER_NAMES[fearTier(f.fear)]) : '') +
     `<div class="enc-conds">${((cs) => (cs.length > 4 ? [...cs.slice(0, 3), `+${cs.length - 3} more`] : cs))([...extra, ...conditions(f)])
       .map((c) => `<span class="${c === 'Standing' ? 'ok' : c === 'On the floor' ? 'floor' : /^Watched/.test(c) ? 'watched' : ''}">${c}</span>`)
       .join('')}</div></div>`;

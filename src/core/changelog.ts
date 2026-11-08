@@ -11,6 +11,18 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.59',
+    date: 'Nov 8',
+    items: [
+      'Found someone’s house keys? Ask them where they live. Calm, they won’t say; scared, they might, or lie (sometimes you can tell); terrified, they give it up, and it’s on your map.',
+      'Fear has six levels now: Calm, Uneasy, Wary, Scared, Terrified, Broken.',
+      'Know where someone lives? “I know where you live.” scares them more than any other threat.',
+      'People answer your demands (the PIN, unlocking a phone, where they live, emptying their pockets) differently by how scared they are and what kind of person they are.',
+      '“Seen anyone with my things?” only comes up when something of yours is still out there.',
+      'New: “You didn’t see anything.” Scared enough, they swear to keep quiet, and they’re far less likely to go to the police. They still remember your face.',
+    ],
+  },
+  {
     v: '2.58',
     date: 'Nov 8',
     items: [

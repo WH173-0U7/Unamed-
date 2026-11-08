@@ -584,10 +584,12 @@ export class Game {
     const f = this.infamy;
     if (k.memory.sawFace && !before) f.rep += k.memory.grudge / 8;
     // Who goes to the police: most civilians, few junkies.
-    const reports = { civilian: 0.7, drunk: 0.4, homeless: 0.25, junkie: 0.15 }[k.person.kind];
+    // (Sworn to keep quiet, and scared enough to mean it: they mostly do. They still remember you.)
+    const hush = e.hushed != null ? (e.hushed >= 88 ? 0.15 : e.hushed >= 70 ? 0.2 : 0.3) : 1;
+    const reports = { civilian: 0.7, drunk: 0.4, homeless: 0.25, junkie: 0.15 }[k.person.kind] * hush;
     // (Charged for it on the spot: their statement is that charge, not a report for later.)
     if (e.result !== 'sold' && !e.enforcer && !e.charged && Math.random() < reports) {
-      f.heat = Math.min(100, f.heat + (k.memory.grudge / 5) * (k.memory.sawFace ? 1 : 0.4));
+      f.heat = Math.min(100, f.heat + (k.memory.grudge / 5) * (k.memory.sawFace ? 1 : 0.4) * (e.hushed != null ? 0.4 : 1));
       if (k.memory.sawFace && e.fought) f.reports = (f.reports ?? 0) + 1;
     }
   }
@@ -5720,23 +5722,33 @@ export class Game {
    * you've forgotten stays forgotten). Their keys: the locks get changed.
    * Their car keys: that car isn't out front any more.
    */
+  /** An address on your map (from an ID, or from their own mouth). */
+  private learnHome(home: Home, carrying: Set<string>) {
+    const learned = (this.save.state.homesLearned ??= []) as string[];
+    if (learned.includes(home.id) && this.homeById(home.id)) return;
+    if (!learned.includes(home.id)) learned.push(home.id);
+    if (learned.length > 300) learned.splice(0, learned.length - 300);
+    if (!this.homeById(home.id)) {
+      this.homes.push(JSON.parse(JSON.stringify(home)) as Home);
+      while (this.homes.length > 16) {
+        const i = this.homes.findIndex((h) => h.id !== this.save.state.homeAt && !carrying.has(h.id));
+        if (i < 0) break;
+        this.homes.splice(i, 1);
+      }
+    }
+  }
   private learnHomes() {
     const inv = this.inventory;
     const learned = (this.save.state.homesLearned ??= []) as string[];
     const carrying = new Set(inv.items.flatMap((x) => [x.homeInfo?.id, x.opens]).filter((x): x is string => !!x));
+    // (They told you where they live.)
+    const told = this.encounter?.toldHome ? this.encounter.person.home : null;
+    if (told) {
+      carrying.add(told.id);
+      this.learnHome(told, carrying);
+    }
     for (const x of inv.items) {
-      if (x.homeInfo && !learned.includes(x.homeInfo.id)) {
-        learned.push(x.homeInfo.id);
-        if (learned.length > 300) learned.splice(0, learned.length - 300);
-        if (!this.homeById(x.homeInfo.id)) {
-          this.homes.push(JSON.parse(JSON.stringify(x.homeInfo)) as Home);
-          while (this.homes.length > 16) {
-            const i = this.homes.findIndex((h) => h.id !== this.save.state.homeAt && !carrying.has(h.id));
-            if (i < 0) break;
-            this.homes.splice(i, 1);
-          }
-        }
-      }
+      if (x.homeInfo && !learned.includes(x.homeInfo.id)) this.learnHome(x.homeInfo, carrying);
       if (x.opens) {
         const h = this.homeById(x.opens);
         // Their keys went with you: give them a day or two, and they'll have the locks changed.
@@ -7322,7 +7334,12 @@ export class Game {
     e.phonesHeld = e.phoneOf
       ? inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'phone' && x.of === e.phoneOf && x.locked !== false && !x.unlockAsked).map(({ x, i }) => ({ i, name: x.name }))
       : [];
-    e.canAsk = this.world.thieves.length > 0 && !e.person.thief;
+    // (Only while someone still has something of yours.)
+    e.canAsk = !e.person.thief && this.world.thieves.some((t) => t.person.clothes.some((g) => g.loot.some((l) => l.yours)));
+    // Their home: on your map already, and their keys in your pockets.
+    const home = e.person.home;
+    e.homeKnown = !!home && ((this.save.state.homesLearned as string[] | undefined) ?? []).includes(home.id) && !!this.homeById(home.id);
+    e.keysHeld = !!home && inv.items.some((x) => x.opens === home.id);
     e.carrying = inv.items.filter((x) => x.hand && x.kind !== 'weapon').length;
     e.weapons = inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'weapon').map(({ x, i }) => ({ i, name: x.name, weapon: x.weapon, cuts: x.cuts, spray: x.spray, doses: x.doses, loaded: x.secret && x.secret !== 'empty' && x.secret !== 'cocaine' ? x.secret : undefined, known: x.known, hand: x.hand, ...(gunOf(x.name) ? { gun: true, ammo: inv.items.filter((y) => y.name === gunOf(x.name)!.ammo).reduce((n, y) => n + (y.doses ?? 0), 0) } : {}) }));
     e.wet = WET_AMOUNT[this.weather.now] > 0 && !this.inside;

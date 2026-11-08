@@ -1,7 +1,8 @@
 import { AMBUSH_TEXT, TECH_ALT, TECH_TEXT, kickText, missText, punchText, stompText, tierOf, tierUpLine, weaponText, type Tier } from './practice';
 import { AWARENESS, BUILDS, NAMES, personalityOf, type Item, type Loot, type Person } from './person';
 import { money } from './money';
-import { indoors, isBrute, voice, type Moment } from './voices';
+import { demandVoice, fearTier, homeThreatVoice, hushVoice, indoors, isBrute, voice, type Moment } from './voices';
+export { fearTier, FEAR_TIER_NAMES } from './voices';
 import { lootMark, type LootGlyph, type LootTone } from './lootIcon';
 import { STYLE_NAMES, styleLevel, trainStyle, type Style } from './styles';
 import { caffeineEdge } from './health';
@@ -328,6 +329,15 @@ export interface Encounter {
   /** Their phone (see Loot.of), and the one you took off them, still locked. */
   phoneOf?: string;
   phonesHeld?: { i: number; name: string }[];
+  /** Their address is on your map (set by the game as it draws), and their house keys are in your pockets. */
+  homeKnown?: boolean;
+  keysHeld?: boolean;
+  /** How scared they were (fearTier) when they lied about where they live: ask again once they're more scared. */
+  addrAskedTier?: number;
+  /** They told you where they live (the game puts it on your map). */
+  toldHome?: boolean;
+  /** They swore they'd keep quiet (and meant it): how scared they were when they did. */
+  hushed?: number;
   canAsk?: boolean;
   /** Your weapons (index in your items), set by the game as it draws. */
   /** How many hands are full with something that isn't a weapon (a bag by the strap). */
@@ -519,6 +529,13 @@ function yieldedOptions(e: Encounter): Option[] {
     }),
   );
   for (const p of e.phonesHeld ?? []) out.push({ id: `unlock-mine:${p.i}`, label: '“Unlock it.”', hint: 'The phone you took', cat: 'threaten' });
+  // Their house keys, and no address to go with them.
+  const home = e.person.home;
+  if (home && !e.homeKnown && !e.toldHome && (e.keysHeld || e.person.clothes.some((g) => g.searched && g.loot.some((l) => !l.hidden && l.opens === home.id))) && (e.addrAskedTier == null || fearTier(T.fear ?? 0) > e.addrAskedTier))
+    out.push({ id: 'ask-home', label: '“Where do you live?”', hint: 'Their keys', cat: 'threaten' });
+  // Their address, and they know you know it.
+  if (home && (e.homeKnown || e.toldHome) && !asked.includes('home-threat')) out.push({ id: 'home-threat', label: '“I know where you live.”', hint: (T.fear ?? 0) >= 88 ? 'They can’t get any more scared' : 'Scare them more', cat: 'threaten' });
+  if (!asked.includes('hush')) out.push({ id: 'hush', label: '“You didn’t see anything.”', hint: 'Keep them quiet: no police, no telling anyone', cat: 'threaten' });
   if (e.canAsk && !asked.includes('thief')) out.push({ id: 'ask-thief', label: '“Seen anyone with my things?”', hint: 'What you had, before', cat: 'threaten' });
   // Hurting them, for the truth or for the fun of it.
   const fingers = T.marks?.fingers ?? 0;
@@ -2637,6 +2654,21 @@ function gore(d: Side, loc: Loc, how: string, ml: number, fx: { newBreaks: Part[
 }
 
 /** A line not said lately in this fight (from `xs`), and remembered. */
+/** An address the way someone says it out loud: “1412 Ivy Street. Apartment 3B”. */
+const STREET_WORDS: Record<string, string> = { St: 'Street', Ave: 'Avenue', Rd: 'Road', Ln: 'Lane', Ct: 'Court' };
+function spokenStreet(addr: string): string {
+  return addr.split(',')[0].replace(/\b(St|Ave|Rd|Ln|Ct)$/, (x) => STREET_WORDS[x]);
+}
+function spokenAddr(addr: string): string {
+  const [, unit] = addr.split(', ');
+  return `${spokenStreet(addr)}${unit ? `. ${unit.replace(/^Apt /, 'Apartment ').replace(/^Rm /, 'Room ')}` : ''}`;
+}
+/** Somewhere they don't live: a number and a street, near enough to sound right. */
+function fakeAddr(addr: string): string {
+  const streets = ['Alder St', 'Kestrel Ave', 'Larkin St', 'Halsey Ave', 'Pruitt St', 'Ninth St', 'Cobb Ave', 'Delmar St', 'Wexford Rd', 'Orchard Ln', 'Bellamy St', 'Fulton Ave', 'Sorrel Ct', 'Grand Ave', 'Ivy St', 'Tanner Rd'].filter((x) => !addr.includes(x));
+  const unit = addr.split(', ')[1];
+  return `${10 + Math.floor(Math.random() * 990)} ${oneOf(streets)}${unit ? `, ${unit.replace(/\d+/, (n) => String((Number(n) % 5) + 1))}` : ''}`;
+}
 function vary(xs: string[]): string {
   const recent = (enc.recent ??= []);
   const fresh = xs.filter((x) => !recent.includes(x));
@@ -3585,7 +3617,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
       best.hidden = true;
     }
     const shown = all.filter((l) => !l.hidden).map((l) => lootWords(l));
-    say('them', shown.length ? `They turn out their pockets${isBrute(e.person.personality) ? '' : ' with shaking hands'}: ${list(shown)}.` : "They turn out their pockets. There’s nothing in them.");
+    say('them', `${shown.length ? `They turn out their pockets: ${list(shown)}.` : 'They turn out their pockets. There’s nothing in them.'} ${vary(demandVoice(e, 'empty', 'comply'))}`);
     if (shown.length) maybeSay('emptied', 0.85);
     const arms_ = e.person.carrying.filter((it) => (it.weapon || it.spray) && !it.dropped);
     if (arms_.length) {
@@ -3643,6 +3675,69 @@ function threatAct(id: string, inv?: Inventory): boolean {
     } else say('them', speak(hidden.length ? 'holdingOut' : 'allThere') || (fear >= 50 ? '“That’s all of it, I swear. I swear!”' : '“That’s everything.” They hold your eye a little too long.'));
     return true;
   }
+  if (id === 'ask-home') {
+    const home = e.person.home;
+    if (!home || e.homeKnown || e.toldHome) return false;
+    say('you', oneOf(['You hold up their keys. “These. Where do they go?”', '“Your keys. Where do you live?”', 'You jingle their keys in front of their face. “Where’s home?”']));
+    if (fear < 25) {
+      say('them', vary(demandVoice(e, 'addr', 'refuse')));
+      return true;
+    }
+    const truth = personalityOf(e.person).truth;
+    if (fear >= 60 || Math.random() < (fear / 80) * truth) {
+      e.toldHome = true;
+      say('them', `“${spokenAddr(home.addr)}.” ${vary(demandVoice(e, 'addr', 'comply'))}`);
+      say('info', `${home.addr}: it’s on your map now.`);
+      you.gain('intimidation', 4);
+    } else {
+      e.addrAskedTier = fearTier(fear);
+      say('them', `“${spokenAddr(fakeAddr(home.addr))}.” ${vary(demandVoice(e, 'addr', 'lie'))}`);
+      // (Do you see it? Hard words and a straight face take some reading.)
+      const level = (n: StatName) => you.stats[n]?.level ?? 1;
+      if (Math.random() < 0.25 + level('intimidation') * 0.003 + level('speech') * 0.003) say('info', 'Their eyes slide off yours. A lie.');
+      you.gain('intimidation', 2);
+    }
+    return true;
+  }
+  if (id === 'hush') {
+    if (asked.includes('hush')) return false;
+    asked.push('hush');
+    say('you', oneOf(['“You didn’t see anything. You don’t know me. Understand?”', 'You lean in. “No police. No telling anyone. Not your friends, not your mother. Nobody.”', '“This never happened. Say it.”']));
+    const truth = personalityOf(e.person).truth;
+    if (fear < 25) {
+      say('them', vary(hushVoice(e, 'refuse')));
+      you.gain('intimidation', 1);
+      return true;
+    }
+    if (fear >= 60 || Math.random() < (fear / 80) * truth) {
+      e.hushed = fear;
+      say('them', vary(hushVoice(e, 'swear')));
+      you.gain('intimidation', 3);
+    } else {
+      say('them', vary(hushVoice(e, 'lie')));
+      const level = (n: StatName) => you.stats[n]?.level ?? 1;
+      if (Math.random() < 0.25 + level('intimidation') * 0.003 + level('speech') * 0.003) say('info', 'You can tell: they don’t mean it.');
+      you.gain('intimidation', 2);
+    }
+    return true;
+  }
+  if (id === 'home-threat') {
+    if (asked.includes('home-threat') || !(e.homeKnown || e.toldHome)) return false;
+    asked.push('home-threat');
+    const home = e.person.home;
+    say('you', oneOf([`You lean in close. “${home ? spokenStreet(home.addr) : 'I know the street'}. I know where you live.”`, '“I know where you live. Think about that before you think about anyone else.”', '“I know where you live. I know where you sleep.”']));
+    if (fear >= 88) {
+      say('them', "They’re as scared as they’re going to get.");
+      return true;
+    }
+    const before = fearLevel(fear);
+    // (Harder than any threat out here: it follows them home.)
+    scare(12 * 1.6 * (1 - fear / 150) + (you.stats.intimidation?.level ?? 1) * 0.08);
+    say('them', vary(homeThreatVoice(e)));
+    if (fearLevel(T.fear ?? 0) > before) you.gain('intimidation', 3);
+    else you.gain('intimidation', 1);
+    return true;
+  }
   if (id.startsWith('unlock:') || id.startsWith('unlock-mine:')) {
     let phone: { locked?: boolean; unlockAsked?: boolean } | undefined;
     if (id.startsWith('unlock:')) {
@@ -3656,7 +3751,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     if (!phone || phone.locked === false || phone.unlockAsked) return false;
     say('you', oneOf(['“Your phone. Unlock it.”', '“Unlock it. Now.”']));
     if (fear < 25) {
-      say('them', (isBrute(e.person.personality) ? speak('refuse') : speak('pinRefuse')) || 'They press their lips together and say nothing.');
+      say('them', vary([...voice(e, isBrute(e.person.personality) ? 'refuse' : 'pinRefuse'), ...demandVoice(e, 'unlock', 'refuse')]) || 'They press their lips together and say nothing.');
       return true;
     }
     phone.unlockAsked = true;
@@ -3665,7 +3760,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     const terrified = fear >= (truth < 1 ? 85 : 65);
     if (terrified || Math.random() < (fear / 80) * truth) {
       phone.locked = false;
-      say('them', oneOf(['They press their thumb to it with a shaking hand. The screen lights up, open.', 'They tap in the code, hands shaking, and hold it out to you. It’s open.']));
+      say('them', `${oneOf(['They press their thumb to it. The screen lights up, open.', 'They tap in the code and hold it out to you. It’s open.'])} ${vary(demandVoice(e, 'unlock', 'comply'))}`);
       you.gain('intimidation', 4);
     } else {
       phone.locked = true;
@@ -3693,7 +3788,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
       return true;
     }
     if (fear < 25) {
-      say('them', (isBrute(e.person.personality) ? speak('refuse') : speak('pinRefuse')) || 'They press their lips together and say nothing.');
+      say('them', vary([...voice(e, isBrute(e.person.personality) ? 'refuse' : 'pinRefuse'), ...demandVoice(e, 'pin', 'refuse')]) || 'They press their lips together and say nothing.');
       return true;
     }
     card.pin = fourDigits();
@@ -3701,7 +3796,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     const truth = personalityOf(e.person).truth;
     const terrified = fear >= (truth < 1 ? 85 : 65);
     card.pinOk = terrified || Math.random() < (fear / 80) * truth;
-    say('them', `“${card.pin.split('').join('-')}. It’s ${card.pin}.” ${terrified ? speak('pinTruth') || "They’re too scared to lie." : speak('pinLie') || 'They say it fast.'}`);
+    say('them', `“${card.pin.split('').join('-')}. It’s ${card.pin}.” ${terrified ? vary([...voice(e, 'pinTruth'), ...demandVoice(e, 'pin', 'comply')]) || "They’re too scared to lie." : vary([...voice(e, 'pinLie'), ...demandVoice(e, 'pin', 'lie')]) || 'They say it fast.'}`);
     you.gain('intimidation', 4);
     return true;
   }

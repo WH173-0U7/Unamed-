@@ -224,6 +224,124 @@ const VICTIM: Partial<Record<Moment, string[]>> = {
   woken: ["They come to, see you over them, and start to beg before their eyes are even focused.", 'Their eyes open. They see you, and they start to cry.'],
 };
 
+/** How scared they look, finer than the four steps the odds use (see encounter.ts fearLevel): for showing. */
+export const FEAR_TIER_NAMES = ['Calm', 'Uneasy', 'Wary', 'Scared', 'Terrified', 'Broken'];
+export const fearTier = (f: number) => (f >= 88 ? 5 : f >= 70 ? 4 : f >= 45 ? 3 : f >= 20 ? 2 : f >= 10 ? 1 : 0);
+
+/** What you've demanded of them: a PIN, a phone unlocked, where they live, their pockets turned out. */
+export type Demand = 'pin' | 'unlock' | 'addr' | 'empty';
+type Band = 'victim' | 'sly' | 'brute';
+const bandOf = (p?: Personality): Band => (p === 'sly' ? 'sly' : isBrute(p) ? 'brute' : 'victim');
+
+/** No: by how scared they are (calm and uneasy, they're defiant; wary, they hedge). */
+const DEMAND_REFUSE: Record<Band, Record<Exclude<Demand, 'empty'>, [string[], string[]]>> = {
+  victim: {
+    pin: [['“No. That’s my money. That’s all I’ve got.”', 'They shake their head and hold your stare, just.'], ['“I— I don’t remember it. I never use it.” They’re stalling.', '“Please. Not the card. Anything but the card.”']],
+    unlock: [['“No. My whole life’s in there.”', 'They close their hand around nothing, as if the phone were still in it, and shake their head.'], ['“It’s— it’s face ID. It won’t work for you.” They don’t move to do it.', '“Can’t you just take it? Please don’t make me.”']],
+    addr: [['“No. No. I’m not telling you that.”', 'They clamp their mouth shut and shake their head, hard.'], ['“I— I’m staying with a friend. I don’t really live anywhere.” Their eyes slide away.', '“Why do you want to know that? Please. Why?”']],
+  },
+  sly: {
+    pin: [['“Come on. You don’t need that. Take the cash.”', 'They smile. “I’d tell you, but I’d have to change it.”'], ['“Let’s say I tell you. What do I get?”', '“It’s complicated. Different for every card.”']],
+    unlock: [['“It’s just a phone, friend. Sell it as it is.”', '“Not a chance. But I like your style.”'], ['“It’s glitchy. Honestly. Half the time it won’t open for me.”', '“Sure. Let me just— hm. It wants the code I changed last week.”']],
+    addr: [['“My address? We’re not that close.”', 'They laugh, a little too loud. “Nice try.”'], ['“Here and there. You know how it is.”', '“I move around a lot. Can’t keep track myself.”']],
+  },
+  brute: {
+    pin: [['“Go to hell.”', 'They spit on the sidewalk beside your shoe.'], ['“You’ll get nothing from me.” But they’re thinking about it.', 'They look at the card, then at you. “No.” Less sure.']],
+    unlock: [['“Smash it. See if I care.”', '“Make me.”'], ['They take the phone and just hold it, jaw working.', '“It’s locked. Stays locked.” Their voice isn’t as steady as they want.']],
+    addr: [['“Come and find out.”', '“You think I’m scared of you?” They are, a little.'], ['“Somewhere you don’t want to be.”', 'They stare at you a long time and say nothing.']],
+  },
+};
+
+/** Yes: how they do it, by how scared they are (wary: grudging; scared: shaking; terrified: fast; broken: numb). */
+const DEMAND_COMPLY: Record<Band, [string[], string[], string[], string[]]> = {
+  victim: [
+    ['They hesitate a long moment, then give in.', 'They swallow, and do it.'],
+    ['Their hands are shaking so badly it takes them two tries.', 'They do it, crying quietly.'],
+    ['They do it at once, fast, before you can ask again.', '“Okay, okay, okay—” It comes out in a rush.'],
+    ['They do it without looking at you, like it’s happening to someone else.', 'Their voice is flat and very quiet. They don’t cry any more.'],
+  ],
+  sly: [
+    ['“Fine. You win this one.”', 'A thin smile. “Since you asked so nicely.”'],
+    ['The smile’s gone. They just do it.', '“Alright. Alright. Easy.” They do it carefully.'],
+    ['They do it fast, all the charm gone out of them.', '“Here. Here. Don’t— here.”'],
+    ['They do it with nothing left in their face at all.', 'They don’t even try to talk their way out any more.'],
+  ],
+  brute: [
+    ['They do it, glaring at you the whole time.', '“There. Happy?”'],
+    ['They do it, jaw clenched so hard it creaks.', 'They do it, and won’t look at you while they do.'],
+    ['All the fight’s gone out of them. They just do it.', 'They do it quickly, and hate themselves for it.'],
+    ['They do it like someone underwater, slow and far away.', 'Whatever kept them hard is gone. They do as they’re told.'],
+  ],
+};
+
+/** A lie (a wrong code, a wrong address): by who they are. */
+const DEMAND_LIE: Record<Band, string[]> = {
+  victim: ['They say it fast, too fast.', 'Their eyes flick away as they say it.'],
+  sly: ['They say it easily. Too easily?', 'They say it with a straight face.'],
+  brute: ['They say it flat, staring you down.', 'They say it like a dare.'],
+};
+
+/** What they say to a demand, by how scared they are and who they are. */
+export function demandVoice(e: Encounter, d: Demand, how: 'refuse' | 'comply' | 'lie'): string[] {
+  const band = bandOf(e.person.personality);
+  const tier = fearTier(e.them.fear ?? 0);
+  if (how === 'refuse') return d === 'empty' ? [] : DEMAND_REFUSE[band][d][tier >= 2 ? 1 : 0];
+  if (how === 'lie') return DEMAND_LIE[band];
+  const xs = DEMAND_COMPLY[band][Math.max(0, Math.min(3, tier - 2))];
+  // (Broken hands: nothing about their hands.)
+  const ys = e.them.broken.some((p) => /(arm|wrist|hand)$/.test(p)) ? xs.filter((x) => !/hands?\b/i.test(x)) : xs;
+  return ys.length ? ys : xs;
+}
+
+/** “You didn’t see anything.”: what they promise, by who they are and how scared they are. */
+const HUSH: Record<Band, { refuse: [string[], string[]]; lie: string[]; swear: [string[], string[], string[]] }> = {
+  victim: {
+    refuse: [['“You can’t just— people saw. People saw you.”', 'They don’t answer. They’re memorising your face.'], ['“I— I won’t say anything.” They don’t sound like they mean it.', '“Okay. Okay.” Their eyes go past you, to the end of the street.']],
+    lie: ['“I won’t tell anyone. I swear.” Their eyes flick to the end of the street as they say it.', '“Nobody. I won’t tell nobody.” Too quick.'],
+    swear: [
+      ['“I didn’t see anything. I don’t know you. I swear.”', '“I won’t call anyone. I won’t. I promise.”'],
+      ['“Nothing. I saw nothing. I swear on my kids.”', '“I won’t tell. I won’t tell, I won’t, please—”'],
+      ['They nod, and nod, and keep nodding. “Nothing. Nobody. Nothing.”', 'They say it back to you word for word, like a child: “I didn’t see anything.”'],
+    ],
+  },
+  sly: {
+    refuse: [['“Sure. Whatever you say.” They’re already thinking about who to call.', 'A small smile. “Of course not.”'], ['“We’re square, you and me. Square.” You don’t believe a word of it.', '“My lips are sealed.” Their eyes aren’t.']],
+    lie: ['“Never happened, friend.” A bit too easy.', '“I’m a vault.” They smile. You don’t like the smile.'],
+    swear: [
+      ['“Never happened. You were never here.” For once, they mean it.', '“Nobody hears it from me. Ever.”'],
+      ['The charm’s gone. “I didn’t see anything. I swear.”', '“Not a word. Not to anyone. You have my word.”'],
+      ['“Nothing. I saw nothing.” They say it like a prayer.', 'They can’t even talk their way around it. They just nod.'],
+    ],
+  },
+  brute: {
+    refuse: [['“We’ll see.”', 'They stare back. “You don’t get to tell me what I saw.”'], ['“Fine.” It sounds like a promise to come back for you.', 'They say nothing, and that’s an answer.']],
+    lie: ['“Yeah. Sure. Nothing.” They don’t blink.', '“I won’t go to the cops.” They might not. They might do worse.'],
+    swear: [
+      ['“…Nothing. I saw nothing.” It costs them.', 'A long silence. Then: “No cops.”'],
+      ['They look away first. “No cops. You have my word.”', '“I won’t say anything.” They hate every word.'],
+      ['Whatever was hard in them is gone. “Nothing. I saw nothing.”', 'They just nod, and keep their eyes on the ground.'],
+    ],
+  },
+};
+export function hushVoice(e: Encounter, how: 'refuse' | 'lie' | 'swear'): string[] {
+  const band = bandOf(e.person.personality);
+  const tier = fearTier(e.them.fear ?? 0);
+  if (how === 'refuse') return HUSH[band].refuse[tier >= 2 ? 1 : 0];
+  if (how === 'lie') return HUSH[band].lie;
+  return HUSH[band].swear[tier >= 5 ? 2 : tier >= 4 ? 1 : 0];
+}
+
+/** “I know where you live.”: how it lands. */
+export function homeThreatVoice(e: Encounter): string[] {
+  const band = bandOf(e.person.personality);
+  const tier = fearTier(e.them.fear ?? 0);
+  if (band === 'brute') return tier >= 4 ? ['The colour goes out of their face. For once, they’ve got nothing to say.', 'They go very still. “Leave my family out of this.” It isn’t a threat any more.'] : ['They go pale and quiet. The sneer stays on, but only just.', 'Something shifts behind their eyes. They don’t answer.'];
+  if (band === 'sly') return tier >= 4 ? ['“Please. Please, not at home. I’ll do whatever you want.”', 'All the smoothness goes. “Okay. Okay. You win. Just not at home.”'] : ['The easy smile slips. “There’s no need for that.”', '“Hey. Hey. Let’s keep this between us, out here.”'];
+  return tier >= 3
+    ? ['“Please. Please, I’ve got people there. Please.”', 'They start to beg, and can’t stop. “Don’t come to my house. Please don’t.”', 'Their legs go. They sit down hard, shaking. “Please. Not there.”']
+    : ['They go white. “How do you—” They don’t finish.', '“You— you wouldn’t.” They can see that you would.'];
+}
+
 /** Candidate lines for a moment (empty: nothing to say). */
 /** What they say or do, without lines for standing up when they're on the ground. */
 export function voice(e: Encounter, m: Moment): string[] {

@@ -6765,3 +6765,39 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
 #game.lockup-you #sheet {
   background: rgba(0, 0, 0, 0.92);
 }
+/* What's moving (Dez): each line a price and a word; where it sells, small. */
+.market-list .mkt-where {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  opacity: 0.75;
+}
+.market-list .mkt-arrow {
+  font-weight: 400;
+  opacity: 0.85;
+}
+/* Pockets: the bag size you sell a product in, with − and + to change it. */
+.pocket-list .sell-in {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-basis: 100%;
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+.pocket-list .sell-in > span {
+  margin-right: auto;
+}
+.pocket-list .sell-in button {
+  min-width: 40px;
+  min-height: 36px;
+  padding: 0;
+  font-size: 18px;
+}
+/* Throwing away something that matters: the second tap is a warning. */
+.pocket-list button.drop.danger {
+  color: #e06a5a;
+  border-color: #e06a5a;
+  opacity: 1;
+}

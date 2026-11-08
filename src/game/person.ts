@@ -177,6 +177,12 @@ export interface Loot {
   yours?: boolean;
   /** What it really is, if that's not obvious (a baggie of powder: 'cocaine'; what's in a syringe). */
   secret?: Secret;
+  /** Street product: which (powder for old saves), which pills, how good (0..100), and pressed fakes. */
+  product?: import('./drugs').Product;
+  pill?: import('./drugs').PillKind;
+  quality?: number;
+  pressed?: boolean;
+  pkg?: number;
   /** Found out what it is. */
   known?: boolean;
   /** How many uses are left (a baggie). */
@@ -559,6 +565,9 @@ function dress(kind: Kind, carrying: Item[], who: { name: string; age: number; s
   }
   if (has('Lighter')) put({ kind: 'misc', name: 'Lighter', doses: lighterFuel(r) });
   // What's in it, nobody says. You'd have to test it, or taste it.
+  // Something for later: a bag on a junkie, a dime bag on someone out for the night.
+  if (kind === 'junkie' && r() < 0.12) put(r() < 0.5 ? { kind: 'misc', name: 'Stamp bag', detail: 'A dose of heroin in a stamped wax bag', secret: 'cocaine', known: true, doses: 1, product: 'heroin', quality: 40 + Math.floor(r() * 30) } : { kind: 'misc', name: 'Rock', detail: 'A rock of crack in a twist of plastic', secret: 'cocaine', known: true, doses: 1, product: 'crack', quality: 40 + Math.floor(r() * 30) });
+  if (kind === 'civilian' && r() < 0.05) put({ kind: 'misc', name: 'Dime bag', detail: 'A gram of weed in a zip bag', secret: 'cocaine', known: true, doses: 1, product: 'weed', quality: 50 + Math.floor(r() * 30) });
   if (has('Small baggie')) put({ kind: 'misc', name: 'Small baggie', detail: 'Some kind of white powder', secret: 'cocaine', doses: 2 + Math.floor(r() * 4) });
   if (has('Backpack')) {
     const bag = clothes.find((g) => g.name === 'Backpack')!;

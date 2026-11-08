@@ -25,6 +25,19 @@ export interface Memory {
   sawFace: boolean;
   /** They've bought from you. */
   customer?: boolean;
+  /** As a customer: what they buy, when last, how often, how happy (−2 burned .. up), hours till they want more. */
+  usual?: import('./drugs').MarketKey;
+  /** How many bags they usually take. */
+  usualBags?: number;
+  /** (Older: how much they took, by weight.) */
+  usualAmt?: number;
+  lastBuy?: number;
+  buys?: number;
+  sat?: number;
+  returnH?: number;
+  /** Stopped buying from you (sold them garbage, or worse); and went to the police about it. */
+  burned?: boolean;
+  snitch?: boolean;
   /** What's remembered was done by an earlier you (this you doesn't know it). */
   otherLife?: boolean;
   /** What they'd describe ("someone in a ski mask, a coat"). */
@@ -268,11 +281,13 @@ export function remember(
 export function comeBack(all: Known[]): Known | null {
   // (A while has to pass: longer if they ended up in the ER with a break.)
   const t = Date.now();
-  const people = all.filter((k) => t - (k.at ?? 0) > (k.broken.length ? 18 : 6) * 3_600_000);
+  // (A regular who's run out comes looking for you: sooner, the more hooked and the better your stuff.)
+  const due = (k: Known) => !!k.memory.customer && !k.memory.otherLife && k.memory.lastBuy != null && t - k.memory.lastBuy > (k.memory.returnH ?? 12) * 3_600_000;
+  const people = all.filter((k) => t - (k.at ?? 0) > (k.broken.length ? 18 : 6) * 3_600_000 || due(k));
   if (!people.length) return null;
-  const chance = Math.min(0.22, 0.05 + people.length * 0.015);
+  const chance = Math.min(0.35, 0.05 + people.length * 0.015 + (people.some(due) ? 0.12 : 0));
   if (Math.random() >= chance) return null;
-  const weights = people.map((k) => 1 + k.memory.grudge / 25);
+  const weights = people.map((k) => 1 + k.memory.grudge / 25 + (due(k) ? 4 : 0));
   let n = Math.random() * weights.reduce((a, b) => a + b, 0);
   for (let i = 0; i < people.length; i++) if ((n -= weights[i]) < 0) return people[i];
   return people[people.length - 1];
@@ -332,6 +347,8 @@ export interface Infamy {
   heat: number;
   /** When they were last brought up to date (they fade). */
   at: number;
+  /** How you looked when they last got a description (clothes, and whether your face was covered). */
+  lastLook?: { clothes: string; covered: boolean; at: number };
   /** Victims who went to the police having seen your face (what an assault charge rests on). */
   reports?: number;
   /** Killings someone saw, with your face showing. */
@@ -343,13 +360,16 @@ export interface Infamy {
 export const newInfamy = (): Infamy => ({ rep: 0, heat: 0, at: now() });
 
 /** Talk dies down; the police move on to other things. */
+/** Heat lost per real hour. */
+export const HEAT_FADE_PER_HOUR = 12;
 export function fade(f: Infamy, t = now()) {
   // A clock set ahead and then put right: start counting again from now.
   if (f.at > t + DAY) f.at = t;
   const days = (t - f.at) / DAY;
   if (days <= 0) return;
   f.rep = Math.max(0, f.rep - days * 2);
-  f.heat = Math.max(0, f.heat - days * 15);
+  // (Heat dies down fast: 12 an hour, so even Wanted cools to nothing in about eight hours.)
+  f.heat = Math.max(0, f.heat - days * 24 * HEAT_FADE_PER_HOUR);
   f.at = t;
 }
 

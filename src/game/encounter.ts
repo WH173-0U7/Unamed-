@@ -1,6 +1,7 @@
 import { AMBUSH_TEXT, TECH_ALT, TECH_TEXT, kickText, missText, punchText, stompText, tierOf, tierUpLine, weaponText, type Tier } from './practice';
 import { AWARENESS, BUILDS, NAMES, personalityOf, type Item, type Loot, type Person } from './person';
 import { money } from './money';
+import { amountText, keyName, keyProduct, quote, requestFor, substitutes, type MarketKey } from './drugs';
 import { demandVoice, fearTier, homeThreatVoice, hushVoice, indoors, isBrute, voice, type Moment } from './voices';
 export { fearTier, FEAR_TIER_NAMES } from './voices';
 import { lootMark, type LootGlyph, type LootTone } from './lootIcon';
@@ -254,6 +255,29 @@ export interface Encounter {
   /** Bags you could sell them: one-point bags of coke (see game.prime), and loose powder not bagged yet. */
   product?: number;
   bulk?: number;
+  /** What you've got to sell, by kind: how much (tenths of a gram; pills counted) and how good (pressed: fake pills). */
+  stock?: Partial<Record<MarketKey, { n: number; q: number; pressed?: boolean }>>;
+  /** What they're after (decided once; a regular wants their usual). */
+  wants?: MarketKey;
+  /** How much of it they want (tenths of a gram; pills: how many). */
+  wantAmt?: number;
+  /** How the market has each thing round here, against a normal price (1 = normal). */
+  prices?: Partial<Record<MarketKey, number>>;
+  /** What you'd get for their request, and how good what you'd hand over is (the weakest first). */
+  quote?: { cents: number; q: number };
+  /** How far up you are as a dealer (0 nobody .. 3 supplier). */
+  standing?: number;
+  /** Sold them pressed pills that'll put them in the ground (settled when the encounter's remembered). */
+  odLater?: boolean;
+  /** What was sold (or taken off you): which, how good, at what. */
+  sale?: { key: MarketKey; q: number; units: number; bags?: number; price: number; pressed?: boolean };
+  /** Empty zip bags on you; the size of bag you sell this in; how many bags they want; how well that size suits them (0..1). */
+  zips?: number;
+  bagSize?: number;
+  /** The bag size you sell each product in. */
+  sellSizes?: Partial<Record<import('./drugs').Product, number>>;
+  wantBags?: number;
+  sizeFit?: number;
   /** How hot the police are on you (game.prime), for who might be a cop. */
   heat?: number;
   /** They've bought from you before. */
@@ -871,7 +895,7 @@ function rawOptions(e: Encounter): Option[] {
           ...((e.product ?? 0) > 0 || (e.bulk ?? 0) > 0
             ? (e.asked ?? []).includes('sell')
               ? []
-              : [{ id: 'sell', label: e.regular ? '“Same as last time?”' : '“You looking?”', hint: (e.product ?? 0) > 0 ? 'Sell them a bag' : 'Bag it up first (Pockets)', disabled: !(e.product ?? 0), cat: 'talk' as Category }]
+              : [sellOption(e)]
             : []),
           ...(e.them.down
             ? [{ id: 'go-at', label: 'Go at them', hint: 'They can’t get away', cat: 'violence' as Category }]
@@ -3399,64 +3423,125 @@ function choke() {
  * cop). What they pay is the going rate if they have it, whatever they've
  * got if they're desperate; some would rather grab it and run. Speech helps.
  */
+/** The sell option: what they're after and how much, if you know; what it'd fetch; whether you've enough. */
+function sellOption(e: Encounter): Option {
+  const k = e.wants;
+  const have = k ? (e.stock?.[k]?.n ?? 0) : 0;
+  // (A regular asks for their usual, and someone who came over says what they want; anyone else you find out by asking.)
+  const known = e.regular || e.cameOver;
+  if (!k || !e.wantAmt || !known) return { id: 'sell', label: '“You looking?”', hint: 'Sell them something · Speech', cat: 'talk' };
+  const p = keyProduct(k);
+  const bags = e.wantBags ?? 1;
+  const what = `${bags} bag${bags === 1 ? '' : 's'} of ${keyName(k).toLowerCase()} (${amountText(p, e.bagSize ?? e.wantAmt)})`;
+  const short = have < e.wantAmt ? (have ? `You’ve only got ${amountText(p, have)}` : `You’ve got no ${keyName(k).toLowerCase()}`) : (e.zips ?? 0) < bags ? 'No baggies' : null;
+  return { id: 'sell', label: `Sell ${what}`, hint: short ?? `$${Math.round((e.quote?.cents ?? 0) / 100)} · Speech`, disabled: !!short, cat: 'talk' };
+}
+
 function sellTo(e: Encounter) {
   const p = e.person;
   const hr = new Date().getHours();
   const night = hr >= 21 || hr < 5;
   e.distance = 2;
   e.facedYou = true;
+  const stock = e.stock ?? {};
+  const want = e.wants ?? 'powder';
+  const name = (k: MarketKey) => keyName(k).toLowerCase();
+  // Bags of whatever size you sell that in: as many as they want.
+  const bags = e.wantBags ?? 1;
+  const amtFor = (k: MarketKey) => bags * (e.sellSizes?.[keyProduct(k)] ?? requestFor(k, p.kind, p.age));
+  const has = (k: MarketKey) => (stock[k]?.n ?? 0) >= amtFor(k) && (e.zips ?? 0) >= bags;
+  const bagsOf = (k: MarketKey) => `${bags === 1 ? 'a bag' : `${bags} bags`} of ${keyName(k).toLowerCase()}`;
+  const cap = (t: string) => t.replace(/^./, (c) => c.toUpperCase());
   say('you', e.regular ? oneOf(['You give them a nod. “Same as last time?”', '“Hey. You need?”']) : oneOf(['You fall in beside them and keep your voice low. “You looking?”', 'You catch their eye. “You need something? I got you.”', '“Hey. You good? I can help you out.”']));
-  // A plainclothes cop, playing a buyer (more of them when they're after you).
+  const ask = bagsOf(want);
+  // What they came for, or something close (the hooked aren't fussy).
+  let pick: MarketKey | undefined = has(want) ? want : undefined;
+  if (!pick) {
+    const alt = substitutes(want, p.kind).find(has);
+    if (alt && Math.random() < (p.kind === 'junkie' ? 0.65 : 0.35)) {
+      pick = alt;
+      say('them', oneOf([`“You got ${ask}?” You don’t. “…${keyName(alt)}, then. Whatever.”`, `“I was looking for ${ask}.” They think about it. “Fine. ${keyName(alt)}.”`]));
+    }
+  }
+  if (!pick) {
+    e.wantAmt = amtFor(want);
+    say('them', e.regular ? `“No ${name(want)}? Damn.” They’re already looking past you, up the street.` : oneOf([`“You got ${ask}?” You don’t. “Then nah.”`, `“Only if it’s ${ask}.” You haven’t got it. They walk on.`]));
+    e.deal = { kind: 'no', price: 0 };
+    end('left');
+    return;
+  }
+  const amt = amtFor(pick);
+  const lot = stock[pick]!;
+  const unitQ = pick === want && e.quote ? e.quote.q : lot.q;
+  const full = pick === want && e.quote ? e.quote.cents : quote(e.prices?.[pick] ?? 1, pick, amt / bags, unitQ, p.kind, e.speechLevel ?? 1, e.standing ?? 0) * bags * 100;
+  const what = bagsOf(pick);
+  // A plainclothes cop, playing a buyer (more of them when they're after you, and the better known you are).
   // (Low-key and careful, you smell more of them before you ever open your mouth: Sneak.)
   const quiet = Math.min(0.6, ((e.sneakLevel ?? 1) - 1) * 0.006);
-  const cop = p.kind === 'civilian' ? (0.04 + (e.heat ?? 0) / 300) * (1 - quiet * 0.7) : 0;
+  const cop = p.kind === 'civilian' ? (0.04 + (e.heat ?? 0) / 300 + Math.min(0.08, (e.standing ?? 0) * 0.025)) * (1 - quiet * 0.7) : 0;
   if (!e.regular && Math.random() < cop) {
-    say('them', oneOf(['“Yeah. Yeah, I’m looking.” A twenty, folded small. They take the bag and look at it a little too long.', '“How much for one?” They pay without haggling, and slip the bag into a jacket pocket.']));
+    say('them', oneOf([`“Yeah. Yeah, I’m looking. ${cap(what)}.” They pay, and look at it a little too long.`, '“How much?” They pay without haggling, and slip it into a jacket pocket.']));
     say('info', 'A car door opens behind you. Then another.');
-    e.deal = { kind: 'sting', price: 2000 };
+    e.deal = { kind: 'sting', price: full };
+    e.sale = { key: pick, q: unitQ, units: amt, bags, price: full, pressed: lot.pressed };
     end('sold');
     return;
   }
   // (Anything in your hand, a blade, a bat, a gun: nobody buys from that.)
   const scary = (e.conspicuous ? 0.2 : 0) + ((e.weapons ?? []).some((w) => w.hand) ? 0.3 : 0) + (hr >= 8 && hr < 18 ? 0.08 : 0);
-  const want = clamp(-scary + ({ junkie: 0.75, drunk: night ? 0.45 : 0.25, homeless: 0.3, civilian: night ? 0.16 : 0.06 } as Record<string, number>)[p.kind] + (e.cameOver ? 0.55 : e.regular ? 0.3 : 0) - (e.cameOver ? 0 : e.suspicion / 250) + ((e.speechLevel ?? 1) - 1) * 0.004, 0.02, 0.95);
-  if (Math.random() >= want) {
-    say('them', e.cameOver ? oneOf(['“Nah. Changed my mind.” They step back, and they’re gone.', 'They look at the bag, then up the street. “Not here. Not now.”']) : p.kind === 'civilian' ? oneOf(['“What? No. Get away from me.”', 'They look at you like you’re something on their shoe and walk faster.', '“I’m good.” They don’t look at you again.']) : oneOf(['“Nah. Not tonight.”', '“I’m good, man.”', 'They shake their head and keep going.']));
+  const wantP = clamp(-scary + ({ junkie: 0.75, drunk: night ? 0.45 : 0.25, homeless: 0.3, civilian: night ? 0.16 : 0.06 } as Record<string, number>)[p.kind] + (e.cameOver ? 0.55 : e.regular ? 0.3 : 0) - (e.cameOver ? 0 : e.suspicion / 250) + ((e.speechLevel ?? 1) - 1) * 0.004 + (e.standing ?? 0) * 0.03, 0.02, 0.95) * (pick === want ? (e.sizeFit ?? 1) : 1);
+  if (Math.random() >= wantP) {
+    say('them', e.cameOver ? oneOf(['“Nah. Changed my mind.” They step back, and they’re gone.', 'They look up the street. “Not here. Not now.”']) : p.kind === 'civilian' ? oneOf(['“What? No. Get away from me.”', 'They look at you like you’re something on their shoe and walk faster.', '“I’m good.” They don’t look at you again.']) : oneOf(['“Nah. Not tonight.”', '“I’m good, man.”', 'They shake their head and keep going.']));
     // Some people call it in.
     e.deal = { kind: 'no', price: 0, reported: p.kind === 'civilian' && Math.random() < 0.2 * (1 - quiet) };
     end('left');
     return;
   }
+  if (!e.regular && !e.cameOver) say('them', `“${cap(what)}.”`);
   const cents = p.clothes.reduce((n, g) => n + g.loot.filter((l) => l.kind === 'cash').reduce((m, l) => m + Math.round((l.cash ?? 0) * 100), 0), 0);
-  const rate = ({ junkie: 15, drunk: 20, homeless: 10, civilian: 25 } as Record<string, number>)[p.kind] * (1 + ((e.speechLevel ?? 1) - 1) * 0.004);
-  const price = Math.round(rate) * 100;
+  let price = Math.max(100, Math.round(full / 100) * 100);
+  // Talking the price down (not with a regular: they know what it costs).
+  if (!e.regular && p.kind !== 'civilian' && Math.random() < 0.3) {
+    const offer = Math.max(100, Math.round((price * 0.75) / 100) * 100);
+    if (Math.random() < 0.3 + ((e.speechLevel ?? 1) - 1) * 0.006) say('them', `“${Math.round(offer / 100)}?” You don’t budge. They sigh and dig for it.`);
+    else {
+      say('them', `“${Math.round(offer / 100)}. That’s what it goes for.” You let it go.`);
+      price = offer;
+    }
+  }
+  const sold = (amount: number) => {
+    e.deal = { kind: 'sold', price: amount };
+    e.sale = { key: pick!, q: unitQ, units: amt, bags, price: amount, pressed: lot.pressed };
+    e.customer = true;
+    // How it is: they can tell (mostly).
+    if (unitQ < 40) say('them', oneOf(['They look at it in the streetlight and frown. “This is mostly cut, man.” They take it anyway.', '“This better be better than it looks.” It isn’t.']));
+    else if (unitQ >= 80 && Math.random() < 0.6) say('them', oneOf(['They look at it twice. “This the good stuff?” You don’t answer. They nod.', '“Okay. Okay. I’ll be back.”']));
+    end('sold');
+  };
   if (cents < price) {
     // Not enough: desperate ones grab it; some pay what they have.
     if ((p.kind === 'junkie' || p.kind === 'homeless') && legs(e.them) === 0 && Math.random() < 0.3) {
-      say('them', oneOf(['They look at the bag. They look at you. Then they snatch it out of your hand and run.', '“Lemme see it.” The second it’s in their hand they’re off and running.']));
+      say('them', oneOf(['They look at it. They look at you. Then they snatch it out of your hand and run.', '“Lemme see it.” The second it’s in their hand they’re off and running.']));
       e.deal = { kind: 'snatched', price: 0 };
+      e.sale = { key: pick, q: unitQ, units: amt, bags, price: 0, pressed: lot.pressed };
       bolt('lost-them', 1.2);
       return;
     }
     if (cents >= Math.min(price / 2, 800)) {
       const all = Math.floor(cents / 100) * 100;
       say('them', `“I only got ${Math.floor(cents / 100)}. Come on. That’s all I got.” They hold it out, crumpled.`);
-      say('you', 'You take it, and hand them the bag.');
-      e.deal = { kind: 'sold', price: all };
-      e.customer = true;
-      end('sold');
+      say('you', 'You take it, and hand it over.');
+      sold(all);
       return;
     }
-    say('them', oneOf(['“I ain’t got it right now. Front me one? I’m good for it.”', '“I got like two dollars, man.”']));
+    say('them', oneOf(['“I ain’t got it right now. Front me? I’m good for it.”', '“I got like two dollars, man.”']));
     say('you', 'You shake your head.');
     e.deal = { kind: 'no', price: 0 };
     end('left');
     return;
   }
-  say('them', oneOf([`“How much?” You tell them: ${Math.round(price / 100)}. They count it out quick, eyes on the street, and the bag’s gone into their pocket.`, `They palm you ${Math.round(price / 100)} dollars, folded small. You palm them the bag. It takes a second.`]));
-  e.deal = { kind: 'sold', price };
-  e.customer = true;
-  end('sold');
+  say('them', oneOf([`“How much?” You tell them: ${Math.round(price / 100)}. They count it out quick, eyes on the street, and it’s gone into their pocket.`, `They palm you ${Math.round(price / 100)} dollars, folded small. You palm them ${what}. It takes a second.`]));
+  sold(price);
 }
 
 /** Takes something out of your inventory mid-fight (the lists of what's where move up with it). */

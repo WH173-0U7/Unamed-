@@ -23,7 +23,7 @@ import { maybeThief, newWorld, robBody, robKnockedOut, settle, type World } from
 import { isBrute } from './voices';
 import { knifeOf } from './knives';
 import { gunOf } from './guns';
-import { HEAT_NAMES, applyTo, comeBack, heal, fade, heatLevel, historyText, injuriesText, meet, newInfamy, recognises, remember, repName, type Infamy, type Known } from './people';
+import { HEAT_FADE_PER_HOUR, HEAT_NAMES, applyTo, comeBack, heal, fade, heatLevel, historyText, injuriesText, meet, newInfamy, recognises, remember, repName, type Infamy, type Known } from './people';
 import { anonymity, coldFactor, conspicuous, describe, hasHood, lookClothes, topColdFactor, warmthWord, wearing } from './look';
 import { marksText, list as listOf, a as aOf } from './encounter';
 import { cashFill, cashFits, cashWhere, pocketCash, roomForCents, spotMl } from './inventory';
@@ -132,11 +132,26 @@ type Self = {
 type Bystander = { e: Encounter; leaveAt: number; saw?: boolean };
 /** Your supplier: known (someone vouched for you), how much he trusts you (−40..100), who vouched, when he cut you off. */
 type Connect = { known: boolean; trust: number; via?: string; cutOff?: number; metBig?: boolean };
-/** What Dez sells, by how far he trusts you: [name, detail, points, cash $, fronted $, days to pay, tier]. */
-const DEZ_DEALS: { id: string; name: string; detail: string; doses: number; cash: [number, number, number]; front: number; days: number; tier: 1 | 2 | 3; desc: string }[] = [
-  { id: 'ball', name: 'Eight-ball', detail: 'Rocky powder in the knotted corner of a sandwich bag', doses: 35, cash: [180, 160, 150], front: 280, days: 3, tier: 1, desc: 'Three and a half grams. Bag it up: about 35 points.' },
-  { id: 'quarter', name: 'Quarter ounce', detail: 'Seven grams, pressed, in a taped-up baggie', doses: 70, cash: [0, 320, 300], front: 500, days: 5, tier: 2, desc: 'Seven grams. About 70 points.' },
-  { id: 'ounce', name: 'Ounce', detail: 'A full ounce, in a vacuum-sealed brick wrapped in tape', doses: 280, cash: [0, 0, 1100], front: 1600, days: 7, tier: 3, desc: 'Twenty-eight grams, from Dez’s own supplier. About 280 points.' },
+/**
+ * What Dez sells: by how far he trusts you (tier) and how far up you are as a
+ * dealer (standing). Cash prices by tier; fronted, more, and due in days.
+ */
+type DezDeal = { id: string; name: string; detail: string; doses: number; cash: [number, number, number]; front: number; days: number; tier: 1 | 2 | 3; standing: number; desc: string; product: Product; pill?: PillKind; pressed?: boolean };
+const DEZ_DEALS: DezDeal[] = [
+  { id: 'weed14', name: 'Half ounce of weed', detail: 'Fourteen grams, in a sandwich bag', doses: 140, cash: [110, 100, 90], front: 150, days: 3, tier: 1, standing: 0, desc: '14 g. Goes for about $12 a gram, $35 an eighth.', product: 'weed' },
+  { id: 'perc20', name: 'Bottle of percs', detail: 'Twenty percs in an orange bottle, the label peeled off', doses: 20, cash: [170, 155, 140], front: 230, days: 3, tier: 1, standing: 0, desc: 'Twenty Percocet, sold one at a time.', product: 'pills', pill: 'perc' },
+  { id: 'xan20', name: 'Roll of Xanax bars', detail: 'Twenty bars in a twist of cling film', doses: 20, cash: [70, 60, 55], front: 100, days: 3, tier: 1, standing: 0, desc: 'Twenty bars. The party crowd wants them.', product: 'pills', pill: 'xanax' },
+  { id: 'ball', name: 'Eight-ball', detail: 'Rocky powder in the knotted corner of a sandwich bag', doses: 35, cash: [180, 160, 150], front: 280, days: 3, tier: 1, standing: 0, desc: '3.5 g. Goes for about $90 a gram, $15 a point.', product: 'powder' },
+  { id: 'weed28', name: 'Ounce of weed', detail: 'An ounce, pressed flat in a vacuum bag', doses: 280, cash: [0, 190, 170], front: 260, days: 5, tier: 2, standing: 1, desc: '28 g. Goes for about $12 a gram, $60 a quarter.', product: 'weed' },
+  { id: 'adder30', name: 'Adderall, thirty', detail: 'Thirty orange tablets in a pill bottle', doses: 30, cash: [0, 110, 100], front: 160, days: 4, tier: 2, standing: 1, desc: 'Students pay for these at exam time.', product: 'pills', pill: 'adderall' },
+  { id: 'blues', name: 'Blues', detail: 'Thirty little blue pills, pressed, stamped “M 30”', doses: 30, cash: [0, 300, 270], front: 450, days: 4, tier: 2, standing: 1, desc: '“Thirties.” Pressed, not from any pharmacy: nobody knows what’s in them. Buyers can’t tell. Some of them don’t wake up.', product: 'pills', pill: 'oxy', pressed: true },
+  { id: 'quarter', name: 'Quarter ounce', detail: 'Seven grams, pressed, in a taped-up baggie', doses: 70, cash: [0, 320, 300], front: 500, days: 5, tier: 2, standing: 1, desc: '7 g. Goes for about $90 a gram, $15 a point.', product: 'powder' },
+  { id: 'crystal35', name: 'Eight-ball of crystal', detail: 'Glassy shards in a zip bag', doses: 35, cash: [0, 150, 140], front: 230, days: 4, tier: 2, standing: 1, desc: '3.5 g. Goes for about $70 a gram, $12 a point.', product: 'crystal' },
+  { id: 'crack', name: 'Bag of rocks', detail: 'Off-white rocks, a lot of them, in a knotted bag', doses: 60, cash: [0, 0, 210], front: 330, days: 4, tier: 3, standing: 2, desc: '6 g, about thirty rocks: $20 a rock. Southside and the Flats go through them fast.', product: 'crack' },
+  { id: 'heroin', name: 'Heroin, five grams', detail: 'Brown powder, wrapped in a balloon and tape', doses: 50, cash: [0, 0, 240], front: 360, days: 5, tier: 3, standing: 2, desc: '5 g. Goes for about $85 a gram, $12 a bag.', product: 'heroin' },
+  { id: 'oxy30', name: 'Oxycodone 30s, real', detail: 'Thirty pharmacy tablets in a bottle with someone else’s name on it', doses: 30, cash: [0, 0, 540], front: 760, days: 5, tier: 3, standing: 2, desc: 'The real thing, off a script. Worth every dollar to the people who want them.', product: 'pills', pill: 'oxy' },
+  { id: 'crystal70', name: 'Quarter of crystal', detail: 'Seven grams of shards, double-bagged', doses: 70, cash: [0, 0, 270], front: 400, days: 5, tier: 3, standing: 2, desc: '7 g. Goes for about $70 a gram, $12 a point.', product: 'crystal' },
+  { id: 'ounce', name: 'Ounce', detail: 'A full ounce, in a vacuum-sealed brick wrapped in tape', doses: 280, cash: [0, 0, 1100], front: 1600, days: 7, tier: 3, standing: 2, desc: '28 g, from Dez’s own supplier. Goes for about $90 a gram.', product: 'powder' },
 ];
 /** Something that takes real time on its own screen: a plasma visit, a delivery shift. */
 type Work = { kind: 'plasma' | 'deliver'; since: number; until?: number; drops?: number; earned?: number; tick?: number; part?: number };
@@ -207,9 +222,10 @@ const STOMP_HELPLESS_COST = 1;
 const TORTURE_COST = 3;
 const MUG_COST = 0.5;
 
-import { chargeOf, COIN_MACHINE_FEE, ER_PRICES, ROOM_RENT, DEZ_FRONT, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place, type Stock } from './shops';
+import { worth as worthOf, chargeOf, COIN_MACHINE_FEE, ER_PRICES, ROOM_RENT, DEZ_FRONT, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place, type Stock } from './shops';
 import { BILLS, COINS, addTo, cents, type Purse, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
 import { hoursText, isOpen } from './clock';
+import { DISTRICTS, DISTRICT_NAMES, EVENT_LINES, HOME_DISTRICT, MARKET_KEYS, PILLS, PRODUCTS, SELL_SIZE, SIZES, STANDING_NAMES, bagsFor, addLocalSupply, amountText, districtWord, keyName, keyOf, keyProduct, marketWord, newMarket, nextStandingAt, priceFactor, productOf, qualityOf, qualityWord, quote, requestFor, returnHours, sizePrice, standingOf, standingScore, streetPrice, tickMarket, wantFor, type Market, type MarketKey, type PillKind, type Product } from './drugs';
 import { anyoneIn, idText, nameFor, ROOM_DESC, ROOM_SEARCH, roomLoot, roomName, roomsOf, steady, whoIsIn, type Home, type Presence, type RoomId } from './homes';
 import { createHitUi } from '../fx/hitUi';
 import { CAR_PARTS, PART_DESC, PART_NAME, REPORTED_HOURS, makeCar, makeOf, partLoot, reported, rollHunt, searchLine, type Car, type CarPart, type HuntState } from './cars';
@@ -371,6 +387,9 @@ export class Game {
       else if (b.dataset.caract) this.carAct(b.dataset.caract);
       else if (b.dataset.unstash) this.unstash(b.dataset.unstash);
       else if (b.dataset.cash) this.stashCash(b.dataset.cash);
+      else if (b.dataset.cutpkg) this.cutPkg(b.dataset.cutpkg);
+      else if (b.dataset.sellsz) this.stepSellSize(b.dataset.sellsz);
+      else if (b.dataset.stash) this.stashItem(Number(b.dataset.stash));
   }
 
   /** What you're carrying and holding, to see whether a tap did anything. */
@@ -581,8 +600,10 @@ export class Game {
     const inv = this.inventory;
     if (e.them.dead && e.person.known) this.world.thieves = this.world.thieves.filter((t) => t.person.known !== e.person.known);
     const before = e.person.known ? this.people.find((k) => k.id === e.person.known)?.memory.sawFace : false;
+    const wasCustomer = !!(e.person.known && this.people.find((k) => k.id === e.person.known)?.memory.customer);
     const k = remember(this.people, e, e.seenAs ?? { anon: anonymity(inv), looked: describe(inv), clothes: lookClothes(inv) }, { robbed: !!e.robbed, stomped: !!e.stomped, mugged: !!e.mugged, tortured: e.tortured ?? 0 });
-    if (!k || k.memory.beatYou) return;
+    if (k && (e.sale || wasCustomer)) this.customerBought(k, e, wasCustomer);
+    if (!k || k.memory.beatYou || !this.people.includes(k)) return;
     const f = this.infamy;
     if (k.memory.sawFace && !before) f.rep += k.memory.grudge / 8;
     // Who goes to the police: most civilians, few junkies.
@@ -591,7 +612,7 @@ export class Game {
     const reports = { civilian: 0.7, drunk: 0.4, homeless: 0.25, junkie: 0.15 }[k.person.kind] * hush;
     // (Charged for it on the spot: their statement is that charge, not a report for later.)
     if (e.result !== 'sold' && !e.enforcer && !e.charged && Math.random() < reports) {
-      f.heat = Math.min(100, f.heat + (k.memory.grudge / 5) * (k.memory.sawFace ? 1 : 0.4) * (e.hushed != null ? 0.4 : 1));
+      this.reportedHeat((k.memory.grudge / 5) * (k.memory.sawFace ? 1 : 0.4) * (e.hushed != null ? 0.4 : 1), e.seenAs?.anon);
       if (k.memory.sawFace && e.fought) f.reports = (f.reports ?? 0) + 1;
     }
   }
@@ -1023,8 +1044,10 @@ export class Game {
     const heat = this.infamy.heat;
     // A patrol stops you if they're looking for you, or if they can see what you're carrying.
     const shows = exposure(this.inventory);
-    const wanted = heat > 5 && Math.random() < Math.min(0.3, heat / 250);
-    if (wanted || (shows > 0.15 && Math.random() < shows * 0.08)) {
+    // (Looking like the description they have, and how much of your face shows: see patrolOdds.)
+    const odds = this.patrolOdds();
+    const wanted = heat > 5 && Math.random() < odds.wanted;
+    if (wanted || (shows > 0.15 && Math.random() < odds.shows)) {
       this.phase = 'idle';
       this.refresh();
       // What happened while you waited, and why they've stopped: at the top of the stop.
@@ -1218,7 +1241,7 @@ export class Game {
         if (e.witnessed || Math.random() < 0.3) {
           const f = this.infamy;
           f.rep += 15 * (1 - anon * 0.7);
-          f.heat = Math.min(100, f.heat + 35 * (1 - anon * 0.6));
+          this.reportedHeat(35 * (1 - anon * 0.6) / Math.max(0.3, 1 - anon * 0.7), anon);
           if (anon <= 0.6) f.killsSeen = (f.killsSeen ?? 0) + 1;
           worse.push(
             e.result !== 'killed'
@@ -1642,7 +1665,8 @@ export class Game {
     let drag: Drag | null = null;
     const down = (id: number, x: number, y: number, target: EventTarget | null) => {
       drag = null;
-      if (!this.running) return;
+      // (Lying down or locked up, only the You page can be open: it still swipes shut. Nothing opens from the edges.)
+      if (!this.running && !this.sheet) return;
       if (this.sheet === 'police') return;
       if (this.sheet) {
         // On the open drawer: a push back towards its edge closes it.
@@ -1823,6 +1847,7 @@ export class Game {
 
   /** Walk somewhere else. */
   private goTo(p: Place) {
+    this.roomView = 'room';
     // (Stopped by the police: you're not walking anywhere.)
     if (this.ending || this.save.state.policeStop) return;
     this.shopNote = [];
@@ -3652,7 +3677,7 @@ export class Game {
         lines.push(`They find ${evidence.length === 1 ? `the ${lc(evidence[0].name)}` : `${evidence.length} things that aren’t yours`}. “${evidence.length === 1 ? 'Whose is this' : 'Whose are these'}?”`);
         arrested = true;
         if (evidence.some((x) => x.kind !== 'misc' && !(x.secret && x.secret !== 'empty'))) charges.push('Possession of stolen property');
-        if (evidence.some((x) => x.secret && x.secret !== 'empty')) charges.push(this.intent() ? 'Possession with intent to distribute' : 'Possession of a controlled substance');
+        if (evidence.some((x) => x.secret && x.secret !== 'empty')) charges.push(this.drugCharge());
       }
       if (looks) {
         lines.push('One of them looks at you a long time, then at his phone. “That’s the one.” The cuffs go on.');
@@ -3700,7 +3725,7 @@ export class Game {
     if (arrested) {
       // Booking: everything on you, bag and all. What's stolen or illegal is charged.
       if (!charges.includes('Possession of stolen property') && inv.items.some((x) => this.stolen(x))) charges.push('Possession of stolen property');
-      if (!charges.some((x) => /controlled substance|intent to distribute/.test(x)) && inv.items.some((x) => x.secret && x.secret !== 'empty')) charges.push(this.intent() ? 'Possession with intent to distribute' : 'Possession of a controlled substance');
+      if (!charges.some((x) => /controlled substance|intent to|marijuana/.test(x)) && inv.items.some((x) => x.secret && x.secret !== 'empty')) charges.push(this.drugCharge());
       // With heat on you and a room rented, they get the address from the desk clerk.
       lines.push(...this.searchRoom(charges, f.heat));
       if (!charges.includes('Carrying an illegal weapon') && inv.items.some((x) => x.kind === 'weapon' && /switchblade|butterfly|push dagger/i.test(x.name))) charges.push('Carrying an illegal weapon');
@@ -3988,7 +4013,7 @@ export class Game {
       const inv = this.inventory;
       const extra: string[] = [];
       if (inv.items.some((x) => this.stolen(x))) extra.push('Possession of stolen property');
-      if (inv.items.some((x) => x.secret && x.secret !== 'empty')) extra.push(this.intent() ? 'Possession with intent to distribute' : 'Possession of a controlled substance');
+      if (inv.items.some((x) => x.secret && x.secret !== 'empty')) extra.push(this.drugCharge());
       if (inv.items.some((x) => x.kind === 'weapon' && /switchblade|butterfly|push dagger/i.test(x.name))) extra.push('Carrying an illegal weapon');
       lines.push(...this.searchRoom(extra, this.infamy.heat));
       const before = inv.items.length;
@@ -4532,7 +4557,7 @@ export class Game {
         delete c.stingPending;
         const extra: string[] = [];
         if (inv.items.some((y) => this.stolen(y))) extra.push('Possession of stolen property');
-        if (inv.items.some((y) => y.secret && y.secret !== 'empty')) extra.push(this.intent() ? 'Possession with intent to distribute' : 'Possession of a controlled substance');
+        if (inv.items.some((y) => y.secret && y.secret !== 'empty')) extra.push(this.drugCharge());
         if (inv.items.some((y) => y.kind === 'weapon' && /switchblade|butterfly|push dagger/i.test(y.name))) extra.push('Carrying an illegal weapon');
         inv.items = inv.items.filter((y) => !(this.stolen(y) || y.kind === 'weapon' || (y.secret && y.secret !== 'empty') || y.name === 'Zip bags'));
         for (const y of extra) rec.charges[y] = (rec.charges[y] ?? 0) + 1;
@@ -5058,8 +5083,18 @@ export class Game {
   private intent(items = this.inventory.items): boolean {
     const coke = items.filter((x) => x.secret === 'cocaine');
     const bags = coke.length;
-    const doses = coke.reduce((n, x) => n + (x.doses ?? 0), 0);
-    return bags >= 3 || doses >= 10 || (bags > 0 && items.some((x) => x.name === 'Zip bags'));
+    // (Pills in their own prescription bottle, and only that: a few is just a prescription.)
+    // By weight: more than an eighth of anything hard, or an ounce of weed, isn't for yourself. (Pills: a bottle's worth.)
+    const by = (p: Product) => coke.filter((x) => productOf(x) === p).reduce((n, x) => n + (x.doses ?? 0), 0);
+    const heavy = by('powder') > 35 || by('crack') > 35 || by('crystal') > 35 || by('heroin') > 35 || by('weed') > 280 || by('pills') > 40;
+    return heavy || bags >= 3 || (bags > 0 && items.some((x) => x.name === 'Zip bags'));
+  }
+  /** What they book you on for what you're carrying: weed alone is lighter. */
+  private drugCharge(items = this.inventory.items): string {
+    const drugs = items.filter((x) => x.secret && x.secret !== 'empty');
+    const weedOnly = drugs.length > 0 && drugs.every((x) => productOf(x) === 'weed');
+    const intent = this.intent(items);
+    return weedOnly ? (intent ? 'Possession of marijuana with intent to sell' : 'Possession of marijuana') : intent ? 'Possession with intent to distribute' : 'Possession of a controlled substance';
   }
 
   /** A deal, settled: the bag out of your pocket, their money into yours (or the police). */
@@ -5071,16 +5106,25 @@ export class Game {
     // Selling trains your tongue; selling without drawing eyes trains you to keep it quiet.
     train(this.stats, 'speech', d.kind === 'sold' ? 3 : 1);
     if (d.kind === 'no') {
-      if (d.reported) f.heat = Math.min(100, f.heat + 6);
+      if (d.reported) this.reportedHeat(6, e.seenAs?.anon);
       return;
     }
     const inv = this.inventory;
-    const bag = inv.items.find((x) => x.secret === 'cocaine' && x.known && x.doses === 1);
-    if (!bag) return;
-    inv.items.splice(inv.items.indexOf(bag), 1);
+    const key = e.sale?.key ?? 'powder';
+    const unit = this.takeAmount(key, e.sale?.units ?? 1);
+    if (!unit) return;
+    // Weighed out into baggies, one a bag, as you hand it over.
+    let bagsLeft = e.sale?.bags ?? 1;
+    for (const z of inv.items.filter((x) => x.name === 'Zip bags')) {
+      const t = Math.min(bagsLeft, z.doses ?? 0);
+      z.doses = (z.doses ?? 0) - t;
+      bagsLeft -= t;
+    }
+    inv.items = inv.items.filter((x) => x.name !== 'Zip bags' || (x.doses ?? 0) > 0);
+    if (unit.emptied) (e.log ??= []).push({ by: 'info', text: 'The bag’s empty.' });
     if (d.kind === 'snatched') {
       // In their fist as they run: catch them, and it's yours again.
-      e.person.clothes[0]?.loot.push({ kind: 'misc', name: 'Small baggie', detail: 'Yours: they snatched it', secret: 'cocaine', known: true, doses: 1, where: 'clenched in their fist', yours: true });
+      e.person.clothes[0]?.loot.push({ kind: 'misc', name: unit.name, detail: 'Yours: they snatched it', secret: 'cocaine', known: true, doses: e.sale?.units ?? 1, product: unit.product, ...(unit.pill ? { pill: unit.pill } : {}), quality: unit.quality, ...(unit.pressed ? { pressed: true } : {}), where: 'clenched in their fist', yours: true });
       return;
     }
     // Their money, out of their pockets and into yours.
@@ -5113,8 +5157,13 @@ export class Game {
       (e.log ??= []).push({ by: 'info', text: `You’ve no room on you for ${money(back)} of it. They shrug and put it back in their pocket.` });
     }
     // Word gets around: to buyers, and to the police (more with people watching; less, the quieter you keep it: Sneak).
+    // (The more of a name you have, the more they're watching for you.)
     f.rep += 1;
-    f.heat = Math.min(100, f.heat + (2 + this.crowd.length * 2) * (1 - this.quiet));
+    this.reportedHeat((2 + this.crowd.length * 2 + this.standing * 0.5) * (1 - this.quiet), e.seenAs?.anon);
+    // More of it on this corner: flood it, and the price round here drops.
+    addLocalSupply(this.market, key, keyProduct(key) === 'pills' ? (e.sale?.units ?? 1) / 3 : (e.sale?.units ?? 1) / 5);
+    // Pressed pills: nobody knows what's in them. Some don't wake up.
+    if (unit.pressed && Math.random() < 0.06) e.odLater = true;
     if (!this.crowd.length) train(this.stats, 'sneak', 2);
     this.save.state.sales = ((this.save.state.sales as number) ?? 0) + 1;
     // A regular who likes you: where to get more.
@@ -5130,12 +5179,230 @@ export class Game {
     }
   }
 
+  /** The bag size you sell that in (tenths of a gram; pills counted). */
+  private sellSize(p: Product): number {
+    const set = (this.save.state.sellSize as Partial<Record<Product, number>> | undefined)?.[p];
+    const [def, min, max] = SELL_SIZE[p];
+    return Math.max(min, Math.min(max, set ?? def));
+  }
+  /** A step up or down in the size you sell in. */
+  private stepSellSize(arg: string) {
+    const [p, dir] = arg.split(':') as [Product, string];
+    if (!(p in SELL_SIZE)) return;
+    const [, min, max, step] = SELL_SIZE[p];
+    const at = (this.save.state.sellSize ??= {}) as Partial<Record<Product, number>>;
+    at[p] = Math.max(min, Math.min(max, this.sellSize(p) + Number(dir) * step));
+    this.refresh();
+  }
+  /**
+   * Old saves: product already split into little bags (a point each) goes back
+   * in one lot, by weight, and the baggies come back empty.
+   */
+  private unbag() {
+    const inv = this.inventory;
+    const names = new Set(Object.values(PRODUCTS).map((x) => x.bag?.name).filter(Boolean) as string[]);
+    const bagged = inv.items.filter((x) => x.secret === 'cocaine' && x.known && names.has(x.name) && x.doses === 1 && (/bagged to sell/i.test(x.detail ?? '') || x.product));
+    if (bagged.length < 1) return;
+    const groups = new Map<Product, typeof bagged>();
+    for (const x of bagged) {
+      const p = productOf(x) ?? 'powder';
+      groups.set(p, [...(groups.get(p) ?? []), x]);
+    }
+    for (const [p, xs] of groups) {
+      const amt = xs.reduce((n, x) => n + (x.doses ?? 0), 0);
+      const q = Math.round(xs.reduce((n, x) => n + qualityOf(x), 0) / xs.length);
+      const keep = xs[0];
+      Object.assign(keep, { name: PRODUCTS[p as Product].name, detail: 'Loose, in one bag', doses: amt, quality: q, product: p as Product });
+      inv.items = inv.items.filter((x) => !xs.includes(x) || x === keep);
+    }
+    const zip = inv.items.find((x) => x.name === 'Zip bags');
+    if (zip) zip.doses = (zip.doses ?? 0) + bagged.length;
+    else stow(inv, { kind: 'misc', name: 'Zip bags', doses: bagged.length });
+  }
+  /** Your product of that kind, the weakest first (that's what goes out first). */
+  private productItems(key: MarketKey) {
+    return this.inventory.items.filter((x) => x.secret === 'cocaine' && x.known && keyOf(x) === key && (x.doses ?? 0) > 0).sort((a, b) => qualityOf(a) - qualityOf(b));
+  }
+  /** How good that amount would be, taken weakest first. */
+  private qualityFor(key: MarketKey, amt: number): number {
+    let left = amt;
+    let sum = 0;
+    for (const x of this.productItems(key)) {
+      const t = Math.min(left, x.doses ?? 0);
+      sum += t * qualityOf(x);
+      left -= t;
+      if (left <= 0) break;
+    }
+    return Math.round(sum / Math.max(1, amt - Math.max(0, left)));
+  }
+  /** That amount out of your pockets (by weight; pills counted), from as many bags as it takes, the weakest first. */
+  private takeAmount(key: MarketKey, amt: number): { emptied: boolean; name: string; product: Product; pill?: PillKind; quality: number; pressed?: boolean } | null {
+    const inv = this.inventory;
+    const xs = this.productItems(key);
+    if (xs.reduce((n, x) => n + (x.doses ?? 0), 0) < amt) return null;
+    const p = productOf(xs[0])!;
+    const quality = this.qualityFor(key, amt);
+    let left = amt;
+    let pressed = false;
+    let emptied = false;
+    for (const x of xs) {
+      if (left <= 0) break;
+      const t = Math.min(left, x.doses ?? 0);
+      x.doses = (x.doses ?? 0) - t;
+      left -= t;
+      if (x.pressed) pressed = true;
+      if ((x.doses ?? 0) <= 0) {
+        inv.items.splice(inv.items.indexOf(x), 1);
+        emptied = true;
+      }
+    }
+    return { emptied, name: p === 'pills' ? 'Pills' : (PRODUCTS[p].bag?.name ?? 'Small baggie'), product: p, ...(xs[0].pill ? { pill: xs[0].pill } : {}), quality, ...(pressed ? { pressed: true } : {}) };
+  }
+  /** After a sale: what the buyer remembers of you as a dealer, and what that does. */
+  private customerBought(k: Known, e: Encounter, wasCustomer: boolean) {
+    const f = this.infamy;
+    const mem = k.memory;
+    const sale = e.sale;
+    // Sold them something that killed them: it gets around.
+    if (e.odLater) {
+      const i = this.people.indexOf(k);
+      if (i >= 0) this.people.splice(i, 1);
+      f.heat = Math.min(100, f.heat + 12);
+      f.rep -= 3;
+      this.later([`Word on the street: someone overdosed on blues last night. People are saying where they got them.`]);
+      return;
+    }
+    if (e.deal?.kind === 'sold' && sale) {
+      mem.usual = sale.key;
+      mem.usualBags = sale.bags ?? 1;
+      mem.lastBuy = now();
+      mem.buys = (mem.buys ?? 0) + 1;
+      mem.returnH = returnHours(sale.key, sale.q);
+      mem.sat = (mem.sat ?? 0) + (sale.q >= 70 ? 1 : sale.q < 45 ? -1 : 0);
+      // Good stuff: they tell people. Garbage: they tell people that too.
+      if (sale.q >= 70) f.rep += 1;
+      if ((mem.sat ?? 0) <= -2) {
+        delete mem.customer;
+        mem.burned = true;
+        f.rep -= 2;
+        if (Math.random() < 0.3) {
+          mem.snitch = true;
+          f.heat = Math.min(100, f.heat + 8);
+        }
+      }
+    }
+    // Hurt or robbed a regular: you're not their dealer any more, and some of them talk.
+    if (wasCustomer && !mem.customer && !mem.burned) {
+      mem.burned = true;
+      if (Math.random() < 0.25) {
+        mem.snitch = true;
+        f.heat = Math.min(100, f.heat + 6);
+      }
+    }
+  }
+  /** A package in a line: “Powder · 20 g package · 12.5 g left · Decent”. */
+  private packageLine(x: InvItem): string {
+    const p = productOf(x) ?? 'powder';
+    return `${x.pill ? PILLS[x.pill].street : PRODUCTS[p].name} · ${x.pkg && x.pkg !== x.doses ? `${amountText(p, x.pkg)} package · ${amountText(p, x.doses ?? 0)} left` : x.pkg ? `${amountText(p, x.pkg)} package` : amountText(p, x.doses ?? 0)} · ${qualityWord(qualityOf(x))}${x.pressed ? ' · pressed' : ''}`;
+  }
+  /** What's to hand in your room: on you, or left in it. */
+  private inRoom(): { x: InvItem; where: 'inv' | 'room'; i: number }[] {
+    const r = this.room;
+    return [...this.inventory.items.map((x, i) => ({ x, where: 'inv' as const, i })), ...(r && this.inOwnRoom ? r.items.map((x, i) => ({ x, where: 'room' as const, i })) : [])];
+  }
+  /** What's missing to cut it (nothing: it can be done). */
+  private cutWhy(add: number): string | null {
+    const all = this.inRoom();
+    if (!all.some(({ x }) => /^digital scale$/i.test(x.name))) return 'No scale';
+    if (!all.some(({ x }) => /^cutting kit$/i.test(x.name))) return 'No cutting kit';
+    if (all.filter(({ x }) => x.name === 'Lactose powder').reduce((n, { x }) => n + (x.doses ?? 0), 0) < add) return 'No lactose';
+    return null;
+  }
+  /** Cutting it, in your room with the door locked: a quarter as much again in lactose; each gram weaker. */
+  private cutPkg(arg: string) {
+    if (!this.inOwnRoom) return;
+    const [where, n] = arg.split(':');
+    const it = (where === 'room' ? this.room?.items : this.inventory.items)?.[Number(n)];
+    const prod = it ? productOf(it) : null;
+    if (!it || !prod || !PRODUCTS[prod].cuts || !it.known || (it.doses ?? 0) < 2) return;
+    const was = it.doses ?? 0;
+    const add = Math.max(1, Math.round(was * 0.25));
+    if (this.cutWhy(add)) return;
+    let need = add;
+    for (const { x } of this.inRoom().filter(({ x }) => x.name === 'Lactose powder')) {
+      const t = Math.min(need, x.doses ?? 0);
+      x.doses = (x.doses ?? 0) - t;
+      need -= t;
+    }
+    this.inventory.items = this.inventory.items.filter((x) => x.name !== 'Lactose powder' || (x.doses ?? 0) > 0);
+    if (this.room) this.room.items = this.room.items.filter((x) => x.name !== 'Lactose powder' || (x.doses ?? 0) > 0);
+    const q = qualityOf(it);
+    it.doses = was + add;
+    it.pkg = it.doses;
+    it.quality = Math.max(5, Math.round((q * was) / (was + add)));
+    if (where === 'inv') it.kg = measure(it).kg;
+    this.refresh();
+    this.note([`You lock the door, lay it out on the plate and work the lactose through with the card. ${amountText(prod, was)} becomes ${amountText(prod, it.doses)}. ${qualityWord(q)} before; ${qualityWord(it.quality).toLowerCase()} now.${it.quality < 40 ? ' People are going to notice.' : ''}`]);
+  }
+  /**
+   * The business, at the table in your room: your packages (here and on you)
+   * with the bag size you sell each in, cutting, and moving them between you
+   * and the room; the gear; the street; your customers.
+   */
+  private businessHtml(btn: (attr: string, v: string, label: string, no?: string | false) => string, li: (name: string, small: string, button: string) => string): string {
+    const all = this.inRoom();
+    const pk = all.filter(({ x }) => x.secret === 'cocaine' && x.known && productOf(x));
+    const prods = [...new Set(pk.map(({ x }) => productOf(x)!))];
+    const sizes = prods
+      .map((p) => li(`Sell ${PRODUCTS[p].name.toLowerCase()} in`, `${amountText(p, this.sellSize(p))} bags. Buyers ask for one, sometimes two or three.`, btn('sellsz', `${p}:-1`, '−', this.sellSize(p) <= SELL_SIZE[p][1] && 'Smallest') + btn('sellsz', `${p}:1`, '+', this.sellSize(p) >= SELL_SIZE[p][2] && 'Biggest')))
+      .join('');
+    const prod = pk
+      .map(({ x, where, i }) => li(x.name, `${this.packageLine(x)} · ${where === 'room' ? 'In the room' : 'On you'}`, where === 'room' ? btn('unstash', `room:${i}`, 'Take') : btn('stash', String(i), 'Leave it here')))
+      .join('');
+    const count = (re: RegExp) => all.filter(({ x }) => re.test(x.name)).reduce((n, { x }) => n + (x.doses ?? 1), 0);
+    const gear =
+      li('Digital scale', count(/^digital scale$/i) ? 'On the table.' : 'You haven’t got one.', '') +
+      li('Cutting kit', count(/^cutting kit$/i) ? 'On the table.' : 'You haven’t got one.', '') +
+      li('Lactose', count(/^lactose powder$/i) ? `${amountText('powder', count(/^lactose powder$/i))} left.` : 'None.', '') +
+      li('Zip bags', count(/^zip bags$/i) ? `${count(/^zip bags$/i)} empty bags.` : 'None: you need one a bag you sell. The gas station has them.', '');
+    return (
+      `<ul class="shop-list">${li('Your business', 'Room 14, the table by the window, the door locked.', btn('room', 'back', 'Back to the room'))}</ul>` +
+      `<h3>Product</h3><ul class="shop-list">${prod || li('Nothing here', 'Buy from Dez in the alley.', '')}${sizes}</ul>` +
+      this.cutHtml(btn, li) +
+      `<h3>Gear</h3><ul class="shop-list">${gear}</ul>` +
+      this.marketHtml() +
+      this.customersHtml()
+    );
+  }
+  /** The room's table: what you could cut, and the gear for it (or have it brought up). */
+  private cutHtml(btn: (attr: string, v: string, label: string, no?: string | false) => string, li: (name: string, small: string, button: string) => string): string {
+    const all = this.inRoom();
+    const c = Math.round(cashOf(this.inventory) * 100);
+    const pk = all.filter(({ x }) => x.secret === 'cocaine' && x.known && productOf(x) && PRODUCTS[productOf(x)!].cuts && (x.doses ?? 0) >= 2);
+    let rows = pk
+      .map(({ x, where, i }) => {
+        const p = productOf(x)!;
+        const add = Math.max(1, Math.round((x.doses ?? 0) * 0.25));
+        return li(x.name, `${PRODUCTS[p].name} · ${amountText(p, x.doses ?? 0)} · ${qualityWord(qualityOf(x))} · ${where === 'room' ? 'In the room' : 'On you'}. Takes ${amountText(p, add)} of lactose.`, btn('cutpkg', `${where}:${i}`, 'Cut', this.cutWhy(add) ?? false));
+      })
+      .join('');
+    if (!pk.length) rows = li('Nothing to cut', 'Powder, crystal or heroin: bring it up, or leave it here.', '');
+    const has = (re: RegExp) => all.some(({ x }) => re.test(x.name));
+    const order = (id: string, name: string, price: number, why: string) => li(`${name}, brought up`, why, btn('room', `order:${id}`, money(price * 100), c < price * 100 && 'Not enough cash'));
+    const orders =
+      (!has(/^digital scale$/i) ? order('scale', 'A digital scale', 35, 'The night man knows a guy. It’s on the table in ten minutes, and costs you ten more than the pawn shop.') : '') +
+      (!has(/^cutting kit$/i) ? order('cutkit', 'A cutting kit', 22, 'A plate, a card, a sifter. Ten more than the pawn shop, and no walking.') : '') +
+      order('lactose', 'A tub of lactose', 16, '100 g, from the all-night place. Ten more than the gas station.');
+    return `<h3>Cut product</h3><ul class="shop-list">${rows}${orders}</ul>`;
+  }
   /** Splitting powder into little bags to sell, a point in each. */
   private bagUp(i: number) {
     const inv = this.inventory;
     const it = inv.items[i];
     const zip = inv.items.find((y) => y.name === 'Zip bags' && (y.doses ?? 0) > 0);
-    if (!it || it.secret !== 'cocaine' || !it.known || (it.doses ?? 0) < 2 || !zip || !this.canOpenSheet) return;
+    const prod = it ? productOf(it) : null;
+    const bagged = prod ? PRODUCTS[prod].bag : undefined;
+    if (!it || it.secret !== 'cocaine' || !it.known || !bagged || (it.doses ?? 0) < 2 || !zip || !this.canOpenSheet) return;
     if (this.inside && !this.inOwnRoom) {
       this.note(['Not in here. Not with someone behind the counter watching.']);
       return;
@@ -5143,7 +5410,7 @@ export class Game {
     const n = Math.min(it.doses ?? 0, zip.doses ?? 0);
     let made = 0;
     for (let k = 0; k < n; k++) {
-      if (!stow(inv, { kind: 'misc', name: 'Small baggie', detail: 'A point, bagged to sell', secret: 'cocaine', known: true, doses: 1 })) break;
+      if (!stow(inv, { kind: 'misc', name: bagged.name, detail: bagged.detail, secret: 'cocaine', known: true, doses: 1, product: prod!, quality: qualityOf(it) })) break;
       made++;
     }
     it.doses = (it.doses ?? 0) - made;
@@ -5152,7 +5419,7 @@ export class Game {
     this.refresh();
     this.note([
       made
-        ? `${this.place === 'room' ? 'At the little table by the window' : 'Hunched in a doorway'}, you tip it out and split it into ${made} little bag${made === 1 ? '' : 's'}, a point in each.${made < n ? ' You run out of room for the rest.' : ''}`
+        ? `${this.place === 'room' ? 'At the little table by the window' : 'Hunched in a doorway'}, you tip it out and split it into ${made} ${made === 1 ? PRODUCTS[prod!].unit.replace(/^an? /, '') : PRODUCTS[prod!].units}.${made < n ? ' You run out of room for the rest.' : ''}`
         : "You’ve got nowhere to put the bags.",
     ]);
   }
@@ -5190,6 +5457,45 @@ export class Game {
     const st = this.save.state;
     // (From before there were introductions: you'd dealt with him already.)
     return (st.connect ??= { known: ((st.sales as number) ?? 0) >= 1 || !!st.debt, trust: 0 }) as Connect;
+  }
+  /** The city's drug market (the same for every life: the street goes on). */
+  private get market(): Market {
+    return (this.save.state.market ??= newMarket()) as Market;
+  }
+  /**
+   * Heat for something you did that someone reports: less the less of you they
+   * could see. And they've a description now: how you looked, to match you by.
+   */
+  private reportedHeat(amount: number, anon = anonymity(this.inventory)) {
+    const f = this.infamy;
+    f.heat = Math.min(100, f.heat + amount * (1 - anon * 0.7));
+    f.lastLook = { clothes: lookClothes(this.inventory).join('|'), covered: anon >= 0.5, at: now() };
+  }
+  /** Do you still look like the description they have? (Changed clothes, or face covered now.) */
+  private get looksLikeDescription(): boolean {
+    const l = this.infamy.lastLook;
+    if (!l) return true;
+    const anon = anonymity(this.inventory);
+    return lookClothes(this.inventory).join('|') === l.clothes && (anon >= 0.5) === l.covered;
+  }
+  /** How likely a patrol stops you on a lurk right now (wanted, and showing a weapon). */
+  private patrolOdds(): { wanted: number; shows: number } {
+    const heat = this.infamy.heat;
+    const anon = anonymity(this.inventory);
+    const wanted = heat > 5 ? Math.min(0.3, heat / 250) * (this.looksLikeDescription ? 1 : 0.4) * (1 - anon * 0.5) : 0;
+    const shows = exposure(this.inventory);
+    return { wanted, shows: shows > 0.15 ? shows * 0.08 : 0 };
+  }
+  /** Your regulars: people who buy from you and haven't been burned. */
+  private get regulars() {
+    return this.people.filter((k) => k.memory.customer && !k.memory.otherLife);
+  }
+  private get standingPoints(): number {
+    return standingScore((this.save.state.sales as number) ?? 0, this.regulars.length, this.infamy.rep);
+  }
+  /** How far up you are as a dealer (0 nobody .. 3 supplier). */
+  private get standing(): number {
+    return standingOf(this.standingPoints);
   }
   private get tier(): 1 | 2 | 3 {
     const t = this.connect.trust;
@@ -5671,7 +5977,7 @@ export class Game {
     const say = (text: string) => e.log.push({ by: 'info', text });
     say(n === 1 ? (c.length === 1 ? 'Someone on the street sees it.' : 'One of the others on the street sees it.') : 'The others on the street see it.');
     // (Low-key, they're less sure what they saw: Sneak.)
-    f.heat = Math.min(100, f.heat + 5 * n * (1 - q * 0.5));
+    this.reportedHeat(5 * n * (1 - q * 0.5));
     if (Math.random() < (0.3 + 0.15 * n) * (1 - q) * 0.35) {
       say(oneOf(['One of them has a phone out. They’re calling it in.', 'Someone’s on the phone already, backing away, looking right at you.']));
       f.heat = Math.min(100, f.heat + 15);
@@ -5724,12 +6030,26 @@ export class Game {
     const standing = ['', 'He knows you. Barely.', 'He trusts you, some.', 'He trusts you. His supplier knows your face.'][tier];
     const next = tier === 1 ? 'Pay what he fronts you, on time, and keep your head down: better prices, and more.' : tier === 2 ? 'Keep it up and he’ll take you to his own supplier.' : '';
     rows += li('Dez', `${standing}${con.via ? ` (${con.via.split(' ')[0]} vouched for you.)` : ''} ${next}`, '');
-    for (const deal of DEZ_DEALS.filter((x) => x.tier <= tier)) {
+    const stand = this.standing;
+    const locked = DEZ_DEALS.filter((x) => x.tier <= tier && x.standing > stand);
+    for (const deal of DEZ_DEALS.filter((x) => x.tier <= tier && x.standing <= stand)) {
       const price = deal.cash[tier - 1];
       const why = (hot && '“You’re hot. Come back when it cools down.”') || (late && '“Not till you pay me.”') || false;
-      rows += li(deal.tier === 3 ? `An ${deal.name.toLowerCase()}, from his supplier` : `${withA(deal.name).replace(/^./, (x) => x.toUpperCase())}`, `${deal.desc} Cash, or fronted: ${money(deal.front * 100)} in ${deal.days} days.`, (price ? btn('dez', `cash:${deal.id}`, money(price * 100), why || (c < price * 100 && 'Not enough cash')) : '') + btn('dez', `front:${deal.id}`, 'Front me', why || (!!d && '“You owe me already.”') || (con.trust < 10 && deal.tier === 1 && '“Buy from me first. Then we talk.”')));
+      rows += li(deal.id === 'ounce' ? `An ${deal.name.toLowerCase()}, from his supplier` : deal.name, `${deal.desc} Cash, or fronted: ${money(deal.front * 100)} in ${deal.days} days.`, (price ? btn('dez', `cash:${deal.id}`, money(price * 100), why || (c < price * 100 && 'Not enough cash')) : '') + btn('dez', `front:${deal.id}`, 'Front me', why || (!!d && '“You owe me already.”') || (con.trust < 10 && deal.tier === 1 && '“Buy from me first. Then we talk.”')));
     }
-    return `<p class="shop-sub">Dez, by the dumpsters</p><ul class="shop-list">${rows}</ul>`;
+    if (locked.length) rows += li('More, later', `Move more, and keep your customers coming back, and he’ll have ${locked.slice(0, 2).map((x) => x.name.toLowerCase()).join(' and ')} for you. You’re a ${STANDING_NAMES[stand].toLowerCase()} to him now.`, '');
+    return `<p class="shop-sub">Dez, by the dumpsters</p><ul class="shop-list">${rows}</ul>${this.marketHtml()}`;
+  }
+  /** What's moving on the street: each thing, its price and which way it's going, and where it sells. */
+  private marketHtml(): string {
+    const m = this.market;
+    const short: Record<string, string> = { downtown: 'Dtn', flats: 'Flats', oldtown: 'Old T', southside: 'South' };
+    const rows = MARKET_KEYS.map((k) => {
+      const { word, arrow } = marketWord(m, k);
+      const where = DISTRICTS.map((d) => `${short[d]} ${districtWord(m, k, d)}`).join(' · ');
+      return `<li><div><b>${keyName(k)} <span class="mkt-arrow">${arrow}</span></b><small>${((p) => (p === 'pills' ? `${money(streetPrice(m, k) * 100)} a pill` : `${money(Math.round(streetPrice(m, k)) * 100)} a gram · ${money(Math.round(sizePrice(k, SIZES[p][0].amt) * (streetPrice(m, k) / PRODUCTS[p].price)) * 100)} ${SIZES[p][0].word}`))(keyProduct(k))} · ${word}</small><small class="mkt-where">${where}</small></div></li>`;
+    }).join('');
+    return `<p class="shop-sub">What’s moving (street prices, ${DISTRICT_NAMES[HOME_DISTRICT]})</p><ul class="shop-list market-list">${rows}</ul>`;
   }
 
   /** Buying from Dez, or paying him back. */
@@ -5755,8 +6075,9 @@ export class Game {
     }
     const [how, id] = what.split(':');
     const deal = DEZ_DEALS.find((x) => x.id === (id ?? 'ball'));
-    if (!deal || !con.known || deal.tier > tier || late || this.infamy.heat >= 70) return;
-    const bag = () => stow(inv, { kind: 'misc', name: deal.name, detail: deal.detail, secret: 'cocaine', known: true, doses: deal.doses });
+    if (!deal || !con.known || deal.tier > tier || deal.standing > this.standing || late || this.infamy.heat >= 70) return;
+    // (Dez's is decent, and much the same every time.)
+    const bag = () => stow(inv, { kind: 'misc', name: deal.name, detail: deal.detail, secret: 'cocaine', known: true, doses: deal.doses, pkg: deal.doses, product: deal.product, ...(deal.pill ? { pill: deal.pill } : {}), ...(deal.pressed ? { pressed: true } : {}), quality: deal.pill && !deal.pressed ? 100 : 58 + Math.floor(Math.random() * 12) });
     // The first time at the top: his supplier, in a car at the mouth of the alley.
     const meet = deal.tier === 3 && !con.metBig ? 'Dez walks you out to a car idling at the mouth of the alley. The window comes down a few inches. Nobody says a name. A brick wrapped in tape comes out through the gap.' : '';
     if (how === 'cash') {
@@ -6559,7 +6880,7 @@ export class Game {
         const f = this.infamy;
         // A burglary gets reported; a face makes it worse; a body, far worse.
         const face = !!j.seen || !!j.faceFilmed;
-        f.heat = Math.min(100, f.heat + 6 + (j.occupied ? 14 : 0) + (face ? 12 : 0) + (j.killed ? 30 : 0));
+        this.reportedHeat(6 + (j.occupied ? 14 : 0) + (face ? 12 : 0) + (j.killed ? 30 : 0));
         if (face) f.burglaries = (f.burglaries ?? 0) + 1;
         if (j.killed && face) f.killsSeen = (f.killsSeen ?? 0) + 1;
         if (lines && j.faceFilmed) lines.push('That doorbell camera got a good look at you.');
@@ -6644,7 +6965,26 @@ export class Game {
   }
 
   /** The room: rent it, pay ahead, or sleep. */
+  /** Which view of your room is up: the room, or the business at the table. */
+  private roomView: 'room' | 'business' = 'room';
   private roomAct(what: string) {
+    if (what === 'business' || what === 'back') {
+      this.roomView = what === 'business' ? 'business' : 'room';
+      this.renderShop();
+      (this.shopEl.querySelector('.shop-body') as HTMLElement | null)?.scrollTo?.(0, 0);
+      return;
+    }
+    if (what.startsWith('order:')) {
+      if (!this.inOwnRoom) return;
+      const o = ({ scale: ['Digital scale', 35, 0], cutkit: ['Cutting kit', 22, 0], lactose: ['Lactose powder', 16, 1000] } as Record<string, [string, number, number]>)[what.slice(6)];
+      if (!o || cashOf(this.inventory) * 100 < o[1] * 100) return;
+      const paid = this.payLine(o[1] * 100);
+      const it: InvItem = { kind: 'misc', name: o[0], ...(o[2] ? { doses: o[2] } : {}), ...measure({ kind: 'misc', name: o[0] }), spot: '' };
+      this.room!.items.push(it);
+      this.refresh();
+      this.note([`A knock, ten minutes later. The night man, with a paper bag. He doesn’t ask, and you don’t say. ${o[0]}: it’s on the table.`, paid]);
+      return;
+    }
     if (this.place !== 'room') return;
     const inv = this.inventory;
     const h = this.health;
@@ -6789,7 +7129,7 @@ export class Game {
     const found = r.items.filter((x) => (x.secret && x.secret !== 'empty') || this.stolen(x) || x.name === 'Zip bags');
     if (found.length) {
       lines.push(`They find what you’d hidden under the board by the radiator.`);
-      if (found.some((x) => x.secret && x.secret !== 'empty') && !charges.some((x) => /controlled substance|intent to distribute/.test(x))) charges.push(this.intent(found) ? 'Possession with intent to distribute' : 'Possession of a controlled substance');
+      if (found.some((x) => x.secret && x.secret !== 'empty') && !charges.some((x) => /controlled substance|intent to|marijuana/.test(x))) charges.push(this.drugCharge(found));
       if (found.some((x) => this.stolen(x)) && !charges.includes('Possession of stolen property')) charges.push('Possession of stolen property');
       r.items = r.items.filter((x) => !found.includes(x));
     }
@@ -6811,7 +7151,7 @@ export class Game {
     return (
       `<p class="shop-sub">${kind === 'stash' ? 'Behind the loose brick, low in the wall by the dumpster' : kind === 'trunk' ? 'Your things: in the trunk, under the cover with the spare' : 'Under the loose board by the radiator'}</p>` +
       `<ul class="shop-list">` +
-      items.map((x, i) => li(named(x), x.detail ?? '', btn('unstash', `${kind}:${i}`, 'Take'))).join('') +
+      items.map((x, i) => li(named(x), x.secret === 'cocaine' && x.known && productOf(x) ? this.packageLine(x) : (x.detail ?? ''), btn('unstash', `${kind}:${i}`, 'Take'))).join('') +
       li('Cash', cents ? `${money(cents)} hidden here.` : 'None hidden here.', btn('cash', `${kind}:in`, 'Leave yours', !c && 'No cash') + btn('cash', `${kind}:out`, 'Take it', !cents && 'Nothing there')) +
       `</ul>` +
       (items.length ? '' : `<p class="shop-broke">Nothing ${kind === 'stash' ? 'behind it' : kind === 'trunk' ? 'of yours in there' : 'left here'}. Leave things from Pockets (“${kind === 'stash' ? 'Hide it' : kind === 'trunk' ? 'In the trunk' : 'Leave it here'}”). ${kind === 'trunk' ? 'If the car goes, so does what’s in it.' : ''}</p>`)
@@ -6822,7 +7162,7 @@ export class Game {
     const inv = this.inventory;
     const it = inv.items[i];
     const h = this.health;
-    if (it?.secret !== 'cocaine' || !it.known || h.wired) return;
+    if (it?.secret !== 'cocaine' || !it.known || h.wired || productOf(it) !== 'powder') return;
     if (this.inside && !this.inOwnRoom) {
       this.note(['Not in here. Someone behind the counter is already watching you.']);
       return;
@@ -6844,10 +7184,28 @@ export class Game {
   }
 
   /** Get rid of something to make room. */
+  /** Worth thinking twice about before it goes in a bin: product, weapons, papers, phones, keys, cash, or anything worth $20. */
+  private precious(it: InvItem): boolean {
+    return (!!it.secret && it.secret !== 'empty') || ['weapon', 'id', 'credit card', 'debit card', 'phone', 'car keys', 'cash'].includes(it.kind) || !!it.opens || /keys/i.test(it.name) || worthOf(it) > 20;
+  }
+  /** A first tap on Trash for something precious: which, and when (a second, a moment later, throws it away). */
+  private armedDrop: { item: InvItem; at: number } | null = null;
   private drop(i: number) {
     const inv = this.inventory;
     const it = inv.items[i];
     if (!it) return;
+    if (this.precious(it)) {
+      const t = performance.now();
+      const armed = this.armedDrop?.item === it && t - this.armedDrop.at > 450 && t - this.armedDrop.at < 5000;
+      if (!armed) {
+        // (A double tap doesn't count: it has to be meant.)
+        if (this.armedDrop?.item !== it || t - this.armedDrop.at >= 5000) this.armedDrop = { item: it, at: t };
+        this.refresh();
+        this.note([`Tap again to throw away the ${it.secret === 'cocaine' && it.known && productOf(it) && it.pkg ? `${amountText(productOf(it)!, it.pkg)} package of ${PRODUCTS[productOf(it)!].name.toLowerCase()}` : lc(it.name)}.`]);
+        return;
+      }
+      this.armedDrop = null;
+    }
     // (The keys to the car you're at: you're walking away from it, properly.)
     if (it.kind === 'car keys' && this.save.state.place === 'car' && it.carId && (it.carId === this.save.state.carAt || it.carId === (this.save.state.hunt as HuntState | undefined)?.car)) {
       this.leaveCar();
@@ -6926,29 +7284,56 @@ export class Game {
   private renderStatsSheet(card: HTMLElement, close: string) {
     const h = this.health;
     const summary = `<p class="you-summary"><span>Blood <b>${(h.blood / 1000).toFixed(1)} L</b></span><span>Cash <b>${money(Math.round(cashOf(this.inventory) * 100))}</b></span>${this.account ? `<span>Bank <b>${money(this.account.cents)}</b></span>` : ''}<span>Character <b>#${this.world.lives}</b></span></p>`;
-    card.innerHTML = `<div class="sheet-head"><h2>You</h2>${close}</div><div class="sheet-body">${this.noteHtml(this.sheetNote, 'sheet-note')}${summary}${this.policeHtml()}${this.statsHtml()}${this.marksHtml()}${this.recordHtml()}${this.selvesHtml()}</div>`;
+    card.innerHTML = `<div class="sheet-head"><h2>You</h2>${close}</div><div class="sheet-body">${this.noteHtml(this.sheetNote, 'sheet-note')}${summary}${this.policeHtml()}${this.customersHtml()}${this.statsHtml()}${this.marksHtml()}${this.recordHtml()}${this.selvesHtml()}</div>`;
   }
   /**
    * The police, at the top of the You tab: how hot you are, how often a patrol
    * stops you on a lurk right now (the same odds the lurk uses), and how long
-   * till it cools to the next level down (it fades 15 a day).
+   * till it cools to the next level down (it fades 12 an hour).
    */
   private policeHtml(): string {
     const heat = this.infamy.heat;
     const lvl = heatLevel(heat);
-    const shows = exposure(this.inventory);
-    const w = heat > 5 ? Math.min(0.3, heat / 250) : 0;
-    const s = shows > 0.15 ? shows * 0.08 : 0;
+    const { wanted: w, shows: s } = this.patrolOdds();
     const p = w + (1 - w) * s;
     const odds = p <= 0 ? 'No patrol is looking for you.' : p < 0.02 ? 'A patrol stops you rarely.' : `A patrol stops you about 1 in ${Math.max(2, Math.round(1 / p))} lurks.`;
     const floor = [0, 8, 30, 60][lvl];
-    const hours = (heat - floor) / (15 / 24);
+    const hours = (heat - floor) / HEAT_FADE_PER_HOUR;
     const when = hours < 1.5 ? 'under an hour' : hours < 36 ? `about ${Math.round(hours)} hours` : `about ${Math.round(hours / 24)} days`;
     const drop = lvl ? ` Drops to ${HEAT_NAMES[lvl - 1]} in ${when}.` : '';
     return (
       `<section class="stat-card police-card"><h3><span>The police</span><b>${HEAT_NAMES[lvl]} (${Math.round(heat)})</b></h3>` +
       `<div class="spot-bar status-bar${lvl >= 2 ? ' harm' : ''}"><i style="width:${Math.round(Math.min(100, heat))}%"></i><span>${Math.round(heat)} / 100</span></div>` +
-      `<p class="stat-how">${odds}${drop}</p></section>`
+      `<p class="stat-how">${odds}${drop}</p>` +
+      (this.infamy.lastLook && lvl ? `<p class="stat-how">${this.looksLikeDescription ? 'Your look: matches their description.' : 'Your look: changed since they had a description.'}</p>` : '') +
+      `</section>`
+    );
+  }
+  /** Your standing as a dealer, and your regulars: who, what they buy, how happy, when you last saw them. */
+  private customersHtml(): string {
+    const sales = (this.save.state.sales as number) ?? 0;
+    const regs = this.regulars;
+    if (!sales && !regs.length) return '';
+    const pts = this.standingPoints;
+    const lvl = this.standing;
+    const next = nextStandingAt(lvl);
+    const ago = (t?: number) => {
+      if (!t) return '—';
+      const h = (now() - t) / 3_600_000;
+      return h < 1 ? 'just now' : h < 24 ? `${Math.round(h)}h ago` : `${Math.round(h / 24)}d ago`;
+    };
+    const happy = (n = 0) => (n >= 2 ? 'Happy' : n >= 0 ? 'Fine' : 'Grumbling');
+    const rows = regs
+      .sort((a, b) => (b.memory.lastBuy ?? 0) - (a.memory.lastBuy ?? 0))
+      .slice(0, 8)
+      .map((k) => `<div><dt>${k.person.name ?? k.person.title ?? NAMES[k.person.kind]}</dt><dd>${k.memory.usual ? `${keyName(k.memory.usual)}${(k.memory.usualBags ?? 1) > 1 ? ` ×${k.memory.usualBags}` : ''}` : '—'} · ${happy(k.memory.sat)} · ${ago(k.memory.lastBuy)}</dd></div>`)
+      .join('');
+    return (
+      `<section class="stat-card customers-card"><h3><span>Your customers</span><b>${STANDING_NAMES[lvl]}</b></h3>` +
+      (Number.isFinite(next) ? `<div class="spot-bar status-bar"><i style="width:${Math.round(Math.min(100, (pts / next) * 100))}%"></i><span>${pts} / ${next}</span></div>` : '') +
+      `<p class="stat-how">${sales} sold · ${regs.length} regular${regs.length === 1 ? '' : 's'}.${Number.isFinite(next) ? ` More sales and regulars make you a ${STANDING_NAMES[lvl + 1].toLowerCase()}.` : ''}</p>` +
+      (rows ? `<dl class="stat-now">${rows}${regs.length > 8 ? `<div><dt>And</dt><dd>${regs.length - 8} more</dd></div>` : ''}</dl>` : '') +
+      `</section>`
     );
   }
   /** Where the cash is on you, and how much room it's taking. */
@@ -7113,7 +7498,8 @@ export class Game {
         (rented ? li('Your room, upstairs', `Room 14, paid up until ${dateText(r!.until)}. A bed, a lock that mostly works, a window onto the fire escape. Warm, and nobody bothers you.`, btn('room', 'sleep', 'Sleep')) : '') +
         li(rented ? 'Another week' : 'A room for a week', rented ? "Pay ahead. Fall behind and they clear it after two days." : 'Cash up front. No lease, no ID, no questions.', btn('room', 'rent', money(ROOM_RENT * 100), c < ROOM_RENT * 100 && (rented ? 'Not enough cash for another week' : 'Not enough cash'))) +
         `</ul>` +
-        (rented ? this.stashHtml('room') : '');
+        (rented ? li('Your business', 'The table by the window: your product, the gear, the street, your customers.', btn('room', 'business', 'Open')) + this.stashHtml('room') : '');
+      if (rented && this.roomView === 'business') body = this.businessHtml(btn, li);
     }
     // The alley's loose brick: there whenever you are, whoever's about.
     if (place === 'fence') body += this.dezHtml(open) + this.stashHtml('stash');
@@ -7331,7 +7717,7 @@ export class Game {
                 const small = m
                   ? (why ?? m.desc)
                   : x.secret === 'cocaine' && x.known
-                    ? `${x.doses} bump${x.doses === 1 ? '' : 's'} left`
+                    ? this.packageLine(x)
                     : x.drink
                       ? x.drink === 'energy'
                         ? '160 mg of caffeine'
@@ -7400,9 +7786,7 @@ export class Game {
                   acts += act('taste', 'Taste');
                   if (inv.items.some((y) => y.med === 'testkit')) acts += act('test', 'Test');
                 }
-                if (x.secret === 'cocaine' && x.known) acts += act('bump', 'Bump', h.wired ? 'Already wired' : null);
-                if (x.secret === 'cocaine' && x.known && (x.doses ?? 0) >= 2)
-                  acts += act('bagup', 'Bag it up', !inv.items.some((y) => y.name === 'Zip bags' && (y.doses ?? 0) > 0) ? 'No zip bags' : this.inside && !this.inOwnRoom ? 'Not in here' : null);
+                if (x.secret === 'cocaine' && x.known && productOf(x) === 'powder') acts += act('bump', 'Bump', h.wired ? 'Already wired' : null);
                 // The alley's loose brick, or your room: somewhere to leave it.
                 if (this.place === 'fence' || (this.place === 'room' && this.roomRented) || (this.atCar && x.carId !== this.atCar.id && !this.copsAtCar(this.atCar))) acts += act('stash', this.place === 'fence' ? 'Hide it' : this.atCar ? 'In the trunk' : 'Leave it here');
                 // A gun: load it from a box of its rounds.
@@ -7424,7 +7808,7 @@ export class Game {
                 if (!x.hand) acts += act('move', 'Move', nextSpot(inv, x) ? null : 'Nowhere else');
                 return (
                   `<li><div><b>${named(x)}</b><small>${small ? `${small} · ` : ''}${kgLabel(x.kg)}${x.hand && x.kind !== 'weapon' ? ` · In your ${x.hand} hand` : ''}${x.kind === 'weapon' ? ` · ${hideStat(bulkOf(x))}, ${alarmStat(alarmOf(x))} · <span class="shows${showing(inv, x) >= 0.16 ? ' seen' : ''}">${x.hand ? `In your ${x.hand} hand` : showWord(showing(inv, x))}${inBag(inv, x.spot) ? ' (a moment to get out)' : ''}</span>` : ''}</small></div>` +
-                  `<span class="acts">${acts}<button type="button" class="drop" data-drop="${i}" aria-label="Throw away ${x.name}">Trash</button></span></li>`
+                  `<span class="acts">${acts}${this.armedDrop?.item === x && performance.now() - this.armedDrop.at < 5000 ? `<button type="button" class="drop danger" data-drop="${i}" data-tone="harm" aria-label="Throw away ${x.name}: tap to confirm">Throw it away?</button>` : `<button type="button" class="drop" data-drop="${i}" aria-label="Throw away ${x.name}">Trash</button>`}</span></li>`
                 );
               })
               .join('')}</ul>`
@@ -7446,6 +7830,7 @@ export class Game {
 
   /** What the encounter needs to know about you to offer its options (see Encounter.flame). */
   private prime(e: Encounter) {
+    this.unbag();
     const inv = this.inventory;
     // Looking for a supplier: anyone on the street might know one (not Dez's own people, not the police).
     e.askConnect = !this.connect.known && !e.enforcer && !e.deal && ['junkie', 'homeless', 'drunk', 'civilian'].includes(e.person.kind);
@@ -7453,8 +7838,44 @@ export class Game {
     e.canBeg = !e.enforcer && !e.deal && !e.resident && !e.person.title;
     // Bags to sell (a point each), and powder not bagged up yet.
     const coke = inv.items.filter((x) => x.secret === 'cocaine' && x.known && (x.doses ?? 0) > 0);
-    e.product = coke.filter((x) => x.doses === 1).length;
-    e.bulk = coke.filter((x) => (x.doses ?? 0) > 1).reduce((n, x) => n + (x.doses ?? 0), 0);
+    // What you've got, by what it is: all of it, summed (by weight; pills counted), and how good on average.
+    const stock: NonNullable<Encounter['stock']> = {};
+    let units = 0;
+    for (const x of coke) {
+      const k = keyOf(x);
+      if (!k) continue;
+      const n = x.doses ?? 0;
+      const at = (stock[k] ??= { n: 0, q: 0 });
+      at.q = Math.round((at.q * at.n + qualityOf(x) * n) / (at.n + n));
+      at.n += n;
+      if (x.pressed) at.pressed = true;
+      units += n;
+    }
+    e.stock = stock;
+    e.product = units;
+    e.bulk = 0;
+    const kind = e.person.kind as 'junkie';
+    if (e.wants == null && ['junkie', 'homeless', 'drunk', 'civilian'].includes(e.person.kind)) e.wants = wantFor(kind, e.person.age, new Date(now()).getHours(), this.market);
+    // They ask for bags of whatever size you sell in (one, sometimes two or three).
+    const zips = inv.items.filter((x) => x.name === 'Zip bags').reduce((n, x) => n + (x.doses ?? 0), 0);
+    e.zips = zips;
+    if (e.wants) {
+      const p = keyProduct(e.wants);
+      e.bagSize = this.sellSize(p);
+      e.sellSizes = Object.fromEntries((Object.keys(SELL_SIZE) as Product[]).map((x) => [x, this.sellSize(x)]));
+      e.wantBags ??= bagsFor(kind, !!e.regular);
+      e.wantAmt = e.wantBags * e.bagSize;
+      // (Bags far bigger than they'd buy: most of them can't afford it.)
+      e.sizeFit = Math.min(1, (2 * requestFor(e.wants, kind, e.person.age, () => 0.5)) / Math.max(1, e.bagSize));
+    }
+    e.prices = {};
+    for (const k of new Set([...(Object.keys(stock) as MarketKey[]), ...(e.wants ? [e.wants] : [])])) e.prices[k] = priceFactor(this.market, k);
+    // (What you'd hand over: the weakest you've got first.)
+    if (e.wants && e.wantAmt && (stock[e.wants]?.n ?? 0) >= e.wantAmt) {
+      const q = this.qualityFor(e.wants, e.wantAmt);
+      e.quote = { q, cents: quote(e.prices[e.wants] ?? 1, e.wants, e.bagSize ?? e.wantAmt, q, kind, this.stats.speech?.level ?? 1, this.standing) * (e.wantBags ?? 1) * 100 };
+    } else delete e.quote;
+    e.standing = this.standing;
     e.heat = this.infamy.heat;
     e.dealer = ((this.save.state.sales as number) ?? 0) > 0;
     // Face to face and awake, they see you as you are now (the least covered you've been is what sticks).
@@ -7747,7 +8168,7 @@ export class Game {
     if (!c.known) return [];
     const t = Math.round(c.trust);
     const word = t < 0 ? 'Wary of you' : t < 30 ? 'Knows you' : t < 70 ? 'Trusts you a little' : 'Trusts you';
-    return [['Dez', `${word} (${t}) · ${['', 'eight-balls', 'up to a quarter', 'up to an ounce'][this.tier]}`]];
+    return [['Dez', `${word} (${t}) · ${['', 'weed, pills, an eight-ball', 'more of it, and crystal', 'heroin and rocks, from his supplier'][this.tier]}`]];
   }
   /** More rows for the stats sheet (reputation, anonymity...). */
   private extraStatRows(): [string, string][] {
@@ -7856,6 +8277,11 @@ export class Game {
           e.looks = [...injuriesText(known), ...marksText(known.marks)];
           e.dread = known.memory.fear ?? 0;
           e.regular = !!known.memory.customer && !!e.recognised && (known.memory.grudge ?? 0) < 30;
+          // (A regular wants what they always get.)
+          if (e.regular && known.memory.usual) {
+            e.wants = known.memory.usual;
+            if (known.memory.usualBags) e.wantBags = known.memory.usualBags;
+          }
         } else if (!sent && Math.random() < Math.min(0.5, this.infamy.rep / 200) * (1 - anon)) {
           // A stranger who's heard about you, and knows your face.
           e.recognised = true;
@@ -8135,6 +8561,9 @@ export class Game {
     if ((this.weatherTimer -= dt) <= 0) {
       this.weatherTimer = 2;
       this.shortenOldTerms();
+      // The street market moves on; you hear about busts and big loads if you're in the business.
+      const evs = tickMarket(this.market);
+      if (evs.length && (this.connect.known || ((this.save.state.sales as number) ?? 0) > 0)) this.later(evs.map((ev) => EVENT_LINES[ev.kind](ev.key)));
       // Missed your court date: a warrant.
       const cs = this.case;
       this.settleSelves();

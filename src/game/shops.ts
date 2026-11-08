@@ -1,3 +1,4 @@
+import { basePrice, keyOf } from './drugs';
 import type { Hours } from './clock';
 import type { InvItem } from './inventory';
 
@@ -152,13 +153,18 @@ export const HIDDEN_PLACES: ReadonlySet<Place> = new Set<Place>(['guns', 'plasma
 /** The bank lobby (coin machine) is open all hours. */
 export const COIN_MACHINE_FEE = 0.1;
 
+/** A street unit's normal price, for what it's worth. */
+const keyStreet = (x: { product?: InvItem['product']; pill?: InvItem['pill']; secret?: InvItem['secret'] }) => {
+  const k = keyOf(x);
+  return k ? basePrice(k) : 20;
+};
 // ---------- What things are worth (to someone who'd buy them new) ----------
 
-export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'known' | 'doses'> & { drained?: boolean; locked?: boolean; own?: number }): number {
+export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'known' | 'doses'> & { drained?: boolean; locked?: boolean; own?: number; product?: InvItem['product']; pill?: InvItem['pill'] }): number {
   const n = x.name.toLowerCase();
   // Not knowing what it is, nobody can tell you what it's worth (or give it away).
   if (x.secret && !x.known) return x.secret === 'cocaine' ? 40 : 20;
-  if (x.secret === 'cocaine') return 60 * (x.doses ?? 1);
+  if (x.secret === 'cocaine') return (x.product ? keyStreet(x) * 3 : 60) * (x.doses ?? 1);
   if (x.secret && x.secret !== 'empty') return { heroin: 40, fentanyl: 50, meth: 35, tranq: 15 }[x.secret];
   if (x.med) return { bandages: 8, gauze: 15, painkillers: 6, splint: 22, iron: 12, testkit: 10, caffeine: 5 }[x.med];
   if (/^old phone$/i.test(n)) return 60;
@@ -268,6 +274,7 @@ export const GAS_STOCK: Stock[] = [
   { id: 'lighter', name: 'Lighter', price: 3, desc: 'Full of fuel.', doses: 100 },
   { id: 'phone', name: 'Prepaid phone', price: 45, desc: 'A cheap smartphone in a plastic clamshell, minutes on it. Yours, and unlocked: enough for a delivery app.' },
   { id: 'matches', name: 'Matches', price: 1, desc: 'A book of 20.', doses: 20 },
+  { id: 'lactose', name: 'Lactose powder', price: 6, desc: 'A 100 g tub of baby lactose, by the diapers. Some people buy a lot of it.', doses: 1000 },
   { id: 'zipbags', name: 'Zip bags', price: 3, desc: 'A pack of 50 tiny zip-top bags, by the register. “For jewelry,” the label says.', doses: 50 },
   { id: 'bandages', name: 'Bandages', price: 11, desc: 'Slows bleeding a level. Pricier than the pharmacy.', med: 'bandages' },
   { id: 'painkillers', name: 'Painkillers', price: 8, desc: 'Takes the edge off the pain. Pricier than the pharmacy.', med: 'painkillers' },
@@ -280,6 +287,8 @@ export const GAS_STOCK: Stock[] = [
 ];
 
 export const PAWN_STOCK: Stock[] = [
+  { id: 'scale', name: 'Digital scale', price: 25, desc: 'A pocket scale, to a tenth of a gram. “For jewelry.”' },
+  { id: 'cutkit', name: 'Cutting kit', price: 12, desc: 'A glass plate, a razor card and a little sifter, in a zip pouch.' },
   { id: 'backpack', name: 'Backpack', price: 35, desc: 'Large things, 12 kg. Faded, one strap fixed with tape.', slot: 'bag' },
   { id: 'shoulder', name: 'Shoulder bag', price: 25, desc: 'Medium things, 5 kg.', slot: 'bag' },
   { id: 'fanny', name: 'Fanny pack', price: 12, desc: 'A zip pouch for small things, 1.2 kg.', slot: 'bag' },
@@ -323,6 +332,8 @@ export const GUN_STOCK: Stock[] = [
 export const CHARGES: Record<string, { bail: number; fine: number; days: number; sev: number }> = {
   'Possession of stolen property': { bail: 250, fine: 300, days: 3, sev: 2 },
   'Possession of a controlled substance': { bail: 500, fine: 500, days: 7, sev: 3 },
+  'Possession of marijuana': { bail: 100, fine: 150, days: 2, sev: 1 },
+  'Possession of marijuana with intent to sell': { bail: 1000, fine: 1000, days: 20, sev: 5 },
   'Carrying an illegal weapon': { bail: 400, fine: 400, days: 5, sev: 3 },
   'Brandishing a weapon': { bail: 1000, fine: 800, days: 14, sev: 5 },
   'Resisting arrest': { bail: 500, fine: 400, days: 5, sev: 2 },

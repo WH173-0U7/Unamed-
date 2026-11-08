@@ -11,6 +11,20 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.71',
+    date: 'Nov 9',
+    items: [
+      'The drug business, part one: weed, powder, crack, crystal, heroin and real pills (Xanax, percs, 30s, Adderall, Vicodin, Valium, Klonopin, and pressed fakes), each with its own buyers, prices and districts.',
+      'Dez sells by weight in packages (an eight-ball, a quarter, an ounce…). The package takes room on you, shrinks as you sell, and can be hidden like anything else.',
+      'Set your bag size per product; buyers ask for one or two bags, and the sale weighs it out into a zip bag for you.',
+      'A city market: supply and demand by product and district, with droughts and gluts. See “What’s moving”.',
+      'Regulars come back for their usual; good product spreads your name, junk loses customers and can bring the police. Your standing as a dealer grows from Nobody upward.',
+      'Your motel room has a “Your business” screen: your product, your bag sizes, cutting (needs a scale, a cutting kit and lactose), gear, the market and your customers.',
+      'Covering your face cuts the heat you get, and changing your look makes patrols less likely to pick you out. Heat fades much faster.',
+      'Valuable things need a second tap to throw away. The You page swipes shut from the rest and jail screens.',
+    ],
+  },
+  {
     v: '2.70',
     date: 'Nov 8',
     items: ['Settings has a “Reset game” button: it wipes every character, everyone you used to be and the whole city, and starts a fresh game, from the menu or mid-game.'],

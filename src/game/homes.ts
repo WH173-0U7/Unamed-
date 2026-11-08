@@ -1,4 +1,5 @@
 import type { Build, Kind, Loot, Race, Sex } from './person';
+import { PILLS, type PillKind } from './drugs';
 
 /**
  * Who people are on paper (a name that fits them, an ID with everything an
@@ -320,6 +321,12 @@ export function roomLoot(h: Home, room: RoomId, carHere: boolean): Loot[] {
     if (r() < 0.4) add({ kind: 'misc', name: 'Beer', drink: 'beer', doses: 1 }, 'fridge');
   } else if (room === 'bathroom') {
     if (r() < 0.6) add({ kind: 'misc', name: 'Painkillers', med: 'painkillers' }, 'medicine cabinet');
+    // Somebody's prescription: worth more on the street than to them.
+    if (r() < 0.3) {
+      const pill = (['perc', 'vicodin', 'xanax', 'klonopin', 'valium', 'adderall', 'oxy'] as PillKind[])[Math.floor(r() * 7)];
+      const n = 6 + Math.floor(r() * 25);
+      add({ kind: 'misc', name: 'Prescription bottle', detail: `${PILLS[pill].generic}, ${n} tablets. Someone else’s name on the label.`, secret: 'cocaine', known: true, doses: n, product: 'pills', pill, quality: 100 }, 'medicine cabinet');
+    }
     if (r() < 0.45) add({ kind: 'misc', name: 'Bandages', med: 'bandages' }, 'under the sink');
     if (r() < 0.15) add({ kind: 'misc', name: 'Gauze', med: 'gauze' }, 'under the sink');
   } else {

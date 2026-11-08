@@ -1,6 +1,7 @@
 import { addCaffeine, caffeineNow } from './health';
 import { knifeOf } from './knives';
 import type { Loot, LootKind } from './person';
+import { packageMeasure } from './drugs';
 import type { Health } from './health';
 import { DENOMS, cents, emptyPurse, fewest, kgOf, mlOf, money, purseText, type Purse } from './money';
 
@@ -26,6 +27,13 @@ export interface InvItem {
   spot: string;
   /** What it really is (see Loot.secret), whether you know, and uses left. */
   secret?: import('./person').Secret;
+  /** Street product: which (powder for old saves), which pills, how good (0..100), and pressed fakes. */
+  product?: import('./drugs').Product;
+  pill?: import('./drugs').PillKind;
+  quality?: number;
+  pressed?: boolean;
+  /** How much was in the package when it was new (tenths of a gram; pills counted). */
+  pkg?: number;
   known?: boolean;
   doses?: number;
   /** A card: the PIN they gave you, whether it's real, and whether it's been used at the cash machine. */
@@ -192,7 +200,12 @@ export function upgradeInventory(inv: Inventory) {
 // ---------- Sizes and weights ----------
 
 /** How big and heavy something is. */
-export function measure(x: { kind: string; name: string; med?: MedId }): { size: Size; kg: number } {
+export function measure(x: { kind: string; name: string; med?: MedId; product?: InvItem['product']; doses?: number; pkg?: number }): { size: Size; kg: number } {
+  // Product: by what's in the package, and the package it came in.
+  if (x.product && x.doses != null) return packageMeasure(x.product, x.doses, x.pkg ?? x.doses);
+  if (/^digital scale$/i.test(x.name)) return { size: 'small', kg: 0.25 };
+  if (/^cutting kit$/i.test(x.name)) return { size: 'small', kg: 0.3 };
+  if (/^lactose powder$/i.test(x.name)) return { size: 'small', kg: 0.12 };
   if (x.med) return { size: x.med === 'splint' ? 'medium' : 'small', kg: { bandages: 0.05, gauze: 0.1, painkillers: 0.03, splint: 0.35, iron: 0.08, testkit: 0.03, caffeine: 0.02 }[x.med] };
   const n = x.name.toLowerCase();
   if (x.kind === 'weapon') {
@@ -263,6 +276,11 @@ const DRINKS: [RegExp, number, number, number][] = [
 /** Its weight by what's left in it: a half-empty bottle, a box with ten rounds left. */
 export function reweigh(it: InvItem) {
   if (it.doses == null) return;
+  // A package weighs what's left in it.
+  if (it.product) {
+    it.kg = packageMeasure(it.product, it.doses, it.pkg ?? it.doses).kg;
+    return;
+  }
   if (/^loose cigarettes$/i.test(it.name)) {
     it.kg = Math.round(Math.max(1, it.doses)) / 1000;
     return;
@@ -505,7 +523,7 @@ export function take(inv: Inventory, l: Loot): { ok: boolean; text: string; cent
       return { ok: true, text: `You pocket ${(l.doses ?? 1) === 1 ? 'the loose cigarette' : `the ${l.doses} loose cigarettes`} with the others.${once}` };
     }
   }
-  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained, ...(l.balance != null ? { balance: l.balance, limit: l.limit } : {}), ...(l.noPin ? { noPin: true } : {}), ...(l.pinAsked ? { pinAsked: true } : {}), ...(l.of ? { of: l.of } : {}), ...(l.own != null ? { own: l.own } : {}), ...(l.locked != null ? { locked: l.locked } : {}), ...(l.unlockAsked ? { unlockAsked: true } : {}), ...(l.empty ? { empty: true } : {}), ...(l.slot ? { slot: l.slot } : {}), weapon: l.weapon, cuts: l.cuts, spray: l.spray, drink: l.drink, ...(l.card ? { card: l.card } : {}), ...(l.homeInfo ? { homeInfo: l.homeInfo } : {}), ...(l.opens ? { opens: l.opens } : {}), ...(l.hot ? { hot: true } : {}), ...(l.carOf ? { carOf: l.carOf } : {}), ...(l.carId ? { carId: l.carId } : {}), ...(l.hunt ? { hunt: l.hunt } : {}), ...(l.tookAt != null ? { tookAt: l.tookAt } : {}), ...(l.kind === 'car keys' ? { takenAt: l.takenAt ?? Date.now(), car: l.car, carSearched: l.carSearched } : {}) });
+  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained, ...(l.balance != null ? { balance: l.balance, limit: l.limit } : {}), ...(l.noPin ? { noPin: true } : {}), ...(l.pinAsked ? { pinAsked: true } : {}), ...(l.of ? { of: l.of } : {}), ...(l.product ? { product: l.product } : {}), ...(l.pill ? { pill: l.pill } : {}), ...(l.quality != null ? { quality: l.quality } : {}), ...(l.pressed ? { pressed: true } : {}), ...(l.pkg ? { pkg: l.pkg } : {}), ...(l.own != null ? { own: l.own } : {}), ...(l.locked != null ? { locked: l.locked } : {}), ...(l.unlockAsked ? { unlockAsked: true } : {}), ...(l.empty ? { empty: true } : {}), ...(l.slot ? { slot: l.slot } : {}), weapon: l.weapon, cuts: l.cuts, spray: l.spray, drink: l.drink, ...(l.card ? { card: l.card } : {}), ...(l.homeInfo ? { homeInfo: l.homeInfo } : {}), ...(l.opens ? { opens: l.opens } : {}), ...(l.hot ? { hot: true } : {}), ...(l.carOf ? { carOf: l.carOf } : {}), ...(l.carId ? { carId: l.carId } : {}), ...(l.hunt ? { hunt: l.hunt } : {}), ...(l.tookAt != null ? { tookAt: l.tookAt } : {}), ...(l.kind === 'car keys' ? { takenAt: l.takenAt ?? Date.now(), car: l.car, carSearched: l.carSearched } : {}) });
   // ("the state ID (expired)": not "the state id, expired".)
   const nm = l.name.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase()).replace(/^([^,]+), ([^,]+)$/, '$1 ($2)');
   if (!it) return { ok: false, text: `No room for the ${nm}. ${noRoomWhy(inv, measure(l).size, measure(l).kg)}` };

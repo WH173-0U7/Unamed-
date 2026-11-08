@@ -115,6 +115,8 @@ export function createMenu(handlers: MenuHandlers) {
   for (const [el, key] of sliders) el.addEventListener('input', () => updateSettings({ [key]: Number(el.value) }));
   const snd = $('set-sound') as HTMLInputElement;
   snd.addEventListener('change', () => updateSettings({ sound: snd.checked }));
+  const flt = $('set-floaters') as HTMLInputElement;
+  flt.addEventListener('change', () => updateSettings({ floaters: flt.checked }));
   // Lettering and buttons: tried out live, all over the game.
   const segs: [HTMLElement, 'font' | 'buttons'][] = [
     [$('set-font'), 'font'],
@@ -145,6 +147,7 @@ export function createMenu(handlers: MenuHandlers) {
     $('quality-note').textContent = QUALITY_NOTES[s.quality];
     fps.checked = s.showFps;
     snd.checked = s.sound;
+    flt.checked = s.floaters;
     for (const [el, key] of sliders) {
       el.value = String(s[key]);
       const out = el.parentElement?.querySelector('output');

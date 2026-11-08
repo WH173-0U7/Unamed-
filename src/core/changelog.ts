@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.73',
+    date: 'Nov 9',
+    items: [
+      'Floating numbers: when your cash, blood, heat, stress, fatigue, humanity, reputation, a skill level, your product or what you owe Dez changes, the amount rises from where it is, green when it’s good, red when it isn’t. Turn them off in Settings.',
+      'Phone notifications are down to two, in plain words: when you’re rested, and when you’re out of jail. You can play again.',
+    ],
+  },
+  {
     v: '2.72',
     date: 'Nov 9',
     items: [

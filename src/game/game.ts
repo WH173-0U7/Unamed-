@@ -1,5 +1,7 @@
 import type * as THREE from 'three';
 import { writeSave, type SaveData } from '../core/save';
+import { settings } from '../core/settings';
+import { floatChange, type Float } from '../ui/floaters';
 import { createTv } from './tv';
 import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf, randomName, type Loot } from './person';
 import { ENCOUNTER_VERSION, act, indoors, liftables, newEncounter, options as encounterOptions, type Encounter } from './encounter';
@@ -399,6 +401,74 @@ export class Game {
   }
 
   /** What you're carrying and holding, to see whether a tap did anything. */
+  /** Your numbers as of the last look (floating numbers float the difference). */
+  private nums: Record<string, number> | null = null;
+  private numsWho = '';
+  private numbers(): Record<string, number> {
+    const inv = this.inventory;
+    const h = this.health;
+    const e = this.encounter;
+    const body = e && e.stage !== 'seen' && e.you ? e.you : null;
+    const n: Record<string, number> = {
+      cash: Math.round(cashOf(inv) * 100),
+      bank: this.account?.cents ?? 0,
+      blood: Math.round(body?.blood ?? h.blood),
+      heat: this.infamy.heat,
+      stress: body?.stress ?? h.stress ?? 0,
+      fatigue: fatigueNow(h),
+      humanity: this.humanity.lost,
+      rep: this.infamy.rep,
+      debt: this.debt?.owed ?? 0,
+    };
+    for (const k of Object.keys(this.stats) as StatName[]) n[`lvl:${k}`] = this.stats[k].level;
+    for (const x of inv.items) {
+      const key = keyOf(x);
+      if (key) n[`p:${key}`] = (n[`p:${key}`] ?? 0) + (x.doses ?? 0);
+    }
+    return n;
+  }
+  /** What changed since the last look, floated up from where it lives (not the slow drift of time: see tick). */
+  private floatNumbers(show: boolean) {
+    const now_ = this.numbers();
+    const who = `${this.world.lives}|${this.me.name}`;
+    const was = this.nums;
+    this.nums = now_;
+    const same = who === this.numsWho;
+    this.numsWho = who;
+    if (!show || !was || !same || !settings.floaters || !this.tvState.on || this.dead) return;
+    const e = this.encounter;
+    const inEnc = !!e && e.stage !== 'seen';
+    const fighter = document.querySelector('#enc .enc-fighter.you');
+    // (On the street: under your status at the top, one column. In an encounter: over your side of it.)
+    const you = inEnc ? [fighter] : [this.youEl];
+    const hud = !inEnc && !!this.youEl && !this.youEl.hidden;
+    const sign = (v: number) => (v > 0 ? '+' : '−');
+    const keys = new Set([...Object.keys(was), ...Object.keys(now_)]);
+    for (const k of keys) {
+      const d = (now_[k] ?? 0) - (was[k] ?? 0);
+      if (!d) continue;
+      const a = Math.abs(d);
+      let f: Float | null = null;
+      if (k === 'cash' && a >= 1) f = { stat: k, value: d, text: (v) => `${sign(v)}${money(Math.abs(v))}`, tone: (v) => (v > 0 ? 'good' : 'neutral'), anchors: inEnc ? [fighter] : [this.youEl, this.bagBtn], start: hud, below: hud };
+      else if (k === 'bank' && a >= 1) f = { stat: k, value: d, text: (v) => `${sign(v)}${money(Math.abs(v))} bank`, tone: (v) => (v > 0 ? 'good' : 'neutral'), anchors: inEnc ? [fighter] : [this.youEl, this.bagBtn], start: hud, below: hud };
+      else if (k === 'blood' && a >= 50) f = { stat: k, value: d, text: (v) => `${sign(v)}${(Math.abs(v) / 1000).toFixed(1)} L`, tone: (v) => (v > 0 ? 'good' : 'bad'), anchors: you, start: hud, below: hud };
+      else if (k === 'heat' && a >= 1) f = { stat: k, value: d, text: (v) => `${sign(v)}${Math.round(Math.abs(v))} Heat`, tone: (v) => (v > 0 ? 'bad' : 'good'), anchors: [this.sheetEl.querySelector('.police-card h3'), ...you], start: hud, below: hud };
+      else if ((k === 'stress' || k === 'fatigue') && a >= 2) f = { stat: k, value: d, text: (v) => `${sign(v)}${Math.round(Math.abs(v))} ${k === 'stress' ? 'Stress' : 'Fatigue'}`, tone: (v) => (v > 0 ? 'bad' : 'good'), anchors: you, start: hud, below: hud };
+      else if (k === 'humanity' && a >= 0.5) f = { stat: k, value: d, text: (v) => `${v > 0 ? '−' : '+'}${Math.round(Math.abs(v))} Humanity`, tone: (v) => (v > 0 ? 'bad' : 'good'), anchors: you, start: hud, below: hud };
+      else if (k === 'rep' && a >= 1) f = { stat: k, value: d, text: (v) => `${sign(v)}${Math.round(Math.abs(v))} Rep`, tone: (v) => (v > 0 ? 'good' : 'bad'), anchors: you, start: hud, below: hud };
+      else if (k === 'debt' && a >= 100) f = { stat: k, value: d, text: (v) => `Owe Dez ${sign(v)}${money(Math.abs(v))}`, tone: (v) => (v > 0 ? 'bad' : 'good'), anchors: you, start: hud, below: hud };
+      else if (k.startsWith('lvl:') && d > 0) {
+        const name = STAT_NAMES[k.slice(4) as StatName];
+        f = { stat: k, value: d, text: (v) => `+${v} ${name}`, tone: () => 'good', anchors: you, start: hud, below: hud };
+      } else if (k.startsWith('p:')) {
+        const key = k.slice(2) as Parameters<typeof keyName>[0];
+        const pr = keyProduct(key);
+        f = { stat: k, value: d, text: (v) => `${sign(v)}${pr === 'pills' ? `${Math.abs(v)} ${keyName(key).toLowerCase()}` : `${amountText(pr, Math.abs(v))} ${keyName(key).toLowerCase()}`}`, tone: () => 'neutral', anchors: inEnc ? [fighter] : [this.bagBtn] };
+      }
+      if (f) floatChange(f);
+    }
+  }
+
   private snapshot() {
     const inv = this.inventory;
     return {
@@ -453,8 +523,11 @@ export class Game {
       if (sp) bits.push(`→ ${sp.name}`);
     } else if (attr === 'load') bits.push('Loaded');
     else if (attr === 'drop' || after.items < before.items) bits.push(attr === 'drop' ? 'Trashed' : attr === 'use' ? 'Used' : '');
-    if (db) bits.push(`${db > 0 ? '+' : '−'}${money(Math.abs(db))} in the bank`);
-    else if (dc) bits.push(`${dc > 0 ? '+' : '−'}${money(Math.abs(dc))}`);
+    // (The money itself floats up from your cash: see floatNumbers. Here, just what it was for.)
+    if (!settings.floaters) {
+      if (db) bits.push(`${db > 0 ? '+' : '−'}${money(Math.abs(db))} in the bank`);
+      else if (dc) bits.push(`${dc > 0 ? '+' : '−'}${money(Math.abs(dc))}`);
+    }
     const text = bits.filter(Boolean).join('  ');
     if (text) {
       const f = document.createElement('div');
@@ -4057,32 +4130,13 @@ export class Game {
    */
   upcoming(): Upcoming[] {
     if (this.dead) return [];
+    // Only two: rested, and out of jail. Plain words.
     const out: Upcoming[] = [];
     const t = now();
     const h = this.health;
-    if (h.restingSince != null) {
-      const at = t + restLeft(h);
-      out.push({ id: 1, at, title: 'Rested', body: `${this.me.name} is up again, rested.` });
-    }
-    const wk = this.work;
-    if (wk?.kind === 'plasma' && wk.until && wk.until > t) out.push({ id: 6, at: wk.until, title: 'Plasma', body: `${this.me.name}: they’re unhooking you. Collect your pay at the desk.` });
+    if (h.restingSince != null) out.push({ id: 1, at: t + restLeft(h), title: 'Rested', body: `${this.me.name} is rested. You can play again.` });
     const j = this.jail;
-    if (j && j.until > t) out.push({ id: 2, at: j.until, title: 'They open the door', body: `${this.me.name} is out. ${j.what}: done.` });
-    const c = this.case;
-    if (c && !c.warrant && !this.jail && !this.save.state.bailOffer) {
-      const d = new Date(c.courtAt);
-      d.setHours(8, 30, 0, 0);
-      out.push({ id: 3, at: d.getTime(), title: 'Court today', body: `${this.me.name}: your hearing is today at the County Courthouse, 9 to 4. Miss it and there’s a warrant.` });
-    }
-    const room = this.room;
-    if (room && room.until > t) out.push({ id: 4, at: room.until - 2 * 3_600_000, title: 'Your room', body: `Room 14 is paid up until ${clockText(room.until)}. After that the motel clears it, and what’s in it.` });
-    const d = this.debt;
-    if (d && d.due > t) out.push({ id: 5, at: d.due - 3 * 3_600_000, title: 'Dez', body: `${money(d.owed)} due to Dez by ${clockText(d.due)}. Late, and he sends someone.` });
-    this.selves.forEach((x, i) => {
-      if (x.status !== 'inside' || i > 5) return;
-      if (x.van != null && x.van > t) out.push({ id: 10 + i, at: x.van - 30 * 60_000, title: 'The van', body: `${x.name} gets moved in half an hour. The loading dock behind the County Courthouse.` });
-      if (x.hearingAt == null && x.until > t) out.push({ id: 20 + i, at: x.until, title: 'Out', body: `${x.name} has done their time. They’re out on the streets.` });
-    });
+    if (j && j.until > t) out.push({ id: 2, at: j.until, title: 'Out of jail', body: `${this.me.name} is out. You can play again.` });
     return out;
   }
   /**
@@ -8047,6 +8101,8 @@ export class Game {
     this.view.classList.toggle('note-off', !!e && e.stage !== 'seen' && (e.stage !== 'over' || this.ending));
     this.renderShop();
     if (this.sheet) this.renderSheet();
+    // (In the game's own tick it's time passing, not something that happened: just looked at, not floated.)
+    this.floatNumbers(!this.ticking);
   }
 
   /** The stats sheet: each stat, what it does for you right now, how it grows; then the rest of you. */
@@ -8615,6 +8671,8 @@ export class Game {
     }
   }
   private tick(dt: number) {
+    // (What time does by itself, frame to frame, isn't floated: the last look moves with it.)
+    if (this.nums) this.nums = this.numbers();
     // (The body first: hours spent inside or lying down heal as that, before the door opens or you get up.)
     this.healOnClock();
     this.tickCrowd();

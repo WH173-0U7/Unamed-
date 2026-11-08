@@ -6801,3 +6801,99 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
   border-color: #e06a5a;
   opacity: 1;
 }
+/* Floating numbers: a change rises from where that number lives, glows, and fades. */
+.floater {
+  position: fixed;
+  z-index: 62;
+  transform: translate(-50%, -100%);
+  max-width: min(70vw, 260px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: 700 13px var(--font-ui);
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+.floater[data-tone='good'] {
+  color: #8fdca6;
+  text-shadow: 0 0 8px rgba(80, 200, 120, 0.55), 0 0 2px rgba(0, 0, 0, 0.9);
+}
+.floater[data-tone='bad'] {
+  color: #ef8a78;
+  text-shadow: 0 0 8px rgba(230, 80, 60, 0.55), 0 0 2px rgba(0, 0, 0, 0.9);
+}
+.floater.go {
+  animation: floater-rise 1.25s ease-out forwards;
+}
+@keyframes floater-rise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -60%) scale(0.9);
+  }
+  14% {
+    opacity: 1;
+    transform: translate(-50%, -100%) scale(1.06);
+  }
+  30% {
+    transform: translate(-50%, -110%) scale(1);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% - 24px));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .floater.go {
+    animation: floater-fade 1.25s ease-out forwards;
+  }
+  @keyframes floater-fade {
+    0%,
+    70% {
+      opacity: 1;
+      transform: translate(-50%, -100%);
+    }
+    100% {
+      opacity: 0;
+      transform: translate(-50%, -100%);
+    }
+  }
+}
+/* Under your status at the top: one column, stacking down, a short rise. */
+.floater.down {
+  transform: translate(-50%, 0);
+}
+.floater.down.go {
+  animation-name: floater-rise-down;
+}
+@keyframes floater-rise-down {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 6px) scale(0.92);
+  }
+  14% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.05);
+  }
+  30% {
+    transform: translate(-50%, -2px) scale(1);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -14px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .floater.down.go {
+    animation-name: floater-fade;
+  }
+}

@@ -14,6 +14,8 @@ export interface Settings {
   buttons: ButtonStyle;
   /** Clicks and other little sounds (off: muted). */
   sound: boolean;
+  /** Changes to your numbers (cash, blood, heat…) float up from where they live. */
+  floaters: boolean;
   /** How strong the film grain, glitches, static and colour fringing are (0..100; 50 is the usual). */
   grain: number;
   glitch: number;
@@ -31,6 +33,7 @@ const defaults: Settings = {
   font: 'report',
   buttons: 'lines',
   sound: true,
+  floaters: true,
   grain: 50,
   glitch: 50,
   staticFx: 50,

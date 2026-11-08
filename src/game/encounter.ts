@@ -881,7 +881,7 @@ function rawOptions(e: Encounter): Option[] {
         { id: 'follow', label: e.distance < 2 ? 'Follow' : 'Keep following', hint: e.suspicion >= 45 ? 'They’re onto you: they may run' : e.distance < 2 ? 'Closer: easier to see, easier to be seen' : 'Each step risks being noticed', cat: 'surveil' },
         // Right behind them, and you've seen what's in their pockets: lift it.
         ...(e.known.pockets && e.distance >= 2 && !e.them.down
-          ? liftables(e).map((L) => ({ id: `lift:${L.key}`, label: L.label, hint: e.liftNoRoom?.includes(L.key) ? 'No room' : 'Sneak. If they feel it, they’ll know', disabled: !!e.liftNoRoom?.includes(L.key), cat: 'surveil' as Category }))
+          ? liftables(e).map((L) => ({ id: `lift:${L.key}`, label: L.label, hint: e.liftNoRoom?.includes(L.key) ? 'No room' : e.suspicion >= 45 ? 'They’re watching you: much harder' : 'Sneak. If they feel it, they’ll know', disabled: !!e.liftNoRoom?.includes(L.key), cat: 'surveil' as Category }))
           : []),
         ...(e.known.build ? [] : [{ id: 'build', label: 'Size up their build', cat: 'surveil' as Category }]),
         ...(e.known.carrying ? [] : [{ id: 'carrying', label: "See what they’re carrying", disabled: e.distance < 1, hint: e.distance < 1 ? 'Need to be closer' : undefined, cat: 'surveil' as Category }]),
@@ -1223,7 +1223,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
       const L = liftables(e).find((x) => x.key === id.slice(5));
       if (!L || !e.known.pockets || e.distance < 2 || !inv || e.liftNoRoom?.includes(L.key)) return impacts;
       const drunkish = p.kind === 'drunk' || p.kind === 'junkie';
-      const odds = clamp(0.3 + (e.sneakLevel ?? 1) * 0.005 - (aw / 3) * 0.4 - (e.tiredOdds ?? 0) + (drunkish ? 0.1 : 0) - (L.inside ? 0.15 : 0), 0.05, 0.85);
+      const odds = clamp(0.3 + (e.sneakLevel ?? 1) * 0.005 - (aw / 3) * 0.4 - (e.tiredOdds ?? 0) + (drunkish ? 0.1 : 0) - (L.inside ? 0.15 : 0) - (e.suspicion ?? 0) * 0.006, 0.05, 0.85);
       if (Math.random() < odds) {
         // Off them and into your pockets, as if you'd taken it any other way.
         const got: string[] = [];
@@ -1576,7 +1576,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
       return impacts;
     }
     if (e.stage !== 'combat') return impacts;
-    if (e.them.yielded && (id === 'punch' || id === 'kick' || id.startsWith('stomp') || id.startsWith('wpn:') || id.startsWith('whip:') || id.startsWith('tech:') || id.startsWith('floor:'))) {
+    if (e.them.yielded && (id === 'punch' || id === 'kick' || id.startsWith('stomp') || id.startsWith('wpn:') || id.startsWith('whip:') || id.startsWith('tech:') || id.startsWith('floor:') || id.startsWith('ground:') || id === 'choke' || id.startsWith('smash:') || id === 'grapple')) {
       // Hitting them anyway: it's a fight again (they didn't see it coming).
       e.them.yielded = false;
       e.them.offBalance = true;

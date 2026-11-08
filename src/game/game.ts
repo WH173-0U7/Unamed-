@@ -2026,7 +2026,7 @@ export class Game {
         this.note([`If you swap to the ${lc(s.name)}, you’d have nowhere to put all your cash.`]);
         return;
       }
-      const armed = this.armedWear?.id === s.id && performance.now() - this.armedWear.at < 8000;
+      const armed = this.armedWear?.id === s.id && performance.now() - this.armedWear.at > 450 && performance.now() - this.armedWear.at < 8000;
       // (And what you have on now: if there's nowhere to carry it, it goes in the bin.)
       const binned = ((): string | null => {
         const copy: Inventory = { ...inv, items: [...inv.items], clothes: [...inv.clothes], spots: [...inv.spots] };
@@ -4742,7 +4742,7 @@ export class Game {
     }
     // (What won't go in it: said first; a second tap goes ahead and leaves it.)
     const w = wouldLeave(inv, slot, it.name);
-    const armed = this.armedWear?.id === `on:${it.name}` && performance.now() - this.armedWear.at < 8000;
+    const armed = this.armedWear?.id === `on:${it.name}` && performance.now() - this.armedWear.at > 450 && performance.now() - this.armedWear.at < 8000;
     if (!w.cash && w.items.length && !armed) {
       inv.items.splice(i, 0, it);
       this.armedWear = { id: `on:${it.name}`, at: performance.now() };

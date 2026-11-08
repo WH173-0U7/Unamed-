@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.66',
+    date: 'Nov 8',
+    items: [
+      'Pickpocketing is much harder once someone’s onto you: the more they’ve noticed, the worse your odds (the option says so).',
+      'Choking, grappling or smashing someone who’s given up counts as attacking them, the same as hitting them.',
+      'A quick double-tap on Wear or Put on no longer skips the warning about leaving things behind.',
+    ],
+  },
+  {
     v: '2.65',
     date: 'Nov 8',
     items: [

@@ -47,6 +47,9 @@ export interface InvItem {
   own?: number;
   /** A phone: locked (someone else's, and you can't get in) or not; decided the first time you look. */
   locked?: boolean;
+  /** A phone: whose it was (see Loot.of), and whether you've made them unlock it already. */
+  of?: string;
+  unlockAsked?: boolean;
   /** Something to drink (beer, liquor, an energy drink), swigs in `doses`. */
   drink?: 'beer' | 'liquor' | 'energy';
   /** Car keys: when you took them (owners report a stolen car fast), and whether you found the car (and went through it). */
@@ -127,6 +130,7 @@ function pocketsOf(g: string): [string, Size, number][] {
   if (/hoodie/i.test(g)) return [['Front pocket', 'small', 0.9]];
   if (/flannel|shirt$/i.test(g) && !/t-shirt/i.test(g)) return [['Chest pocket', 'small', 0.2]];
   if (/t-shirt/i.test(g)) return [];
+  if (/rain jacket/i.test(g)) return [['Left pocket', 'small', 0.4], ['Right pocket', 'small', 0.4]];
   if (/jacket|coat|parka|windbreaker|blazer/i.test(g)) return [['Left pocket', 'small', 0.5], ['Right pocket', 'small', 0.5], ['Inside pocket', 'small', 0.4]];
   if (/cargo/i.test(g)) return [['Front left pocket', 'small', 0.4], ['Front right pocket', 'small', 0.4], ['Left cargo pocket', 'medium', 1.5], ['Right cargo pocket', 'medium', 1.5]];
   if (/track|sweat/i.test(g)) return [['Left pocket', 'small', 0.4], ['Right pocket', 'small', 0.4]];
@@ -499,7 +503,7 @@ export function take(inv: Inventory, l: Loot): { ok: boolean; text: string; cent
       return { ok: true, text: `You pocket ${(l.doses ?? 1) === 1 ? 'the loose cigarette' : `the ${l.doses} loose cigarettes`} with the others.${once}` };
     }
   }
-  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained, ...(l.balance != null ? { balance: l.balance, limit: l.limit } : {}), ...(l.noPin ? { noPin: true } : {}), ...(l.pinAsked ? { pinAsked: true } : {}), ...(l.empty ? { empty: true } : {}), ...(l.slot ? { slot: l.slot } : {}), weapon: l.weapon, cuts: l.cuts, spray: l.spray, drink: l.drink, ...(l.card ? { card: l.card } : {}), ...(l.homeInfo ? { homeInfo: l.homeInfo } : {}), ...(l.opens ? { opens: l.opens } : {}), ...(l.hot ? { hot: true } : {}), ...(l.carOf ? { carOf: l.carOf } : {}), ...(l.carId ? { carId: l.carId } : {}), ...(l.hunt ? { hunt: l.hunt } : {}), ...(l.tookAt != null ? { tookAt: l.tookAt } : {}), ...(l.kind === 'car keys' ? { takenAt: l.takenAt ?? Date.now(), car: l.car, carSearched: l.carSearched } : {}) });
+  const it = stow(inv, { kind: l.kind, name: l.name, detail: l.detail, med: l.med, secret: l.secret, known: l.known, doses: l.doses, pin: l.pin, pinOk: l.pinOk, drained: l.drained, ...(l.balance != null ? { balance: l.balance, limit: l.limit } : {}), ...(l.noPin ? { noPin: true } : {}), ...(l.pinAsked ? { pinAsked: true } : {}), ...(l.of ? { of: l.of } : {}), ...(l.locked != null ? { locked: l.locked } : {}), ...(l.unlockAsked ? { unlockAsked: true } : {}), ...(l.empty ? { empty: true } : {}), ...(l.slot ? { slot: l.slot } : {}), weapon: l.weapon, cuts: l.cuts, spray: l.spray, drink: l.drink, ...(l.card ? { card: l.card } : {}), ...(l.homeInfo ? { homeInfo: l.homeInfo } : {}), ...(l.opens ? { opens: l.opens } : {}), ...(l.hot ? { hot: true } : {}), ...(l.carOf ? { carOf: l.carOf } : {}), ...(l.carId ? { carId: l.carId } : {}), ...(l.hunt ? { hunt: l.hunt } : {}), ...(l.tookAt != null ? { tookAt: l.tookAt } : {}), ...(l.kind === 'car keys' ? { takenAt: l.takenAt ?? Date.now(), car: l.car, carSearched: l.carSearched } : {}) });
   // ("the state ID (expired)": not "the state id, expired".)
   const nm = l.name.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase()).replace(/^([^,]+), ([^,]+)$/, '$1 ($2)');
   if (!it) return { ok: false, text: `No room for the ${nm}. ${noRoomWhy(inv, measure(l).size, measure(l).kg)}` };
@@ -648,6 +652,7 @@ export function concealOf(sp: Pick<Spot, 'on' | 'name'>, top?: string): number {
   if (/shoulder bag|tote/.test(g)) return 0.95;
   if (/fanny/.test(g)) return 0.85;
   if (/coat|puffer|parka/.test(g)) return p.startsWith('inside') ? 0.97 : 0.85;
+  if (/rain jacket/.test(g)) return 0.55;
   if (/leather jacket|jacket/.test(g) && !/puffer/.test(g)) return p.startsWith('inside') ? 0.92 : 0.72;
   if (/windbreaker/.test(g)) return p.startsWith('inside') ? 0.8 : 0.55;
   if (/hoodie/.test(g)) return 0.45;

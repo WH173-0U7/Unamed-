@@ -639,7 +639,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
   if (h.cold) {
     const effects = [`Fights start with ${h.cold * 10}% less stamina`, `Running from the police: −${h.cold * 5}%`];
     if (h.cold >= 2) effects.push(`Your body makes blood back ${h.cold >= 3 ? '40%' : '75%'} as fast`);
-    out.push({ name: COLD_NAMES[h.cold], status: true, meter: { k: h.cold / 3, text: `${h.cold} / 3` }, effects, heals: 'Get out of the weather: indoors, or by a fire.' });
+    out.push({ name: COLD_NAMES[h.cold], status: true, meter: { k: h.cold / 3, text: `${h.cold} / 3` }, effects, heals: 'Get out of the weather: indoors, or by a fire. Warm clothes and a hat keep it from getting worse.' });
   }
   if (h.high && (h.highUntil ?? 0) > Date.now()) {
     const mins = Math.ceil(((h.highUntil ?? 0) - Date.now()) / 60000);

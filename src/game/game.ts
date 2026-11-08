@@ -24,7 +24,7 @@ import { isBrute } from './voices';
 import { knifeOf } from './knives';
 import { gunOf } from './guns';
 import { HEAT_NAMES, applyTo, comeBack, heal, fade, heatLevel, historyText, injuriesText, meet, newInfamy, recognises, remember, repName, type Infamy, type Known } from './people';
-import { anonymity, conspicuous, describe, hasHood, lookClothes, wearing } from './look';
+import { anonymity, coldFactor, conspicuous, describe, hasHood, lookClothes, topColdFactor, warmthWord, wearing } from './look';
 import { marksText, list as listOf, a as aOf } from './encounter';
 import { cashFill, cashFits, cashWhere, pocketCash, roomForCents, spotMl } from './inventory';
 import { mlOf } from './money';
@@ -86,6 +86,9 @@ const termDays = (what: string) => {
   const unit = (m[2] ?? m[3]).toLowerCase();
   return unit === 'day' ? n : unit === 'month' ? Math.round(n * 30.4) : n * 365;
 };
+/** On the shelf: how warm a top or a hat keeps you in the rain (nothing for anything else). */
+const stockWarmth = (s: { slot?: string; name: string }) =>
+  s.slot === 'top' ? ` Warmth: ${warmthWord(topColdFactor(s.name))}.` : s.slot === 'head' ? ` Warmth: ${/beanie/i.test(s.name) ? 'some' : 'little'}.` : '';
 const dueText = (t: number) => (new Date(t).getFullYear() === new Date(now()).getFullYear() ? dateText(t) : new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }));
 /** Days Dez's vig keeps compounding once you're late. */
 const VIG_DAYS = 14;
@@ -522,7 +525,7 @@ export class Game {
     const rain = COLD_AMOUNT[this.weather.now];
     const snowing = isSnow(this.weather.now);
     const top = this.inventory.clothes[0] ?? '';
-    const warm = /coat|parka|puffer|leather|layered/i.test(top) ? 0.5 : /t-shirt|shirt/i.test(top) ? 1.4 : 1;
+    const warm = coldFactor(this.inventory);
     if (rain > 0 && cold < 3 && Math.random() < rain * 0.65 * warm) {
       h.cold = cold + 1;
       return [
@@ -6894,7 +6897,7 @@ export class Game {
       body =
         `<ul class="shop-list">${GAS_STOCK.map((s) => {
           const n = s.med ? inv.items.filter((x) => x.med === s.med).length : s.slot || s.drink ? 0 : have(s.name);
-          return li(named(stockThing(s)), `${s.desc}${n ? ` · You have ${n}` : ''}`, this.stockBtns(s, c, btn));
+          return li(named(stockThing(s)), `${s.desc}${stockWarmth(s)}${n ? ` · You have ${n}` : ''}`, this.stockBtns(s, c, btn));
         }).join('')}</ul>` +
         ((cans) => (cans ? `<ul class="shop-list">${li('Cash in cans', `The machine by the ice chest takes them back: 10¢ a can. You have ${cans}.`, btn('cans', 'cash', `Cash in · ${money(cans * 10)}`))}</ul>` : ''))(this.cansCount) +
         (c < 100 ? `<p class="shop-broke">You can’t afford anything. The clerk watches you anyway.</p>` : '');
@@ -6906,7 +6909,7 @@ export class Game {
           .map(({ x, i, o }) => li(named(x), 'cents' in o ? `${x.detail ? `${x.detail} · ` : ''}He’ll give you ${money(o.cents)}` : o.why, 'cents' in o ? btn('sell', i, `Sell ${money(o.cents)}`) : ''));
         body = `<h3>Sell</h3>` + (sell.length ? `<ul class="shop-list">${sell.join('')}</ul>` : `<p class="shop-broke">You’ve got nothing to sell.</p>`);
         if (place === 'pawn') {
-          body += `<h3>For sale</h3><ul class="shop-list">${PAWN_STOCK.map((s) => li(named(stockThing(s)), s.slot === 'top' || s.slot === 'bottom' || s.slot === 'bag' ? `${s.desc} ${hidesWord(s.name)}.` : s.knife ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.knife }))}, ${alarmStat(alarmOf({ kind: 'weapon', name: s.knife }))}.` : s.desc, this.stockBtns(s, c, btn))).join('')}</ul>`;
+          body += `<h3>For sale</h3><ul class="shop-list">${PAWN_STOCK.map((s) => li(named(stockThing(s)), s.slot === 'top' || s.slot === 'bottom' || s.slot === 'bag' ? `${s.desc} ${hidesWord(s.name)}.${stockWarmth(s)}` : s.slot === 'head' ? `${s.desc}${stockWarmth(s)}` : s.knife ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.knife }))}, ${alarmStat(alarmOf({ kind: 'weapon', name: s.knife }))}.` : s.desc, this.stockBtns(s, c, btn))).join('')}</ul>`;
         }
       }
     } else if (place === 'bank') {
@@ -7129,7 +7132,7 @@ export class Game {
       `<div class="pocket-cash"><span>Cash</span><b>${money(Math.round(cashOf(inv) * 100))}</b></div>` +
       `<p class="pocket-purse">${this.purseHtml()}</p>` +
       this.cashWhereHtml() +
-      `<p class="pocket-wear">Wearing ${[...inv.clothes, ...(inv.gear ?? [])].map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total + purseKg(inv))} of ${kgLabel(inv.maxKg ?? carryLimit(this.stats.strength.level))}${((k) => (k > 1 ? ': over your limit, so walking wears you out' : k >= TIRING_LOAD ? ': near your limit, so walking tires you' : ''))((total + purseKg(inv)) / (inv.maxKg ?? 99))}.</p>` +
+      `<p class="pocket-wear">Wearing ${[...inv.clothes, ...(inv.gear ?? [])].map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total + purseKg(inv))} of ${kgLabel(inv.maxKg ?? carryLimit(this.stats.strength.level))}${((k) => (k > 1 ? ': over your limit, so walking wears you out' : k >= TIRING_LOAD ? ': near your limit, so walking tires you' : ''))((total + purseKg(inv)) / (inv.maxKg ?? 99))}. In the rain: ${((k) => (k <= 0.45 ? 'you stay warm' : k <= 0.9 ? 'fairly warm' : 'you’ll get cold'))(coldFactor(inv))}.</p>` +
       // What anyone looking at you can see you're carrying.
       (inv.items.some((x) => x.kind === 'weapon')
         ? ((seen) => `<p class="pocket-shows${seen.length ? ' seen' : ''}">${seen.length ? `Anyone looking can see you’re carrying: ${seen.map((x) => lc(x.name)).join(', ')}. People notice you sooner and scare easier, and the police notice too.` : 'Your weapons are out of sight.'}</p>`)(inv.items.filter((x) => x.kind === 'weapon' && showing(inv, x) >= 0.16))
@@ -7315,6 +7318,9 @@ export class Game {
     e.flame = !!this.flame();
     e.cardsHeld = e.holder
       ? inv.items.map((x, i) => ({ x, i })).filter(({ x }) => /card/.test(x.kind) && x.detail === e.holder && !x.pin && !x.pinAsked).map(({ x, i }) => ({ i, name: x.name }))
+      : [];
+    e.phonesHeld = e.phoneOf
+      ? inv.items.map((x, i) => ({ x, i })).filter(({ x }) => x.kind === 'phone' && x.of === e.phoneOf && x.locked !== false && !x.unlockAsked).map(({ x, i }) => ({ i, name: x.name }))
       : [];
     e.canAsk = this.world.thieves.length > 0 && !e.person.thief;
     e.carrying = inv.items.filter((x) => x.hand && x.kind !== 'weapon').length;

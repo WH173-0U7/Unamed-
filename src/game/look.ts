@@ -43,7 +43,33 @@ export interface Wearing {
   hood?: boolean;
 }
 
-export const hasHood = (inv: Inventory) => /hoodie|parka|windbreaker|puffer/i.test(inv.clothes[0] ?? '');
+export const hasHood = (inv: Inventory) => /hoodie|parka|windbreaker|puffer|rain jacket/i.test(inv.clothes[0] ?? '');
+
+/** How much a top keeps the rain and cold out: lower is better (it scales the chance of getting colder). */
+export function topColdFactor(top: string): number {
+  const t = top.toLowerCase();
+  if (/rain jacket/.test(t)) return 0.25;
+  if (/puffer|parka/.test(t)) return 0.4;
+  if (/coat|leather|layered/.test(t)) return 0.5;
+  if (/windbreaker/.test(t)) return 0.7;
+  if (/hoodie|flannel/.test(t)) return 0.85;
+  if (/jacket|blazer/.test(t)) return 0.8;
+  if (/t-shirt|shirt/.test(t)) return 1.4;
+  return 1;
+}
+/** What's on your head, against the cold: a beanie, a hood up, a cap (no better than ×0.7 together). */
+export function headColdFactor(inv: Inventory): number {
+  const w = wearing(inv);
+  let k = 1;
+  if (/beanie/i.test(w.head ?? '')) k *= 0.8;
+  else if (/cap/i.test(w.head ?? '')) k *= 0.95;
+  if (w.hood && hasHood(inv)) k *= 0.8;
+  return Math.max(0.7, k);
+}
+/** How quickly the rain and snow get to you, as you're dressed (1 is ordinary). */
+export const coldFactor = (inv: Inventory) => topColdFactor(inv.clothes[0] ?? '') * headColdFactor(inv);
+/** A word for a top's warmth, for a shop's shelf. */
+export const warmthWord = (k: number) => (k <= 0.45 ? 'high' : k <= 0.6 ? 'good' : k <= 0.9 ? 'some' : 'little');
 
 export function wearing(inv: Inventory): Wearing {
   return (inv.wearing ??= {});

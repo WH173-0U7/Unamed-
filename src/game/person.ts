@@ -195,6 +195,10 @@ export interface Loot {
   noPin?: boolean;
   /** You asked them for its PIN already. */
   pinAsked?: boolean;
+  /** A phone: whose it is (to make them unlock it), whether it's locked, and whether you've asked. */
+  of?: string;
+  locked?: boolean;
+  unlockAsked?: boolean;
   /** Nothing in it: the machine said so. */
   empty?: boolean;
   /** Something to wear, taken off: where it goes when you put it back on. */
@@ -532,7 +536,7 @@ function dress(kind: Kind, carrying: Item[], who: { name: string; age: number; s
   if (kind === 'homeless' && r() < 0.3) put(cash(money(3, 30), 'small', 'Folded bills'), clothes[2], 'left shoe');
   // A junkie out at night has usually hustled up something: enough for a bag, maybe.
   if (kind === 'junkie' && r() < 0.55) put(cash(money(4, 28), 'small', 'Crumpled bills'));
-  if (has('Phone')) put({ kind: 'phone', name: 'Cell phone', detail: any(PHONES) });
+  if (has('Phone')) put({ kind: 'phone', name: 'Cell phone', detail: any(PHONES), of: Math.random().toString(36).slice(2, 8) });
   if (has('Keys')) {
     // Car keys (theirs, parked somewhere), and the keys to home: usually on the same ring.
     if (kind === 'civilian' ? r() < 0.75 : r() < 0.35) put({ kind: 'car keys', name: 'Car keys', detail: `${home?.car ?? any(CARS)} key fob`, ...(home?.car ? { carOf: home.id } : {}) });

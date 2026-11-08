@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.58',
+    date: 'Nov 8',
+    items: [
+      'Clothes keep you warm in the rain and snow by how warm they are: a puffer or a coat keeps the cold out, a hoodie some, a T-shirt hardly at all. A beanie or your hood up helps too.',
+      'New at the pawn shop: a rain jacket, $45. Waterproof, with a hood: the best there is for staying dry.',
+      'Shops show how warm each top and hat is, and Pockets tells you how you’ll do in the rain in what you’re wearing.',
+      'You can make someone unlock their phone (“Unlock it.”), the one in their pocket or the one you took. Scared enough, they do; or they fake it.',
+    ],
+  },
+  {
     v: '2.57',
     date: 'Nov 7',
     items: [

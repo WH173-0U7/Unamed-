@@ -325,6 +325,9 @@ export interface Encounter {
    *  your pockets without a PIN (index in your items), someone has your old things. */
   flame?: boolean;
   cardsHeld?: { i: number; name: string }[];
+  /** Their phone (see Loot.of), and the one you took off them, still locked. */
+  phoneOf?: string;
+  phonesHeld?: { i: number; name: string }[];
   canAsk?: boolean;
   /** Your weapons (index in your items), set by the game as it draws. */
   /** How many hands are full with something that isn't a weapon (a bag by the strap). */
@@ -510,6 +513,12 @@ function yieldedOptions(e: Encounter): Option[] {
     }),
   );
   for (const c of e.cardsHeld ?? []) out.push({ id: `pin-mine:${c.i}`, label: '“What’s the PIN?”', hint: `The ${c.name.toLowerCase()} you took`, cat: 'threaten' });
+  e.person.clothes.forEach((g, gi) =>
+    g.loot.forEach((l, li) => {
+      if (g.searched && !l.hidden && l.kind === 'phone' && l.locked !== false && !l.unlockAsked && !l.yours) out.push({ id: `unlock:${gi}:${li}`, label: '“Unlock it.”', hint: 'Their phone', cat: 'threaten' });
+    }),
+  );
+  for (const p of e.phonesHeld ?? []) out.push({ id: `unlock-mine:${p.i}`, label: '“Unlock it.”', hint: 'The phone you took', cat: 'threaten' });
   if (e.canAsk && !asked.includes('thief')) out.push({ id: 'ask-thief', label: '“Seen anyone with my things?”', hint: 'What you had, before', cat: 'threaten' });
   // Hurting them, for the truth or for the fun of it.
   const fingers = T.marks?.fingers ?? 0;
@@ -586,6 +595,7 @@ export function newEncounter(person: Person, yours: Body): Encounter {
     result: null,
     // The name on their cards (to ask for a PIN).
     holder: person.clothes.flatMap((g) => g.loot).find((l) => !l.yours && (l.kind === 'id' || /card/.test(l.kind)))?.detail?.split(',')[0],
+    phoneOf: person.clothes.flatMap((g) => g.loot).find((l) => l.kind === 'phone' && l.of)?.of,
   };
 }
 
@@ -3631,6 +3641,37 @@ function threatAct(id: string, inv?: Inventory): boolean {
       say('them', `“Okay! Okay, there’s this too.” They pull ${lootWords(l).replace(/ \(([^)]*)\)$/, ', $1,')} out of their ${g.name.toLowerCase()}.`);
       you.gain('intimidation', 4);
     } else say('them', speak(hidden.length ? 'holdingOut' : 'allThere') || (fear >= 50 ? '“That’s all of it, I swear. I swear!”' : '“That’s everything.” They hold your eye a little too long.'));
+    return true;
+  }
+  if (id.startsWith('unlock:') || id.startsWith('unlock-mine:')) {
+    let phone: { locked?: boolean; unlockAsked?: boolean } | undefined;
+    if (id.startsWith('unlock:')) {
+      const [, gi, li] = id.split(':').map(Number);
+      const l = e.person.clothes[gi]?.loot[li];
+      phone = l?.kind === 'phone' ? l : undefined;
+    } else {
+      const it = inv?.items[Number(id.slice(12))];
+      phone = it?.kind === 'phone' && it.of != null && it.of === e.phoneOf ? it : undefined;
+    }
+    if (!phone || phone.locked === false || phone.unlockAsked) return false;
+    say('you', oneOf(['“Your phone. Unlock it.”', '“Unlock it. Now.”']));
+    if (fear < 25) {
+      say('them', (isBrute(e.person.personality) ? speak('refuse') : speak('pinRefuse')) || 'They press their lips together and say nothing.');
+      return true;
+    }
+    phone.unlockAsked = true;
+    // Scared enough, they do it. Otherwise, a wrong code, fast.
+    const truth = personalityOf(e.person).truth;
+    const terrified = fear >= (truth < 1 ? 85 : 65);
+    if (terrified || Math.random() < (fear / 80) * truth) {
+      phone.locked = false;
+      say('them', oneOf(['They press their thumb to it with a shaking hand. The screen lights up, open.', 'They tap in the code, hands shaking, and hold it out to you. It’s open.']));
+      you.gain('intimidation', 4);
+    } else {
+      phone.locked = true;
+      say('them', oneOf(['They tap in a code, fast. The screen shakes: wrong. “It— I must have—” They won’t meet your eye.', 'They jab at the screen and hand it back. Still locked. “It does that. I don’t know why.”']));
+      you.gain('intimidation', 2);
+    }
     return true;
   }
   if (id.startsWith('pin:') || id.startsWith('pin-mine:')) {

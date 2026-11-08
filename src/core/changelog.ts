@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.64',
+    date: 'Nov 8',
+    items: [
+      'Your own phone, taken off you while you were out cold and got back, is still yours and unlocked (it could come back locked).',
+      'A second set of keys to someone’s car finds the same car, not another one to sell.',
+      'Bail you’re handed back but can’t fit in your pockets goes toward your fine, instead of you being told you can’t pay it.',
+      'A tip-off about who has your things now points at someone who still has them.',
+      'The rain jacket’s description matches what it does: it keeps you dry and warm in the rain.',
+    ],
+  },
+  {
     v: '2.63',
     date: 'Nov 8',
     items: [

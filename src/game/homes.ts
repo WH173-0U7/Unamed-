@@ -140,6 +140,8 @@ export interface Home {
   wealth: number;
   /** A car out front. */
   car: string | null;
+  /** The one car of theirs you've keys to (so a second set of keys finds the same car, not another). */
+  carClaim?: string;
   /** For the odds that stay put for an hour or two (who's home). */
   seed: number;
   // ---- What's happened (kept on the address you know) ----

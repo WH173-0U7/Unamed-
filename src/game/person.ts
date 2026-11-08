@@ -198,6 +198,8 @@ export interface Loot {
   /** A phone: whose it is (to make them unlock it), whether it's locked, and whether you've asked. */
   of?: string;
   locked?: boolean;
+  /** Yours, from this life (your own phone, your own ID). */
+  own?: number;
   unlockAsked?: boolean;
   /** Nothing in it: the machine said so. */
   empty?: boolean;

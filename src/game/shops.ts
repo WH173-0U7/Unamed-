@@ -283,7 +283,7 @@ export const PAWN_STOCK: Stock[] = [
   { id: 'fanny', name: 'Fanny pack', price: 12, desc: 'A zip pouch for small things, 1.2 kg.', slot: 'bag' },
   { id: 'coat', name: 'Coat', price: 55, desc: 'Second-hand wool, warm in the rain. Three pockets.', slot: 'top' },
   { id: 'puffer', name: 'Puffer jacket', price: 75, desc: 'Second-hand, a little flat in places, but the warmest there is. Three pockets.', slot: 'top' },
-  { id: 'rainjacket', name: 'Rain jacket', price: 45, desc: 'A hooded waterproof shell. Keeps the rain off; not much warmth under it. Two pockets.', slot: 'top' },
+  { id: 'rainjacket', name: 'Rain jacket', price: 45, desc: 'A hooded waterproof shell. Keeps the rain off, so you stay dry and warm. Two pockets.', slot: 'top' },
   { id: 'hoodie', name: 'Hoodie', price: 25, desc: 'Second-hand. One big front pocket.', slot: 'top' },
   { id: 'cargo', name: 'Cargo pants', price: 30, desc: 'Two cargo pockets for medium things.', slot: 'bottom' },
   { id: 'lighter', name: 'Lighter', price: 2, desc: 'A cheap plastic one.' },

@@ -1187,8 +1187,10 @@ export class Game {
       if (l) worse.push(l);
     }
     // A tip-off about your old things.
-    if (e.tip === 'thief' && this.world.thieves.length) {
-      this.world.lead = this.world.thieves[Math.floor(Math.random() * this.world.thieves.length)].id;
+    // (One who still has something of yours.)
+    const holding = this.world.thieves.filter((t) => t.person.clothes.some((g) => g.loot.some((l) => l.yours)));
+    if (e.tip === 'thief' && holding.length) {
+      this.world.lead = holding[Math.floor(Math.random() * holding.length)].id;
       delete e.tip;
     }
     // Stamping on someone who can't defend themselves.
@@ -3819,16 +3821,18 @@ export class Game {
     const talk = lieBonus(this.stats) - fatigueOdds(this.health);
     train(this.stats, 'speech', 4);
     // Your bail back, for turning up.
+    let held = 0;
     if (c.bailPaid && !inCustody) {
-      const rest = cents(pocketCash(this.inventory, fewest(c.bailPaid)));
+      held = cents(pocketCash(this.inventory, fewest(c.bailPaid)));
       lines.push(`You get your ${money(c.bailPaid)} bail back.`);
-      if (rest) lines.push(`You’ve no room for ${money(rest)} of it. The clerk shrugs and keeps it for the court’s fees.`);
     }
+    // (What wouldn't fit: toward a fine if there's one; else the clerk keeps it.)
+    const keep = (): string[] => (held ? [`You’ve no room for ${money(held)} of your bail. The clerk shrugs and keeps it for the court’s fees.`] : []);
     delete this.save.state.case;
     if (Math.random() < Math.max(0.03, Math.min(0.6, 0.38 - sev * 0.04 + talk * 0.5 - priors * 0.06))) {
       lines.push('The evidence is thin and the prosecutor lets it go. “Dismissed.” You’re out the door before anyone changes their mind.');
       f.heat = Math.max(0, f.heat - 20);
-      return lines;
+      return [...lines, ...keep()];
     }
     // (Convicted while on it: the probation's done with, one way or another.)
     if (onProbation) delete this.save.state.probationUntil;
@@ -3853,9 +3857,13 @@ export class Game {
     }
     if (sev <= 3 && !onProbation) {
       const fine = Math.round(c.charges.reduce((n, x) => n + chargeOf(x).fine, 0) * (1 + priors * 0.25) * (half ? 0.5 : 1));
-      const have = Math.round(cashOf(this.inventory) * 100) + (this.account?.cents ?? 0);
+      const have = Math.round(cashOf(this.inventory) * 100) + (this.account?.cents ?? 0) + held;
       if (have >= fine * 100) {
         let left = fine * 100;
+        // (The bail they're holding goes on the fine first.)
+        const fromHeld = Math.min(held, left);
+        held -= fromHeld;
+        left -= fromHeld;
         const cash = Math.round(cashOf(this.inventory) * 100);
         const fromCash = Math.min(cash, left);
         this.inventory.purse = {};
@@ -3867,11 +3875,11 @@ export class Game {
         this.record.fines = (this.record.fines ?? 0) + 1;
         this.record.finedCents = (this.record.finedCents ?? 0) + fine * 100;
         f.heat = Math.max(0, f.heat - 30);
-        return lines;
+        return [...lines, ...keep()];
       }
       const days = Math.max(2, Math.round(fine / 100));
       lines.push(`You plead guilty. ${/^\$(8|1[18](,|$))/.test(money(fine * 100)) ? 'An' : 'A'} ${money(fine * 100)} fine you can’t pay, so it’s ${days} days instead.`);
-      return [...lines, ...this.serve(days)];
+      return [...lines, ...keep(), ...this.serve(days)];
     }
     if (sev <= 6 && !onProbation) {
       this.save.state.probationUntil = now() + 30 * 24 * 3_600_000;
@@ -3879,11 +3887,11 @@ export class Game {
       this.record.probations = (this.record.probations ?? 0) + 1;
       lines.push('Your lawyer takes the deal: you plead guilty and get probation. Get charged with anything while you’re on it and you’re held with no bail.');
       f.heat = Math.max(0, f.heat - 30);
-      return lines;
+      return [...lines, ...keep()];
     }
     const days = Math.round(c.charges.reduce((n, x) => n + chargeOf(x).days, 0) * (1 + priors * 0.3) * (half ? 0.5 : 1));
     lines.push(days >= 365 ? `Found guilty. ${prisonTerm(days).replace(/^a/, 'A')} in state prison.` : `Found guilty. ${days} days in County.`);
-    return [...lines, ...this.serve(days)];
+    return [...lines, ...keep(), ...this.serve(days)];
   }
   /** Time inside: you heal, you get harder, and you come out with nothing new. */
   private serve(days: number): string[] {
@@ -5795,7 +5803,21 @@ export class Game {
       // (Their keys, from the hook or their pocket: that car isn't out front for anyone else to take.)
       if (x.kind === 'car keys' && x.carOf) {
         const h = this.homeById(x.carOf);
-        if (h) h.car = null;
+        if (h?.carClaim && x.carId !== h.carClaim) {
+          // (Another set of keys to a car you've already got the keys to: the same car, if it's still about.)
+          x.carId = h.carClaim;
+          x.car = this.carById(h.carClaim) ? 'found' : 'gone';
+          delete x.hunt;
+        } else if (h && !h.carClaim) {
+          if (h.car == null && x.car !== 'found') x.car = 'gone';
+          else {
+            // (A spare off the hook: the car's out front now. Pocket keys: the hunt finds it under this id.)
+            if (x.car === 'found' && !x.carId && this.inventory.items.includes(x)) this.ensureCar(x);
+            x.carId ??= Math.random().toString(36).slice(2, 10);
+            h.carClaim = x.carId;
+            h.car = null;
+          }
+        }
         // (And it's out front, where they left it: a car you know about.)
         // (A fob from before, its car long gone: it's gone.)
         if (x.car === 'found' && this.inventory.items.includes(x)) {

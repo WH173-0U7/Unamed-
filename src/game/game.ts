@@ -974,7 +974,7 @@ export class Game {
     this.save.state.crowd = [];
     // Known around here: his people come to you.
     if (!this.connect.known && !this.connect.cutOff && this.infamy.rep >= 30 && Math.random() < 0.05) {
-      this.note(['A kid on a bike slows down beside you and doesn’t look at you. “Dez wants to meet you. The alley behind the laundromat, after dark.” Then he’s gone.', ...this.learnConnect('a kid on a bike')]);
+      this.note(['A kid on a bike slows down beside you and doesn’t look at you. “Dez wants to meet you. The alley behind the laundromat.” Then he’s gone.', ...this.learnConnect('a kid on a bike')]);
       return;
     }
     if (fatigueNow(this.health) >= FATIGUE_SPENT) {
@@ -4219,7 +4219,7 @@ export class Game {
   private release() {
     const j = this.jail;
     // Inside, people talk: sometimes about who's selling.
-    if (j && !j.escaped && !this.connect.known && Math.random() < 0.5) j.after = [...(j.after ?? []), 'On your way out, the man from the next bunk catches your sleeve. “You need work? Dez. The alley behind the laundromat, after dark. Tell him Rook sent you.”', ...this.learnConnect('Rook')];
+    if (j && !j.escaped && !this.connect.known && Math.random() < 0.5) j.after = [...(j.after ?? []), 'On your way out, the man from the next bunk catches your sleeve. “You need work? Dez. The alley behind the laundromat. Tell him Rook sent you.”', ...this.learnConnect('Rook')];
     delete this.save.state.jail;
     document.getElementById('jail')?.remove();
     if (!j || this.dead) return;
@@ -4650,7 +4650,7 @@ export class Game {
     return (
       `<section class="stat-card record"><h3><span>Criminal record</span><b>${r.arrests ? `${r.arrests} arrest${r.arrests > 1 ? 's' : ''}` : this.case?.warrant ? 'Wanted' : 'Clean'}</b></h3>` +
       (this.case ? `<p class="record-case${this.case.warrant ? ' warrant' : ''}">${this.case.warrant ? `WARRANT out for you: ${this.case.warrantFor === 'sting' ? 'the buy you ran from' : this.case.warrantFor === 'escape' ? 'the escape' : 'missed court'}. Any stop is an arrest. Turn yourself in at the County Courthouse to end it.` : `Court date: ${dateText(this.case.courtAt)}, County Courthouse (weekdays, 9 to 4). Charges: ${this.case.charges.map((x) => x.toLowerCase()).join(', ')}.${this.case.bailPaid ? ` Bail paid: ${money(this.case.bailPaid)} (back when you show up).` : ''}`}</p>` : '') +
-      ((d) => (d ? `<p class="record-case${now() > d.due ? ' warrant' : ''}">You owe Dez ${money(d.owed)}${now() > d.due ? `. You’re late (it was due ${dueText(d.due)}), ${(d.vigDays ?? 0) >= VIG_DAYS ? "he’s done waiting" : 'it grows every day'}, and he’s sending someone.` : `, due ${dateText(d.due)} ${clockText(d.due)}. In the alley, at night.`}</p>` : ''))(this.debt) +
+      ((d) => (d ? `<p class="record-case${now() > d.due ? ' warrant' : ''}">You owe Dez ${money(d.owed)}${now() > d.due ? `. You’re late (it was due ${dueText(d.due)}), ${(d.vigDays ?? 0) >= VIG_DAYS ? "he’s done waiting" : 'it grows every day'}, and he’s sending someone.` : `, due ${dateText(d.due)} ${clockText(d.due)}. In the alley.`}</p>` : ''))(this.debt) +
       (now() < ((this.save.state.probationUntil as number) ?? 0) ? `<p class="record-case">On probation until ${dateText(this.save.state.probationUntil as number)} ${clockText(this.save.state.probationUntil as number)}: get charged with anything and you’re held, no bail.</p>` : '') +
       (r.arrests
         ? (rows.length ? `<ul class="record-list">${rows.map(([c, n]) => `<li><span>${c}</span><b>×${n}</b></li>`).join('')}</ul>` : '') +
@@ -5175,7 +5175,7 @@ export class Game {
     c.known = true;
     c.via = via;
     c.trust = 0;
-    return ['You know a supplier now: Dez, in the alley behind the laundromat, after dark (Go: The alley).'];
+    return ['You know a supplier now: Dez, in the alley behind the laundromat (Go: The alley).'];
   }
   /** Asking someone on the street if they know anyone selling. */
   private askConnect(e: Encounter) {
@@ -5197,7 +5197,7 @@ export class Game {
       }
       const paid = want ? this.payLine(want) : '';
       const name = e.person.name ?? (k === 'junkie' ? 'the skinny one' : 'a friend');
-      say('them', `${want ? 'They pocket the twenty. ' : ''}${oneOf(['They look up and down the street. “Dez. The alley behind the laundromat, after dark. Tell him', '“You didn’t hear it from me. Dez, out back of the laundromat, nights. Say', '“Dez. Behind the laundromat, where the steam comes out. Late. Tell him'])} ${name.split(' ')[0]} sent you.”`);
+      say('them', `${want ? 'They pocket the twenty. ' : ''}${oneOf(['They look up and down the street. “Dez. The alley behind the laundromat. Tell him', '“You didn’t hear it from me. Dez, out back of the laundromat, nights. Say', '“Dez. Behind the laundromat, where the steam comes out. Late. Tell him'])} ${name.split(' ')[0]} sent you.”`);
       for (const l of this.learnConnect(name)) say('info', l);
       if (paid) say('info', paid);
     } else {

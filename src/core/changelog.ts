@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.67',
+    date: 'Nov 8',
+    items: ['Every place is open at all hours now: shops, the bank, the Records Office, the courthouse, Harbor Plasma, the fence and Dez.'],
+  },
+  {
     v: '2.66',
     date: 'Nov 8',
     items: [

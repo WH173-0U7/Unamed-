@@ -24,7 +24,10 @@ export function partOfDay(t = now()): 'night' | 'dawn' | 'day' | 'dusk' {
  */
 export type Hours = ([number, number] | null)[];
 
+/** Every place is open at all hours now (closing times got in the way of play). The old hours stay in the data. */
+const ALWAYS_OPEN = true;
 export function isOpen(hours: Hours, t = now()): boolean {
+  if (ALWAYS_OPEN) return true;
   const d = new Date(t);
   const h = d.getHours() + d.getMinutes() / 60;
   const today = hours[d.getDay()];
@@ -44,6 +47,7 @@ const hh = (h: number) => {
 
 /** "Opens 9 AM" / "Closes 5 PM", from now. */
 export function hoursText(hours: Hours, t = now()): string {
+  if (ALWAYS_OPEN) return 'Open all hours';
   const d = new Date(t);
   if (isOpen(hours, t)) {
     const today = hours[d.getDay()];

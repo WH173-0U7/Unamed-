@@ -11,6 +11,11 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.70',
+    date: 'Nov 8',
+    items: ['Settings has a “Reset game” button: it wipes every character, everyone you used to be and the whole city, and starts a fresh game, from the menu or mid-game.'],
+  },
+  {
     v: '2.69',
     date: 'Nov 8',
     items: [

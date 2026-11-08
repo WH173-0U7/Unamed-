@@ -195,6 +195,26 @@ const menu = createMenu({
   },
 });
 
+// Reset (Settings): everything wiped, and a fresh game started, from the menu or mid-game.
+$('btn-reset-game').addEventListener('click', () => {
+  menu.confirm({
+    title: 'Reset the whole game?',
+    body: 'Every character, everyone you used to be, and the whole city is wiped, and a fresh game starts. This cannot be undone.',
+    ok: 'Reset',
+    onOk: () => {
+      if (game) {
+        game.close();
+        game = null;
+      }
+      clearTimeout(saveTimer);
+      deleteSave();
+      menu.setSaveInfo(null);
+      document.body.classList.remove('paused');
+      startGame(true);
+    },
+  });
+});
+
 // Moving a game between devices (Settings): export it as a code, or load one.
 $('btn-export').addEventListener('click', () => {
   if (game) save();

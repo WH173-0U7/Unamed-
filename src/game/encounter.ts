@@ -2431,7 +2431,8 @@ function wound(d: Side, loc: Loc, dmg: number, how: 'punch' | 'kick' | 'cut' | '
   };
   const breaks = (part: Part, chance: number) => {
     // A blade opens skin; it doesn't snap bone.
-    if (sharp || D.broken.includes(part) || Math.random() >= chance) return false;
+    // (Toughness: your bones take more before they go.)
+    if (sharp || D.broken.includes(part) || Math.random() >= chance * (d === 'you' ? 1 - toughnessResist(you.stats) : 1)) return false;
     severe = true;
     D.broken.push(part);
     if (d === 'them') scare(12);

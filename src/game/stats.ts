@@ -125,4 +125,6 @@ export const lieBonus = (s: Stats) => ((s.speech?.level ?? 1) - 1) * 0.006;
 export const persuadeBonus = (level: number) => (level - 1) * 0.002;
 
 /** How much less a blow rattles you toward being knocked out, from Toughness (up to 40% less). */
+/** Stamina, running from the police: you last longer than they do. */
+export const runStamina = (s: Stats) => Math.min(0.15, ((s.stamina?.level ?? 1) - 1) * 0.0015);
 export const toughnessResist = (s: Stats) => Math.min(0.4, ((s.toughness?.level ?? 1) - 1) * 0.004);

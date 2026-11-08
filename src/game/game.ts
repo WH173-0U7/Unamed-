@@ -4,7 +4,7 @@ import { createTv } from './tv';
 import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf, randomName, type Loot } from './person';
 import { ENCOUNTER_VERSION, act, indoors, liftables, newEncounter, options as encounterOptions, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
-import { toughnessResist } from './stats';
+import { runStamina, toughnessResist } from './stats';
 import { STAT_NAMES, lieBonus, persuadeBonus, train, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
 import { MEND_HOURS, CONCUSSION_HOURS } from './health';
 import { addFatigue, fatigueLevel, fatigueNow, fatigueOdds, restLeft, FATIGUE_NAMES, FATIGUE_SPENT } from './health';
@@ -95,7 +95,7 @@ const VIG_DAYS = 14;
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 /** At an address: outside, or in, and what's happened so far. */
 /** Everything in the save that's this character's (not the world's). */
-const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'policeArrested', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'laterLines', 'restLines', 'connect', 'work', 'workLines', 'plasma', 'gig', 'bins', 'crowd'];
+const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'policeArrested', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'hadId', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'laterLines', 'restLines', 'connect', 'work', 'workLines', 'plasma', 'gig', 'bins', 'crowd'];
 /** What only makes sense in the moment (a stop, a fight, a door you're at): not kept when you stop being them. */
 const MOMENT_KEYS = ['work', 'workLines', 'laterLines', 'restLines', 'crowd', 'encounter', 'policeStop', 'policeResult', 'policeArrested', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow'];
 /**
@@ -2339,10 +2339,12 @@ export class Game {
       return;
     }
     const paid = this.payLine(ID_FEE * 100);
+    const again = !!this.save.state.hadId;
+    this.save.state.hadId = true;
     const waited = passHours(this.health, 1);
     if (this.health.dead) return this.die(waited);
     this.refresh();
-    this.note([...waited, `An hour of waiting, a photo where you look like a suspect, and a card still warm from the printer: ${me.name}.`, paid]);
+    this.note([...waited, `An hour of waiting${again ? ', a form for a lost card,' : ''}, a photo where you look like a suspect, and a card still warm from the printer: ${me.name}.`, paid]);
     buzz(8);
   }
 
@@ -3513,7 +3515,7 @@ export class Game {
       const tired = fatigueOdds(h) * 2;
       addFatigue(h, 6);
       // (Agility counts through accuracyBonus; Sneak, for losing them once you're away.)
-      const odds = 0.5 - tired - (burglary ? 0.15 : 0) + accuracyBonus(this.stats) + (this.stats.sneak?.level ?? 1) * 0.002 - legs * 0.3 - (h.cold ?? 0) * 0.05 - (h.stress ?? 0) * 0.002 - (h.blood < h.maxBlood * 0.75 ? 0.15 : 0);
+      const odds = 0.5 - tired - (burglary ? 0.15 : 0) + accuracyBonus(this.stats) + (this.stats.sneak?.level ?? 1) * 0.002 + runStamina(this.stats) - legs * 0.3 - (h.cold ?? 0) * 0.05 - (h.stress ?? 0) * 0.002 - (h.blood < h.maxBlood * 0.75 ? 0.15 : 0);
       if (Math.random() < odds) {
         lines.push(burglary ? (upstairs ? 'Down the fire escape, the last ten feet in a drop, and away down the alley. Flashlights behind you, then fewer, then none.' : 'Out the back, over a fence, through somebody’s yard and a hedge that tears your face. Flashlights behind you, then fewer, then none.') : 'You bolt. Shouts behind you, a car door, footsteps. You go over a fence and through a yard and down an alley, and when you stop, they’re gone.');
         f.heat = Math.min(100, f.heat + (burglary ? 25 : 10));
@@ -6929,8 +6931,10 @@ export class Game {
       body = open ? this.plasmaHtml(btn, li) : `<p class="shop-closed">The doors are locked. Open Monday to Saturday, 7 to 7.</p>`;
     } else if (place === 'records') {
       const mine = this.ownId();
+      // (Had one: losing it means a replacement.)
+      if (mine) this.save.state.hadId = true;
       body = open
-        ? `<ul class="shop-list">${li('State ID', mine ? `You have one: ${mine.detail}.` : 'Your name, your photo, your address (more or less).', btn('records', 'id', money(ID_FEE * 100), (mine && 'You have one') || (c < ID_FEE * 100 && 'Not enough cash')))}</ul>` +
+        ? `<ul class="shop-list">${li(!mine && this.save.state.hadId ? 'Replacement ID' : 'State ID', mine ? `You have one: ${mine.detail}.` : this.save.state.hadId ? 'Yours is gone: a new one, the same name, the same photo booth.' : 'Your name, your photo, your address (more or less).', btn('records', 'id', money(ID_FEE * 100), (mine && 'You have one') || (c < ID_FEE * 100 && 'Not enough cash')))}</ul>` +
           `<p class="shop-broke">With your own ID you can open a bank account, sell to and buy from the pawn shop, and buy alcohol, without anyone looking at you twice.</p>`
         : `<p class="shop-closed">The doors are locked. Open weekdays, 9 to 4.</p>`;
     } else if (place === 'liquor') {
@@ -7490,6 +7494,7 @@ export class Game {
       stamina: [
         ['Stamina', `${maxStamina(st)}`],
         ['Breath back each turn', `${staminaRegen(st).toFixed(1)}`],
+        ['Outrunning the police', `+${pct(runStamina(st))}`],
       ],
       weapons: [
         ['Damage with a weapon', `+${pct(weaponDamage(st))}`],
@@ -7504,6 +7509,7 @@ export class Game {
       toughness: [
         ['Blows rattle you toward going out', `−${pct(toughnessResist(st))}`],
         ['A lucky one knocking you out cold', `−${pct(toughnessResist(st))}`],
+        ['A bone breaking', `−${pct(toughnessResist(st))}`],
       ],
       speech: [
         ['Lies that land', `+${pct(lieBonus(st))}`],

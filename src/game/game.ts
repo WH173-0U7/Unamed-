@@ -65,7 +65,9 @@ const NEVER = 8.64e15;
 /** A prison sentence, said the way a judge would: whole years, else months. */
 const prisonTerm = (days: number) => {
   const months = Math.round(days / 30.4);
-  return months % 12 ? `${months} months` : months === 12 ? 'a year' : `${months / 12} years`;
+  // (Two years or more: in years, rounded, the way a judge says it.)
+  if (months >= 24) return `${Math.round(months / 12)} years`;
+  return months === 12 ? 'a year' : `${months} months`;
 };
 /** A date, with the year when it isn't this year's (a debt that came due while you were inside). */
 /** Real hours behind the door: a night in a cell, the wait in County for a hearing. */
@@ -3353,6 +3355,8 @@ export class Game {
     return Math.min(cash, 30_000, Math.max(4000, Math.floor(cash / 400) * 100));
   }
   private police(choice: 'run' | 'stay' | 'talk' | 'bribe') {
+    // (No stop going on: a left-over sheet, nothing to answer.)
+    if (!this.save.state.policeStop) return;
     const inv = this.inventory;
     const h = this.health;
     const f = this.infamy;
@@ -4220,6 +4224,8 @@ export class Game {
     document.getElementById('jail')?.remove();
     if (!j || this.dead) return;
     this.running = !this.paused;
+    // (The police sheet left behind the jail screen, with nothing on it now: gone.)
+    if (this.sheet === 'police' && !this.save.state.policeResult && !this.save.state.policeStop) this.closeSheet();
     this.refresh();
     if (this.save.state.policeResult) {
       if (this.tvState.on) this.openSheet('police');
@@ -7039,7 +7045,7 @@ export class Game {
       body =
         `<ul class="shop-list">` +
         (rented ? li('Your room, upstairs', `Room 14, paid up until ${dateText(r!.until)}. A bed, a lock that mostly works, a window onto the fire escape. Warm, and nobody bothers you.`, btn('room', 'sleep', 'Sleep')) : '') +
-        li(rented ? 'Another week' : 'A room for a week', rented ? "Pay ahead. Fall behind and they clear it after two days." : 'Cash up front. No lease, no ID, no questions.', btn('room', 'rent', money(ROOM_RENT * 100), c < ROOM_RENT * 100 && 'Not enough cash')) +
+        li(rented ? 'Another week' : 'A room for a week', rented ? "Pay ahead. Fall behind and they clear it after two days." : 'Cash up front. No lease, no ID, no questions.', btn('room', 'rent', money(ROOM_RENT * 100), c < ROOM_RENT * 100 && (rented ? 'Not enough cash for another week' : 'Not enough cash'))) +
         `</ul>` +
         (rented ? this.stashHtml('room') : '');
     }
@@ -7205,7 +7211,7 @@ export class Game {
       `<div class="pocket-cash"><span>Cash</span><b>${money(Math.round(cashOf(inv) * 100))}</b></div>` +
       `<p class="pocket-purse">${this.purseHtml()}</p>` +
       this.cashWhereHtml() +
-      `<p class="pocket-wear">Wearing ${[...inv.clothes, ...(inv.gear ?? [])].map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total + purseKg(inv))} of ${kgLabel(inv.maxKg ?? carryLimit(this.stats.strength.level))}${((k) => (k > 1 ? ': over your limit, so walking wears you out' : k >= TIRING_LOAD ? ': near your limit, so walking tires you' : ''))((total + purseKg(inv)) / (inv.maxKg ?? 99))}. In the rain: ${((k) => (k <= 0.45 ? 'you stay warm' : k <= 0.9 ? 'fairly warm' : 'you’ll get cold'))(coldFactor(inv))}.</p>` +
+      `<p class="pocket-wear">Wearing ${[...inv.clothes, ...(inv.gear ?? [])].map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total + purseKg(inv))} of ${kgLabel(inv.maxKg ?? carryLimit(this.stats.strength.level))}${((k) => (k > 1 ? ': over your limit, so walking wears you out' : k >= TIRING_LOAD ? ': near your limit, so walking tires you' : ''))((total + purseKg(inv)) / (inv.maxKg ?? 99))}.</p><p class="pocket-wear pocket-rain">In the rain: ${((k) => (k <= 0.45 ? 'you stay warm' : k <= 0.9 ? 'fairly warm' : 'you’ll get cold'))(coldFactor(inv))}.</p>` +
       // What anyone looking at you can see you're carrying.
       (inv.items.some((x) => x.kind === 'weapon')
         ? ((seen) => `<p class="pocket-shows${seen.length ? ' seen' : ''}">${seen.length ? `Anyone looking can see you’re carrying: ${seen.map((x) => lc(x.name)).join(', ')}. People notice you sooner and scare easier, and the police notice too.` : 'Your weapons are out of sight.'}</p>`)(inv.items.filter((x) => x.kind === 'weapon' && showing(inv, x) >= 0.16))
@@ -8152,12 +8158,19 @@ export class Game {
     const waiting = this.phase !== 'idle' && this.place === 'street' && this.running;
     if (!waiting) this.lurkBtn.classList.remove('waiting');
     const showL = show || waiting;
+    let moved = false;
     if (this.lurkBtn.hidden === showL) {
       this.lurkBtn.hidden = !showL;
       this.lurkBtn.querySelector('span')!.textContent = 'Lurk';
+      moved = true;
     }
     const rest = show && (isHurt(this.health) || fatigueNow(this.health) >= 10);
-    if (this.restBtn.hidden === rest) this.restBtn.hidden = !rest;
+    if (this.restBtn.hidden === rest) {
+      this.restBtn.hidden = !rest;
+      moved = true;
+    }
+    // (Lurk or Rest came or went: the note's strip under them moves with them.)
+    if (moved) this.fitStreet();
     // The very first time: what there is to do.
     if (show && !this.save.state.toldStart && this.lurkState.times - this.world.lifeStart === 0) {
       this.save.state.toldStart = true;

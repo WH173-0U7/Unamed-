@@ -246,11 +246,11 @@ function overSvg(): string {
     .map(([x, y, t]) => `<text class="m-district" x="${x}" y="${y}" text-anchor="middle">${t}</text>`)
     .join('');
   const mark = (x: number, y: number, d: string, label: string, anchor = 'middle') =>
-    `<g class="m-landmark"><circle cx="${x}" cy="${y}" r="3.6"/><path transform="translate(${x - 2.6} ${y - 2.6}) scale(0.22)" d="${d}"/><text x="${anchor === 'start' ? x - 3 : x}" y="${y + 8.6}" text-anchor="${anchor}">${label}</text></g>`;
+    `<g class="m-landmark"><circle cx="${x}" cy="${y}" r="3.6"/><path transform="translate(${x - 2.6} ${y - 2.6}) scale(0.22)" d="${d}"/><text x="${anchor === 'start' ? x - 3 : anchor === 'end' ? x + 3 : x}" y="${y + 8.6}" text-anchor="${anchor}">${label}</text></g>`;
   const marks = [
     mark(66, 128, 'M12 2.5v19 M6 8h12 M7 21.5h10', 'ST. AGNES'),
     mark(18, 223, 'M5 5h14v14H5z M8 12a4 4 0 1 0 8 0a4 4 0 1 0-8 0', 'LAUNDROMAT', 'start'),
-    mark(282, 30, 'M8 21.5l2-11h4l2 11 M7 10.5h10v-4a5 5 0 0 0-10 0z', 'WATER TOWER'),
+    mark(282, 30, 'M8 21.5l2-11h4l2 11 M7 10.5h10v-4a5 5 0 0 0-10 0z', 'WATER TOWER', 'end'),
     mark(26, 292, 'M3 20h18 M5 20V9l7-5 7 5v11 M9 20v-6h6v6', 'SHELTER', 'start'),
   ].join('');
   // A compass, and how long a block is.
@@ -280,7 +280,8 @@ function streetsSvg(): string {
   for (const [name, [x1, y1, x2, y2]] of Object.entries(STUBS)) {
     road(x1, y1, x2, y2, STUB_W);
     if (x1 === x2) label(x1, (y1 + y2) / 2, -90, name);
-    else label((x1 + x2) / 2, y1, 0, name);
+    // (Left of centre: clear of the YOU marker at the corner of Grand and Ninth.)
+    else label(x1 + (x2 - x1) * 0.37, y1, 0, name);
   }
   // Streets run across, avenues up and down (avenues on top, wider).
   const stLabelAt: Record<string, number> = { 'Alder St': 60, 'Larkin St': 120, 'Pruitt St': 60, 'Ninth St': 240, 'Delmar St': 60, 'Bellamy St': 120, 'Ivy St': 240 };
@@ -288,7 +289,7 @@ function streetsSvg(): string {
     road(0, y, MAP_W, y, ST_W);
     label(stLabelAt[name] ?? 60, y, 0, name);
   }
-  const aveLabelAt: Record<string, number[]> = { 'Kestrel Ave': [67, 342], 'Halsey Ave': [122, 342], 'Grand Ave': [67, 287], 'Fulton Ave': [177, 342], 'Cobb Ave': [232, 122] };
+  const aveLabelAt: Record<string, number[]> = { 'Kestrel Ave': [67, 342], 'Halsey Ave': [122, 287], 'Grand Ave': [67, 287], 'Fulton Ave': [177, 342], 'Cobb Ave': [232, 122] };
   for (const [name, x] of Object.entries(AVES)) {
     road(x, 0, x, RIVER_Y, AVE_W);
     centre.push(`<line x1="${x}" y1="0" x2="${x}" y2="${RIVER_Y}"/>`);

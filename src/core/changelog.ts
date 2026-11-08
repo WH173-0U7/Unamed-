@@ -11,6 +11,19 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.65',
+    date: 'Nov 8',
+    items: [
+      'Escaping from prison no longer leaves a police stop on the screen that could arrest you again on the spot.',
+      'Map street names and landmarks are bigger and easy to read; a few labels moved so they don’t overlap.',
+      'In a fight or encounter: the fear level shows when you open the status, more of the threaten list fits on small phones, and the Search tab’s count isn’t cut off.',
+      'Waking up after being knocked out, the message no longer covers the Lurk button.',
+      'Two phones or two cards in the threaten list now say which is which; pickpocket options come right after Follow.',
+      'Long sentences are said in years (“28 years”), not hundreds of months.',
+      'Small tidy-ups: Pockets buttons line up and “In the rain” is on its own line, greyed-out buttons are easier to read, shop descriptions show in full, and shop lists don’t jiggle sideways.',
+    ],
+  },
+  {
     v: '2.64',
     date: 'Nov 8',
     items: [

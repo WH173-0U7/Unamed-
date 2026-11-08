@@ -6493,3 +6493,116 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
   stroke: rgba(236, 235, 230, 0.5);
   stroke-width: 0.6;
 }
+/* Map: names big enough to read on a phone. */
+.sheet-body.places .map {
+  container-type: inline-size;
+}
+.map-streets .m-labels text {
+  font-size: 7px;
+  letter-spacing: 0.03em;
+  stroke-width: 1.6px;
+}
+.map-streets .m-landmark text {
+  font-size: 5.6px;
+  letter-spacing: 0.06em;
+  fill: rgba(236, 235, 230, 0.62);
+}
+.map-streets .m-district {
+  fill: rgba(236, 235, 230, 0.35);
+}
+/* A small map (a phone on its side): street names only; the card names the landmarks' places. */
+@container (max-width: 220px) {
+  .map-streets .m-landmark text {
+    display: none;
+  }
+}
+.map-card-head b {
+  text-wrap: balance;
+}
+/* Landscape fight tabs: the count badge sits in the corner, taking no width from the name. */
+@media (orientation: landscape) and (max-height: 560px) {
+  #enc .enc-tabs i {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    margin: 0;
+  }
+}
+/* The status opened: room for every row (the fear level is the last). */
+#enc.status-open .enc-status {
+  max-height: 45dvh;
+  /* (Opened on purpose: it takes its room first; the log gives way.) */
+  flex: none;
+}
+#enc.status-open .enc-log,
+#enc.status-open:not(.log-open) .enc-log {
+  min-height: 0;
+}
+#enc.facts-open.status-open .enc-status {
+  max-height: 36dvh;
+}
+/* A short upright screen: the log gives way (two or three lines; tap it for all of it) so more of the options show. */
+@media (orientation: portrait) and (max-height: 600px) {
+  #enc .enc-log,
+  #enc:not(.log-open) .enc-log {
+    min-height: calc(2.5 * 1.45em + 20px);
+  }
+  #enc:not(.log-open) .enc-log {
+    max-height: calc(2.5 * 1.45em + 20px);
+  }
+  #enc .enc-actions,
+  #enc:not(.log-open) .enc-actions {
+    max-height: 58%;
+  }
+}
+/* Option labels break evenly, not one word alone. */
+#enc .enc-opts button {
+  text-wrap: balance;
+}
+/* Pockets: a row's buttons line up at the top, whatever is written under them. */
+.pocket-list .acts {
+  align-items: flex-start;
+}
+/* Pockets: how you'll do in the rain, on its own line. */
+.pocket-wear.pocket-rain {
+  margin-top: 2px;
+}
+/* Greyed-out buttons: why, readable. */
+.shop-list button:disabled {
+  opacity: 0.5;
+}
+.shop-list button:disabled small,
+.pocket-list .acts button:disabled small {
+  color: var(--ink-dim);
+}
+/* Upright, a place's description shows in full (the list scrolls under it). */
+@media (orientation: portrait) {
+  .shop-head p {
+    display: block;
+    -webkit-line-clamp: unset;
+    overflow: visible;
+  }
+}
+/* A shop list never scrolls sideways (the "did nothing" shake included). */
+#shop > .shop-body {
+  overflow-x: clip;
+}
+/* A short upright screen with the status opened: the log steps aside so your options stay on screen. */
+@media (orientation: portrait) and (max-height: 600px) {
+  #enc.status-open .enc-log {
+    display: none;
+  }
+  #enc.status-open .enc-actions,
+  #enc.status-open:not(.log-open) .enc-actions {
+    min-height: 0;
+  }
+  #enc.status-open .enc-card {
+    flex-shrink: 0;
+  }
+  #enc.status-open .enc-status {
+    max-height: 34dvh;
+  }
+  #enc.status-open .enc-opts:not(.enc-extra) {
+    max-height: 96px;
+  }
+}

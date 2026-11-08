@@ -530,7 +530,7 @@ function yieldedOptions(e: Encounter): Option[] {
   for (const c of e.cardsHeld ?? []) out.push({ id: `pin-mine:${c.i}`, label: '“What’s the PIN?”', hint: `The ${c.name.toLowerCase()} you took`, cat: 'threaten' });
   e.person.clothes.forEach((g, gi) =>
     g.loot.forEach((l, li) => {
-      if (g.searched && !l.hidden && l.kind === 'phone' && l.locked !== false && !l.unlockAsked && !l.yours) out.push({ id: `unlock:${gi}:${li}`, label: '“Unlock it.”', hint: 'Their phone', cat: 'threaten' });
+      if (g.searched && !l.hidden && l.kind === 'phone' && l.locked !== false && !l.unlockAsked && !l.yours) out.push({ id: `unlock:${gi}:${li}`, label: '“Unlock it.”', hint: l.detail ? `Their phone: ${l.detail.replace(/^./, (c) => c.toLowerCase())}` : 'Their phone', cat: 'threaten' });
     }),
   );
   for (const p of e.phonesHeld ?? []) out.push({ id: `unlock-mine:${p.i}`, label: '“Unlock it.”', hint: 'The phone you took', cat: 'threaten' });
@@ -563,6 +563,14 @@ function yieldedOptions(e: Encounter): Option[] {
   if (arms(e.you) >= 2) for (const o of out) if (['t-finger', 't-twist', 't-blade', 't-cut'].includes(o.id)) Object.assign(o, { disabled: true, hint: 'Your arms are broken' });
   out.push({ id: 'punch', label: 'Hit them anyway', hint: 'It turns back into a fight', cat: 'move' });
   out.push({ id: 'let-go', label: 'Let them go', hint: e.robbed ? 'With what you took' : undefined });
+  // (Two of the same thing: tell them apart.)
+  const seen = new Map<string, number>();
+  for (const o of out) {
+    const k = `${o.label}|${o.hint ?? ''}`;
+    const n = (seen.get(k) ?? 0) + 1;
+    seen.set(k, n);
+    if (n > 1 && o.hint) o.hint = `${o.hint} (another one)`;
+  }
   return out;
 }
 
@@ -871,6 +879,10 @@ function rawOptions(e: Encounter): Option[] {
       // between the two is free; it's only a tab. Talking means walking up to them first.
       return [
         { id: 'follow', label: e.distance < 2 ? 'Follow' : 'Keep following', hint: e.suspicion >= 45 ? 'They’re onto you: they may run' : e.distance < 2 ? 'Closer: easier to see, easier to be seen' : 'Each step risks being noticed', cat: 'surveil' },
+        // Right behind them, and you've seen what's in their pockets: lift it.
+        ...(e.known.pockets && e.distance >= 2 && !e.them.down
+          ? liftables(e).map((L) => ({ id: `lift:${L.key}`, label: L.label, hint: e.liftNoRoom?.includes(L.key) ? 'No room' : 'Sneak. If they feel it, they’ll know', disabled: !!e.liftNoRoom?.includes(L.key), cat: 'surveil' as Category }))
+          : []),
         ...(e.known.build ? [] : [{ id: 'build', label: 'Size up their build', cat: 'surveil' as Category }]),
         ...(e.known.carrying ? [] : [{ id: 'carrying', label: "See what they’re carrying", disabled: e.distance < 1, hint: e.distance < 1 ? 'Need to be closer' : undefined, cat: 'surveil' as Category }]),
         ...(e.known.awareness ? [] : [{ id: 'awareness', label: 'Judge how alert they are', cat: 'surveil' as Category }]),
@@ -878,10 +890,6 @@ function rawOptions(e: Encounter): Option[] {
         ...(e.suspicion >= 35 && !e.recognised ? [{ id: 'bluff', label: 'Act natural', hint: 'Speech: look like you belong here', cat: 'surveil' as Category }] : []),
         ...(e.known.sex && e.known.race ? [] : [{ id: 'sex', label: 'Get a look at them', hint: e.distance < 1 ? 'Hard to tell from here' : 'Their face, their build', cat: 'surveil' as Category }]),
         ...(e.known.personality ? [] : [{ id: 'read', label: 'Read them', hint: e.distance < 1 ? 'Need to be closer' : 'What kind of person?', disabled: e.distance < 1, cat: 'surveil' as Category }]),
-        // Right behind them, and you've seen what's in their pockets: lift it.
-        ...(e.known.pockets && e.distance >= 2 && !e.them.down
-          ? liftables(e).map((L) => ({ id: `lift:${L.key}`, label: L.label, hint: e.liftNoRoom?.includes(L.key) ? 'No room' : 'Sneak. If they feel it, they’ll know', disabled: !!e.liftNoRoom?.includes(L.key), cat: 'surveil' as Category }))
-          : []),
         // Talking to them (asking for change, a supplier, selling): walk up first.
         { id: 'approach', label: 'Walk up to them', hint: 'Face to face: talk, sell, ask', cat: 'surveil' as Category },
         ...(e.them.down

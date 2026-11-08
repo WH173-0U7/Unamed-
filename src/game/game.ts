@@ -2286,6 +2286,11 @@ export class Game {
         r.left.length ? `You leave ${list2(r.left.map((x) => `the ${lc(x.name)}`))} behind.` : '',
         old ? (kept ? `Your old ${old.toLowerCase()} goes in your ${lc(inv.spots.find((x) => x.id === kept.spot)?.on ?? 'bag')}.` : `Your old ${old.toLowerCase()} goes in the bin out front.`) : '',
       ].filter(Boolean).join(' ');
+    } else if (s.id === 'zipbags' && inv.items.some((x) => x.name === 'Zip bags')) {
+      // (More of them: into the pack you've got, not a second one.)
+      const z = inv.items.find((x) => x.name === 'Zip bags')!;
+      z.doses = (z.doses ?? 0) + (s.doses ?? 50);
+      line = `You buy another pack of zip bags. ${z.doses} in all.`;
     } else {
       const brand = s.id === 'cigs' ? ['Red Crest', 'Mayfair Lights', 'Dakota Menthols', 'Ridgeway Reds', 'Union Blues', 'Harbor 100s'][Math.floor(Math.random() * 6)] : undefined;
       if (!stow(inv, { kind: 'misc', name: s.name, ...(brand ? { detail: brand } : {}), ...(s.drinkType ? { drink: s.drinkType } : {}), ...(s.doses ? { doses: s.doses } : s.id === 'lighter' ? { doses: 100 } : {}) })) {
@@ -3763,7 +3768,11 @@ export class Game {
       }
       const evidence = inv.items.filter((x) => (this.stolen(x) || (x.secret && x.secret !== 'empty')) && (bagSearched || !inBag(inv, x.spot)));
       if (evidence.length) {
-        lines.push(`They find ${evidence.length === 1 ? `the ${lc(evidence[0].name)}` : `${evidence.length} things that aren’t yours`}. “${evidence.length === 1 ? 'Whose is this' : 'Whose are these'}?”`);
+        // (The drugs said as drugs; anything else, as something that isn't yours.)
+        const dope = evidence.filter((x) => x.secret && x.secret !== 'empty');
+        const hot = evidence.filter((x) => !dope.includes(x));
+        if (dope.length) lines.push(`They find ${dope.length === 1 ? `the ${lc(dope[0].name)}` : dope.length === 2 ? `the ${lc(dope[0].name)} and the ${lc(dope[1].name)}` : `the ${lc(dope[0].name)}, the ${lc(dope[1].name)} and more`}. One of them holds it up to the light. “Well, well.”`);
+        if (hot.length) lines.push(`They find ${hot.length === 1 ? `the ${lc(hot[0].name)}` : `${hot.length} things that aren’t yours`}. “${hot.length === 1 ? 'Whose is this' : 'Whose are these'}?”`);
         arrested = true;
         if (evidence.some((x) => x.kind !== 'misc' && !(x.secret && x.secret !== 'empty'))) charges.push('Possession of stolen property');
         if (evidence.some((x) => x.secret && x.secret !== 'empty')) charges.push(this.drugCharge());
@@ -8697,6 +8706,11 @@ export class Game {
     if ((this.weatherTimer -= dt) <= 0) {
       this.weatherTimer = 2;
       this.shortenOldTerms();
+      // (A chase left standing for a quarter of an hour, or the game closed on it: they're long gone.)
+      const ch = this.encounter?.chase;
+      if (ch && this.running && now() - (ch.at ?? 0) > 15 * 60_000) this.act('let-go');
+      // (A sting that's done, left sitting on its last screen: the badges come out now.)
+      if (this.save.state.policeStop === 'sting' && this.running && this.sheet !== 'police' && this.encounter?.finished) this.closeEncounter([]);
       // The street market moves on; you hear about busts and big loads if you're in the business.
       const evs = tickMarket(this.market);
       if (evs.length && (this.connect.known || ((this.save.state.sales as number) ?? 0) > 0)) this.later(evs.map((ev) => EVENT_LINES[ev.kind](ev.key)));

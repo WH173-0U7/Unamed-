@@ -233,7 +233,7 @@ export interface Encounter {
   /** They know you from before (see people.ts), and how much they hate you. */
   recognised?: boolean;
   /** They've run for it and you can go after them: how far ahead they are (0 caught, 5 gone), and how it ends if they get away. */
-  chase?: { gap: number; result: 'lost-them' | 'they-fled'; why?: string };
+  chase?: { gap: number; result: 'lost-them' | 'they-fled'; why?: string; at?: number };
   /** You ran after them (blood, a dose, the stress of it carry over, fight or not). */
   chased?: boolean;
   /** They've given up once already (said in full the first time; short after that). */
@@ -756,7 +756,7 @@ function bolt(result: 'lost-them' | 'they-fled', gap: number) {
   e.them.yielded = false;
   // (Caught again later, they've had a moment: the old threats can be made again.)
   e.asked = (e.asked ?? []).filter((x) => x !== 'menace' && x !== 'blade');
-  e.chase = { gap: Math.min(4.5, gap + (e.you.down ? 1 : 0) + (e.you.dazed ? 0.5 : 0) + (e.you.blinded > 0 ? 1 : 0)), result };
+  e.chase = { gap: Math.min(4.5, gap + (e.you.down ? 1 : 0) + (e.you.dazed ? 0.5 : 0) + (e.you.blinded > 0 ? 1 : 0)), result, at: Date.now() };
 }
 
 /** One stretch of running after them. */

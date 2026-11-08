@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.75',
+    date: 'Nov 9',
+    items: [
+      'When the police search you and find drugs, they say so (“the eight-ball and the blues…”), instead of calling them things that aren’t yours.',
+      'A chase you leave hanging ends on its own after a quarter of an hour: they’re long gone.',
+      'A sale to an undercover cop always turns into the arrest, even if you left it sitting.',
+      'Buying more zip bags adds them to the pack you have, instead of a second pack.',
+    ],
+  },
+  {
     v: '2.74',
     date: 'Nov 9',
     items: [

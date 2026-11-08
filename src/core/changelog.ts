@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.63',
+    date: 'Nov 8',
+    items: [
+      'Someone with both arms broken no longer “turns out their pockets”: you go through them yourself, and they can’t hold anything back.',
+      'Patting someone down no longer finds the weapon they already dropped at your feet, and people you meet again have picked theirs back up.',
+      '“I know where you live.” and “Where do you live?” aren’t offered inside their own home.',
+      'Getting caught pickpocketing with nothing taken no longer weighs on you like a mugging.',
+      'Refusing to unlock their phone, people no longer talk about their bank account.',
+    ],
+  },
+  {
     v: '2.62',
     date: 'Nov 8',
     items: [

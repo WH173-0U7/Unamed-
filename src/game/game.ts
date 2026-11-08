@@ -1181,7 +1181,8 @@ export class Game {
       const l = this.loseHumanity(TORTURE_COST * ((e.tortured ?? 0) - tortured));
       if (l) worse.push(l);
     }
-    if (e.mugged && !mugged) {
+    // (Caught trying to lift something, with nothing taken: not a mugging on your conscience.)
+    if (e.mugged && !mugged && e.robbed) {
       const l = this.loseHumanity(MUG_COST);
       if (l) worse.push(l);
     }
@@ -1238,7 +1239,7 @@ export class Game {
       if (e.result !== 'lost' && e.result !== 'killed') {
         const start = e.start?.blood ?? e.them.maxBlood;
         const beat = e.them.out || e.them.blood < start - e.them.maxBlood * 0.25 || e.them.broken.length > (e.start?.broken.length ?? 0);
-        const what = (e.tortured ?? 0) > 0 ? 'torture' : e.mugged || (e.robbed && e.result === 'mugged') ? 'mug' : beat ? 'beat' : null;
+        const what = (e.tortured ?? 0) > 0 ? 'torture' : (e.mugged && e.robbed) || (e.robbed && e.result === 'mugged') ? 'mug' : beat ? 'beat' : null;
         if (what) {
           const g = guilt(e, what, this.humanity.lost);
           after.push(...(e.resident ? g.lines.map(indoors) : g.lines));

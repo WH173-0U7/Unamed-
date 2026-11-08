@@ -536,10 +536,10 @@ function yieldedOptions(e: Encounter): Option[] {
   for (const p of e.phonesHeld ?? []) out.push({ id: `unlock-mine:${p.i}`, label: '“Unlock it.”', hint: 'The phone you took', cat: 'threaten' });
   // Their house keys, and no address to go with them.
   const home = e.person.home;
-  if (home && !e.homeKnown && !e.toldHome && (e.keysHeld || e.person.clothes.some((g) => g.searched && g.loot.some((l) => !l.hidden && l.opens === home.id))) && (e.addrAskedTier == null || fearTier(T.fear ?? 0) > e.addrAskedTier))
+  if (home && !e.resident && !e.homeKnown && !e.toldHome && (e.keysHeld || e.person.clothes.some((g) => g.searched && g.loot.some((l) => !l.hidden && l.opens === home.id))) && (e.addrAskedTier == null || fearTier(T.fear ?? 0) > e.addrAskedTier))
     out.push({ id: 'ask-home', label: '“Where do you live?”', hint: 'Their keys', cat: 'threaten' });
   // Their address, and they know you know it.
-  if (home && (e.homeKnown || e.toldHome) && !asked.includes('home-threat')) out.push({ id: 'home-threat', label: '“I know where you live.”', hint: (T.fear ?? 0) >= 88 ? 'They can’t get any more scared' : 'Scare them more', cat: 'threaten' });
+  if (home && !e.resident && (e.homeKnown || e.toldHome) && !asked.includes('home-threat')) out.push({ id: 'home-threat', label: '“I know where you live.”', hint: (T.fear ?? 0) >= 88 ? 'They can’t get any more scared' : 'Scare them more', cat: 'threaten' });
   if (!asked.includes('hush')) out.push({ id: 'hush', label: '“You didn’t see anything.”', hint: 'Keep them quiet: no police, no telling anyone', cat: 'threaten' });
   if (e.canAsk && !asked.includes('thief')) out.push({ id: 'ask-thief', label: '“Seen anyone with my things?”', hint: 'What you had, before', cat: 'threaten' });
   // Hurting them, for the truth or for the fun of it.
@@ -598,6 +598,8 @@ function body(blood: number, toughness: number, stamina: number): Body {
 /** A new encounter. `yours` is your body as it is now (injuries carry over). */
 export function newEncounter(person: Person, yours: Body): Encounter {
   // Whatever they kept back from you last time, they've had time to put back.
+  // (A new meeting: what they dropped last time, they've picked back up.)
+  for (const it of person.carrying) delete it.dropped;
   for (const g of person.clothes) {
     g.searched = false;
     for (const l of g.loot) delete l.hidden;
@@ -3665,16 +3667,20 @@ function threatAct(id: string, inv?: Inventory): boolean {
     // Not scared enough, and they keep something back.
     const all = e.person.clothes.flatMap((g) => g.loot);
     for (const l of all) delete l.hidden;
-    if (all.length >= 2 && fear < 85 && Math.random() < ((85 - fear) / 70) * personalityOf(e.person).holdBack) {
+    // (Both arms broken: you go through their pockets yourself, and nothing's held back.)
+    const handless = (['left', 'right'] as const).every((sd) => T.broken.some((p) => p === `${sd} arm` || p === `${sd} wrist` || p === `${sd} hand`));
+    if (!handless && all.length >= 2 && fear < 85 && Math.random() < ((85 - fear) / 70) * personalityOf(e.person).holdBack) {
       const best = [...all].sort((x, y) => valueOf(y) - valueOf(x))[0];
       best.hidden = true;
     }
     const shown = all.filter((l) => !l.hidden).map((l) => lootWords(l));
-    say('them', `${shown.length ? `They turn out their pockets: ${list(shown)}.` : 'They turn out their pockets. There’s nothing in them.'} ${vary(demandVoice(e, 'empty', 'comply'))}`);
-    if (shown.length) maybeSay('emptied', 0.85);
+    if (handless) say('you', shown.length ? `They can’t work their hands. You go through their pockets yourself: ${list(shown)}.` : 'They can’t work their hands. You go through their pockets yourself. There’s nothing in them.');
+    else say('them', `${shown.length ? `They turn out their pockets: ${list(shown)}.` : 'They turn out their pockets. There’s nothing in them.'} ${vary(demandVoice(e, 'empty', 'comply'))}`);
+    if (shown.length && !handless) maybeSay('emptied', 0.85);
     const arms_ = e.person.carrying.filter((it) => (it.weapon || it.spray) && !it.dropped);
     if (arms_.length) {
-      say('them', `They drop ${list(arms_.map((it) => `the ${lc(it.name)}`))} at your feet.`);
+      say(handless ? 'you' : 'them', handless ? `You take ${list(arms_.map((it) => `the ${lc(it.name)}`))} off them.` : `They drop ${list(arms_.map((it) => `the ${lc(it.name)}`))} at your feet.`);
+      for (const it of arms_) it.dropped = true;
       e.them.weaponOut = null;
     }
     you.gain('intimidation', 3);
@@ -3804,7 +3810,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     if (!phone || phone.locked === false || phone.unlockAsked) return false;
     say('you', oneOf(['“Your phone. Unlock it.”', '“Unlock it. Now.”']));
     if (fear < 25) {
-      say('them', vary([...voice(e, isBrute(e.person.personality) ? 'refuse' : 'pinRefuse'), ...demandVoice(e, 'unlock', 'refuse')]) || 'They press their lips together and say nothing.');
+      say('them', vary(demandVoice(e, 'unlock', 'refuse')) || 'They press their lips together and say nothing.');
       return true;
     }
     phone.unlockAsked = true;

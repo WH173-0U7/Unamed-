@@ -221,6 +221,8 @@ export function remember(
     delete k.memory.fear;
     delete k.memory.beatYou;
     delete k.worstLevel;
+    // (What they bought off an earlier you isn't this you's business either.)
+    for (const f of ['usual', 'usualBags', 'lastBuy', 'buys', 'sat', 'returnH', 'burned', 'snitch'] as const) delete (k.memory as unknown as Record<string, unknown>)[f];
   }
   delete k.memory.otherLife;
   k.at = t;

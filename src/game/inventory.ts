@@ -13,7 +13,7 @@ import { DENOMS, cents, emptyPurse, fewest, kgOf, mlOf, money, purseText, type P
  * worth counting. Saved under `state.inventory`.
  */
 export type Size = 'small' | 'medium' | 'large';
-const SIZE_RANK: Record<Size, number> = { small: 0, medium: 1, large: 2 };
+export const SIZE_RANK: Record<Size, number> = { small: 0, medium: 1, large: 2 };
 
 export interface InvItem {
   kind: LootKind | 'med';
@@ -34,6 +34,8 @@ export interface InvItem {
   pressed?: boolean;
   /** How much was in the package when it was new (tenths of a gram; pills counted). */
   pkg?: number;
+  /** Product: cut once already (once is all it'll take). */
+  cut?: boolean;
   known?: boolean;
   doses?: number;
   /** A card: the PIN they gave you, whether it's real, and whether it's been used at the cash machine. */

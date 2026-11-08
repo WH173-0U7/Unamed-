@@ -120,9 +120,13 @@ export function sizePrice(k: MarketKey, amt: number): number {
   const sizes = SIZES[p];
   const exact = sizes.find((x) => x.amt === amt);
   if (exact) return exact.price;
-  // (Between sizes: by the gram, at the rate of the biggest size it's past.)
-  const at = [...sizes].reverse().find((x) => x.amt <= amt) ?? sizes[0];
-  return (at.price / at.amt) * amt;
+  // (Between two sizes: in proportion between their prices, so an odd size never beats the next one up.
+  // Past the biggest: by the gram at its rate. Under the smallest: by the gram at the smallest's.)
+  const at = [...sizes].reverse().find((x) => x.amt <= amt);
+  const next = sizes.find((x) => x.amt > amt);
+  if (at && next) return at.price + ((next.price - at.price) * (amt - at.amt)) / (next.amt - at.amt);
+  const base = at ?? sizes[0];
+  return (base.price / base.amt) * amt;
 }
 /** How much they ask for: junkies small and often, the party crowd grams, the rest in between. */
 export function requestFor(k: MarketKey, kind: 'civilian' | 'drunk' | 'homeless' | 'junkie', age: number | undefined, r = Math.random): number {
@@ -283,11 +287,14 @@ export const EVENT_LINES: Record<MarketEvent['kind'], (k: MarketKey) => string> 
 export function tickMarket(m: Market, t = now(), r = Math.random): MarketEvent[] {
   const hours = Math.min(24 * 14, Math.floor((t - m.at) / 3_600_000));
   if (hours < 1) return [];
-  m.at += hours * 3_600_000;
+  const start = m.at;
   const happened: MarketEvent[] = [];
   for (let h = 0; h < hours; h++) {
+    // (Each hour as it was: its own clock, for events and the six-hourly price to compare with.)
+    const at = start + (h + 1) * 3_600_000;
+    const abs = Math.floor(at / 3_600_000);
     for (const k of MARKET_KEYS) {
-      if (h % 6 === 0) m.was[k] = streetPrice(m, k);
+      if (abs % 6 === 0) m.was[k] = streetPrice(m, k);
       const s = m.supply[k] ?? 1;
       const dm = m.demand[k] ?? 1;
       m.supply[k] = Math.max(0.4, Math.min(2, s + (1 - s) * 0.08 + (r() - 0.5) * 0.06));
@@ -301,15 +308,16 @@ export function tickMarket(m: Market, t = now(), r = Math.random): MarketEvent[]
     // A bust somewhere up the line, or a shipment: about once every day or two.
     if (r() < 0.03) {
       const key = MARKET_KEYS[Math.floor(r() * MARKET_KEYS.length)];
-      if (!m.events.some((e) => e.key === key && e.until > m.at)) {
-        const ev: MarketEvent = { key, kind: r() < 0.55 ? 'drought' : 'glut', until: m.at + (24 + r() * 48) * 3_600_000 };
+      if (!m.events.some((e) => e.key === key && e.until > at)) {
+        const ev: MarketEvent = { key, kind: r() < 0.55 ? 'drought' : 'glut', until: at + (24 + r() * 48) * 3_600_000 };
         m.events.push(ev);
         happened.push(ev);
       }
     }
   }
+  m.at = start + hours * 3_600_000;
   m.events = m.events.filter((e) => e.until > t);
-  return happened.slice(-2);
+  return happened.filter((e) => e.until > t).slice(-2);
 }
 /** How much call there is for it in a district, in a word. */
 export function districtWord(m: Market, k: MarketKey, d: District): string {
@@ -343,7 +351,8 @@ export const priceFactor = (m: Market, k: MarketKey, d: District = HOME_DISTRICT
  */
 export function quote(factor: number, k: MarketKey, amt: number, q: number, kind: Kind, speech: number, standing: number): number {
   const kf = { junkie: 0.85, drunk: 1, homeless: 0.7, civilian: 1.15 }[kind];
-  const qf = 0.7 + 0.6 * (q / 100);
+  // Quality: a fair price for decent product, a bit more for good; junk sells for a fraction (it falls off steeply under 60).
+  const qf = q >= 60 ? 1.06 + (q - 60) * 0.006 : 0.2 + 0.86 * Math.pow(Math.max(0, q) / 60, 1.5);
   return Math.max(1, Math.round(sizePrice(k, amt) * factor * kf * qf * (1 + (speech - 1) * 0.004) * (1 + Math.min(3, standing) * 0.03)));
 }
 /** Hours till a happy regular comes back for more. */

@@ -31,7 +31,7 @@ import { mlOf } from './money';
 import { lootIcon, lootMark } from './lootIcon';
 import { STYLES, STYLE_HOW, STYLE_NAMES, stylesOf } from './styles';
 import { PLACE_AT, PLACE_ICON, addressAt, blocksBetween, mapHtml, type MapMark } from './map';
-import { MEDS, take, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, wouldLeave, kgLabel, carriedKg, carryLimit, awayTo, OVERLOAD, TIRING_LOAD, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, tooHeavy, reweigh, freeHand, type Inventory, type InvItem, type Spot as Pocket, type MedId } from './inventory';
+import { MEDS, take, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, wouldLeave, kgLabel, carriedKg, carryLimit, awayTo, fitsIn, findRoom, SIZE_RANK, OVERLOAD, TIRING_LOAD, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, tooHeavy, reweigh, freeHand, type Inventory, type InvItem, type Spot as Pocket, type MedId } from './inventory';
 
 /**
  * What's left of your humanity. Killing someone takes a lot of it; stamping
@@ -302,6 +302,12 @@ export class Game {
     private readonly fx: Glass,
   ) {
     this.tv = createTv(renderer);
+    // (Old bagged product, from before it went by weight: one lot, from the start.)
+    try {
+      this.unbag();
+    } catch {
+      /* (an old save with no pockets yet) */
+    }
     this.powerBtn = view.querySelector('#power-btn') as HTMLButtonElement;
     this.koHint = document.createElement('p');
     this.koHint.id = 'ko-hint';
@@ -612,7 +618,10 @@ export class Game {
     const reports = { civilian: 0.7, drunk: 0.4, homeless: 0.25, junkie: 0.15 }[k.person.kind] * hush;
     // (Charged for it on the spot: their statement is that charge, not a report for later.)
     if (e.result !== 'sold' && !e.enforcer && !e.charged && Math.random() < reports) {
-      this.reportedHeat((k.memory.grudge / 5) * (k.memory.sawFace ? 1 : 0.4) * (e.hushed != null ? 0.4 : 1), e.seenAs?.anon);
+      const amt = (k.memory.grudge / 5) * (k.memory.sawFace ? 1 : 0.4) * (e.hushed != null ? 0.4 : 1);
+      this.reportedHeat(amt, e.seenAs?.anon);
+      // (So it's never a mystery why the police are more interested.)
+      if (amt >= 1) this.later([k.memory.sawFace ? 'Word is they went to the police, with a good description of you.' : 'Word is they went to the police.']);
       if (k.memory.sawFace && e.fought) f.reports = (f.reports ?? 0) + 1;
     }
   }
@@ -908,6 +917,9 @@ export class Game {
   private getUp(rested: boolean) {
     const h = this.health;
     if (h.restingSince == null) return;
+    // (The body first, at the resting rate, before you're up.)
+    this.healOnClock(true);
+    if (h.restingSince == null || this.dead) return;
     fatigueNow(h);
     const where = h.restWhere;
     const car = h.restCar;
@@ -1161,6 +1173,8 @@ export class Game {
           e.history = "You’ve never met. But they know your face: people talk.";
         }
         e.lookAt = { anon, clothes };
+        // (A regular who doesn't know you like this isn't buying from a regular.)
+        if (!e.recognised) e.regular = false;
       }
     }
     if (e.stage === 'seen') e.them.fear = this.fearOf(e);
@@ -2521,6 +2535,7 @@ export class Game {
       inv.items.splice(i, 1);
       lines.push(`You type ${card.pin}. WRONG PIN. You try again. On the third try the machine swallows the card. They lied to you.`);
       f.heat = Math.min(100, f.heat + 4 * (1 - anon));
+      if (anon < 0.5) lines.push('The camera got your face.');
     } else {
       const credit = card.kind === 'credit card';
       // What the account (or the card's cash advance) will give, in twenties, up to the machine's daily limit.
@@ -2533,6 +2548,7 @@ export class Game {
         card.empty = true;
         lines.push(`You type ${card.pin}. It works. You ask for $20, and the screen says INSUFFICIENT FUNDS. ${credit ? 'Maxed out.' : 'There’s nothing in there.'} The card’s no use to you now.`);
         f.heat = Math.min(100, f.heat + 4 * (1 - anon));
+        if (anon < 0.5) lines.push('The camera got your face.');
         this.refresh();
         this.note(lines);
         buzz(8);
@@ -2549,7 +2565,7 @@ export class Game {
       card.drained = true;
       const limited = behind > cap && twenties === avail;
       lines.push(`You type ${card.pin}. It works. You take out ${twenties === 1 ? 'a single twenty' : `${money(twenties * 2000)} in twenties`}${credit ? ' on a cash advance' : ''}${twenties < avail ? ', all you can carry. The rest stays in the machine.' : limited ? `, as much as the machine gives in a day.${credit ? '' : ' There was more in there.'}` : credit ? ', all the card allows.' : behind - twenties * 2000 >= 100 ? `, all of it but ${money(behind - twenties * 2000)} the machine can’t give in twenties.` : ', all that was in there.'}`);
-      lines.push("By morning they’ll have stopped the card.");
+      lines.push(anon < 0.5 ? 'By morning they’ll have stopped the card, and pulled the camera footage.' : "By morning they’ll have stopped the card.");
       f.heat = Math.min(100, f.heat + 10 * (1 - anon));
     }
     this.refresh();
@@ -3525,9 +3541,9 @@ export class Game {
       delete this.save.state.stingCash;
     };
     if (sting && choice !== 'run') {
-      const hadMarked = ((this.save.state.stingCash as number) ?? 0) > 0;
+      const marked = (this.save.state.stingCash as number) ?? 0;
       takeMarked();
-      lines.push(hadMarked ? 'The cuffs go on. The twenty you took is marked; the bag is already in an evidence envelope.' : 'The cuffs go on. The bag is already in an evidence envelope.');
+      lines.push(marked > 0 ? `The cuffs go on. The ${money(marked)} you took is marked; the bag is already in an evidence envelope.` : 'The cuffs go on. The bag is already in an evidence envelope.');
       arrested = true;
       charges.push('Selling a controlled substance');
     }
@@ -4074,13 +4090,15 @@ export class Game {
    * back, bones and cuts mending, a concussion clearing, an hour at a time,
    * game open or not (lying down or locked up, faster).
    */
-  private healOnClock() {
+  private healOnClock(force = false) {
     const h = this.health;
     const t = now();
-    if (h.healedAt == null || h.healedAt > t) {
+    // (A clock set back: nothing heals till it's caught up again. Set back by more than a day, start over from now.)
+    if (h.healedAt == null || h.healedAt > t + 86_400_000) {
       h.healedAt = t;
       return;
     }
+    if (h.healedAt > t) return;
     // (Mid-fight, the fight's own body is the one that counts: it catches up after.
     // On the menu, the power screen, out cold: it catches up once you're back, so you see it.)
     const e = this.encounter;
@@ -4090,14 +4108,21 @@ export class Game {
       easeStress(h, t - Math.min(t, h.stressAt ?? t), h.restingSince != null || !!this.jail);
       h.stressAt = t;
     }
-    if (this.dead || this.paused || !this.tvState.on || this.koLines || this.save.state.koLines || (e && e.stage !== 'seen' && e.stage !== 'over')) return;
+    // (Forced: settling up before you get up or walk out, paused or not.)
+    if (this.dead || (!force && (this.paused || !this.tvState.on)) || this.koLines || this.save.state.koLines || (e && e.stage !== 'seen' && e.stage !== 'over')) return;
     // Away from the game (it wasn't running to look): bleeding leaves you weak, not dead.
     const away = this.lastHealLook == null || performance.now() - this.lastHealLook > 5 * 60_000;
     this.lastHealLook = performance.now();
     const hours = Math.floor((t - h.healedAt) / 3_600_000);
     if (hours < 1) return;
+    const from = h.healedAt;
     h.healedAt += hours * 3_600_000;
-    const lines = passHours(h, Math.min(hours, 24 * 120), h.restingSince != null || !!this.jail, false, away, false);
+    // (Lying down or locked up, faster: but only up to when that ended, not after.)
+    const j = this.jail;
+    const restEnd = j ? j.until : h.restingSince != null ? Infinity : from;
+    const all = Math.min(hours, 24 * 120);
+    const restH = Math.max(0, Math.min(all, restEnd === Infinity ? all : Math.floor((restEnd - from) / 3_600_000)));
+    const lines = [...(restH ? passHours(h, restH, true, false, away, false) : []), ...(all - restH && !h.dead ? passHours(h, all - restH, false, false, away, false) : [])];
     if (h.dead) return this.die(lines);
     if (away && h.bleeding && h.blood <= h.maxBlood * (PASS_OUT + 0.06)) {
       // (An hour's grace from now, to do something about it.)
@@ -4286,6 +4311,9 @@ export class Game {
   }
   /** The door opens. */
   private release() {
+    // (The body first, at the inside rate up to the day you're out, before the door opens.)
+    if (this.jail) this.healOnClock(true);
+    if (this.dead) return;
     const j = this.jail;
     // Inside, people talk: sometimes about who's selling.
     if (j && !j.escaped && !this.connect.known && Math.random() < 0.5) j.after = [...(j.after ?? []), 'On your way out, the man from the next bunk catches your sleeve. “You need work? Dez. The alley behind the laundromat. Tell him Rook sent you.”', ...this.learnConnect('Rook')];
@@ -5160,8 +5188,10 @@ export class Game {
     // (The more of a name you have, the more they're watching for you.)
     f.rep += 1;
     this.reportedHeat((2 + this.crowd.length * 2 + this.standing * 0.5) * (1 - this.quiet), e.seenAs?.anon);
+    if (this.crowd.length) (e.log ??= []).push({ by: 'info', text: 'Somebody on the street saw the hand-off.' });
     // More of it on this corner: flood it, and the price round here drops.
-    addLocalSupply(this.market, key, keyProduct(key) === 'pills' ? (e.sale?.units ?? 1) / 3 : (e.sale?.units ?? 1) / 5);
+    // (By what changed hands, not by weight: an eighth of weed floods it no faster than half a gram of powder.)
+    addLocalSupply(this.market, key, d.price / 100 / 2500);
     // Pressed pills: nobody knows what's in them. Some don't wake up.
     if (unit.pressed && Math.random() < 0.06) e.odLater = true;
     if (!this.crowd.length) train(this.stats, 'sneak', 2);
@@ -5201,7 +5231,8 @@ export class Game {
   private unbag() {
     const inv = this.inventory;
     const names = new Set(Object.values(PRODUCTS).map((x) => x.bag?.name).filter(Boolean) as string[]);
-    const bagged = inv.items.filter((x) => x.secret === 'cocaine' && x.known && names.has(x.name) && x.doses === 1 && (/bagged to sell/i.test(x.detail ?? '') || x.product));
+    // (Only genuinely old ones, bagged before product went by weight: never a bag you found on someone.)
+    const bagged = inv.items.filter((x) => x.secret === 'cocaine' && x.known && names.has(x.name) && x.doses === 1 && !x.product && /bagged to sell/i.test(x.detail ?? ''));
     if (bagged.length < 1) return;
     const groups = new Map<Product, typeof bagged>();
     for (const x of bagged) {
@@ -5213,6 +5244,7 @@ export class Game {
       const q = Math.round(xs.reduce((n, x) => n + qualityOf(x), 0) / xs.length);
       const keep = xs[0];
       Object.assign(keep, { name: PRODUCTS[p as Product].name, detail: 'Loose, in one bag', doses: amt, quality: q, product: p as Product });
+      keep.kg = measure(keep).kg;
       inv.items = inv.items.filter((x) => !xs.includes(x) || x === keep);
     }
     const zip = inv.items.find((x) => x.name === 'Zip bags');
@@ -5279,6 +5311,8 @@ export class Game {
       mem.buys = (mem.buys ?? 0) + 1;
       mem.returnH = returnHours(sale.key, sale.q);
       mem.sat = (mem.sat ?? 0) + (sale.q >= 70 ? 1 : sale.q < 45 ? -1 : 0);
+      // (Burned once, they don't come back to being a regular.)
+      if (mem.burned) delete mem.customer;
       // Good stuff: they tell people. Garbage: they tell people that too.
       if (sale.q >= 70) f.rep += 1;
       if ((mem.sat ?? 0) <= -2) {
@@ -5311,7 +5345,10 @@ export class Game {
     return [...this.inventory.items.map((x, i) => ({ x, where: 'inv' as const, i })), ...(r && this.inOwnRoom ? r.items.map((x, i) => ({ x, where: 'room' as const, i })) : [])];
   }
   /** What's missing to cut it (nothing: it can be done). */
-  private cutWhy(add: number): string | null {
+  private cutWhy(add: number, it?: InvItem): string | null {
+    // (Once per package, and never so weak people will notice.)
+    if (it?.cut) return 'Already cut once';
+    if (it && qualityOf(it) < 30) return 'Too weak to cut';
     const all = this.inRoom();
     if (!all.some(({ x }) => /^digital scale$/i.test(x.name))) return 'No scale';
     if (!all.some(({ x }) => /^cutting kit$/i.test(x.name))) return 'No cutting kit';
@@ -5327,7 +5364,12 @@ export class Game {
     if (!it || !prod || !PRODUCTS[prod].cuts || !it.known || (it.doses ?? 0) < 2) return;
     const was = it.doses ?? 0;
     const add = Math.max(1, Math.round(was * 0.25));
-    if (this.cutWhy(add)) return;
+    const why = this.cutWhy(add, it);
+    if (why) {
+      if (why === 'Already cut once') this.note(['You’ve cut this one already. Any more and it’s not worth selling.']);
+      else if (why === 'Too weak to cut') this.note(['It won’t take any more. People are going to notice.']);
+      return;
+    }
     let need = add;
     for (const { x } of this.inRoom().filter(({ x }) => x.name === 'Lactose powder')) {
       const t = Math.min(need, x.doses ?? 0);
@@ -5340,7 +5382,23 @@ export class Game {
     it.doses = was + add;
     it.pkg = it.doses;
     it.quality = Math.max(5, Math.round((q * was) / (was + add)));
-    if (where === 'inv') it.kg = measure(it).kg;
+    it.cut = true;
+    // (Bigger now: it may not go where it was. Somewhere it fits, or it stays in the room.)
+    Object.assign(it, measure(it));
+    if (where === 'inv') {
+      const inv = this.inventory;
+      const sp = inv.spots.find((s) => s.id === it.spot);
+      const rest = { ...inv, items: inv.items.filter((y) => y !== it) };
+      if (!sp || !fitsIn(sp, it) || SIZE_RANK[sp.fits] < SIZE_RANK[it.size] || usedKg(rest, sp.id) + it.kg > sp.maxKg + 1e-9) {
+        const to = findRoom(rest, it.size, it.kg, it);
+        if (to) it.spot = to.id;
+        else {
+          // (Nowhere on you for it now: it stays on the table, in the room.)
+          inv.items = inv.items.filter((y) => y !== it);
+          if (this.room) this.room.items.push(it);
+        }
+      }
+    }
     this.refresh();
     this.note([`You lock the door, lay it out on the plate and work the lactose through with the card. ${amountText(prod, was)} becomes ${amountText(prod, it.doses)}. ${qualityWord(q)} before; ${qualityWord(it.quality).toLowerCase()} now.${it.quality < 40 ? ' People are going to notice.' : ''}`]);
   }
@@ -5383,7 +5441,7 @@ export class Game {
       .map(({ x, where, i }) => {
         const p = productOf(x)!;
         const add = Math.max(1, Math.round((x.doses ?? 0) * 0.25));
-        return li(x.name, `${PRODUCTS[p].name} · ${amountText(p, x.doses ?? 0)} · ${qualityWord(qualityOf(x))} · ${where === 'room' ? 'In the room' : 'On you'}. Takes ${amountText(p, add)} of lactose.`, btn('cutpkg', `${where}:${i}`, 'Cut', this.cutWhy(add) ?? false));
+        return li(x.name, `${PRODUCTS[p].name} · ${amountText(p, x.doses ?? 0)} · ${qualityWord(qualityOf(x))} · ${where === 'room' ? 'In the room' : 'On you'}. Takes ${amountText(p, add)} of lactose.`, btn('cutpkg', `${where}:${i}`, 'Cut', this.cutWhy(add, x) ?? false));
       })
       .join('');
     if (!pk.length) rows = li('Nothing to cut', 'Powder, crystal or heroin: bring it up, or leave it here.', '');
@@ -5554,7 +5612,10 @@ export class Game {
       say('them', oneOf(['“I don’t know nothing about that.” They’re already moving off.', 'They look at you a long second. “You a cop?”', '“Wrong person, man.”', '“Get away from me.”']));
       e.suspicion = Math.min(100, e.suspicion + 25);
       // (A straight citizen might mention it to someone in a uniform.)
-      if (k === 'civilian' && Math.random() < 0.3) this.infamy.heat = Math.min(100, this.infamy.heat + 4);
+      if (k === 'civilian' && Math.random() < 0.3) {
+        this.reportedHeat(4, e.seenAs?.anon);
+        say('info', 'They’ll mention it to someone in a uniform.');
+      }
     }
   }
   // ---------- Small, honest money ----------
@@ -5598,7 +5659,10 @@ export class Game {
     if (!amt) {
       say('them', oneOf(['They don’t even look at you.', '“Sorry, no cash.” They keep walking.', 'They step around you like you’re a puddle.', 'A quick shake of the head. Eyes straight ahead.']));
       // (A straight citizen might mention you to someone in a uniform.)
-      if (k === 'civilian' && Math.random() < 0.15) this.infamy.heat = Math.min(100, this.infamy.heat + 3);
+      if (k === 'civilian' && Math.random() < 0.15) {
+        this.reportedHeat(3, e.seenAs?.anon);
+        say('info', 'They’ll mention you to a cop.');
+      }
       return;
     }
     const left = cents(pocketCash(this.inventory, fewest(amt)));
@@ -5837,12 +5901,14 @@ export class Game {
         w.earned = (w.earned ?? 0) + pay;
         this.gig.balance += pay;
         this.gig.drops += 1;
-        addFatigue(h, 3.5);
+        h.fatigue = Math.min(100, (h.fatigue ?? 0) + 3.5);
         train(this.stats, 'stamina', 2);
       }
       at += step;
       w.tick = at;
-      if (fatigueNow(h) >= 88) return this.endWork(false, false, 'You’re dead on your feet. You go offline before you drop.');
+      // (On shift you're working, not resting: no getting your breath back while you ride.)
+      h.fatigueAt = Math.max(h.fatigueAt ?? 0, at);
+      if ((h.fatigue ?? 0) >= 88) return this.endWork(false, false, 'You’re dead on your feet. You go offline before you drop.');
     }
     if (t >= w.since + 10 * 3_600_000) return this.endWork(false, false, `Ten hours on: ${GIG_APP} logs you off.`);
     if (!this.usablePhone) return this.endWork(false, false, 'No phone: you’re offline.');
@@ -5960,7 +6026,7 @@ export class Game {
   private witness(e: Encounter) {
     const c = this.crowd;
     e.watchers = e.stage === 'seen' ? 0 : c.length;
-    if (!c.length || e.witnessed || e.resident || this.place !== 'street') return;
+    if (!c.length || e.witnessed != null || e.resident || this.place !== 'street') return;
     const violent = !!e.fought || !!e.mugged || (e.tortured ?? 0) > 0 || e.them.down || e.them.out || e.them.dead || e.stage === 'combat' || e.stage === 'violence';
     if (!violent || (e.stage === 'violence' && !e.fought)) return;
     const f = this.infamy;
@@ -5969,7 +6035,7 @@ export class Game {
     // Each of them catches it, or doesn't: Sneak (kept low-key) and a covered face make it easy to miss.
     const sees = c.filter(() => Math.random() < (1 - q) * (1 - anon * 0.5));
     const n = sees.length;
-    e.witnessed = Math.max(1, n);
+    e.witnessed = n;
     if (!n) {
       e.watchers = c.length;
       return;
@@ -6079,7 +6145,7 @@ export class Game {
     // (Dez's is decent, and much the same every time.)
     const bag = () => stow(inv, { kind: 'misc', name: deal.name, detail: deal.detail, secret: 'cocaine', known: true, doses: deal.doses, pkg: deal.doses, product: deal.product, ...(deal.pill ? { pill: deal.pill } : {}), ...(deal.pressed ? { pressed: true } : {}), quality: deal.pill && !deal.pressed ? 100 : 58 + Math.floor(Math.random() * 12) });
     // The first time at the top: his supplier, in a car at the mouth of the alley.
-    const meet = deal.tier === 3 && !con.metBig ? 'Dez walks you out to a car idling at the mouth of the alley. The window comes down a few inches. Nobody says a name. A brick wrapped in tape comes out through the gap.' : '';
+    const meet = deal.tier === 3 && !con.metBig ? `Dez walks you out to a car idling at the mouth of the alley. The window comes down a few inches. Nobody says a name. ${deal.detail.replace(/^./, (c) => c.toUpperCase()).replace(/\.?$/, '')} comes out through the gap.` : '';
     if (how === 'cash') {
       const price = deal.cash[tier - 1] * 100;
       if (!price || c < price) return;
@@ -7855,7 +7921,12 @@ export class Game {
     e.product = units;
     e.bulk = 0;
     const kind = e.person.kind as 'junkie';
-    if (e.wants == null && ['junkie', 'homeless', 'drunk', 'civilian'].includes(e.person.kind)) e.wants = wantFor(kind, e.person.age, new Date(now()).getHours(), this.market);
+    // (Sold them junk once too often: they won't buy from you again.)
+    const burned = !!(e.person.known && this.people.find((x) => x.id === e.person.known && !x.memory.otherLife)?.memory.burned);
+    if (burned) {
+      delete e.wants;
+      e.regular = false;
+    } else if (e.wants == null && ['junkie', 'homeless', 'drunk', 'civilian'].includes(e.person.kind)) e.wants = wantFor(kind, e.person.age, new Date(now()).getHours(), this.market);
     // They ask for bags of whatever size you sell in (one, sometimes two or three).
     const zips = inv.items.filter((x) => x.name === 'Zip bags').reduce((n, x) => n + (x.doses ?? 0), 0);
     e.zips = zips;

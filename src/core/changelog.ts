@@ -11,6 +11,21 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.72',
+    date: 'Nov 9',
+    items: [
+      'Bags priced fairly between sizes: an odd bag size never sells for more than the next size up.',
+      'Cutting: once per package, and not at all once quality is under 30. Junk sells for much less, and strangers walk away from real garbage.',
+      'Burned customers stay gone; a new character starts with no old dealing history; flooding a corner depends on how much money changed hands.',
+      'Small bags found on people hold the right amount and no longer turn into free zip bags.',
+      'When your heat goes up, the log says why (“They’ll mention you to a cop.”, “The camera got your face.”).',
+      'Resting or jail heal at the right rate when you come back to the app; delivery shifts wear you out properly; moving the phone’s clock back and forth no longer heals you for free.',
+      'After a long time away, the drug market isn’t all droughts and gluts at once; the price trend arrows work.',
+      'Encounter fixes: the log never shows the last person’s lines, nobody noticing doesn’t count as witnessed, buyers don’t accept a substitute then refuse, “No baggies” shows when you have none, and a regular who doesn’t recognise you isn’t treated as one.',
+      'Wording: the right description for your first big deal from Dez, and the real amount of marked money in a sting.',
+    ],
+  },
+  {
     v: '2.71',
     date: 'Nov 9',
     items: [

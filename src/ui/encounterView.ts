@@ -269,7 +269,8 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
     render(e: Encounter | null) {
       if (!e || e.stage === 'seen') {
         root.hidden = true;
-        current = e;
+        // (Nothing drawn for them: the next one shown starts clean, log, tab and card.)
+        current = null;
         return;
       }
       if (e !== current || e.log.length < shown) {

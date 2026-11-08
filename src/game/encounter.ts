@@ -3429,7 +3429,7 @@ function sellOption(e: Encounter): Option {
   const have = k ? (e.stock?.[k]?.n ?? 0) : 0;
   // (A regular asks for their usual, and someone who came over says what they want; anyone else you find out by asking.)
   const known = e.regular || e.cameOver;
-  if (!k || !e.wantAmt || !known) return { id: 'sell', label: '“You looking?”', hint: 'Sell them something · Speech', cat: 'talk' };
+  if (!k || !e.wantAmt || !known) return { id: 'sell', label: '“You looking?”', hint: (e.zips ?? 0) < 1 ? 'No baggies' : 'Sell them something · Speech', disabled: (e.zips ?? 0) < 1, cat: 'talk' };
   const p = keyProduct(k);
   const bags = e.wantBags ?? 1;
   const what = `${bags} bag${bags === 1 ? '' : 's'} of ${keyName(k).toLowerCase()} (${amountText(p, e.bagSize ?? e.wantAmt)})`;
@@ -3490,14 +3490,23 @@ function sellTo(e: Encounter) {
   // (Anything in your hand, a blade, a bat, a gun: nobody buys from that.)
   const scary = (e.conspicuous ? 0.2 : 0) + ((e.weapons ?? []).some((w) => w.hand) ? 0.3 : 0) + (hr >= 8 && hr < 18 ? 0.08 : 0);
   const wantP = clamp(-scary + ({ junkie: 0.75, drunk: night ? 0.45 : 0.25, homeless: 0.3, civilian: night ? 0.16 : 0.06 } as Record<string, number>)[p.kind] + (e.cameOver ? 0.55 : e.regular ? 0.3 : 0) - (e.cameOver ? 0 : e.suspicion / 250) + ((e.speechLevel ?? 1) - 1) * 0.004 + (e.standing ?? 0) * 0.03, 0.02, 0.95) * (pick === want ? (e.sizeFit ?? 1) : 1);
-  if (Math.random() >= wantP) {
+  // (Already said yes to the something-else: no backing out of it now.)
+  if (pick === want && Math.random() >= wantP) {
     say('them', e.cameOver ? oneOf(['“Nah. Changed my mind.” They step back, and they’re gone.', 'They look up the street. “Not here. Not now.”']) : p.kind === 'civilian' ? oneOf(['“What? No. Get away from me.”', 'They look at you like you’re something on their shoe and walk faster.', '“I’m good.” They don’t look at you again.']) : oneOf(['“Nah. Not tonight.”', '“I’m good, man.”', 'They shake their head and keep going.']));
     // Some people call it in.
     e.deal = { kind: 'no', price: 0, reported: p.kind === 'civilian' && Math.random() < 0.2 * (1 - quiet) };
+    if (e.deal.reported) say('info', 'They look back at you once, then get their phone out. They’ll mention you to a cop.');
     end('left');
     return;
   }
   if (!e.regular && !e.cameOver) say('them', `“${cap(what)}.”`);
+  // Junk: a stranger looks at it in the light, and walks (the worse it is, the likelier).
+  if (!e.regular && unitQ < 30 && Math.random() < ((30 - unitQ) / 30) * 0.85) {
+    say('them', oneOf(['They look at it in the light. “That’s garbage.” They walk.', 'They rub a little between their fingers and hand it back. “Nah. That’s cut to hell.”']));
+    e.deal = { kind: 'no', price: 0 };
+    end('left');
+    return;
+  }
   const cents = p.clothes.reduce((n, g) => n + g.loot.filter((l) => l.kind === 'cash').reduce((m, l) => m + Math.round((l.cash ?? 0) * 100), 0), 0);
   let price = Math.max(100, Math.round(full / 100) * 100);
   // Talking the price down (not with a regular: they know what it costs).

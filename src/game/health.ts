@@ -122,9 +122,10 @@ export const drunkLevel = (d: number) => (d >= 80 ? 4 : d >= 55 ? 3 : d >= 30 ? 
 /** Sobering up: 20 points an hour, real time. */
 export function soberUp(h: Health, t = Date.now()) {
   if (!h.drunk) return;
-  const at = Math.min(h.drunkAt ?? t, t);
+  const raw = h.drunkAt ?? t;
+  const at = Math.min(raw, t);
   h.drunk = Math.max(0, h.drunk - ((t - at) / 3_600_000) * 20);
-  h.drunkAt = t;
+  h.drunkAt = Math.max(raw, t);
   if (h.drunk < 0.5) {
     delete h.drunk;
     delete h.drunkAt;
@@ -487,7 +488,8 @@ export function fatigueNow(h: Health, t = Date.now()): number {
     const rate = restRate(h);
     h.fatigue = Math.max(0, h.fatigue - ((t - at) / 3_600_000) * rate);
   }
-  h.fatigueAt = t;
+  // (Never back: a clock set back and put right again doesn't count the same hours twice.)
+  h.fatigueAt = Math.max(at, t);
   return h.fatigue ?? 0;
 }
 export function addFatigue(h: Health, n: number) {
@@ -790,7 +792,7 @@ export function dependence(h: Health, k: Habit, t = Date.now()): number {
   const s = habitsOf(h)[k];
   if (!s) return 0;
   s.dep = Math.max(0, s.dep - (Math.max(0, t - s.at) / HR) * DECAY[k]);
-  s.at = t;
+  s.at = Math.max(s.at, t);
   return s.dep;
 }
 /** Using: dependence builds, and any withdrawal stops. */

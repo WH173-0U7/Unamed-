@@ -7111,3 +7111,24 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
 .police-card .stat-how.warrant {
   color: #e06a5a;
 }
+/* Charges: the name first, the law it's under small and dim. */
+.charge-code {
+  font-size: 0.82em;
+  color: var(--ink-faint);
+  font-style: normal;
+  white-space: nowrap;
+}
+/* Wanted for: one charge a line. */
+.police-card .wanted-list {
+  margin: 2px 0 6px;
+  padding: 0 0 0 14px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #e06a5a;
+}
+.police-card .wanted-list li + li {
+  margin-top: 2px;
+}
+.stat-card h3 b {
+  margin-left: auto;
+}

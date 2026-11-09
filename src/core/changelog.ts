@@ -11,6 +11,18 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.77',
+    date: 'Nov 9',
+    items: [
+      'Police fixes: a sting warrant can’t lose its charge, crimes are never charged twice (or again after you served time), and being picked up for questioning at Hunted no longer repeats for hours.',
+      'A description out on you can now get you stopped, as the You page says; masked crimes no longer add to your own heat.',
+      'Camera footage waits until you’re out of custody; a missed court date still counts even with another warrant out; someone who “knows your face” always recognises you.',
+      'A room raid really takes your scale and cutting kit.',
+      'Charge codes stay on one line and read quieter; “Wanted for” lists one charge per line; the balaclava shows how much it hides; shop descriptions match their ratings.',
+      'Cracked glass is easier to read through in a fight: impacts stay off the buttons and status, and seeing double is gentler, so buttons stay where you tap.',
+    ],
+  },
+  {
     v: '2.76',
     date: 'Nov 9',
     items: [

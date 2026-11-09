@@ -278,9 +278,9 @@ export const GAS_STOCK: Stock[] = [
   { id: 'zipbags', name: 'Zip bags', price: 3, desc: 'A pack of 50 tiny zip-top bags, by the register. “For jewelry,” the label says.', doses: 50 },
   { id: 'bandages', name: 'Bandages', price: 11, desc: 'Slows bleeding a level. Pricier than the pharmacy.', med: 'bandages' },
   { id: 'painkillers', name: 'Painkillers', price: 8, desc: 'Takes the edge off the pain. Pricier than the pharmacy.', med: 'painkillers' },
-  { id: 'bandana', name: 'Bandana', price: 8, desc: 'Over your nose and mouth. Hides about half.', slot: 'face' },
-  { id: 'skimask', name: 'Ski mask', price: 18, desc: 'Off the winter rack. Hides almost all of your face. People stare.', slot: 'face' },
-  { id: 'surgical', name: 'Surgical mask', price: 2, desc: 'Hides a little. Nobody looks twice.', slot: 'face' },
+  { id: 'bandana', name: 'Bandana', price: 8, desc: 'Over your nose and mouth.', slot: 'face' },
+  { id: 'skimask', name: 'Ski mask', price: 18, desc: 'Off the winter rack.', slot: 'face' },
+  { id: 'surgical', name: 'Surgical mask', price: 2, desc: 'Paper, blue, a box of them by the register.', slot: 'face' },
   { id: 'cap', name: 'Baseball cap', price: 22, desc: 'Off the spinner. Shades your eyes from cameras.', slot: 'head' },
   { id: 'beanie', name: 'Beanie', price: 16, desc: 'Covers your hair.', slot: 'head' },
   { id: 'shades', name: 'Sunglasses', price: 20, desc: 'Gas station shades. Hides your eyes. At night, a bit odd.', slot: 'eyes' },
@@ -372,7 +372,12 @@ export const CHARGES: Record<string, { bail: number; fine: number; days: number;
   'Assaulting a federal officer': { bail: 10000, fine: 5000, days: 365, sev: 10 },
 };
 /** Old names, from before (saves keep them; they read as the new ones). */
-const CHARGE_ALIAS: Record<string, string> = { Bribery: 'Bribery of a public official' };
+const CHARGE_ALIAS: Record<string, string> = {
+  Bribery: 'Bribery of a public official',
+  // (Older names for the same federal charges.)
+  'Possession of a controlled substance with intent to distribute': 'Possession with intent to distribute',
+  'Possession with intent': 'Possession with intent to distribute',
+};
 export const chargeName = (c: string) => CHARGE_ALIAS[c] ?? c;
 export const chargeOf = (c: string) => CHARGES[chargeName(c)] ?? { bail: 300, fine: 300, days: 3, sev: 2 };
 /** The law it's under: federal code, or a local charge. */
@@ -394,9 +399,14 @@ const CHARGE_CODE: Record<string, string> = {
   'Witness tampering': '18 U.S.C. § 1512',
   'Bribery of a public official': '18 U.S.C. § 201',
   Escape: '18 U.S.C. § 751',
+  'Attempted escape': '18 U.S.C. § 751',
   'Aiding an escape': '18 U.S.C. § 752',
   'Failure to appear': '18 U.S.C. § 3146',
   'Assaulting a federal officer': '18 U.S.C. § 111',
 };
 /** “Access device fraud (18 U.S.C. § 1029)”, or “Assault (local charge)”. */
-export const chargeLabel = (c: string) => `${chargeName(c)} (${CHARGE_CODE[chargeName(c)] ?? 'local charge'})`;
+/** The code, kept on one line (“18 U.S.C. § 1028A” never splits). */
+const chargeCode = (c: string) => (CHARGE_CODE[chargeName(c)] ?? 'local charge').replace(/ /g, '\u00a0');
+export const chargeLabel = (c: string) => `${chargeName(c)} (${chargeCode(c)})`;
+/** For lists: the name, then the code small and dim. */
+export const chargeHtml = (c: string) => `${chargeName(c)} <small class="charge-code">(${chargeCode(c)})</small>`;

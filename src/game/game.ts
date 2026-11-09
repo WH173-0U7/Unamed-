@@ -106,9 +106,9 @@ const VIG_DAYS = 14;
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 /** At an address: outside, or in, and what's happened so far. */
 /** Everything in the save that's this character's (not the world's). */
-const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'policeArrested', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'hadId', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'footage', 'laterLines', 'restLines', 'connect', 'work', 'workLines', 'plasma', 'gig', 'bins', 'crowd'];
+const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'policeKnow', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'policeArrested', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'hadId', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'footage', 'laterLines', 'restLines', 'connect', 'work', 'workLines', 'plasma', 'gig', 'bins', 'crowd'];
 /** What only makes sense in the moment (a stop, a fight, a door you're at): not kept when you stop being them. */
-const MOMENT_KEYS = ['work', 'workLines', 'laterLines', 'restLines', 'crowd', 'encounter', 'policeStop', 'policeResult', 'policeArrested', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow'];
+const MOMENT_KEYS = ['work', 'workLines', 'laterLines', 'restLines', 'crowd', 'encounter', 'policeStop', 'policeKnow', 'policeResult', 'policeArrested', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow'];
 /**
  * Someone you used to be: kept whole (stats, body, pockets, record), inside
  * or out on the streets, to free, to meet, and to go on as again.
@@ -182,6 +182,8 @@ type Case = {
   warrantCharges?: string[];
   /** For a crime warrant: how hot it keeps you, till it's dealt with. */
   floor?: number;
+  /** Missed the court date on top of another warrant (Failure to appear goes on when they book you). */
+  missedCourt?: boolean;
   bailPaid?: number;
   stingPending?: number;
   jumped?: boolean;
@@ -251,7 +253,7 @@ const STOMP_HELPLESS_COST = 1;
 const TORTURE_COST = 3;
 const MUG_COST = 0.5;
 
-import { worth as worthOf, chargeOf, chargeLabel, chargeName, COIN_MACHINE_FEE, ER_PRICES, ROOM_RENT, DEZ_FRONT, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place, type Stock } from './shops';
+import { worth as worthOf, chargeOf, chargeHtml, chargeName, COIN_MACHINE_FEE, ER_PRICES, ROOM_RENT, DEZ_FRONT, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place, type Stock } from './shops';
 import { BILLS, COINS, addTo, cents, type Purse, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
 import { hoursText, isOpen } from './clock';
 import { DISTRICTS, DISTRICT_NAMES, EVENT_LINES, HOME_DISTRICT, MARKET_KEYS, PILLS, PRODUCTS, SELL_SIZE, SIZES, STANDING_NAMES, bagsFor, addLocalSupply, amountText, pkgAmount, districtWord, keyName, keyOf, keyProduct, marketWord, newMarket, nextStandingAt, priceFactor, productOf, qualityOf, qualityWord, quote, requestFor, returnHours, sizePrice, standingOf, standingScore, streetPrice, tickMarket, wantFor, type Market, type MarketKey, type PillKind, type Product } from './drugs';
@@ -688,6 +690,13 @@ export class Game {
     return f;
   }
   /** How hot a warrant keeps you, until it's dealt with: missed court, Low; a buy you ran from, Watched; an escape, Wanted; a crime, by what it was. */
+  /** Booked for it: what witnesses saw of it is spent (no picking you out of a line-up for it again). */
+  private spendSeen(charge: string) {
+    const f = this.infamy;
+    if (/^homicide$/i.test(charge)) f.killsSeen = 0;
+    else if (/^assault/i.test(charge)) f.reports = 0;
+    else if (/burglary|home invasion/i.test(charge)) f.burglaries = 0;
+  }
   private get warrantFloor(): number {
     const c = this.case;
     if (!c?.warrant) return 0;
@@ -1184,12 +1193,12 @@ export class Game {
     const c = this.chill();
     if (c) lines.push(c);
     // With heat on you, a patrol might stop you instead of anyone turning up.
-    const heat = this.infamy.heat;
     // A patrol stops you if they're looking for you, or if they can see what you're carrying.
     const shows = exposure(this.inventory);
     // (Looking like the description they have, and how much of your face shows: see patrolOdds.)
     const odds = this.patrolOdds();
-    const wanted = heat > 5 && Math.random() < odds.wanted;
+    // (Their odds already count your heat, any description out, and a mask that draws eyes.)
+    const wanted = Math.random() < odds.wanted;
     if (wanted || (shows > 0.15 && Math.random() < odds.shows)) {
       this.phase = 'idle';
       this.refresh();
@@ -1345,7 +1354,7 @@ export class Game {
     // Down on the sidewalk: dirt on the glass.
     if (!downBefore && e.you?.down) this.fx.dirt(e.you.out ? 0.9 : 0.6);
     // Gunshots get called in.
-    if ((e.shots ?? 0) > shotsBefore) this.infamy.heat = Math.min(100, this.infamy.heat + 18 * ((e.shots ?? 0) - shotsBefore));
+    if ((e.shots ?? 0) > shotsBefore) this.reportedHeat(18 * ((e.shots ?? 0) - shotsBefore), e.seenAs?.anon ?? anonymity(this.inventory), { sev: 9 });
     if (this.levelSum() > levelsBefore) sound.levelUp();
     // Knocked out of your mouth (or you're out cold): the cigarette's gone.
     if (!wasOver && this.smoking && e.you && (e.you.smoking === false || e.you.out || e.result === 'lost')) {
@@ -2078,6 +2087,7 @@ export class Game {
     // Wanted, with your face showing, somewhere full of uniforms: a deputy, a cop at the ER desk, knows you.
     if ((p === 'court' || p === 'hospital') && this.case?.warrant && anonymity(this.inventory) < 0.5 && Math.random() < (p === 'court' ? 0.35 : 0.2) * (this.record.arrests > 0 ? 1.3 : 1)) {
       this.place = 'street';
+      this.save.state.policeKnow = true;
       this.save.state.policeWhy = [...lines, p === 'court' ? 'A deputy by the metal detector looks at you, then at the sheet taped by his radio. He steps out from behind the desk.' : 'A cop at the ER desk, waiting on a statement, looks up. He knows your face from somewhere. Then he knows where.'];
       this.save.state.policeStop = true;
       this.refresh();
@@ -3670,14 +3680,19 @@ export class Game {
       lines.push(`“Take that off. Let’s see your face.” You pull the ${w0.face.toLowerCase()} down.`);
       faceShows = anonymity(inv) < 0.5;
     }
-    const knowYou = faceShows && Math.random() < (photo ? 0.95 : 0.7);
+    // (Spotted by someone who already knew the face: no doubt about it.)
+    const spotted = !!this.save.state.policeKnow;
+    delete this.save.state.policeKnow;
+    const knowYou = faceShows && (spotted || Math.random() < (photo ? 0.95 : 0.7));
     if (pending?.warrant && choice !== 'run' && !knowYou) lines.push(faceShows ? 'One of them looks at you a long second, then at his phone. Nothing.' : 'They can’t get a look at you. Whoever they think you are, they don’t know it’s you.');
     // Hunted, and they know your face: they take you in, warrant or not.
     if (!pending?.warrant && knowYou && heatLevel(f.heat) >= 5 && choice !== 'run' && !bribed) {
       lines.push('“That’s him.” One of them already has the cuffs out. They want you downtown for questioning.');
       arrested = true;
     }
+    let toldWarrant = false;
     if (pending?.warrant && choice !== 'run' && knowYou) {
+      toldWarrant = true;
       lines.push(`One of them runs your name on the radio. A pause. “There’s a warrant out for you. Turn around.”${photo ? '' : ' Your face matches the one they’ve been sent.'}`);
       arrested = true;
       if (!['sting', 'escape', 'crime'].includes(pending.warrantFor ?? '')) charges.push('Failure to appear');
@@ -3698,7 +3713,7 @@ export class Game {
       }
       delete pending.stingPending;
     };
-    if (pending?.warrant && choice !== 'run') serveStings();
+    if (pending?.warrant && choice !== 'run' && knowYou) serveStings();
     // A buy that was a setup: arrested, the marked money goes back in an evidence bag.
     const takeMarked = () => {
       const marked = Math.min(Math.round(cashOf(inv) * 100), (this.save.state.stingCash as number) ?? 0);
@@ -3831,7 +3846,7 @@ export class Game {
         lines.push(`You pull the ${w.face!.toLowerCase()} down.`);
       }
       // Do you look like who they're after?
-      const looks = Math.random() < (f.heat / 100) * (1 - anonymity(inv) * 0.5) + (lied ? 0.12 : 0);
+      const looks = !(pending?.warrant && !knowYou) && Math.random() < (f.heat / 100) * (1 - anonymity(inv) * 0.5) + (lied ? 0.12 : 0);
       lines.push('They pat you down and go through your pockets.');
       // Weapons get taken off you, and they remember it. (A loaded syringe is evidence instead.)
       // A pat-down is your clothes. Your bag, only if they've reason to.
@@ -3869,13 +3884,14 @@ export class Game {
         lines.push('One of them looks at you a long time, then at his phone. “That’s the one.” The cuffs go on.');
         arrested = true;
         // Someone who saw your face went to them: picked out of a line-up.
-        if ((f.killsSeen ?? 0) > 0 && f.heat > 60) {
+        const onWarrant = pending?.warrantCharges ?? [];
+        if ((f.killsSeen ?? 0) > 0 && f.heat > 60 && !onWarrant.includes('Homicide')) {
           charges.push('Homicide');
           f.killsSeen = 0;
-        } else if ((f.reports ?? 0) > 0 && f.heat > 60) {
+        } else if ((f.reports ?? 0) > 0 && f.heat > 60 && !onWarrant.includes('Assault')) {
           charges.push('Assault');
           f.reports = 0;
-        } else if ((f.burglaries ?? 0) > 0 && f.heat > 50) {
+        } else if ((f.burglaries ?? 0) > 0 && f.heat > 50 && !onWarrant.some((x) => /burglary|home invasion/i.test(x))) {
           charges.push('Burglary');
           f.burglaries = 0;
         }
@@ -3895,18 +3911,21 @@ export class Game {
       }
     }
     if (arrested && pending?.stingPending) {
-      if (pending.warrantFor === 'sting') lines.push('At the station they run your name. There’s a warrant out for you: the buy you ran from.');
+      if (pending.warrantFor === 'sting' && !toldWarrant) lines.push('At the station they run your name. There’s a warrant out for you: the buy you ran from.');
       serveStings();
     }
     // (Caught running, wanted for an escape: that's what they book you on.)
     if (arrested && pending?.warrant && pending.warrantFor === 'escape' && !charges.some((x) => /escape/i.test(x)) && pending.charges.some((x) => /escape/i.test(x))) {
-      lines.push('At the station they run your name. There’s a warrant out for you: the escape.');
+      if (!toldWarrant) lines.push('At the station they run your name. There’s a warrant out for you: the escape.');
       charges.push(...pending.charges.filter((x) => /escape|^failure to appear$/i.test(x)));
       pending.charges = pending.charges.filter((x) => !/escape|^failure to appear$/i.test(x));
     }
     // (Wanted for something they know you did: that's what they book you on.)
     if (arrested && pending?.warrantCharges?.length) {
-      lines.push(`At the station they run your name. There’s a warrant out for you: ${list2(pending.warrantCharges.map((x) => chargeName(x).toLowerCase()))}.`);
+      const what = list2(pending.warrantCharges.map((x) => chargeName(x).toLowerCase()));
+      lines.push(toldWarrant ? `At the station they book you on it: ${what}.` : `At the station they run your name. There’s a warrant out for you: ${what}.`);
+      // (Booked now: the line-up counters for these are spent.)
+      for (const x of pending.warrantCharges) this.spendSeen(x);
       charges.push(...pending.warrantCharges);
       delete pending.warrantCharges;
       delete pending.floor;
@@ -3961,6 +3980,7 @@ export class Game {
         delete c.warrantCharges;
         delete c.floor;
         delete c.jumped;
+        delete c.missedCourt;
         this.save.state.case = c;
         lines.push(`In the morning you’re charged: ${charges.map((x) => x.toLowerCase()).join(', ')}.`);
         // Picked up holding his product: Dez hears about it, and wonders what you said.
@@ -3972,7 +3992,11 @@ export class Game {
           lines.push(`Bail is set at ${money(c.bail * 100)}. Pay it and you walk out today with a court date, and get it back when you show up. Or wait in jail for the hearing.`);
           this.save.state.bailOffer = 'bail';
         }
-      } else lines.push('In the morning they let you go: not enough to charge you. This time.');
+      } else {
+        lines.push('In the morning they let you go: not enough to charge you. This time.');
+        // (Questioned and let go: they've had their look at you. Not Hunted any more.)
+        f.heat = Math.max(this.warrantFloor, Math.min(f.heat, 74));
+      }
       if (charges.length) f.heat = Math.max(0, f.heat - 45);
       f.rep += 5;
       h.stress = Math.min(100, (h.stress ?? 0) + 15);
@@ -4206,8 +4230,12 @@ export class Game {
       delete c.floor;
       c.warrant = false;
       delete c.warrantFor;
+      delete c.missedCourt;
       const rec = this.record;
-      for (const x of wanted) rec.charges[x] = (rec.charges[x] ?? 0) + 1;
+      for (const x of wanted) {
+        rec.charges[x] = (rec.charges[x] ?? 0) + 1;
+        this.spendSeen(x);
+      }
       rec.arrests++;
       if (fta) rec.charges['Failure to appear'] = (rec.charges['Failure to appear'] ?? 0) + 1;
       if (escaped) for (const x of c.charges.filter((y) => /escape|^failure to appear$/i.test(y))) rec.charges[x] = (rec.charges[x] ?? 0) + 1;
@@ -4752,7 +4780,10 @@ export class Game {
         const was = c.warrant ? c.charges.filter((y) => (fta && y === 'Failure to appear') || (c.warrantFor === 'escape' && /escape|^failure to appear$/i.test(y))) : [];
         for (const y of was) rec.charges[y] = (rec.charges[y] ?? 0) + 1;
         // (And what they already had your name for.)
-        for (const y of c.warrantCharges ?? []) rec.charges[y] = (rec.charges[y] ?? 0) + 1;
+        for (const y of c.warrantCharges ?? []) {
+          rec.charges[y] = (rec.charges[y] ?? 0) + 1;
+          this.spendSeen(y);
+        }
         c.charges.push(...(c.warrantCharges ?? []));
         delete c.warrantCharges;
         delete c.floor;
@@ -4928,7 +4959,7 @@ export class Game {
       ((d) => (d ? `<p class="record-case${now() > d.due ? ' warrant' : ''}">You owe Dez ${money(d.owed)}${now() > d.due ? `. You’re late (it was due ${dueText(d.due)}), ${(d.vigDays ?? 0) >= VIG_DAYS ? "he’s done waiting" : 'it grows every day'}, and he’s sending someone.` : `, due ${dateText(d.due)} ${clockText(d.due)}. In the alley.`}</p>` : ''))(this.debt) +
       (now() < ((this.save.state.probationUntil as number) ?? 0) ? `<p class="record-case">On probation until ${dateText(this.save.state.probationUntil as number)} ${clockText(this.save.state.probationUntil as number)}: get charged with anything and you’re held, no bail.</p>` : '') +
       (r.arrests
-        ? (rows.length ? `<ul class="record-list">${rows.map(([c, n]) => `<li><span>${chargeLabel(c)}</span><b>×${n}</b></li>`).join('')}</ul>` : '') +
+        ? (rows.length ? `<ul class="record-list">${rows.map(([c, n]) => `<li><span>${chargeHtml(c)}</span><b>×${n}</b></li>`).join('')}</ul>` : '') +
           `<p class="record-note">${rows.length ? 'Each charge means a court date.' : 'Held, and let go without charge.'}${r.last ? ` Last arrested ${dueText(r.last)}.` : ''}</p>` +
           this.recordTimeHtml()
         : `<p class="record-note">${this.case?.warrant ? "No arrests yet. They’re looking for you." : 'No arrests. The police have nothing on this face.'}</p>`) +
@@ -5751,6 +5782,8 @@ export class Game {
   private reviewFootage() {
     const list = this.save.state.footage as Footage[] | undefined;
     if (!list?.length) return;
+    // (In custody or waiting on bail: it keeps till you're out, or the warrant would vanish with the case.)
+    if ((this.jail && this.jail.until > now()) || this.save.state.bailOffer || this.save.state.policeStop) return;
     const t = now();
     const due = list.filter((x) => x.at <= t);
     if (!due.length) return;
@@ -6305,7 +6338,7 @@ export class Game {
     this.reportedHeat(5 * n * (1 - q * 0.5), anon, { sev: hurtSeen ? 6 : 4, charges: hurtSeen && anon < 0.5 ? ['Assault'] : [], floor: 60 });
     if (Math.random() < (0.3 + 0.15 * n) * (1 - q) * 0.35) {
       say(oneOf(['One of them has a phone out. They’re calling it in.', 'Someone’s on the phone already, backing away, looking right at you.']));
-      f.heat = Math.min(100, f.heat + 15);
+      this.reportedHeat(15, anon, { sev: hurtSeen ? 6 : 4 });
     }
     // A good look at your face: what they'll tell the police.
     if (Math.random() > anon && Math.random() < 0.6 * (1 - q)) {
@@ -7209,7 +7242,9 @@ export class Game {
         // (No gloves, and your prints already on file from an arrest: they match them.)
         const prints = !face && !gloved(this.inventory) && this.record.arrests > 0 && Math.random() < 0.3;
         const charge = j.killed ? 'Homicide' : j.occupied ? 'Home invasion' : 'Burglary';
-        this.reportedHeat(6 + (j.occupied ? 14 : 0) + (face ? 12 : 0) + (j.killed ? 30 : 0), face || prints ? 0 : 0.9, { sev: j.killed ? 20 : j.occupied ? 15 : 10, charges: face || prints ? [charge] : [], floor: j.killed ? 75 : j.occupied ? 60 : 40, identified: face || prints });
+        // (Nobody saw a thing, and no prints: a break-in on file, but no description to go with it.)
+        const unseen = !face && !prints && !j.occupied && !j.killed;
+        if (!unseen) this.reportedHeat(6 + (j.occupied ? 14 : 0) + (face ? 12 : 0) + (j.killed ? 30 : 0), face || prints ? 0 : 0.9, { sev: j.killed ? 20 : j.occupied ? 15 : 10, charges: face || prints ? [charge] : [], floor: j.killed ? 75 : j.occupied ? 60 : 40, identified: face || prints });
         if (lines && prints) lines.push('You left prints on the door. They’re on file from your last arrest.');
         if (face) f.burglaries = (f.burglaries ?? 0) + 1;
         if (j.killed && face) f.killsSeen = (f.killsSeen ?? 0) + 1;
@@ -7464,7 +7499,12 @@ export class Game {
       // (Product, and the scale and the plate to work it: the room was where you did it.)
       if (found.some((x) => x.secret && x.secret !== 'empty') && r.items.some((x) => /digital scale|cutting kit/i.test(x.name)) && !charges.includes('Maintaining a drug-involved premises')) {
         charges.push('Maintaining a drug-involved premises');
-        lines.push('The scale and the plate on the table go into a bag too.');
+        // (The gear goes as evidence too: said as what it is.)
+        const gear = r.items.filter((x) => /digital scale|cutting kit/i.test(x.name));
+        const scale = gear.some((x) => /scale/i.test(x.name));
+        const kit = gear.some((x) => /cutting kit/i.test(x.name));
+        lines.push(`${scale && kit ? 'The scale and the plate' : scale ? 'The scale' : 'The plate and the razor card'} on the table go${scale && kit ? '' : 'es'} into a bag too.`);
+        found.push(...gear);
       }
       r.items = r.items.filter((x) => !found.includes(x));
     }
@@ -7641,7 +7681,7 @@ export class Game {
     const drop = lvl && !held ? ` Drops to ${HEAT_NAMES[lvl - 1]} in ${when}.` : '';
     const c = this.case;
     const why = c?.warrant
-      ? [...(c.warrantCharges ?? []).map((x) => chargeLabel(x)), ...(c.warrantFor === 'sting' ? ['the buy you ran from'] : c.warrantFor === 'escape' ? ['the escape'] : c.warrantFor === 'crime' ? [] : ['missing court'])]
+      ? [...(c.warrantCharges ?? []).map((x) => chargeHtml(x)), ...(c.warrantFor === 'sting' ? ['the buy you ran from'] : c.warrantFor === 'escape' ? ['the escape'] : c.warrantFor === 'crime' ? [] : ['missing court'])]
       : [];
     const d = f.desc;
     return (
@@ -7649,7 +7689,7 @@ export class Game {
       `<div class="spot-bar status-bar${lvl >= 3 ? ' harm' : ''}"><i style="width:${Math.round(Math.min(100, heat))}%"></i><span>${Math.round(heat)} / 100</span></div>` +
       `<p class="stat-how">${odds}${drop}</p>` +
       (held ? `<p class="stat-how">A warrant keeps it at ${HEAT_NAMES[heatLevel(floor)]} or above until it’s dealt with.</p>` : '') +
-      (why.length ? `<p class="stat-how warrant">Wanted for: ${why.join('; ')}.</p>` : '') +
+      (why.length ? `<p class="stat-how warrant">Wanted for:</p><ul class="wanted-list">${why.map((x) => `<li>${x}</li>`).join('')}</ul>` : '') +
       `<p class="stat-how">${this.record.arrests > 0 ? 'They know your face: there’s a booking photo.' : 'They’ve no photo of you.'}</p>` +
       (this.infamy.lastLook && lvl ? `<p class="stat-how">${this.looksLikeDescription ? 'Your look: matches their description.' : 'Your look: changed since they had a description.'}</p>` : '') +
       (d && d.heat >= 1 ? `<p class="stat-how">They’re looking for: ${d.text.replace(/^someone/, 'someone')}${this.looksLikeStranger ? ' (that’s how you look right now)' : ''}.</p>` : '') +
@@ -7786,7 +7826,7 @@ export class Game {
           .map(({ x, i, o }) => li(named(x), 'cents' in o ? `${x.detail ? `${x.detail} · ` : ''}He’ll give you ${money(o.cents)}` : o.why, 'cents' in o ? btn('sell', i, `Sell ${money(o.cents)}`) : ''));
         body = `<h3>Sell</h3>` + (sell.length ? `<ul class="shop-list">${sell.join('')}</ul>` : `<p class="shop-broke">You’ve got nothing to sell.</p>`);
         if (place === 'pawn') {
-          body += `<h3>For sale</h3><ul class="shop-list">${PAWN_STOCK.map((s) => li(named(stockThing(s)), s.slot === 'top' || s.slot === 'bottom' || s.slot === 'bag' ? `${s.desc} ${hidesWord(s.name)}.${stockWarmth(s)}` : s.slot === 'head' ? `${s.desc}${stockWarmth(s)}` : s.knife ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.knife }))}, ${alarmStat(alarmOf({ kind: 'weapon', name: s.knife }))}.` : s.desc, this.stockBtns(s, c, btn))).join('')}</ul>`;
+          body += `<h3>For sale</h3><ul class="shop-list">${PAWN_STOCK.map((s) => li(named(stockThing(s)), s.slot === 'top' || s.slot === 'bottom' || s.slot === 'bag' ? `${s.desc} ${hidesWord(s.name)}.${stockWarmth(s)}` : s.slot === 'head' || s.slot === 'face' || s.slot === 'eyes' ? `${s.desc}${stockWarmth(s)}` : s.knife ? `${s.desc} ${hideStat(bulkOf({ kind: 'weapon', name: s.knife }))}, ${alarmStat(alarmOf({ kind: 'weapon', name: s.knife }))}.` : s.desc, this.stockBtns(s, c, btn))).join('')}</ul>`;
         }
       }
     } else if (place === 'bank') {
@@ -8932,8 +8972,10 @@ export class Game {
       // Missed your court date: a warrant.
       const cs = this.case;
       this.settleSelves();
-      if (cs && !cs.warrant && !this.save.state.bailOffer && !this.jail && now() > cs.courtAt) {
+      // (A warrant already out for a crime doesn't excuse the court date: missing it is its own warrant, on top.)
+      if (cs && (!cs.warrant || (cs.warrantFor === 'crime' && cs.charges.length && !cs.missedCourt)) && !this.save.state.bailOffer && !this.jail && now() > cs.courtAt) {
         cs.warrant = true;
+        cs.missedCourt = true;
         delete cs.warrantFor;
         cs.bailPaid = 0;
         this.infamy.heat = Math.min(100, this.infamy.heat + 40);

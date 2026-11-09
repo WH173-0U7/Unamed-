@@ -111,8 +111,9 @@ export function drawCracks(canvas: HTMLCanvasElement, w: number, h: number, scal
 
   for (let i = 0; i < 3; i++) {
     // Not dead centre, not hard against the edge.
+    // (Kept off the status at the top and the buttons at the bottom, where the words are small.)
     const cx = w * (0.14 + R() * 0.72);
-    const cy = h * (0.12 + R() * 0.76);
+    const cy = h * (0.34 + R() * 0.24);
     const t0 = [0.03, 0.4, 0.68][i];
     const span = [0.5, 0.3, 0.3][i];
     const reach = diag * (i === 0 ? 0.55 : 0.38) * (0.75 + R() * 0.4);

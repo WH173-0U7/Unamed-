@@ -28,7 +28,7 @@ const ID = 'crack-ghost';
 /** The map is drawn small (it's flat colours with straight edges) and stretched. */
 const MAP_SCALE = 0.25;
 /** The most a shard shifts what's behind it, in CSS pixels. */
-const MAX_SHIFT = 16;
+const MAX_SHIFT = 10;
 /** Where it starts (how far the cracks have spread). */
 const FROM = 0.03;
 
@@ -168,7 +168,9 @@ export function createCrackGhost(target: HTMLElement) {
     }
     drawMap(level);
     const k = Math.min(1, (level - FROM) / 0.5);
-    const scale = MAX_SHIFT * 2 * (0.4 + 0.6 * k);
+    // (With buttons to press, the doubled copy stays small: what you see is where you tap.)
+    const busy = target.classList.contains('in-encounter') ? 0.5 : 1;
+    const scale = MAX_SHIFT * 2 * (0.4 + 0.6 * k) * busy;
     disps[0].setAttribute('scale', scale.toFixed(1));
     disps[1].setAttribute('scale', (-scale * 0.7).toFixed(1));
     disps[2].setAttribute('scale', scale.toFixed(1));

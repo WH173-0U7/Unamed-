@@ -19,8 +19,10 @@ export interface Thief {
 
 export interface World {
   thieves: Thief[];
-  /** How many of you there have been (1 for the first). */
+  /** Which character you are now: each one keeps its own number (1 for the first). */
   lives: number;
+  /** The highest character number handed out so far (a new character gets the next one). */
+  issued?: number;
   /** Your lurk count when this life began (for the death screen). */
   lifeStart: number;
   /** Everyone you've hurt and left alive (see people.ts). */

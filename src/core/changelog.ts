@@ -11,6 +11,13 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.82',
+    date: 'Nov 10',
+    items: [
+      'Each character keeps their own number. Going back to someone you used to be shows their number again, and only a brand new character gets a new one.',
+    ],
+  },
+  {
     v: '2.81',
     date: 'Nov 10',
     items: [

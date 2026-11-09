@@ -1847,7 +1847,7 @@ export class Game {
       k.memory.clothes = [];
       k.memory.otherLife = true;
     }
-    w.lives++;
+    w.lives = this.nextLifeNo();
     w.lifeStart = this.lurkState.times;
     const p = (t: string) => `<p>${t}</p>`;
     const html =
@@ -4687,6 +4687,16 @@ export class Game {
     while (this.selves.length > 6) this.selves.shift();
     this.die(['You stop counting the days.', 'Whoever you were stays in here, for now. Someone on the outside could still come for them.'], 'Gone inside.', true);
   }
+  /** A number nobody has had yet, for a new character (older saves: past the highest one in use). */
+  private nextLifeNo(): number {
+    this.world.issued = this.topLifeNo() + 1;
+    return this.world.issued;
+  }
+  /** The highest character number anyone has had (remembered, so it's never handed out twice). */
+  private topLifeNo(): number {
+    const w = this.world;
+    return (w.issued = Math.max(w.issued ?? 0, w.lives, ...this.selves.map((x) => x.life ?? 0)));
+  }
   /** The people you used to be. */
   private get selves(): Self[] {
     const w = this.world as World & { selves?: Self[] };
@@ -5006,15 +5016,9 @@ export class Game {
     const here = this.place;
     for (const k of CHAR_KEYS) delete st[k];
     const loaded = JSON.parse(JSON.stringify(x.state)) as Record<string, unknown>;
-    // (A new life, as far as the world's counting: their own ID is theirs again.)
-    w.lives++;
-    const fix = (o: unknown) => {
-      if (!o || typeof o !== 'object') return;
-      const it = o as { kind?: string; own?: number };
-      if ((it.kind === 'id' || it.kind === 'phone') && it.own === x.life) it.own = w.lives;
-      for (const v of Object.values(o)) fix(v);
-    };
-    fix(loaded);
+    // (They keep their own number: their ID and phone are theirs again.)
+    this.topLifeNo();
+    w.lives = x.life ?? this.nextLifeNo();
     Object.assign(st, loaded);
     st.place = here === 'court' || here === 'street' ? here : 'street';
     w.infamy = JSON.parse(JSON.stringify(x.infamy)) as Infamy;

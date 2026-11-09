@@ -66,7 +66,7 @@ export interface MapMark {
   y: number;
   /** Path data on a 24 × 24 grid, stroked. */
   icon: string;
-  tone: 'place' | 'shut' | 'home' | 'car';
+  tone: 'place' | 'shut' | 'home' | 'car' | 'corner';
   label: string;
   here?: boolean;
   picked?: boolean;
@@ -89,6 +89,16 @@ export const PLACE_ICON: Record<string, string> = {
   plasma: 'M12 3.5c3.2 4.2 5.5 7.2 5.5 10.2a5.5 5.5 0 0 1-11 0c0-3 2.3-6 5.5-10.2z M9.4 14.2a2.6 2.6 0 0 0 2.6 2.6',
   home: 'M3.5 11L12 4l8.5 7 M5.5 9.5V20h13V9.5 M10 20v-5h4v5',
   car: 'M3.5 15.5v-3l2-5h13l2 5v3 M3.5 15.5h17v3H18v-1.5H6v1.5H3.5z M6 12.5h12 M7 15.5h.01 M17 15.5h.01',
+  corner: 'M4 12h16 M12 4v16',
+  building: 'M5 21V5.5L12 3l7 2.5V21 M3 21h18 M9 8h.01 M15 8h.01 M9 12h.01 M15 12h.01 M10.5 21v-4.5h3V21',
+  bar: 'M5 4h14l-7 8z M12 12v8 M8 20.5h8 M7.5 6.5h9',
+  church: 'M12 2.5v5 M10 4.5h4 M5 21V12l7-4.5 7 4.5v9 M3 21h18 M10 21v-4a2 2 0 0 1 4 0v4',
+  shelter: 'M3 20h18 M5 20V9l7-5 7 5v11 M9 20v-6h6v6',
+  vacant: 'M4 21V9l8-6 8 6v12 M4 21h16 M8 11l3 3 M11 11l-3 3 M14 15l3 3 M17 15l-3 3',
+  warehouse: 'M3 21V9l9-5 9 5v12 M3 21h18 M7 21v-8h10v8 M7 15.5h10 M7 18h10',
+  school: 'M3 9.5L12 5l9 4.5L12 14z M7 11.5v4.5c0 1.5 2.5 3 5 3s5-1.5 5-3v-4.5 M21 9.5v5',
+  lot: 'M4 4h16v16H4z M9.5 16.5v-9h3.2a2.7 2.7 0 0 1 0 5.4H9.5',
+  laundromat: 'M5 3h14v18H5z M5 7h14 M12 10.5a4 4 0 1 0 0 8a4 4 0 1 0 0-8',
 };
 
 /** A number from two others (the same block, the same buildings, every time). */
@@ -109,34 +119,130 @@ const distTo = (px: number, py: number, [x1, y1, x2, y2]: [number, number, numbe
   return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
 };
 const SLANTS = Object.values(ROADS);
+/** How near a road's centre line comes to a building's edge (0: it runs through it). */
+const roadToRect = (r: [number, number, number, number], x: number, y: number, w: number, h: number) => {
+  const [x1, y1, x2, y2] = r;
+  const inside = (px: number, py: number) => px >= x && px <= x + w && py >= y && py <= y + h;
+  // (Crosses an edge, or starts inside: it runs through.)
+  const cross = (ax: number, ay: number, bx: number, by: number) => {
+    const d = (x2 - x1) * (by - ay) - (y2 - y1) * (bx - ax);
+    if (!d) return false;
+    const t = ((ax - x1) * (by - ay) - (ay - y1) * (bx - ax)) / d;
+    const u = ((ax - x1) * (y2 - y1) - (ay - y1) * (x2 - x1)) / d;
+    return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+  };
+  const c: [number, number][] = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+  if (inside(x1, y1) || inside(x2, y2) || c.some((p, k) => cross(p[0], p[1], c[(k + 1) % 4][0], c[(k + 1) % 4][1]))) return 0;
+  const toRect = (px: number, py: number) => Math.hypot(Math.max(x - px, 0, px - x - w), Math.max(y - py, 0, py - y - h));
+  return Math.min(...c.map(([px, py]) => distTo(px, py, r)), toRect(x1, y1), toRect(x2, y2));
+};
 /** Clear of the slanted roads and the lane and court (nothing built on a road). */
 const clear = (x: number, y: number, w: number, h: number) =>
-  SLANTS.every((r) => distTo(x + w / 2, y + h / 2, r) > ROAD_W / 2 + Math.max(w, h) / 2 + 0.6) &&
-  Object.values(STUBS).every((r) => distTo(x + w / 2, y + h / 2, r) > STUB_W / 2 + Math.max(w, h) / 2 + 0.4);
+  SLANTS.every((r) => roadToRect(r, x, y, w, h) > ROAD_W / 2 + 0.8) && Object.values(STUBS).every((r) => roadToRect(r, x, y, w, h) > STUB_W / 2 + 0.6);
 const f1 = (n: number) => n.toFixed(1);
 
 /** What part of town a block is in (the district names on the map). */
-function districtOf(cx: number, cy: number): 'downtown' | 'flats' | 'oldtown' | 'southside' {
+export function districtOf(cx: number, cy: number): District {
   if (cy < 150 && cx > 120) return 'downtown';
   if (cy >= 260) return 'southside';
   if (cx >= 150) return 'oldtown';
   return 'flats';
 }
 
-/**
- * Under the streets: the ground, the blocks with their sidewalks, and what's
- * built on them (row houses along the street, yards behind, an alley; bigger
- * buildings downtown; a parking lot or an empty lot here and there), the park,
- * the rail line across the top and the river along the bottom. The same every time.
- */
-function decorSvg(): string {
+/** What a building on the map is (every one of them is something). */
+export type BuildingKind =
+  | 'house'
+  | 'rowhouse'
+  | 'apartment'
+  | 'tower'
+  | 'shop'
+  | 'garage'
+  | 'lot'
+  | 'place'
+  | 'bar'
+  | 'church'
+  | 'shelter'
+  | 'laundromat'
+  | 'school'
+  | 'vacant'
+  | 'warehouse';
+export type District = 'downtown' | 'flats' | 'oldtown' | 'southside';
+export interface Building {
+  /** From where it stands ("b123-88"): the same building, every time. */
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  cx: number;
+  cy: number;
+  district: District;
+  kind: BuildingKind;
+  /** A place you can go to (the pharmacy, the pawn shop): it's in this building. */
+  place?: Place;
+  /** Its name, if it has one ("The Blue Lantern"). */
+  name?: string;
+  /** Its grey, on the map. */
+  fill: string;
+}
+/** Somewhere to stand and sell: a corner. */
+export interface Corner {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  district: District;
+}
+/** The corners you can work (two or three in each part of town). Grand & Ninth, by the park, is where you start. */
+export const CORNERS: Corner[] = [
+  { id: 'grand-ninth', name: 'Grand & Ninth', x: 150, y: 205, district: 'flats' },
+  { id: 'halsey-pruitt', name: 'Halsey & Pruitt', x: 90, y: 150, district: 'flats' },
+  { id: 'kestrel-delmar', name: 'Kestrel & Delmar', x: 30, y: 260, district: 'flats' },
+  { id: 'fulton-larkin', name: 'Fulton & Larkin', x: 210, y: 95, district: 'downtown' },
+  { id: 'cobb-larkin', name: 'Cobb & Larkin', x: 270, y: 95, district: 'downtown' },
+  { id: 'fulton-ninth', name: 'Fulton & Ninth', x: 210, y: 205, district: 'oldtown' },
+  { id: 'cobb-delmar', name: 'Cobb & Delmar', x: 270, y: 260, district: 'oldtown' },
+  { id: 'halsey-bellamy', name: 'Halsey & Bellamy', x: 90, y: 315, district: 'southside' },
+  { id: 'fulton-bellamy', name: 'Fulton & Bellamy', x: 210, y: 315, district: 'southside' },
+  { id: 'grand-ivy', name: 'Grand & Ivy', x: 150, y: 370, district: 'southside' },
+];
+export const DEFAULT_CORNER = 'grand-ninth';
+export const cornerById = (id: unknown) => CORNERS.find((c) => c.id === id);
+
+/** Where the special buildings stand: the nearest building to each point is that one. */
+const BARS: [number, number, string][] = [
+  [172, 92, 'The Blue Lantern'],
+  [258, 128, 'Low Tide'],
+  [228, 175, 'The Anchor Room'],
+  [252, 236, 'Rosie’s'],
+];
+const LANDMARK_AT: [number, number, BuildingKind, string][] = [
+  [66, 128, 'church', 'St. Agnes'],
+  [18, 223, 'laundromat', 'Suds & Duds Laundromat'],
+  [26, 292, 'shelter', 'Harbor Light Shelter'],
+  [58, 342, 'school', 'Delmar Elementary'],
+];
+
+/** The ground plan: every block, and every building and lot on it. Worked out once. */
+let plan: { blocks: string[]; lots: Building[]; blds: Building[] } | null = null;
+function layout() {
+  if (plan) return plan;
   const xs = [0, ...Object.values(AVES), MAP_W];
   const ys = [0, ...Object.values(STS), RIVER_Y];
   const halfX = (x: number) => (x === 0 || x === MAP_W ? 0 : AVE_W / 2);
   const halfY = (y: number) => (y === 0 || y === RIVER_Y ? 0 : ST_W / 2);
   const blocks: string[] = [];
-  const blds: string[] = [];
-  const lots: string[] = [];
+  const blds: Building[] = [];
+  const lots: Building[] = [];
+  const ids = new Set<string>();
+  const make = (x: number, y: number, w: number, h: number, kind: BuildingKind, fill: string): Building => {
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    let id = `b${Math.round(cx)}-${Math.round(cy)}`;
+    for (let n = 2; ids.has(id); n++) id = `b${Math.round(cx)}-${Math.round(cy)}-${n}`;
+    ids.add(id);
+    return { id, x, y, w, h, cx, cy, district: districtOf(cx, cy), kind, fill };
+  };
   for (let i = 0; i < xs.length - 1; i++)
     for (let j = 0; j < ys.length - 1; j++) {
       // The block, out to the curb (a sidewalk all round, rounded at the corners).
@@ -164,20 +270,21 @@ function decorSvg(): string {
         const g = Math.round(d === 'downtown' ? 48 + t * 18 : 40 + t * 20);
         return `rgb(${g},${g},${g + 3})`;
       };
-      const bld = (x: number, y: number, bw: number, bh: number, k: number) => {
+      const bld = (x: number, y: number, bw: number, bh: number, k: number, kind: BuildingKind) => {
         if (bw < 1.6 || bh < 1.6 || !clear(x, y, bw, bh)) return;
-        blds.push(`<rect x="${f1(x)}" y="${f1(y)}" width="${f1(bw)}" height="${f1(bh)}" fill="${tone(k)}"/>`);
+        blds.push(make(x, y, bw, bh, kind, tone(k)));
       };
       // A parking lot, now and then (not downtown's every block).
-      if (r < (d === 'downtown' ? 0.12 : 0.1) && w > 20) {
-        const lw = w * (0.45 + rnd(i, j + 9) * 0.3);
-        const lx = rnd(j, i + 3) < 0.5 ? x0 : x1 - lw;
-        if (clear(lx, y0, lw, h)) lots.push(`<rect x="${f1(lx)}" y="${f1(y0)}" width="${f1(lw)}" height="${f1(h)}" fill="url(#m-stalls)"/>`);
+      // (Not where a road cuts through: then it's built on, round the road.)
+      const lw = w * (0.45 + rnd(i, j + 9) * 0.3);
+      const lx = rnd(j, i + 3) < 0.5 ? x0 : x1 - lw;
+      if (r < (d === 'downtown' ? 0.12 : 0.1) && w > 20 && clear(lx, y0, lw, h)) {
+        lots.push(make(lx, y0, lw, h, 'lot', 'url(#m-stalls)'));
         // The rest of the block: a couple of buildings.
         const ox = lx === x0 ? x0 + lw + 1 : x0;
         const ow = w - lw - 1;
-        bld(ox, y0, ow, h * 0.45, 1);
-        bld(ox, y0 + h * 0.55, ow, h * 0.45, 2);
+        bld(ox, y0, ow, h * 0.45, 1, 'shop');
+        bld(ox, y0 + h * 0.55, ow, h * 0.45, 2, d === 'downtown' ? 'tower' : 'apartment');
         continue;
       }
       if (d === 'downtown') {
@@ -188,7 +295,13 @@ function decorSvg(): string {
           const bw = k === n - 1 ? x1 - at : (w / n) * (0.8 + rnd(k, i + j) * 0.4);
           const top = y0 + (rnd(k + 3, j) < 0.3 ? h * 0.12 : 0);
           const bot = y1 - (rnd(k + 4, i) < 0.3 ? h * 0.15 : 0);
-          bld(at, top, bw - 1.4, bot - top, k);
+          const u = rnd(k + 7, i * 3 + j);
+          const kind = u < 0.5 ? 'tower' : u < 0.8 ? 'shop' : 'apartment';
+          // (A road through it: two smaller buildings, either side of the road, where they fit.)
+          if (clear(at, top, bw - 1.4, bot - top)) bld(at, top, bw - 1.4, bot - top, k, kind);
+          else
+            for (const [py, ph] of [[top, (bot - top) * 0.3], [top + (bot - top) * 0.35, (bot - top) * 0.3], [top + (bot - top) * 0.7, (bot - top) * 0.3]])
+              for (const [px, pw] of bw - 1.4 < 14 ? [[at, bw - 1.4]] : [[at, (bw - 1.4) * 0.48], [at + (bw - 1.4) * 0.52, (bw - 1.4) * 0.48]]) bld(px, py, pw, ph, k + Math.round(py), kind);
           at += bw;
         }
         continue;
@@ -210,16 +323,165 @@ function decorSvg(): string {
           }
           const depth = depthMax * (0.45 + rnd(i + k, j * 3 + side) * 0.45);
           const y = side === 0 ? y0 : y1 - depth;
-          bld(at + 0.3, y, lw - 0.6, depth, k);
+          // (On the corner, a corner shop now and then; a deep one, flats over the top; out in Old Town, a house of its own.)
+          const corner = at === x0 || at + lw >= x1 - 0.01;
+          const u = rnd(k * 7 + 3, i * 11 + j + side);
+          const kind: BuildingKind = corner && u < 0.3 ? 'shop' : depth > 13 && u > 0.75 ? 'apartment' : d === 'oldtown' && lw > 7.6 ? 'house' : 'rowhouse';
+          bld(at + 0.3, y, lw - 0.6, depth, k, kind);
           // A shed or garage out back, sometimes, on the alley.
           if (alley && rnd(k * 3, i + j) < 0.18) {
             const sd = 2.4;
-            bld(at + lw * 0.2, side === 0 ? y0 + depthMax - sd : y1 - depthMax, lw * 0.6, sd, k + 99);
+            bld(at + lw * 0.2, side === 0 ? y0 + depthMax - sd : y1 - depthMax, lw * 0.6, sd, k + 99, 'garage');
           }
           at += lw;
         }
       }
     }
+  // What's in them: the places you can go, a church, bars, a shelter, a school; down by the river, warehouses; here and there, one standing empty.
+  const plain = (b: Building) => (b.kind === 'house' || b.kind === 'rowhouse' || b.kind === 'apartment' || b.kind === 'tower' || b.kind === 'shop') && b.w * b.h >= 14;
+  const nearest = (x: number, y: number) => {
+    let best: Building | undefined;
+    let bd = Infinity;
+    for (const b of blds) {
+      if (!plain(b)) continue;
+      const d = Math.hypot(b.cx - x, b.cy - y);
+      if (d < bd) {
+        bd = d;
+        best = b;
+      }
+    }
+    return best;
+  };
+  for (const [p, at] of Object.entries(PLACE_AT) as [Place, { x: number; y: number }][]) {
+    if (p === 'street') continue;
+    const b = nearest(at.x, at.y);
+    if (b) {
+      b.kind = 'place';
+      b.place = p;
+    }
+  }
+  for (const [x, y, kind, name] of LANDMARK_AT) {
+    const b = nearest(x, y);
+    if (b) {
+      b.kind = kind;
+      b.name = name;
+    }
+  }
+  for (const [x, y, name] of BARS) {
+    const b = nearest(x, y);
+    if (b) {
+      b.kind = 'bar';
+      b.name = name;
+    }
+  }
+  // (The bottom row of blocks, between Ivy St and the river: the old industrial edge.)
+  const edge = blds.filter((b) => plain(b) && b.cy > 372).sort((a, b) => b.w * b.h - a.w * a.h);
+  edge.slice(0, 5).forEach((b) => (b.kind = 'warehouse'));
+  const VACANT: Record<District, number> = { southside: 0.08, flats: 0.05, oldtown: 0.025, downtown: 0 };
+  for (const b of blds) if ((b.kind === 'house' || b.kind === 'rowhouse') && hash(`${b.id}:empty`) < VACANT[b.district]) b.kind = 'vacant';
+  plan = { blocks, lots, blds };
+  return plan;
+}
+
+/** Every building on the map, and every parking lot. */
+export const buildings = (): Building[] => {
+  const p = layout();
+  return [...p.blds, ...p.lots];
+};
+let byId: Map<string, Building> | null = null;
+export const buildingById = (id: unknown): Building | undefined => {
+  byId ??= new Map(buildings().map((b) => [b.id, b]));
+  return typeof id === 'string' ? byId.get(id) : undefined;
+};
+/** The building a place is in. */
+export const buildingOfPlace = (p: Place) => buildings().find((b) => b.place === p);
+
+/** A grid over the map, so a tap only looks at the buildings near it. */
+const CELL = 10;
+let grid: Map<number, Building[]> | null = null;
+function gridOf() {
+  if (grid) return grid;
+  grid = new Map();
+  for (const b of buildings())
+    for (let gx = Math.floor((b.x - 6) / CELL); gx <= Math.floor((b.x + b.w + 6) / CELL); gx++)
+      for (let gy = Math.floor((b.y - 6) / CELL); gy <= Math.floor((b.y + b.h + 6) / CELL); gy++) {
+        const k = gx * 1000 + gy;
+        const list = grid.get(k);
+        if (list) list.push(b);
+        else grid.set(k, [b]);
+      }
+  return grid;
+}
+/** What's at that spot on the map: the building it's on, or (a near miss) the nearest one within reach. */
+export function buildingAt(x: number, y: number, reach = 5): Building | undefined {
+  const list = gridOf().get(Math.floor(x / CELL) * 1000 + Math.floor(y / CELL)) ?? [];
+  let best: Building | undefined;
+  let bd = Infinity;
+  for (const b of list) {
+    // (Inside it: the smallest one you're inside wins, a shed over the lot it's on.)
+    const dx = Math.max(b.x - x, 0, x - (b.x + b.w));
+    const dy = Math.max(b.y - y, 0, y - (b.y + b.h));
+    const d = Math.hypot(dx, dy) + (dx || dy ? 0 : -1000 + (b.w * b.h) / 1e4);
+    if (d < bd) {
+      bd = d;
+      best = b;
+    }
+  }
+  return best && bd <= reach ? best : undefined;
+}
+
+/** Its address: the number on the door, on the street it faces (the same spot addressAt puts that address at). */
+const addrCache = new Map<string, string>();
+export function buildingAddr(b: Building, unit = ''): string {
+  const key = `${b.id}|${unit}`;
+  const had = addrCache.get(key);
+  if (had) return had;
+  // The streets it could face, nearest first; the first whose number lands on this building is the one.
+  const fronts = [
+    ...Object.entries(STS).map(([name, y]) => ({ name, odd: b.cy > y, ave: false, d: Math.min(Math.abs(b.y - y), Math.abs(b.y + b.h - y)) })),
+    ...Object.entries(AVES).map(([name, x]) => ({ name, odd: b.cx > x, ave: true, d: Math.min(Math.abs(b.x - x), Math.abs(b.x + b.w - x)) })),
+  ]
+    .sort((p, q) => p.d - q.d)
+    .slice(0, 3);
+  let out = '';
+  let outD = Infinity;
+  for (const f of fronts) {
+    let best = '';
+    let bd = Infinity;
+    for (let n = f.odd ? 1 : 2; n < 2000; n += 2) {
+      const a = `${n} ${f.name}${unit}`;
+      const at = addressAt(a);
+      // (On the building, and as near its middle along the street as the numbers go.)
+      const off = Math.hypot(Math.max(b.x - at.x, 0, at.x - b.x - b.w), Math.max(b.y - at.y, 0, at.y - b.y - b.h));
+      const d = off * 10 + (f.ave ? Math.abs(at.y - b.cy) : Math.abs(at.x - b.cx));
+      if (d < bd) {
+        bd = d;
+        best = a;
+      }
+    }
+    const at = addressAt(best);
+    if (buildingAt(at.x, at.y) === b) {
+      out = best;
+      break;
+    }
+    if (bd + f.d < outD) {
+      outD = bd + f.d;
+      out = best;
+    }
+  }
+  addrCache.set(key, out);
+  return out;
+}
+
+/**
+ * Under the streets: the ground, the blocks with their sidewalks, and what's
+ * built on them (row houses along the street, yards behind, an alley; bigger
+ * buildings downtown; a parking lot or an empty lot here and there), the park,
+ * the rail line across the top and the river along the bottom. The same every time.
+ */
+function decorSvg(): string {
+  const { blocks, lots, blds } = layout();
+  const rect = (b: Building) => `<rect x="${f1(b.x)}" y="${f1(b.y)}" width="${f1(b.w)}" height="${f1(b.h)}" fill="${b.fill}"/>`;
   // The park: lawn, trees, a path that winds, the pond.
   const trees = Array.from({ length: 22 }, (_, k) => {
     const x = 156 + rnd(k, 11) * 48;
@@ -233,7 +495,7 @@ function decorSvg(): string {
     `<path d="M24 410 q5 -1.2 10 0 M78 414 q5 -1.2 10 0 M118 409 q5 -1.2 10 0 M206 412 q5 -1.2 10 0 M252 415 q5 -1.2 10 0" fill="none" stroke="rgba(150,180,205,0.12)" stroke-width="0.5"/>`;
   // The rail line along the top: ballast, ties, two rails.
   const rail = `<rect x="0" y="8.2" width="${MAP_W}" height="8.6" fill="#1a1918"/><rect x="0" y="9.6" width="${MAP_W}" height="5.8" fill="url(#m-ties)"/><path d="M0 11h${MAP_W} M0 14h${MAP_W}" stroke="#55534f" stroke-width="0.55"/>`;
-  return `${river}${rail}<g class="m-blocks">${blocks.join('')}</g>${lots.join('')}<g class="m-blds">${blds.join('')}</g>${park}`;
+  return `${river}${rail}<g class="m-blocks">${blocks.join('')}</g>${lots.map(rect).join('')}<g class="m-blds">${blds.map(rect).join('')}</g>${park}`;
 }
 /** Over the streets: what parts of town are called, landmarks that aren't places to go, a compass, the scale. */
 function overSvg(): string {
@@ -253,10 +515,19 @@ function overSvg(): string {
     mark(282, 30, 'M8 21.5l2-11h4l2 11 M7 10.5h10v-4a5 5 0 0 0-10 0z', 'WATER TOWER', 'end'),
     mark(26, 292, 'M3 20h18 M5 20V9l7-5 7 5v11 M9 20v-6h6v6', 'SHELTER', 'start'),
   ].join('');
+  // The bars, the school, the lock-ups by the river: small marks on their buildings.
+  const { blds } = layout();
+  const at = (k: BuildingKind) => blds.filter((b) => b.kind === k);
+  const BAR = 'M5 4h14l-7 8z M12 12v8 M8 20.5h8';
+  const extra = [
+    ...at('bar').map((b) => mark(b.cx, b.cy, BAR, (b.name ?? 'BAR').replace(/^The /, '').toUpperCase())),
+    ...at('school').map((b) => mark(b.cx, b.cy, 'M3 9.5L12 5l9 4.5L12 14z M7 11.5v4.5c0 1.5 2.5 3 5 3s5-1.5 5-3v-4.5', 'SCHOOL')),
+    ...at('warehouse').slice(0, 1).map((b) => mark(b.cx, b.cy, 'M3 21V9l9-5 9 5v12 M7 21v-8h10v8', 'STORAGE')),
+  ].join('');
   // A compass, and how long a block is.
   const compass = `<g class="m-compass" transform="translate(281 64)"><circle r="7.5"/><path d="M0 -6L2 0H-2Z" class="n"/><path d="M0 6L2 0H-2Z"/><text y="-9.5" text-anchor="middle">N</text></g>`;
   const scale = `<g class="m-scale"><rect x="3" y="20.5" width="62" height="11" rx="1.5"/><path d="M6 28.5h57 M6 26.5v4 M63 26.5v4 M34.5 27.5v2"/><text x="34.5" y="25.4" text-anchor="middle">1 BLOCK</text></g>`;
-  return `<g class="m-districts">${districts}</g><g class="m-landmarks">${marks}</g>${compass}${scale}`;
+  return `<g class="m-districts">${districts}</g><g class="m-landmarks">${marks}${extra}</g>${compass}${scale}`;
 }
 
 /** The streets themselves, as SVG: the curbs, then the asphalt, then the names. */
@@ -310,13 +581,16 @@ function streetsSvg(): string {
   return `<svg class="map-streets" viewBox="0 0 ${MAP_W} ${MAP_H}" preserveAspectRatio="none" aria-hidden="true">${defs}<rect width="${MAP_W}" height="${MAP_H}" fill="#0b0c0d"/>${decorSvg()}<g class="m-casing">${casing.join('')}</g><g class="m-road">${fill.join('')}</g><g class="m-centre">${centre.join('')}</g><g class="m-labels">${labels.join('')}</g>${overSvg()}</svg>`;
 }
 
-/** The map, with everything on it. */
-export function mapHtml(marks: MapMark[]): string {
+/** The map, with everything on it (and the building you've tapped, outlined). */
+export function mapHtml(marks: MapMark[], sel?: Building): string {
   const pins = marks
     .map(
       (m) =>
         `<button type="button" class="map-pin${m.here ? ' here' : ''}${m.picked ? ' picked' : ''}" data-tone="${m.tone}" data-mappick="${m.key}" aria-label="${m.label}" style="left:${((100 * m.x) / MAP_W).toFixed(2)}%;top:${((100 * m.y) / MAP_H).toFixed(2)}%"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${m.icon}"/></svg>${m.here ? '<em class="map-you">YOU</em>' : ''}</button>`,
     )
     .join('');
-  return `<div class="map">${streetsSvg()}${pins}</div>`;
+  const outline = sel
+    ? `<svg class="map-sel" viewBox="0 0 ${MAP_W} ${MAP_H}" preserveAspectRatio="none" aria-hidden="true"><rect x="${f1(sel.x - 1.2)}" y="${f1(sel.y - 1.2)}" width="${f1(sel.w + 2.4)}" height="${f1(sel.h + 2.4)}" rx="1"/></svg>`
+    : '';
+  return `<div class="map">${streetsSvg()}${outline}${pins}</div>`;
 }

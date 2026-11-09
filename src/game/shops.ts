@@ -21,7 +21,7 @@ import type { InvItem } from './inventory';
  *   and breaks big ones down. After hours, the coin machine in the lobby
  *   still turns coins into bills, for a cut.
  */
-export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records' | 'hospital' | 'guns' | 'court' | 'room' | 'home' | 'car' | 'plasma';
+export type Place = 'street' | 'pharmacy' | 'gas' | 'liquor' | 'pawn' | 'fence' | 'bank' | 'records' | 'hospital' | 'guns' | 'court' | 'room' | 'home' | 'car' | 'plasma' | 'spot';
 
 export interface PlaceInfo {
   id: Place;
@@ -44,6 +44,8 @@ export const PLACES: PlaceInfo[] = [
   { id: 'home', name: 'An address', desc: '', hours: null, blurb: '', indoors: false },
   // (A car you've the keys to, found or still looking for: see cars.ts. Not on the list; under it.)
   { id: 'car', name: 'A car', desc: '', hours: null, blurb: '', indoors: false },
+  // (A building off the map: a bar, the church, the shelter, an empty house, a lock-up. See map.ts.)
+  { id: 'spot', name: 'A building', desc: '', hours: null, blurb: '', indoors: true },
   {
     id: 'pharmacy',
     name: 'Pharmacy',
@@ -349,6 +351,8 @@ export const CHARGES: Record<string, { bail: number; fine: number; days: number;
   Homicide: { bail: 0, fine: 0, days: 3650, sev: 20 },
   'Possession with intent to distribute': { bail: 2500, fine: 2000, days: 45, sev: 7 },
   'Selling a controlled substance': { bail: 5000, fine: 3000, days: 90, sev: 9 },
+  // Selling within a block of a school: the same again, and worse.
+  'Distribution near a school': { bail: 5000, fine: 3000, days: 180, sev: 10 },
   // Breaking into a home; doing it with someone inside (most places treat that as far worse).
   Burglary: { bail: 5000, fine: 2500, days: 365, sev: 10 },
   'Home invasion': { bail: 25000, fine: 5000, days: 1095, sev: 15 },
@@ -392,6 +396,7 @@ const CHARGE_CODE: Record<string, string> = {
   'Possession of stolen mail': '18 U.S.C. § 1708',
   'Possession with intent to distribute': '21 U.S.C. § 841',
   'Selling a controlled substance': '21 U.S.C. § 841',
+  'Distribution near a school': '21 U.S.C. § 860',
   'Possession of marijuana with intent to sell': '21 U.S.C. § 841',
   'Possession of a controlled substance': '21 U.S.C. § 844',
   'Possession of marijuana': '21 U.S.C. § 844',

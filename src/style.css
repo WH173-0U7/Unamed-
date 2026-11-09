@@ -5188,6 +5188,31 @@ body[data-drug='withdrawal'] #game {
 .map-pin[data-tone='shut'] { --pin: rgba(236, 235, 230, 0.38); }
 .map-pin[data-tone='home'] { --pin: var(--loot-keys); }
 .map-pin[data-tone='car'] { --pin: var(--loot-card); }
+.map-pin[data-tone='corner'] { --pin: #e8c66a; width: min(20px, 7%); padding: 4px; }
+.map-card[data-tone='corner'] { --pin: #e8c66a; }
+/* The building you've tapped: outlined on the map (taps go through it, to the map). */
+.map-sel {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.map-sel rect {
+  fill: rgba(255, 107, 127, 0.18);
+  stroke: #ff6b7f;
+  stroke-width: 0.9;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 2px rgba(255, 107, 127, 0.8));
+}
+.map-go small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.75;
+}
+.sheet-body.places .map { cursor: pointer; }
 .map-pin.picked {
   z-index: 2;
   box-shadow: 0 0 0 2px var(--pin), 0 0 16px color-mix(in srgb, var(--pin) 55%, transparent);

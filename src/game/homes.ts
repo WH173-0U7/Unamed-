@@ -145,6 +145,8 @@ export interface Home {
   carClaim?: string;
   /** For the odds that stay put for an hour or two (who's home). */
   seed: number;
+  /** The building on the map it's in (when you found it by watching the place). */
+  bld?: string;
   // ---- What's happened (kept on the address you know) ----
   /** The locks get changed from here on (their keys went missing). */
   lockAt?: number;

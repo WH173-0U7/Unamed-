@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.79',
+    date: 'Nov 9',
+    items: [
+      'Every building on the map is real now: tap one to see what it is, its address and what you know about it.',
+      'Watch a house you don’t know (about ten minutes, Sneak) to find out who lives there, and put it on your map.',
+      'Empty houses: squat there to rest, or hide something under the floorboards. A storage yard rents lock-ups by the week. Bars sell drinks and you can work the room. St. Agnes gives a free meal once a day and a pew to rest on; the shelter gives a bed for the night, after a search at the door.',
+      'Ten corners across the city: work a different corner to change your district, your customers, how busy it is and how many patrols come by. Selling near the school is a federal charge.',
+    ],
+  },
+  {
     v: '2.78',
     date: 'Nov 9',
     items: [

@@ -18,7 +18,7 @@ export interface Health {
   fatigueAt?: number;
   /** Lying down since then (real time, ms), and where. */
   restingSince?: number;
-  restWhere?: 'street' | 'room' | 'car';
+  restWhere?: 'street' | 'room' | 'car' | 'squat' | 'shelter' | 'pew';
   restCar?: string;
   blood: number;
   maxBlood: number;
@@ -476,7 +476,9 @@ export function clampClock(h: Health, t = Date.now()) {
 export const FATIGUE_REST_PER_HOUR = 37.5;
 export const FATIGUE_IDLE_PER_HOUR = 19;
 /** Lying down, by where: a bed is best (exhausted to fresh: about 6 h), a car (8 h), a doorway (10 h). */
-export const restRate = (h: Health) => (h.restingSince == null ? FATIGUE_IDLE_PER_HOUR : h.restWhere === 'room' ? 50 : h.restWhere === 'car' ? FATIGUE_REST_PER_HOUR : 30);
+/** How fast lying down rests you, by where: a bed (the motel, the shelter), the back seat, an empty house, a church pew, a doorway. */
+export const restRate = (h: Health) =>
+  h.restingSince == null ? FATIGUE_IDLE_PER_HOUR : h.restWhere === 'room' || h.restWhere === 'shelter' ? 50 : h.restWhere === 'car' ? FATIGUE_REST_PER_HOUR : h.restWhere === 'squat' ? 34 : 30;
 /** Too worn out to do anything but lie down. */
 export const FATIGUE_SPENT = 90;
 export const FATIGUE_NAMES = ['Fresh', 'Tired', 'Worn out', 'Exhausted', 'Spent'];

@@ -3,7 +3,7 @@ import { writeSave, type SaveData } from '../core/save';
 import { settings } from '../core/settings';
 import { floatChange, type Float } from '../ui/floaters';
 import { createTv } from './tv';
-import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, personalityOf, randomName, type Loot } from './person';
+import { BUILDS, CHANCES, RACE_CHANCES, NAMES, makePerson, type Kind, personalityOf, randomName, type Loot } from './person';
 import { ENCOUNTER_VERSION, act, indoors, liftables, newEncounter, options as encounterOptions, type Encounter } from './encounter';
 import { RESULT, createEncounterView } from '../ui/encounterView';
 import { runStamina, toughnessResist } from './stats';
@@ -32,7 +32,7 @@ import { cashFill, cashFits, cashWhere, pocketCash, roomForCents, spotMl } from 
 import { mlOf } from './money';
 import { lootIcon, lootMark } from './lootIcon';
 import { STYLES, STYLE_HOW, STYLE_NAMES, stylesOf } from './styles';
-import { PLACE_AT, PLACE_ICON, addressAt, blocksBetween, mapHtml, type MapMark } from './map';
+import { CORNERS, DEFAULT_CORNER, MAP_H, MAP_W, PLACE_AT, PLACE_ICON, addressAt, blocksBetween, buildingAddr, buildingAt, buildingById, buildingOfPlace, buildings, cornerById, mapHtml, type Building, type District, type MapMark } from './map';
 import { MEDS, take, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, wouldLeave, kgLabel, carriedKg, carryLimit, awayTo, fitsIn, findRoom, SIZE_RANK, OVERLOAD, TIRING_LOAD, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, tooHeavy, reweigh, freeHand, type Inventory, type InvItem, type Spot as Pocket, type MedId } from './inventory';
 
 /**
@@ -104,11 +104,67 @@ const dueText = (t: number) => (new Date(t).getFullYear() === new Date(now()).ge
 /** Days Dez's vig keeps compounding once you're late. */
 const VIG_DAYS = 14;
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
+/** What a corner is like to work: who comes by (out of 100), how busy (more of them about), how often a patrol does. */
+type CornerFeel = { chances: [Kind, number][]; busy: number; police: number; blurb: string };
+const CORNER_FEEL: Record<District | 'bar', CornerFeel> = {
+  downtown: { chances: [['civilian', 60], ['drunk', 22], ['homeless', 10], ['junkie', 8]], busy: 1.35, police: 1.3, blurb: 'Downtown: office people by day, theatre crowds and drunks by night, and a patrol car every few minutes.' },
+  flats: { chances: CHANCES, busy: 1, police: 1, blurb: 'The Flats: the same faces, mostly. A patrol now and then.' },
+  oldtown: { chances: [['civilian', 46], ['drunk', 28], ['homeless', 14], ['junkie', 12]], busy: 1.1, police: 1, blurb: 'Old Town: bars and walk-ups, people out late.' },
+  southside: { chances: [['civilian', 28], ['drunk', 24], ['homeless', 24], ['junkie', 24]], busy: 0.85, police: 0.8, blurb: 'Southside: rougher, quieter, fewer patrols. More people who need what you’ve got.' },
+  bar: { chances: [['civilian', 48], ['drunk', 48], ['homeless', 1], ['junkie', 3]], busy: 1.4, police: 0.7, blurb: 'In the bar: drinkers, and people looking for something to go with it. The police mostly stay outside.' },
+};
+/** Somewhere you've hidden things: what's there, and when you last looked. */
+type StashBox = { items: InvItem[]; cents: number; at: number; seen?: boolean };
+/** A lock-up by the river: a week, cash; two days' grace, then they cut the lock. */
+const LOCKUP_RENT = 60;
+const LOCKUP_GRACE = 2 * 86_400_000;
+/** The bar: drinks by the glass, half again what the liquor store charges. */
+const BAR_DRINKS: { id: string; name: string; desc: string; cents: number; std: number; drunk: number; line: string }[] = [
+  { id: 'beer', name: 'A beer', desc: 'Draft, in a sticky glass.', cents: 450, std: 2, drunk: 10, line: 'He pulls you a beer. You drink it at the bar, slowly, then not so slowly.' },
+  { id: 'wine', name: 'A glass of wine', desc: 'Red, from a box under the counter.', cents: 275, std: 2, drunk: 10, line: 'A glass of red, poured to the brim. It tastes like the box.' },
+  { id: 'shot', name: 'A shot of whiskey', desc: 'The well stuff. Burns all the way down.', cents: 350, std: 3, drunk: 14, line: 'A shot of well whiskey. You knock it back and it burns all the way down.' },
+];
+/** The church's kitchen feeds you once a day; a pew by day; the shelter's beds at night. */
+const MEAL_EVERY = 20 * 3_600_000;
+/** Dealing within a block of a school. */
+const SCHOOL_CHARGE = 'Distribution near a school';
+const pewHours = (t = now()) => ((h) => h >= 7 && h < 20)(new Date(t).getHours());
+const shelterHours = (t = now()) => ((h) => h >= 19 || h < 9)(new Date(t).getHours());
+/** Watching a place: ten minutes, real time; not the same one again for a while. */
+const WATCH_MS = 10 * 60_000;
+const WATCH_AGAIN = 6 * 3_600_000;
+/** Seeing who lives there without being seen: your sneak, and not looking like trouble. */
+export const watchOdds = (sneak: number, loud: boolean) => Math.max(0.15, Math.min(0.9, 0.35 + sneak * 0.05 - (loud ? 0.15 : 0)));
+/** The buildings you can walk into. */
+const SPOT_KINDS = new Set(['vacant', 'warehouse', 'bar', 'church', 'shelter']);
+const spotOf = (id: unknown) => ((b) => (b && SPOT_KINDS.has(b.kind) ? b : undefined))(buildingById(id));
+/** Where somebody lives (an address you could find out). */
+const isHome = (b: Building) => b.kind === 'house' || b.kind === 'rowhouse' || b.kind === 'apartment';
+/** Your unit at the lock-up, by the building. */
+const unitNo = (b: Building) => `#${10 + Math.floor((Math.abs(b.cx * 7 + b.cy * 13) % 80))}`;
+/** Who lives in that building: an address, as if off their ID. */
+export function homeFor(b: Building): Home {
+  const kind: Kind = ((r) => (b.district === 'southside' ? (r < 0.6 ? 'civilian' : r < 0.82 ? 'drunk' : 'junkie') : r < 0.8 ? 'civilian' : r < 0.93 ? 'drunk' : 'junkie'))(Math.random());
+  let home: Home | null = null;
+  for (let i = 0; !home && i < 20; i++) {
+    const sex = Math.random() < 0.5 ? 'Male' : 'Female';
+    const race = RACE_CHANCES[Math.floor(Math.random() * RACE_CHANCES.length)][0];
+    home = makeHome({ name: nameFor(sex, race), sex, kind: i < 10 ? kind : 'civilian', age: 22 + Math.floor(Math.random() * 50) });
+  }
+  const h = home!;
+  h.type = b.kind === 'apartment' ? 'apartment' : b.kind === 'house' ? 'house' : 'rowhouse';
+  h.floor = h.type === 'apartment' ? 1 + Math.floor(Math.random() * 4) : 1;
+  if (h.type === 'apartment') h.car = null;
+  // (The number on the building's door; a flat in it, its own letter.)
+  h.addr = `${buildingAddr(b)}${h.type === 'apartment' ? `, Apt ${h.floor}${'ABCD'[Math.floor(Math.random() * 4)]}` : ''}`;
+  h.bld = b.id;
+  return h;
+}
 /** At an address: outside, or in, and what's happened so far. */
 /** Everything in the save that's this character's (not the world's). */
-const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'policeKnow', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'policeArrested', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'hadId', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'footage', 'laterLines', 'restLines', 'connect', 'work', 'workLines', 'plasma', 'gig', 'bins', 'crowd'];
+const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'policeKnow', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'policeArrested', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'hadId', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'footage', 'laterLines', 'restLines', 'connect', 'work', 'workLines', 'plasma', 'gig', 'bins', 'crowd', 'corner', 'spotAt', 'vacant', 'lockup', 'churchMeal', 'shelterAt', 'watched'];
 /** What only makes sense in the moment (a stop, a fight, a door you're at): not kept when you stop being them. */
-const MOMENT_KEYS = ['work', 'workLines', 'laterLines', 'restLines', 'crowd', 'encounter', 'policeStop', 'policeKnow', 'policeResult', 'policeArrested', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow'];
+const MOMENT_KEYS = ['spotAt', 'work', 'workLines', 'laterLines', 'restLines', 'crowd', 'encounter', 'policeStop', 'policeKnow', 'policeResult', 'policeArrested', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow'];
 /**
  * Someone you used to be: kept whole (stats, body, pockets, record), inside
  * or out on the streets, to free, to meet, and to go on as again.
@@ -163,7 +219,7 @@ const DEZ_DEALS: DezDeal[] = [
   { id: 'ounce', name: 'Ounce', detail: 'A full ounce, in a vacuum-sealed brick wrapped in tape', doses: 280, cash: [0, 0, 1100], front: 1600, days: 7, tier: 3, standing: 2, desc: '28 g, from Dez’s own supplier. Goes for about $90 a gram.', product: 'powder' },
 ];
 /** Something that takes real time on its own screen: a plasma visit, a delivery shift. */
-type Work = { kind: 'plasma' | 'deliver'; since: number; until?: number; drops?: number; earned?: number; tick?: number; part?: number };
+type Work = { kind: 'plasma' | 'deliver' | 'watch'; since: number; until?: number; drops?: number; earned?: number; tick?: number; part?: number; bld?: string };
 /** The delivery app (made up). */
 const GIG_APP = 'Handoff';
 /** Camera footage someone will look at: when, where, what it shows. */
@@ -256,8 +312,8 @@ const MUG_COST = 0.5;
 import { worth as worthOf, chargeOf, chargeHtml, chargeName, COIN_MACHINE_FEE, ER_PRICES, ROOM_RENT, DEZ_FRONT, GAS_STOCK, GUN_STOCK, HIDDEN_PLACES, ID_FEE, LIQUOR_STOCK, PAWN_STOCK, PLACES, offer, placeInfo, type ErCare, type Place, type Stock } from './shops';
 import { BILLS, COINS, addTo, cents, type Purse, breakBill, breaksInto, cashLike, coinsToBills, changeUp, count, denomName, fewest, isBill, money, pay, purseText } from './money';
 import { hoursText, isOpen } from './clock';
-import { DISTRICTS, DISTRICT_NAMES, EVENT_LINES, HOME_DISTRICT, MARKET_KEYS, PILLS, PRODUCTS, SELL_SIZE, SIZES, STANDING_NAMES, bagsFor, addLocalSupply, amountText, pkgAmount, districtWord, keyName, keyOf, keyProduct, marketWord, newMarket, nextStandingAt, priceFactor, productOf, qualityOf, qualityWord, quote, requestFor, returnHours, sizePrice, standingOf, standingScore, streetPrice, tickMarket, wantFor, type Market, type MarketKey, type PillKind, type Product } from './drugs';
-import { anyoneIn, idText, nameFor, ROOM_DESC, ROOM_SEARCH, roomLoot, roomName, roomsOf, steady, whoIsIn, type Home, type Presence, type RoomId } from './homes';
+import { DISTRICTS, DISTRICT_NAMES, EVENT_LINES, MARKET_KEYS, PILLS, PRODUCTS, SELL_SIZE, SIZES, STANDING_NAMES, bagsFor, addLocalSupply, amountText, pkgAmount, districtWord, keyName, keyOf, keyProduct, marketWord, newMarket, nextStandingAt, priceFactor, productOf, qualityOf, qualityWord, quote, requestFor, returnHours, sizePrice, standingOf, standingScore, streetPrice, tickMarket, wantFor, type Market, type MarketKey, type PillKind, type Product } from './drugs';
+import { anyoneIn, idText, makeHome, nameFor, ROOM_DESC, ROOM_SEARCH, roomLoot, roomName, roomsOf, steady, whoIsIn, type Home, type Presence, type RoomId } from './homes';
 import { createHitUi } from '../fx/hitUi';
 import { CAR_PARTS, PART_DESC, PART_NAME, REPORTED_HOURS, makeCar, makeOf, partLoot, reported, rollHunt, searchLine, type Car, type CarPart, type HuntState } from './cars';
 
@@ -418,6 +474,7 @@ export class Game {
       else if (b.dataset.plasma) this.donatePlasma();
       else if (b.dataset.selfact) this.selfAct(b.dataset.selfact);
       else if (b.dataset.room) this.roomAct(b.dataset.room);
+      else if (b.dataset.spotact) this.spotAct(b.dataset.spotact);
       else if (b.dataset.dez) this.dez(b.dataset.dez);
       else if (b.dataset.homeact) this.homeAct(b.dataset.homeact);
       else if (b.dataset.huntact) this.huntAct(b.dataset.huntact);
@@ -783,7 +840,7 @@ export class Game {
   private get place(): Place {
     const p = (this.save.state.place as Place) ?? 'street';
     // (Saved inside a place that's hidden now: you're back outside.)
-    return HIDDEN_PLACES.has(p) || (p === 'home' && !this.homeById(this.save.state.homeAt)) || (p === 'car' && !(this.carById(this.save.state.carAt) && this.inventory.items.some((x) => x.kind === 'car keys' && x.carId === this.save.state.carAt)) && !this.huntKeys()) ? 'street' : p;
+    return HIDDEN_PLACES.has(p) || (p === 'home' && !this.homeById(this.save.state.homeAt)) || (p === 'spot' && !spotOf(this.save.state.spotAt)) || (p === 'car' && !(this.carById(this.save.state.carAt) && this.inventory.items.some((x) => x.kind === 'car keys' && x.carId === this.save.state.carAt)) && !this.huntKeys()) ? 'street' : p;
   }
   private set place(p: Place) {
     this.save.state.place = p;
@@ -993,7 +1050,7 @@ export class Game {
     buzz(8);
   }
   /** Lying down for real: real time, until you're fresh or you get up. */
-  private lieDown(where: 'street' | 'room' | 'car', lines: string[], car?: string) {
+  private lieDown(where: 'street' | 'room' | 'car' | 'squat' | 'shelter' | 'pew', lines: string[], car?: string) {
     const h = this.health;
     fatigueNow(h);
     h.restingSince = now();
@@ -1016,7 +1073,7 @@ export class Game {
     const el = document.createElement('div');
     el.id = 'rest';
     el.className = 'lockup';
-    const where = h.restWhere === 'room' ? 'In your room at the motel, the door wedged shut.' : h.restWhere === 'car' ? 'In the back seat, doors locked, windows fogged.' : WET_AMOUNT[this.weather.now] > 0 ? 'In a doorway, out of the weather, your back to the wall.' : 'Against a wall, out of the way, your eyes shut.';
+    const where = h.restWhere === 'room' ? 'In your room at the motel, the door wedged shut.' : h.restWhere === 'car' ? 'In the back seat, doors locked, windows fogged.' : h.restWhere === 'squat' ? 'In the back room of an empty house, out of sight of the street.' : h.restWhere === 'shelter' ? 'On a cot at the shelter, your shoes under your head so nobody takes them.' : h.restWhere === 'pew' ? 'On a back pew at St. Agnes, the candles guttering.' : WET_AMOUNT[this.weather.now] > 0 ? 'In a doorway, out of the weather, your back to the wall.' : 'Against a wall, out of the way, your eyes shut.';
     const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
     el.innerHTML =
       `<h2>Resting</h2>` +
@@ -1025,7 +1082,7 @@ export class Game {
       `<div class="rest-bar"><i></i></div>` +
       `<p class="jail-left"></p>` +
       `<p class="jail-out"></p>` +
-      `<p class="jail-how">Rest is real time. Come back later, or get up now with what you’ve got back so far.${h.restWhere === 'room' ? '' : ' A bed in a motel room gets you there quicker.'}</p>` +
+      `<p class="jail-how">Rest is real time. Come back later, or get up now with what you’ve got back so far.${h.restWhere === 'room' || h.restWhere === 'shelter' ? '' : ' A bed gets you there quicker: a motel room, or the shelter at night.'}</p>` +
       `<div class="lockup-btns"><button type="button" class="jail-quit">Get up</button><button type="button" class="jail-quit lockup-you">You</button></div>`;
     const shown = performance.now();
     el.querySelector('button')!.addEventListener('click', () => performance.now() - shown > 800 && this.getUp(false));
@@ -1040,6 +1097,11 @@ export class Game {
     if (h.restingSince == null) return;
     const f = fatigueNow(h);
     if (f <= 0) return this.getUp(true);
+    // (The church locks the sanctuary at night; the shelter puts everyone out in the morning.)
+    if ((h.restWhere === 'pew' && !pewHours()) || (h.restWhere === 'shelter' && !shelterHours())) {
+      this.save.state.laterLines = [...((this.save.state.laterLines as string[] | undefined) ?? []), h.restWhere === 'pew' ? 'Someone shakes your shoulder: they’re locking up for the night.' : 'The lights come on and a volunteer walks the rows calling time. Everyone out.'];
+      return this.getUp(false);
+    }
     const el = document.getElementById('rest');
     if (!el) return this.showRest();
     const sec = Math.ceil(restLeft(h) / 1000);
@@ -1076,7 +1138,7 @@ export class Game {
     delete this.save.state.laterLines;
     // (What happened as you lay down, after the first line of it, which the screen led with.)
     const said = lay.slice(1);
-    const lines = [rested ? (where === 'room' ? 'You wake up in the motel room, rested. The street’s still out there.' : where === 'car' ? 'You wake up in the back seat, stiff, but rested.' : 'You wake up against the wall, rested. Nobody bothered you.') : `You get up${slept < 10 * 60_000 ? ' after a few minutes' : ''}. ${f >= 20 ? `Still ${FATIGUE_NAMES[fatigueLevel(f)].toLowerCase()}.` : 'Good enough.'}`];
+    const lines = [rested ? (where === 'room' ? 'You wake up in the motel room, rested. The street’s still out there.' : where === 'car' ? 'You wake up in the back seat, stiff, but rested.' : where === 'squat' ? 'You wake up on the floor of the empty house, stiff, but rested. Nobody came.' : where === 'shelter' ? 'You wake up on the cot, rested. Your shoes are still there.' : where === 'pew' ? 'You wake up on the pew, rested. Nobody moved you on.' : 'You wake up against the wall, rested. Nobody bothered you.') : `You get up${slept < 10 * 60_000 ? ' after a few minutes' : ''}. ${f >= 20 ? `Still ${FATIGUE_NAMES[fatigueLevel(f)].toLowerCase()}.` : 'Good enough.'}`];
     // (Towed while you slept: you wake to it.)
     const c = car ? this.carById(car) : undefined;
     if (c && now() >= c.towAt) {
@@ -1946,7 +2008,12 @@ export class Game {
     }
     if (t === this.sheetEl) return this.closeSheet(); // tapped outside the card
     const b = t.closest('button');
-    if (!b) return;
+    if (!b) {
+      // On the map, between the pins: whatever building is there.
+      const m = t.closest<HTMLElement>('.map');
+      if (m && this.sheet === 'places') this.mapTap(ev, m);
+      return;
+    }
     // (Pockets: a tap that does something shows it.)
     if (this.sheet === 'pockets' && !b.disabled && b.dataset.close === undefined) {
       this.withFeedback(b, () => this.sheetAction(b));
@@ -1967,6 +2034,9 @@ export class Game {
       this.sheetEl.querySelector(fromList ? '.map-card' : '.map-card button')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     } else if (b.dataset.place) this.goTo(b.dataset.place as Place);
     else if (b.dataset.home) this.goHome(b.dataset.home);
+    else if (b.dataset.spot) this.goSpot(b.dataset.spot);
+    else if (b.dataset.corner) this.workCorner(b.dataset.corner);
+    else if (b.dataset.watch) ((x) => x && this.startWatch(x))(buildingById(b.dataset.watch));
     else if (b.dataset.use) this.useMed(Number(b.dataset.use));
     else if (b.dataset.drop) this.drop(Number(b.dataset.drop));
     else if (b.dataset.fire) this.fire(Number(b.dataset.fire));
@@ -2013,6 +2083,7 @@ export class Game {
     if (held.lines.length) requestAnimationFrame(() => held.lines.length && !this.closed && this.note(held.lines));
     if (p === this.place || HIDDEN_PLACES.has(p)) return;
     if (p === 'home' && !this.homeById(this.save.state.homeAt)) return;
+    if (p === 'spot' && !spotOf(this.save.state.spotAt)) return;
     // (On foot, across town: it adds up.)
     if (p === 'car' && !this.carById(this.save.state.carAt) && !this.save.state.hunt) return;
     // Thrown out of the pawn shop: he won't let you back in for a while.
@@ -2050,7 +2121,7 @@ export class Game {
     const info = placeInfo(p);
     const inside = this.inside;
     const lines = [
-      !inside && info.indoors ? `You get to the ${info.name}. The doors are locked.` : {
+      !inside && info.indoors && p !== 'spot' ? `You get to the ${info.name}. The doors are locked.` : {
         street: 'You head back out into the street.',
         pharmacy: 'You walk to the all-night pharmacy.',
         gas: 'You walk over to the gas station. The door chimes as you go in.',
@@ -2065,6 +2136,7 @@ export class Game {
         court: 'A deputy at the door watches you put your keys and phone in a plastic tray for the metal detector.',
         room: 'You climb the stairs to the Hotel Marlow. The man in the cage looks up, then down again.',
         car: ((c, s) => (c ? (now() >= c.towAt ? `You walk ${c.visited ? 'back ' : ''}to where the ${c.color} ${c.make} was parked, ${c.street}.` : `You walk ${c.visited ? 'back ' : ''}to the ${c.color} ${c.make}, parked ${c.street}.`) : s ? `You start down the block with the ${makeOf(this.keysFor(s.car) ?? {})} fob in your hand.` : ''))(this.atCar, this.hunt),
+        spot: this.atSpot ? this.spotArrive(this.atSpot) : '',
         home: this.atHome?.type === 'room' ? `You walk to ${this.atHome.addr}. The street door’s propped open with a brick; you go up to their floor.` : `You walk to ${this.atHome?.addr ?? 'the address'}, and take a look at it from across the street.`,
       }[p] ?? '',
     ];
@@ -2075,10 +2147,12 @@ export class Game {
     this.exposure = 0;
     this.wasInside = inside;
     this.insideAt = p;
-    if (inside && !(p === 'room' && this.roomRented)) lines.push(...this.goingIn());
+    if (inside && !(p === 'room' && this.roomRented) && !(p === 'spot' && this.atSpot?.kind === 'vacant')) lines.push(...this.goingIn());
     // Whether your hiding places are as you left them.
     if (p === 'fence') lines.push(...this.checkStash());
     if (p === 'room') lines.push(...this.checkRoom());
+    if (p === 'spot' && this.atSpot?.kind === 'vacant') lines.push(...this.checkVacant(this.atSpot.id));
+    if (p === 'spot' && this.atSpot?.kind === 'warehouse') lines.push(...this.checkLockup());
     if (p === 'car') {
       lines.push(...this.checkCar());
       if (this.atCar) this.atCar.visited = true;
@@ -2877,7 +2951,7 @@ export class Game {
     const groceries = /^groceries$/i.test(it.name);
     const sandwich = /^sandwich$/i.test(it.name);
     if (!water && !groceries && !sandwich && !/^lunch in a plastic tub$/i.test(it.name)) return;
-    if (this.inside && !this.inOwnRoom) {
+    if (this.inside && !this.privateSpace) {
       this.note(['Not in here. Someone behind the counter is already watching you.']);
       return;
     }
@@ -2921,7 +2995,7 @@ export class Game {
     const it = inv.items[i];
     const h = this.health;
     if (!it?.drink || (it.doses ?? 0) <= 0 || !this.canOpenSheet) return;
-    if (this.inside && !this.inOwnRoom && it.drink !== 'energy') {
+    if (this.inside && !this.privateSpace && it.drink !== 'energy') {
       this.note(['Not in here. Someone behind the counter is already watching you.']);
       return;
     }
@@ -3527,7 +3601,7 @@ export class Game {
   /** Why you can't light a cigarette now, or null. */
   private smokeBlocked(): string | null {
     if (!this.flame()) return 'Nothing to light it';
-    if (this.inside && !this.inOwnRoom) return 'No smoking in here';
+    if (this.inside && !this.privateSpace) return 'No smoking in here';
     if (this.smoking) return `Still smoking (${Math.ceil(((this.health.smokingUntil ?? 0) - now()) / 60000)} min left)`;
     if (!this.canOpenSheet) return 'Not now';
     return null;
@@ -3955,6 +4029,8 @@ export class Game {
       const before = inv.items.length;
       inv.items = inv.items.filter((x) => !(this.stolen(x) || x.kind === 'weapon' || (x.secret && x.secret !== 'empty') || x.name === 'Zip bags'));
       const took = before - inv.items.length;
+      // Selling (or holding to sell) within a block of the school: a federal charge on top.
+      if (this.place === 'street' && this.nearSchool() && charges.some((x) => /Selling a controlled substance|intent to (distribute|sell)/.test(x)) && !charges.includes(SCHOOL_CHARGE)) charges.push(SCHOOL_CHARGE);
       // It goes on your record: every arrest, and every charge.
       const rec = this.record;
       rec.arrests++;
@@ -4018,6 +4094,8 @@ export class Game {
 
   /** Actually indoors: in a place that's open (outside a locked door, you're on the street). */
   private get inside(): boolean {
+    // (A lock-up's a roll-up door by the river: you're out in the weather. An empty house, a bar, the church, the shelter: a roof.)
+    if (this.place === 'spot') return this.atSpot?.kind !== 'warehouse';
     const info = placeInfo(this.place);
     return info.indoors && (!info.hours || isOpen(info.hours));
   }
@@ -5094,7 +5172,7 @@ export class Game {
     const inv = this.inventory;
     const w = wearing(inv);
     if (what === 'mask' && w.face) {
-      if (!w.masked && this.inside && !this.inOwnRoom && this.place !== 'bank') {
+      if (!w.masked && this.inside && !this.privateSpace && this.place !== 'bank') {
         this.note([`Not in here. You’d be thrown out, or worse.`]);
         return;
       }
@@ -5113,7 +5191,7 @@ export class Game {
   /** Why you can't burn something right now, or null. */
   private burnBlocked(): string | null {
     if (!this.flame()) return 'Nothing to light it';
-    if (this.inside && !this.inOwnRoom) return 'Not in here';
+    if (this.inside && !this.privateSpace) return 'Not in here';
     return null;
   }
 
@@ -5237,7 +5315,7 @@ export class Game {
   /** Why you can't inject right now, or null. */
   private injectBlocked(): string | null {
     if (!this.canOpenSheet) return 'Not now';
-    if (this.inside && !this.inOwnRoom) return 'Not in here';
+    if (this.inside && !this.privateSpace) return 'Not in here';
     const h = this.health;
     if (h.high && (h.highUntil ?? 0) > now()) return 'Still high';
     return null;
@@ -5415,7 +5493,7 @@ export class Game {
     if (this.crowd.length) (e.log ??= []).push({ by: 'info', text: 'Somebody on the street saw the hand-off.' });
     // More of it on this corner: flood it, and the price round here drops.
     // (By what changed hands, not by weight: an eighth of weed floods it no faster than half a gram of powder.)
-    addLocalSupply(this.market, key, d.price / 100 / 2500);
+    addLocalSupply(this.market, key, d.price / 100 / 2500, this.cornerDistrict);
     // Pressed pills: nobody knows what's in them. Some don't wake up.
     if (unit.pressed && Math.random() < 0.06) e.odLater = true;
     if (!this.crowd.length) train(this.stats, 'sneak', 2);
@@ -5690,7 +5768,7 @@ export class Game {
     const prod = it ? productOf(it) : null;
     const bagged = prod ? PRODUCTS[prod].bag : undefined;
     if (!it || it.secret !== 'cocaine' || !it.known || !bagged || (it.doses ?? 0) < 2 || !zip || !this.canOpenSheet) return;
-    if (this.inside && !this.inOwnRoom) {
+    if (this.inside && !this.privateSpace) {
       this.note(['Not in here. Not with someone behind the counter watching.']);
       return;
     }
@@ -5838,7 +5916,9 @@ export class Game {
         (veryConspicuous(this.inventory) ? 0.08 : conspicuous(this.inventory) ? 0.03 : 0),
     );
     const shows = exposure(this.inventory);
-    return { wanted, shows: shows > 0.15 ? shows * 0.08 : 0 };
+    // (More patrols downtown; fewer in Southside, and in a bar.)
+    const cops = this.place === 'street' ? this.cornerFeel.police : 1;
+    return { wanted: Math.min(0.5, wanted * cops), shows: shows > 0.15 ? shows * 0.08 * cops : 0 };
   }
   /** Your regulars: people who buy from you and haven't been burned. */
   private get regulars() {
@@ -6139,13 +6219,13 @@ export class Game {
     const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const lines = ((this.save.state.workLines as string[] | undefined) ?? []).slice(-2);
     el.innerHTML =
-      `<h2>${w.kind === 'plasma' ? 'Plasma' : 'Delivering'}</h2>` +
-      `<p class="jail-what">${w.kind === 'plasma' ? 'In a recliner in the hospital’s plasma room, the machine humming.' : `Online with ${GIG_APP}, bag on your back, phone in your hand.`}</p>` +
+      `<h2>${w.kind === 'plasma' ? 'Plasma' : w.kind === 'watch' ? 'Watching' : 'Delivering'}</h2>` +
+      `<p class="jail-what">${w.kind === 'plasma' ? 'In a recliner in the hospital’s plasma room, the machine humming.' : w.kind === 'watch' ? `In a doorway across from ${((b) => (b ? buildingAddr(b) : 'the place'))(buildingById(w.bld))}, watching the door and the windows.` : `Online with ${GIG_APP}, bag on your back, phone in your hand.`}</p>` +
       lines.map((l) => `<p class="rest-line">${esc(l)}</p>`).join('') +
-      (w.kind === 'plasma' ? `<div class="rest-bar"><i></i></div>` : '') +
+      (w.kind !== 'deliver' ? `<div class="rest-bar"><i></i></div>` : '') +
       `<p class="jail-left"></p><p class="jail-out"></p>` +
-      `<p class="jail-how">${w.kind === 'plasma' ? 'Real time. Leave early and you don’t get paid.' : 'Real time: orders come in while the game is open or closed. Stop whenever you like; you keep what you’ve made.'}</p>` +
-      `<button type="button" class="jail-quit">${w.kind === 'plasma' ? 'Leave early' : 'Go offline'}</button>`;
+      `<p class="jail-how">${w.kind === 'plasma' ? 'Real time. Leave early and you don’t get paid.' : w.kind === 'watch' ? 'Real time. Leave early and you won’t have seen enough.' : 'Real time: orders come in while the game is open or closed. Stop whenever you like; you keep what you’ve made.'}</p>` +
+      `<button type="button" class="jail-quit">${w.kind === 'deliver' ? 'Go offline' : 'Leave early'}</button>`;
     const shown = performance.now();
     el.querySelector('button')!.addEventListener('click', () => performance.now() - shown > 800 && this.endWork(false));
     this.view.append(el);
@@ -6156,7 +6236,7 @@ export class Game {
     const w = this.work;
     if (!w) return;
     const t = now();
-    if (w.kind === 'plasma') {
+    if (w.kind !== 'deliver') {
       if (w.until != null && t >= w.until) return this.endWork(true);
     } else this.deliverUpTo(w, t);
     if (!this.work) return;
@@ -6166,7 +6246,7 @@ export class Game {
     if (sec === this.workTick) return;
     this.workTick = sec;
     const two = (n: number) => String(n).padStart(2, '0');
-    if (w.kind === 'plasma') {
+    if (w.kind !== 'deliver') {
       const left = Math.max(0, Math.ceil(((w.until ?? t) - t) / 1000));
       (el.querySelector('.rest-bar i') as HTMLElement).style.width = `${Math.min(100, (100 * (t - w.since)) / ((w.until ?? t) - w.since))}%`;
       el.querySelector('.jail-left')!.textContent = `${two(Math.floor(left / 60))}:${two(left % 60)} to go`;
@@ -6237,6 +6317,8 @@ export class Game {
         const left = cents(pocketCash(this.inventory, fewest(pay)));
         lines.push(`They unhook you and tape a cotton ball in the crook of your arm. At the desk, ${money(pay - left)} in cash.${left ? ` You’ve no room on you for the other ${money(left)}.` : ''} You stand up too fast and the room tilts.`);
       } else lines.push('You pull the tape and tell the nurse you have to go. She stops the machine with a sigh. No pay.');
+    } else if (w.kind === 'watch') {
+      lines.push(...this.endWatch(w, finished));
     } else {
       lines.push(`${why ?? 'You go offline.'} ${w.drops ?? 0} drop${w.drops === 1 ? '' : 's'}, ${money(w.earned ?? 0)} into ${GIG_APP}. ${money(this.gig.balance)} waiting to cash out.`);
     }
@@ -6253,6 +6335,14 @@ export class Game {
     if (this.place !== 'street') return;
     const hr = new Date(now()).getHours();
     const w: number[] = hr >= 1 && hr < 5 ? [0.85, 0.13, 0.02] : hr >= 22 || hr < 1 ? [0.6, 0.3, 0.1] : hr >= 7 && hr < 20 ? [0.3, 0.4, 0.3] : [0.45, 0.35, 0.2];
+    // (Your corner: downtown's busier, Southside quieter.)
+    {
+      const busy = this.cornerFeel.busy;
+      w[1] *= busy;
+      w[2] *= busy * busy;
+      const sum = w[0] + w[1] + w[2];
+      for (let k = 0; k < 3; k++) w[k] /= sum;
+    }
     // (Rain and snow keep people in.)
     if (WET_AMOUNT[this.weather.now] > 0) {
       w[0] += (w[1] + w[2]) * 0.5;
@@ -6264,7 +6354,7 @@ export class Game {
     const list: Bystander[] = [];
     const inv = this.inventory;
     for (let i = 0; i < n; i++) {
-      const p = makePerson();
+      const p = makePerson(this.cornerFeel.chances);
       const x = newEncounter(p, this.yourBody());
       x.conspicuous = conspicuous(inv);
       x.start = { blood: x.them.blood, broken: [...x.them.broken] };
@@ -6414,7 +6504,7 @@ export class Game {
       const where = DISTRICTS.map((d) => `<span class="nw">${short[d]} ${districtWord(m, k, d)}</span>`).join(' · ');
       return `<li><div><b>${keyName(k)} <span class="mkt-arrow">${arrow}</span></b><small>${((p) => (p === 'pills' ? `${money(streetPrice(m, k) * 100)} a pill` : `${money(Math.round(streetPrice(m, k)) * 100)} a gram${SIZES[p][0].amt === 10 ? '' : ` · ${money(Math.round(sizePrice(k, SIZES[p][0].amt) * (streetPrice(m, k) / PRODUCTS[p].price)) * 100)} ${SIZES[p][0].word}`}`))(keyProduct(k))} · ${word}</small><small class="mkt-where">${where}</small></div></li>`;
     }).join('');
-    return `${asSection ? `<h3>What’s moving</h3><p class="shop-sub">Street prices, ${DISTRICT_NAMES[HOME_DISTRICT]}</p>` : `<p class="shop-sub">What’s moving (street prices, ${DISTRICT_NAMES[HOME_DISTRICT]})</p>`}<ul class="shop-list market-list">${rows}</ul>`;
+    return `${asSection ? `<h3>What’s moving</h3><p class="shop-sub">Street prices, ${DISTRICT_NAMES[this.cornerDistrict]}</p>` : `<p class="shop-sub">What’s moving (street prices, ${DISTRICT_NAMES[this.cornerDistrict]})</p>`}<ul class="shop-list market-list">${rows}</ul>`;
   }
 
   /** Buying from Dez, or paying him back. */
@@ -7400,18 +7490,42 @@ export class Game {
     }
   }
 
+  /** Where that kind of hiding place is, if you're at it: "stash", "room", "trunk", "vac", "lock". */
+  private stashBox(kind: string): { items: InvItem[]; cents: number } | undefined {
+    if (kind === 'stash') return this.place === 'fence' ? this.stash : undefined;
+    if (kind === 'room') return this.place === 'room' && this.roomRented ? this.room : undefined;
+    if (kind === 'trunk') return this.atCar && !this.copsAtCar(this.atCar) ? this.atCar : undefined;
+    const s = this.atSpot;
+    if (kind === 'vac') return s?.kind === 'vacant' ? this.vacantBox(s.id) : undefined;
+    if (kind === 'lock') return s?.kind === 'warehouse' && this.lockupOwned(s) ? this.lockup : undefined;
+    return undefined;
+  }
+  /** In a building with somewhere of yours to hide things: an empty house's floorboards, your lock-up. */
+  private get spotBoxKind(): 'vac' | 'lock' | undefined {
+    const s = this.atSpot;
+    return s?.kind === 'vacant' ? 'vac' : s?.kind === 'warehouse' && this.lockupOwned(s) ? 'lock' : undefined;
+  }
   /** Leaving something behind the brick, or in your room. */
   private stashItem(i: number) {
     if (this.carTowedNow()) return;
     const inv = this.inventory;
     const it = inv.items[i];
     const car = this.atCar && !this.copsAtCar(this.atCar) && it?.carId !== this.atCar.id ? this.atCar : undefined;
-    const where = this.place === 'fence' ? this.stash : this.place === 'room' && this.roomRented ? this.room : car;
+    const box = this.spotBoxKind;
+    const where = this.place === 'fence' ? this.stash : this.place === 'room' && this.roomRented ? this.room : box ? this.stashBox(box) : car;
     if (!it || !where || !this.canOpenSheet) return;
     inv.items.splice(i, 1);
     delete it.hand;
     where.items.push(it);
-    const lines = [this.place === 'fence' ? `You work the loose brick out, push the ${lc(it.name)} into the gap, and fit the brick back.` : car ? `You put the ${lc(it.name)} in the trunk, under the cover with the spare.` : `You leave the ${lc(it.name)} in your room, under the loose board by the radiator.`];
+    const lines = [this.place === 'fence' ? `You work the loose brick out, push the ${lc(it.name)} into the gap, and fit the brick back.` : box === 'vac' ? `You pry up a floorboard in the back room, push the ${lc(it.name)} under it, and stamp it back down.` : box === 'lock' ? `You put the ${lc(it.name)} on the shelf at the back of your unit.` : car ? `You put the ${lc(it.name)} in the trunk, under the cover with the spare.` : `You leave the ${lc(it.name)} in your room, under the loose board by the radiator.`];
+    // (In an empty house: someone sleeping upstairs may have heard.)
+    if (box === 'vac') {
+      const v = where as StashBox;
+      if (!v.seen && Math.random() < 0.05 + this.infamy.heat / 300) {
+        v.seen = true;
+        lines.push('A board creaks upstairs. When you look, there’s nobody on the stairs.');
+      }
+    }
     // In the alley someone may see you do it (the man by the vents, a face in a window).
     if (this.place === 'fence') {
       const s = this.stash;
@@ -7429,7 +7543,7 @@ export class Game {
   private unstash(v: string) {
     if (this.carTowedNow()) return;
     const [kind, n] = v.split(':');
-    const where = kind === 'stash' && this.place === 'fence' ? this.stash : kind === 'room' && this.place === 'room' && this.roomRented ? this.room : kind === 'trunk' && this.atCar && !this.copsAtCar(this.atCar) ? this.atCar : undefined;
+    const where = this.stashBox(kind);
     const it = where?.items[Number(n)];
     if (!where || !it) return;
     const { spot: _spot, size: _size, kg: _kg, ...rest } = it;
@@ -7450,7 +7564,7 @@ export class Game {
   private stashCash(v: string) {
     if (this.carTowedNow()) return;
     const [kind, dir] = v.split(':');
-    const where = kind === 'stash' && this.place === 'fence' ? this.stash : kind === 'room' && this.place === 'room' && this.roomRented ? this.room : kind === 'trunk' && this.atCar && !this.copsAtCar(this.atCar) ? this.atCar : undefined;
+    const where = this.stashBox(kind);
     if (!where) return;
     const inv = this.inventory;
     if (dir === 'in') {
@@ -7463,7 +7577,7 @@ export class Game {
       addTo(w.purse, inv.purse);
       where.cents += c;
       inv.purse = {};
-      const lines = [`You leave ${money(c)}, rolled tight, ${kind === 'stash' ? 'behind the brick' : kind === 'trunk' ? 'under the spare tire' : 'under the mattress'}.`];
+      const lines = [`You leave ${money(c)}, rolled tight, ${kind === 'stash' ? 'behind the brick' : kind === 'trunk' ? 'under the spare tire' : kind === 'vac' ? 'under the floorboard' : kind === 'lock' ? 'in a coffee can on the shelf' : 'under the mattress'}.`];
       if (kind === 'stash') {
         const s = this.stash;
         const open = isOpen(placeInfo('fence').hours!);
@@ -7522,20 +7636,21 @@ export class Game {
   }
 
   /** A hiding place, in a shop body: what's in it, and taking it back. */
-  private stashHtml(kind: 'stash' | 'room' | 'trunk'): string {
-    const where = kind === 'stash' ? this.save.state.stash as { items: InvItem[]; cents: number } | undefined : kind === 'trunk' ? this.atCar : this.room;
+  private stashHtml(kind: 'stash' | 'room' | 'trunk' | 'vac' | 'lock'): string {
+    const where = kind === 'stash' ? this.save.state.stash as { items: InvItem[]; cents: number } | undefined : kind === 'trunk' ? this.atCar : kind === 'vac' || kind === 'lock' ? this.stashBox(kind) : this.room;
+    const say = { stash: ['Behind the loose brick, low in the wall by the dumpster', 'behind it', 'Hide it'], trunk: ['Your things: in the trunk, under the cover with the spare', 'of yours in there', 'In the trunk'], room: ['Under the loose board by the radiator', 'left here', 'Leave it here'], vac: ['Under a floorboard in the back room', 'under it', 'Hide it here'], lock: ['On the shelf at the back of your unit', 'in the unit', 'In the lock-up'] }[kind];
     const items = where?.items ?? [];
     const cents = where?.cents ?? 0;
     const c = Math.round(cashOf(this.inventory) * 100);
     const btn = (attr: string, v: string, label: string, no?: string | false) => `<button type="button" data-${attr}="${v}" ${no ? `disabled title="${no}"` : ''}>${label}${no ? `<small>${no}</small>` : ''}</button>`;
     const li = (name: string, small: string, button: string) => `<li><div><b>${name}</b><small>${small}</small></div><span class="li-btns">${button}</span></li>`;
     return (
-      `<p class="shop-sub">${kind === 'stash' ? 'Behind the loose brick, low in the wall by the dumpster' : kind === 'trunk' ? 'Your things: in the trunk, under the cover with the spare' : 'Under the loose board by the radiator'}</p>` +
+      `<p class="shop-sub">${say[0]}</p>` +
       `<ul class="shop-list">` +
       items.map((x, i) => li(named(x), x.secret === 'cocaine' && x.known && productOf(x) ? this.packageLine(x) : (x.detail ?? ''), btn('unstash', `${kind}:${i}`, 'Take'))).join('') +
       li('Cash', cents ? `${money(cents)} hidden here.` : 'None hidden here.', btn('cash', `${kind}:in`, 'Leave yours', !c && 'No cash') + btn('cash', `${kind}:out`, 'Take it', !cents && 'Nothing there')) +
       `</ul>` +
-      (items.length ? '' : `<p class="shop-broke">Nothing ${kind === 'stash' ? 'behind it' : kind === 'trunk' ? 'of yours in there' : 'left here'}. Leave things from Pockets (“${kind === 'stash' ? 'Hide it' : kind === 'trunk' ? 'In the trunk' : 'Leave it here'}”). ${kind === 'trunk' ? 'If the car goes, so does what’s in it.' : ''}</p>`)
+      (items.length ? '' : `<p class="shop-broke">Nothing ${say[1]}. Leave things from Pockets (“${say[2]}”). ${kind === 'trunk' ? 'If the car goes, so does what’s in it.' : kind === 'vac' ? 'Squatters come and go: they might find it.' : ''}</p>`)
     );
   }
 
@@ -7544,7 +7659,7 @@ export class Game {
     const it = inv.items[i];
     const h = this.health;
     if (it?.secret !== 'cocaine' || !it.known || h.wired || productOf(it) !== 'powder') return;
-    if (this.inside && !this.inOwnRoom) {
+    if (this.inside && !this.privateSpace) {
       this.note(['Not in here. Someone behind the counter is already watching you.']);
       return;
     }
@@ -7610,45 +7725,129 @@ export class Game {
     this.mapPick = null;
     this.renderSheet();
   }
+  /** A tap on the map itself: the building under your finger (or near it). */
+  private mapTap(ev: MouseEvent, m: HTMLElement) {
+    const r = m.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const x = ((ev.clientX - r.left) / r.width) * MAP_W;
+    const y = ((ev.clientY - r.top) / r.height) * MAP_H;
+    const b = buildingAt(x, y, 6);
+    // (Off any building: the nearest corner, if it's close.)
+    const c = b ? undefined : CORNERS.find((k) => Math.hypot(k.x - x, k.y - y) < 9);
+    if (!b && !c) return;
+    this.mapPick = b ? `bld:${b.id}` : `corner:${c!.id}`;
+    this.renderSheet();
+    this.sheetEl.querySelector('.map-card')?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+  }
+  /** What a building on the map is, for its card: what it's called, a line about it, and what you can do there. */
+  private buildingSpot(b: Building): { name: string; small: string; icon: string; go: string; extra?: string } {
+    const addr = buildingAddr(b);
+    const where = `${addr} · ${DISTRICT_NAMES[b.district]}`;
+    const residential = (what: string) => {
+      const tried = ((this.save.state.watched ?? {}) as Record<string, number>)[b.id];
+      const wait = tried && now() - tried < WATCH_AGAIN ? `Not again till ${clockText(tried + WATCH_AGAIN)}` : '';
+      const why = wait || (fatigueNow(this.health) >= 70 ? 'Too tired' : '');
+      return {
+        name: what,
+        small: `${where}. Someone lives here; you don’t know who.`,
+        icon: PLACE_ICON.home,
+        go: '',
+        extra: `<button type="button" class="map-go" data-watch="${b.id}" ${why ? 'disabled' : ''}>Watch the place<small>${why || `About ten minutes, from a doorway across the street. Your sneak decides whether you see who lives there, or they see you.`}</small></button>`,
+      };
+    };
+    switch (b.kind) {
+      case 'house':
+        return residential('A house');
+      case 'rowhouse':
+        return residential('A rowhouse');
+      case 'apartment':
+        return residential('An apartment building');
+      case 'vacant':
+        return { name: 'An empty house', small: `${where}. Boarded up, the door long since kicked in. Somewhere to sleep out of sight, or to hide things (if the squatters don’t find them).`, icon: PLACE_ICON.vacant, go: `data-spot="${b.id}"` };
+      case 'warehouse':
+        return { name: 'Riverside Storage', small: `${where}. Lock-ups by the week, ${money(LOCKUP_RENT * 100)}, cash. Behind your own padlock, nobody looks.${this.lockup?.bld === b.id ? ` Yours is paid up until ${dateText(this.lockup.until)}.` : ''}`, icon: PLACE_ICON.warehouse, go: `data-spot="${b.id}"` };
+      case 'bar':
+        return { name: b.name ?? 'A bar', small: `${where}. A bar: drinks by the glass, and a room to work.${this.corner.id === `bar:${b.id}` ? ' You work here now.' : ''}`, icon: PLACE_ICON.bar, go: `data-spot="${b.id}"` };
+      case 'church':
+        return { name: b.name ?? 'St. Agnes', small: `${where}. Open by day: a pew to rest on, and a free meal in the basement once a day.`, icon: PLACE_ICON.church, go: `data-spot="${b.id}"` };
+      case 'shelter':
+        return { name: b.name ?? 'The shelter', small: `${where}. A free bed, from seven at night. They search you at the door.`, icon: PLACE_ICON.shelter, go: `data-spot="${b.id}"` };
+      case 'school':
+        return { name: b.name ?? 'The school', small: `${where}. A drug-free school zone: get caught selling within a block of it and the charge comes with more time.`, icon: PLACE_ICON.school, go: '' };
+      case 'laundromat':
+        return { name: b.name ?? 'The laundromat', small: `${where}. Washers, dryers, a change machine that eats bills. The alley behind it is where the fence works.`, icon: PLACE_ICON.laundromat, go: '' };
+      case 'lot':
+        return { name: 'A parking lot', small: `${where}. Pay-and-display, cars nose to tail. Somewhere for a car to sit unnoticed.`, icon: PLACE_ICON.lot, go: '' };
+      case 'garage':
+        return { name: 'A garage', small: `${where}. A garage on the alley, padlocked.`, icon: PLACE_ICON.building, go: '' };
+      case 'tower':
+        return { name: 'Offices', small: `${where}. Offices: busy by day, a guard in the lobby at night.`, icon: PLACE_ICON.building, go: '' };
+      case 'shop':
+        return { name: 'A shop', small: `${where}. ${['A corner store: cigarettes, lottery tickets, a cat on the counter.', 'A nail salon, a phone repair place, a takeout counter.', 'A barber’s, two chairs, a radio on.', 'A shop with its shutter half down and a FOR LEASE sign.'][Math.floor(b.cx * 7 + b.cy * 3) % 4]}`, icon: PLACE_ICON.building, go: '' };
+      case 'place':
+        return { name: 'A building', small: where, icon: PLACE_ICON.building, go: '' };
+    }
+    return { name: 'A building', small: where, icon: PLACE_ICON.building, go: '' };
+  }
   /** Where to?: the map, everything you can go to on it, and the card for what you've tapped. */
   private mapSheetHtml(): string {
-    type Spot = { key: string; x: number; y: number; icon: string; tone: MapMark['tone']; name: string; small: string; go: string; extra?: string };
+    type Spot = { key: string; x: number; y: number; icon: string; tone: MapMark['tone']; name: string; small: string; go: string; extra?: string; pin?: boolean; bld?: Building };
     const spots: Spot[] = [];
+    const corner = this.corner;
+    const feel = (d: District | 'bar') => CORNER_FEEL[d].blurb;
     for (const p of PLACES) {
-      const at = PLACE_AT[p.id];
+      const at = p.id === 'street' ? corner : PLACE_AT[p.id];
       if (!at || HIDDEN_PLACES.has(p.id)) continue;
       const shut = !!p.hours && !isOpen(p.hours);
       const hours = p.id === 'street' ? '' : p.hours ? `<i class="${shut ? 'shut' : 'open'}">${hoursText(p.hours)}</i>` : '<i class="open">Open all hours</i>';
-      spots.push({ key: `place:${p.id}`, x: at.x, y: at.y, icon: PLACE_ICON[p.id] ?? PLACE_ICON.street, tone: shut ? 'shut' : 'place', name: p.id === 'street' ? 'Your corner' : p.name, small: `${at.addr}. ${p.desc}${hours}`, go: `data-place="${p.id}"` });
+      const small = p.id === 'street' ? `${corner.name}. ${feel(corner.bar ? 'bar' : corner.district)}${this.nearSchool() ? ' A block from the school: a drug-free zone.' : ''}` : `${(at as { addr: string }).addr}. ${p.desc}${hours}`;
+      spots.push({ key: `place:${p.id}`, x: at.x, y: at.y, icon: PLACE_ICON[p.id] ?? PLACE_ICON.street, tone: shut ? 'shut' : 'place', name: p.id === 'street' ? 'Your corner' : p.name, small, go: `data-place="${p.id}"`, bld: buildingOfPlace(p.id) });
+    }
+    // The other corners you could work.
+    for (const c of CORNERS) {
+      if (c.id === corner.id) continue;
+      spots.push({ key: `corner:${c.id}`, x: c.x, y: c.y, icon: PLACE_ICON.corner, tone: 'corner', name: c.name, small: `A corner in ${DISTRICT_NAMES[c.district]}. ${feel(c.district)}${this.nearSchool(c) ? ' A block from the school: a drug-free zone.' : ''}`, go: `data-corner="${c.id}"` });
     }
     for (const h of this.homes) {
-      const at = addressAt(h.addr);
-      spots.push({ key: `home:${h.id}`, x: at.x, y: at.y, icon: PLACE_ICON.home, tone: 'home', name: h.addr, extra: `<button type="button" class="map-forget" data-forget="${h.id}">Forget this address</button>`, small: `${h.owner}’s place${h.hitAt ? ` · you broke in ${dueText(h.hitAt) === dueText(now()) ? 'today' : dueText(h.hitAt)}` : ''}${this.hasKeyTo(h) ? ' · you have their keys' : ''}`, go: `data-home="${h.id}"` });
+      const b = h.bld ? buildingById(h.bld) : undefined;
+      const at = b ? { x: b.cx, y: b.cy } : addressAt(h.addr);
+      spots.push({ key: `home:${h.id}`, x: at.x, y: at.y, icon: PLACE_ICON.home, tone: 'home', name: h.addr, extra: `<button type="button" class="map-forget" data-forget="${h.id}">Forget this address</button>`, small: `${h.owner}’s place${h.hitAt ? ` · you broke in ${dueText(h.hitAt) === dueText(now()) ? 'today' : dueText(h.hitAt)}` : ''}${this.hasKeyTo(h) ? ' · you have their keys' : ''}`, go: `data-home="${h.id}"`, bld: b ?? buildingAt(at.x, at.y, 8) });
     }
     for (const c of this.myCars) {
       const h = c.home ? this.homeById(c.home) : undefined;
-      const at = h ? ((a) => ({ x: a.x + 9, y: a.y + 9 }))(addressAt(h.addr)) : addressAt(c.street.replace(/^(on|out front of) /, ''), c.id);
+      const hb = h?.bld ? buildingById(h.bld) : undefined;
+      const at = hb ? { x: hb.cx + 9, y: hb.cy + 9 } : h ? ((a) => ({ x: a.x + 9, y: a.y + 9 }))(addressAt(h.addr)) : addressAt(c.street.replace(/^(on|out front of) /, ''), c.id);
       const notes = [`Parked ${c.street}`, ...(reported(c, now()) ? ['reported by now'] : []), ...(c.items.length || c.cents ? ['your things in the trunk'] : [])];
       spots.push({ key: `car:${c.id}`, x: at.x, y: at.y, icon: PLACE_ICON.car, tone: 'car', name: `The ${c.color} ${c.make}`, small: notes.join(' · '), go: `data-car="${c.id}"` });
+    }
+    // The building you're in, and the one you've tapped (no pin: an outline).
+    const bldSpot = (b: Building): Spot => ({ key: `bld:${b.id}`, x: b.cx, y: b.cy, tone: 'place', pin: false, bld: b, ...this.buildingSpot(b) });
+    const inSpot = this.atSpot;
+    if (inSpot) spots.push(bldSpot(inSpot));
+    if (this.mapPick?.startsWith('bld:')) {
+      const b = buildingById(this.mapPick.slice(4));
+      // (A building with a place in it, or an address you know: that.)
+      const known = b && (b.place ? spots.find((x) => x.key === `place:${b.place}`) : isHome(b) ? ((h) => h && spots.find((x) => x.key === `home:${h.id}`))(this.homeIn(b)) : undefined);
+      if (known) this.mapPick = known.key;
+      else if (b && b !== inSpot) spots.push(bldSpot(b));
     }
     // Where you are now.
     // (Out on the hunt with a fob: somewhere along the blocks, not at your corner.)
     const hunting = this.place === 'car' && !this.atCar && !!this.hunt;
-    const hereKey = this.place === 'home' && this.atHome ? `home:${this.atHome.id}` : this.place === 'car' && this.atCar ? `car:${this.atCar.id}` : hunting ? 'hunt' : `place:${this.place === 'car' || this.place === 'home' ? 'street' : this.place}`;
+    const hereKey = this.place === 'home' && this.atHome ? `home:${this.atHome.id}` : this.place === 'car' && this.atCar ? `car:${this.atCar.id}` : hunting ? 'hunt' : inSpot ? `bld:${inSpot.id}` : `place:${this.place === 'car' || this.place === 'home' || this.place === 'spot' ? 'street' : this.place}`;
     if (hunting) {
-      const at = PLACE_AT.street!;
-      spots.push({ key: 'hunt', x: at.x + 22, y: at.y - 30, icon: PLACE_ICON.car, tone: 'car', name: 'Walking the blocks', small: 'Pressing the fob, listening for a chirp.', go: '' });
+      spots.push({ key: 'hunt', x: corner.x + 22, y: corner.y - 30, icon: PLACE_ICON.car, tone: 'car', name: 'Walking the blocks', small: 'Pressing the fob, listening for a chirp.', go: '' });
     }
     const here = spots.find((x) => x.key === hereKey) ?? spots.find((x) => x.key === 'place:street')!;
     const picked = spots.find((x) => x.key === this.mapPick) ?? here;
-    const marks: MapMark[] = spots.map((x) => ({ key: x.key, x: x.x, y: x.y, icon: x.icon, tone: x.tone, label: x.name, here: x === here, picked: x === picked && x !== here }));
+    const marks: MapMark[] = spots.filter((x) => x.pin !== false || x === here).map((x) => ({ key: x.key, x: x.x, y: x.y, icon: x.icon, tone: x.tone, label: x.name, here: x === here, picked: x === picked && x !== here }));
     const isHere = picked === here;
     const far = blocksBetween(here, picked);
     const card =
       `<div class="map-card" data-tone="${picked.tone}">` +
       `<div class="map-card-head"><span class="map-card-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${picked.icon}"/></svg></span><div><b>${picked.name}</b><small>${isHere ? 'You’re here.' : far ? `${far} block${far === 1 ? '' : 's'} from you.` : 'Just round the corner.'}</small></div></div>` +
       `<p>${picked.small}</p>` +
-      (isHere ? '' : `<button type="button" class="map-go" ${picked.go}>${picked.key === 'place:street' ? 'Back out to your corner' : 'Walk there'}</button>`) +
+      (isHere || !picked.go ? '' : `<button type="button" class="map-go" ${picked.go}>${picked.key === 'place:street' ? 'Back out to your corner' : picked.tone === 'corner' ? 'Work this corner' : 'Walk there'}</button>`) +
       (isHere && picked.key === 'place:street' ? ((why) => `<button type="button" class="map-go" data-bins ${why ? 'disabled' : ''}>Go through the bins${why ? `<small>${why}</small>` : ''}</button>`)(this.binsWhy()) : '') +
       (isHere ? '' : (picked.extra ?? '')) +
       `</div>`;
@@ -7659,7 +7858,305 @@ export class Game {
           .map((x) => `<button type="button" data-mappick="${x.key}" data-tone="${x.tone}" class="${x === picked ? 'on' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${x.icon}"/></svg><span><b>${x.name}</b><small>${x === here ? 'You’re here' : `${blocksBetween(here, x) ? `${blocksBetween(here, x)} block${blocksBetween(here, x) === 1 ? '' : 's'} away` : 'Just round the corner'} · ${x.small.replace(/<[^>]+>/g, '').split(' · ')[0]}`}</small></span></button>`)
           .join('')}</div>`
       : '';
-    return `${mapHtml(marks)}${card}<p class="map-hint">Tap a place on the map${mine.length ? ', or an address below' : ''}.</p>${list}`;
+    return `${mapHtml(marks, picked.bld)}${card}<p class="map-hint">Tap any building on the map, a pin, or a corner (+)${mine.length ? ', or an address below' : ''}.</p>${list}`;
+  }
+  // ---------- The buildings on the map: what each one is for ----------
+
+  /** The corner you work (saved; Grand & Ninth if you've never moved): where it is, and what part of town. */
+  private get corner(): { id: string; name: string; x: number; y: number; district: District; bar?: Building } {
+    const id = this.save.state.corner;
+    if (typeof id === 'string' && id.startsWith('bar:')) {
+      const b = buildingById(id.slice(4));
+      if (b?.kind === 'bar') return { id, name: b.name ?? 'The bar', x: b.cx, y: b.cy, district: b.district, bar: b };
+    }
+    return cornerById(id) ?? cornerById(DEFAULT_CORNER)!;
+  }
+  /** The part of town your corner's in (its market, its crowd, its police). */
+  private get cornerDistrict(): District {
+    return this.corner.district;
+  }
+  /** What your corner's like: who comes by, how many, how many patrols. */
+  private get cornerFeel(): CornerFeel {
+    const c = this.corner;
+    return c.bar ? CORNER_FEEL.bar : CORNER_FEEL[c.district];
+  }
+  /** Within a block of the school: a drug-free school zone. */
+  private nearSchool(at: { x: number; y: number } = this.corner): boolean {
+    const s = buildings().find((b) => b.kind === 'school');
+    return !!s && blocksBetween(at, { x: s.cx, y: s.cy }) <= 1;
+  }
+  /** Over to another corner (or into a bar, to work the room). */
+  private workCorner(id: string) {
+    if (this.ending || this.save.state.policeStop || !this.canOpenSheet) return;
+    const bar = id.startsWith('bar:') ? buildingById(id.slice(4)) : undefined;
+    if (!(bar?.kind === 'bar') && !cornerById(id)) return;
+    const was = this.corner.id;
+    this.save.state.corner = id;
+    const c = this.corner;
+    const line = c.bar ? `You find a stool at the end of the bar in ${c.name}, where you can see the door and the room.` : `You walk over to ${c.name} and find a spot to stand, ${DISTRICT_NAMES[c.district]}.`;
+    if (this.place !== 'street') {
+      this.goTo('street');
+      this.note([line, CORNER_FEEL[c.bar ? 'bar' : c.district].blurb]);
+      return;
+    }
+    this.closeSheet();
+    if (was === id) return;
+    this.save.state.crowd = [];
+    if (this.encounter?.stage === 'seen') this.encounter = null;
+    this.refresh();
+    this.note([line, CORNER_FEEL[c.bar ? 'bar' : c.district].blurb, ...(this.nearSchool() ? ['There’s a school a block away. Selling here, a charge comes with extra years.'] : [])]);
+  }
+
+  /** The building you've walked into (a bar, the church, an empty house), if that's where you are. */
+  private get atSpot(): Building | undefined {
+    return this.place === 'spot' ? spotOf(this.save.state.spotAt) : undefined;
+  }
+  /** Somewhere that's yours, more or less: your own room, an empty house nobody's watching, your lock-up. */
+  private get privateSpace(): boolean {
+    const s = this.atSpot;
+    return this.inOwnRoom || s?.kind === 'vacant' || (s?.kind === 'warehouse' && this.lockupOwned(s));
+  }
+  private goSpot(id: string) {
+    const b = spotOf(id);
+    if (!b || this.ending || this.save.state.policeStop) return;
+    if (this.place === 'spot' && this.save.state.spotAt === id) return this.closeSheet();
+    if (this.place === 'spot') this.place = 'street';
+    this.save.state.spotAt = id;
+    this.goTo('spot');
+  }
+  /** Walking into a building: what you see. */
+  private spotArrive(b: Building): string {
+    switch (b.kind) {
+      case 'vacant':
+        return 'You go round the back and in through a window with no glass in it. Dark, and damp, and quiet.';
+      case 'warehouse':
+        return 'You walk through the gate to the row of roll-up doors. The man in the booth looks up from his phone.';
+      case 'bar':
+        return `You push into ${b.name}. Low light, a TV over the bar, a smell of beer and fryer oil.`;
+      case 'church':
+        return 'You go up the steps of St. Agnes and in. Cool and dim, and nearly empty.';
+      case 'shelter':
+        return 'You walk up to the shelter. A volunteer behind a folding table looks you over.';
+      default:
+        return 'You walk over.';
+    }
+  }
+
+  // ----- An empty house: sleep in it, hide things in it -----
+  private vacantBox(id: string): StashBox {
+    const all = (this.save.state.vacant ??= {}) as Record<string, StashBox>;
+    return (all[id] ??= { items: [], cents: 0, at: now() });
+  }
+  /** Back at the empty house: did the squatters find what you left? */
+  private checkVacant(id: string): string[] {
+    const s = ((this.save.state.vacant ?? {}) as Record<string, StashBox>)[id];
+    if (!s) return [];
+    const days = Math.max(0, (now() - s.at) / 86_400_000);
+    s.at = now();
+    if (!s.items.length && !s.cents) return [];
+    if (Math.random() < 1 - Math.pow(1 - (s.seen ? 0.25 : 0.03), days)) {
+      s.items = [];
+      s.cents = 0;
+      s.seen = false;
+      return ['The floorboard’s been pried up and thrown in the corner. Whatever you left under it is gone. Someone’s been sleeping here.'];
+    }
+    return [];
+  }
+
+  // ----- A lock-up by the river: a padlocked unit, by the week -----
+  private get lockup(): (StashBox & { bld: string; until: number }) | undefined {
+    return this.save.state.lockup as (StashBox & { bld: string; until: number }) | undefined;
+  }
+  private lockupOwned(b: Building): boolean {
+    const l = this.lockup;
+    return !!l && l.bld === b.id && now() < l.until;
+  }
+  /** Back at the lock-up: rent run out past the grace days, and they've cut the lock and cleared it. */
+  private checkLockup(): string[] {
+    const l = this.lockup;
+    if (!l) return [];
+    if (now() > l.until + LOCKUP_GRACE) {
+      delete this.save.state.lockup;
+      return ['There’s a new padlock on your door, and a notice taped over it: past due, contents disposed of. The man in the booth shrugs at you.'];
+    }
+    return now() > l.until ? [`The rent on the unit ran out. They give you ${LOCKUP_GRACE / 86_400_000} days, then cut the lock.`] : [];
+  }
+
+  /** A button inside one of the buildings. */
+  private spotAct(what: string) {
+    const b = this.atSpot;
+    if (!b || !this.canOpenSheet) return;
+    const h = this.health;
+    const inv = this.inventory;
+    const c = Math.round(cashOf(inv) * 100);
+    const tired = fatigueNow(h) >= 3;
+    if (what === 'squat' && b.kind === 'vacant') {
+      if (!tired) return this.note(['You sit on the bare mattress for a while, but you’re not tired.']);
+      this.unstick();
+      return this.lieDown('squat', [oneOf(['You drag a mattress into the back room, away from the windows, and lie down in your coat.', 'You find a corner upstairs, out of sight of the street, and lie down on cardboard.'])]);
+    }
+    if (what === 'rent' && b.kind === 'warehouse') {
+      const l = this.lockup;
+      if (l && l.bld !== b.id && now() <= l.until + LOCKUP_GRACE) return this.note(['“You’ve got one already, down the row.” He doesn’t want two of anything from you.']);
+      if (c < LOCKUP_RENT * 100) return;
+      const cleared = this.checkLockup();
+      const paid = this.payLine(LOCKUP_RENT * 100);
+      const cur = this.lockup;
+      if (cur && cur.bld === b.id) cur.until = Math.max(now(), cur.until) + 7 * 86_400_000;
+      else this.save.state.lockup = { bld: b.id, until: now() + 7 * 86_400_000, items: [], cents: 0, at: now() };
+      this.refresh();
+      this.note([...cleared.filter((x) => !/ran out/.test(x)), cur && cur.bld === b.id ? 'You pay the week. He writes it on a card.' : `You pay the week. He hands you a padlock and its key: unit ${unitNo(b)}, halfway down the row.`, paid]);
+      return;
+    }
+    if (what.startsWith('drink:') && b.kind === 'bar') {
+      const d = BAR_DRINKS.find((x) => x.id === what.slice(6));
+      if (!d || c < d.cents) return;
+      const paid = this.payLine(d.cents);
+      soberUp(h);
+      const was = drunkLevel(h.drunk ?? 0);
+      useHabit(h, 'alcohol', d.std);
+      h.drunk = Math.min(100, (h.drunk ?? 0) + d.drunk);
+      h.drunkAt = now();
+      h.stress = Math.max(0, (h.stress ?? 0) - 8);
+      const lines = [d.line, paid];
+      if (h.cold) lines.push('A glow spreads out from your stomach. You’re not any warmer, really.');
+      const lvl = drunkLevel(h.drunk);
+      if (h.drunk >= 90) {
+        this.unstick();
+        lines.push('The room tips over. The barman has you by the collar, and then you are outside, and then you are somewhere else.', ...passHours(h, 3));
+        if (h.dead) return this.die(lines);
+        h.drunk = 40;
+        h.drunkAt = now();
+        this.place = 'street';
+        lines.push('You come to in a doorway round the corner, hours later.');
+      } else if (lvl > was) lines.push(['', 'You’re tipsy. The room’s friendlier.', 'You’re drunk. The barman’s watching you now.', 'You’re wasted. He won’t serve you much more.', 'You’re blackout drunk. One more and you’re gone.'][lvl]);
+      this.refresh();
+      this.note(lines);
+      return;
+    }
+    if (what === 'room' && b.kind === 'bar') return this.workCorner(`bar:${b.id}`);
+    if (what === 'pew' && b.kind === 'church') {
+      if (!pewHours()) return;
+      if (!tired) return this.note(['You sit in a pew for a while. Nobody bothers you. You’re not tired, though.']);
+      this.unstick();
+      return this.lieDown('pew', ['You stretch out on a back pew, your coat under your head. An old woman lighting candles doesn’t look your way.']);
+    }
+    if (what === 'meal' && b.kind === 'church') {
+      const at = (this.save.state.churchMeal as number | undefined) ?? 0;
+      if (now() - at < MEAL_EVERY) return;
+      if (this.hungerWait) return this.note(['You’re not hungry. You just ate.']);
+      this.save.state.churchMeal = now();
+      h.ateAt = now();
+      h.fatigue = Math.max(0, fatigueNow(h) - 6);
+      h.stress = Math.max(0, (h.stress ?? 0) - 4);
+      this.refresh();
+      this.note([oneOf(['Down in the basement, a woman in a hairnet ladles out soup and gives you a roll. You eat at a long table with your head down. It helps.', 'Downstairs: a paper bowl of chili, bread, a cup of weak coffee. Nobody asks you anything.'])]);
+      return;
+    }
+    if (what === 'bed' && b.kind === 'shelter') {
+      if (!shelterHours()) return;
+      if (now() - ((this.save.state.shelterAt as number | undefined) ?? 0) < 12 * 3_600_000) return;
+      if (!tired) return this.note(['“Beds are for sleeping.” You’re not tired enough yet.']);
+      // At the door: they go through your things, and keep what they don't allow.
+      const banned = inv.items.filter((x) => x.kind === 'weapon' || (x.secret && x.secret !== 'empty') || x.name === 'Zip bags' || /syringe/i.test(x.name));
+      inv.items = inv.items.filter((x) => !banned.includes(x));
+      this.save.state.shelterAt = now();
+      const lines = [banned.length ? `At the door a volunteer goes through your pockets and your bag. ${banned.length === 1 ? `The ${lc(banned[0].name)} goes` : `${list2(banned.map((x) => `the ${lc(x.name)}`))} go`} in a bin under the table. “No weapons, no drugs. House rules.” You don’t get ${banned.length === 1 ? 'it' : 'them'} back.` : 'At the door a volunteer pats you down and looks in your pockets. Nothing they don’t allow.', 'A cot in a long row of cots, a thin blanket, the lights going down at ten. Someone coughs all night.'];
+      this.unstick();
+      this.refresh();
+      return this.lieDown('shelter', lines);
+    }
+  }
+
+  /** What's inside a building, as a shop screen: its head and its list. */
+  private spotHtml(b: Building, btn: (attr: string, v: string | number, label: string, no?: string | false | null) => string, li: (name: string, small: string, button: string) => string): { head: string; body: string } {
+    const c = Math.round(cashOf(this.inventory) * 100);
+    const tired = fatigueNow(this.health) >= 3;
+    const addr = buildingAddr(b);
+    const head = (name: string, blurb: string) => `<div class="shop-head"><h2>${name}</h2><p>${blurb}</p><p class="shop-hours">${addr}</p></div>`;
+    if (b.kind === 'vacant')
+      return {
+        head: head('An empty house', 'Boarded windows, the door kicked in long ago. Mattresses, cans, a smell of damp. Nobody comes looking in here.'),
+        body: `<ul class="shop-list">${li('Squat here', 'Lie down out of sight. Not a bed, but better than a doorway.', btn('spotact', 'squat', 'Lie down', !tired && 'Not tired'))}</ul>` + this.stashHtml('vac'),
+      };
+    if (b.kind === 'warehouse') {
+      const l = this.lockup;
+      const mine = this.lockupOwned(b);
+      const late = !!l && l.bld === b.id && !mine && now() <= l.until + LOCKUP_GRACE;
+      const elsewhere = !!l && l.bld !== b.id && now() <= l.until + LOCKUP_GRACE;
+      return {
+        head: head('Riverside Storage', 'A row of roll-up doors behind a chain-link fence, by the water. A man in a booth rents them by the week, cash, and doesn’t ask what’s in them.'),
+        body:
+          `<ul class="shop-list">` +
+          (mine ? li(`Your unit, ${unitNo(b)}`, `Paid up until ${dateText(l!.until)}. Your padlock, your key. Nobody else goes in.`, '') : '') +
+          li(mine || late ? 'Another week' : 'Rent a lock-up', late ? `The rent ran out. Pay within ${LOCKUP_GRACE / 86_400_000} days of it or they cut the lock.` : mine ? 'Pay ahead.' : 'A padlocked unit for a week. Police need a warrant to open it; nobody gets one for a storage unit.', btn('spotact', 'rent', money(LOCKUP_RENT * 100), (elsewhere && 'You rent one down the row') || (c < LOCKUP_RENT * 100 && 'Not enough cash'))) +
+          `</ul>` +
+          (mine ? this.stashHtml('lock') : ''),
+      };
+    }
+    if (b.kind === 'bar')
+      return {
+        head: head(b.name ?? 'A bar', 'A long bar, a few booths, a pool table with a cue missing. The barman pours without asking how your day was.'),
+        body:
+          `<ul class="shop-list">${BAR_DRINKS.map((d) => li(d.name, d.desc, btn('spotact', `drink:${d.id}`, money(d.cents), c < d.cents && 'Not enough cash'))).join('')}</ul>` +
+          `<h3>Work the room</h3><ul class="shop-list">${li('Sell in here', this.corner.id === `bar:${b.id}` ? 'This is where you work now.' : 'Make the bar your corner: a drinking crowd, and few patrols. Your customers find you here.', btn('spotact', 'room', 'Work the room', this.corner.id === `bar:${b.id}` && 'Already here'))}</ul>`,
+      };
+    if (b.kind === 'church') {
+      const left = MEAL_EVERY - (now() - ((this.save.state.churchMeal as number | undefined) ?? 0));
+      return {
+        head: head(b.name ?? 'St. Agnes', 'Stone and stained glass, rows of pews, candles by the door. Downstairs, the parish kitchen feeds whoever comes.'),
+        body:
+          `<ul class="shop-list">` +
+          li('Rest in a pew', 'By day the church stays open. Nobody moves you on.', btn('spotact', 'pew', 'Lie down', (!pewHours() && 'Only by day') || (!tired && 'Not tired'))) +
+          li('A meal downstairs', 'Free, once a day.', btn('spotact', 'meal', 'Eat', left > 0 && `Again ${clockText(now() + left)}`)) +
+          `</ul>`,
+      };
+    }
+    if (b.kind === 'shelter') {
+      const last = (this.save.state.shelterAt as number | undefined) ?? 0;
+      return {
+        head: head(b.name ?? 'The shelter', 'A low brick building with a ramp, a buzzer and a sign: NO WEAPONS · NO DRUGS · NO ALCOHOL ON PREMISES. Beds from seven.'),
+        body: `<ul class="shop-list">${li('A bed for the night', 'Free. They search you at the door and keep any weapon or drugs they find.', btn('spotact', 'bed', 'Check in', (!shelterHours() && 'Beds from 7 PM') || (now() - last < 12 * 3_600_000 && 'Once a night') || (!tired && 'Not tired')))}</ul>`,
+      };
+    }
+    return { head: head('A building', ''), body: '' };
+  }
+
+  // ----- Watching a place: who lives there -----
+  /** Settled down across the street to watch who comes and goes (real time). */
+  private startWatch(b: Building) {
+    if (!this.canOpenSheet || this.ending || this.save.state.policeStop || !isHome(b) || this.homeIn(b)) return;
+    if (fatigueNow(this.health) >= 70) return this.note(['You’re too tired to stand in a doorway for ten minutes.']);
+    const tried = ((this.save.state.watched ??= {}) as Record<string, number>)[b.id];
+    if (tried && now() - tried < WATCH_AGAIN) return;
+    if (this.place !== 'street') this.goTo('street');
+    else this.closeSheet();
+    if (this.place !== 'street') return;
+    this.startWork({ kind: 'watch', since: now(), until: now() + WATCH_MS, bld: b.id }, [`You find a doorway across from ${buildingAddr(b)}, light a cigarette you don’t smoke, and watch.`]);
+  }
+  /** The watch, done: who lives there (if you saw), or someone saw you. */
+  private endWatch(w: Work, finished: boolean): string[] {
+    const b = w.bld ? buildingById(w.bld) : undefined;
+    if (!b) return [];
+    if (!finished) return ['You give up and walk away. You didn’t see enough.'];
+    ((this.save.state.watched ??= {}) as Record<string, number>)[b.id] = now();
+    train(this.stats, 'sneak', 3);
+    if (Math.random() < watchOdds(this.stats.sneak.level, veryConspicuous(this.inventory))) {
+      const home = homeFor(b);
+      this.homes.push(home);
+      return [
+        `A ${home.sex === 'Male' ? 'man' : 'woman'} comes out to the mailbox and goes back in. The name on the box: ${home.owner.split(' ').slice(-1)[0].toUpperCase()}.`,
+        home.household === 'alone' ? 'Nobody else comes or goes. They live alone, by the look of it.' : 'Someone else is in there too: a voice through the window, a second shape behind the curtain.',
+        ...(home.car ? [`A ${home.car} in front of it, theirs by the way they look at it.`] : []),
+        `You know the address now: ${home.addr}. It’s on your map.`,
+      ];
+    }
+    this.reportedHeat(4, anonymity(this.inventory), { sev: 2 });
+    return ['A curtain twitches. Then a face at the window, and a phone held up to the glass. You walk away, not fast. Someone will call it in.'];
+  }
+  /** The address you know in that building, if any. */
+  private homeIn(b: Building): Home | undefined {
+    return this.homes.find((h) => h.bld === b.id || (!h.bld && ((a) => buildingAt(a.x, a.y, 8) === b)(addressAt(h.addr))));
   }
   /** The You sheet. */
   private renderStatsSheet(card: HTMLElement, close: string) {
@@ -7897,6 +8394,9 @@ export class Game {
     }
     // The alley's loose brick: there whenever you are, whoever's about.
     if (place === 'fence') body += this.dezHtml(open) + this.stashHtml('stash');
+    const spot = this.atSpot;
+    const spotView = spot ? this.spotHtml(spot, btn, li) : undefined;
+    if (spotView) body = spotView.body;
     const home = this.atHome;
     if (home) body = this.homeHtml(home, btn, li);
     const car = this.atCar;
@@ -7911,7 +8411,9 @@ export class Game {
           ? `<div class="shop-head"><h2>The ${car.color} ${car.make}</h2><p>Parked ${car.street}. Their keys, in your hand.</p></div>`
           : huntKey
             ? `<div class="shop-head"><h2>Looking for the ${makeOf(huntKey)}</h2><p>The fob in your hand. You took it ${((m) => (m < 60 ? `${Math.max(1, m)} minute${m <= 1 ? '' : 's'} ago` : m < 48 * 60 ? `${Math.round(m / 60)} hour${Math.round(m / 60) === 1 ? '' : 's'} ago` : 'days ago'))(Math.round((now() - (huntKey.tookAt ?? huntKey.takenAt ?? now())) / 60_000))}.</p></div>`
-            : `<div class="shop-head"><h2>${info.name}</h2><p>${info.blurb}</p>${info.hours ? `<p class="shop-hours">${hoursText(info.hours)}.</p>` : ''}</div>`) +
+            : spotView
+              ? spotView.head
+              : `<div class="shop-head"><h2>${info.name}</h2><p>${info.blurb}</p>${info.hours ? `<p class="shop-hours">${hoursText(info.hours)}.</p>` : ''}</div>`) +
       this.noteHtml(this.shopNote, 'shop-note') +
       (home || hunt ? '' : `<p class="pocket-purse">${this.purseHtml()}</p>`) +
       `<div class="shop-body">${body}</div>`;
@@ -8188,7 +8690,7 @@ export class Game {
                 }
                 if (x.secret === 'cocaine' && x.known && productOf(x) === 'powder') acts += act('bump', 'Bump', h.wired ? 'Already wired' : null);
                 // The alley's loose brick, or your room: somewhere to leave it.
-                if (this.place === 'fence' || (this.place === 'room' && this.roomRented) || (this.atCar && x.carId !== this.atCar.id && !this.copsAtCar(this.atCar))) acts += act('stash', this.place === 'fence' ? 'Hide it' : this.atCar ? 'In the trunk' : 'Leave it here');
+                if (this.place === 'fence' || (this.place === 'room' && this.roomRented) || this.spotBoxKind || (this.atCar && x.carId !== this.atCar.id && !this.copsAtCar(this.atCar))) acts += act('stash', this.place === 'fence' ? 'Hide it' : this.spotBoxKind === 'vac' ? 'Hide it here' : this.spotBoxKind === 'lock' ? 'In the lock-up' : this.atCar ? 'In the trunk' : 'Leave it here');
                 // A gun: load it from a box of its rounds.
                 if (gunOf(x.name)) acts += act('load', 'Load', (x.doses ?? 0) >= gunOf(x.name)!.holds ? 'Full' : inv.items.some((y) => y.name === gunOf(x.name)!.ammo && (y.doses ?? 0) > 0) ? null : 'No ammunition');
                 // Car keys: find the car (on the street), then go through it, or sleep in it.
@@ -8260,7 +8762,7 @@ export class Game {
     if (burned) {
       delete e.wants;
       e.regular = false;
-    } else if (e.wants == null && ['junkie', 'homeless', 'drunk', 'civilian'].includes(e.person.kind)) e.wants = wantFor(kind, e.person.age, new Date(now()).getHours(), this.market);
+    } else if (e.wants == null && ['junkie', 'homeless', 'drunk', 'civilian'].includes(e.person.kind)) e.wants = wantFor(kind, e.person.age, new Date(now()).getHours(), this.market, this.cornerDistrict);
     // They ask for bags of whatever size you sell in (one, sometimes two or three).
     const zips = inv.items.filter((x) => x.name === 'Zip bags').reduce((n, x) => n + (x.doses ?? 0), 0);
     e.zips = zips;
@@ -8274,7 +8776,7 @@ export class Game {
       e.sizeFit = Math.min(1, (2 * requestFor(e.wants, kind, e.person.age, () => 0.5)) / Math.max(1, e.bagSize));
     }
     e.prices = {};
-    for (const k of new Set([...(Object.keys(stock) as MarketKey[]), ...(e.wants ? [e.wants] : [])])) e.prices[k] = priceFactor(this.market, k);
+    for (const k of new Set([...(Object.keys(stock) as MarketKey[]), ...(e.wants ? [e.wants] : [])])) e.prices[k] = priceFactor(this.market, k, this.cornerDistrict);
     // (What you'd hand over: the weakest you've got first.)
     if (e.wants && e.wantAmt && (stock[e.wants]?.n ?? 0) >= e.wantAmt) {
       const q = this.qualityFor(e.wants, e.wantAmt);
@@ -8660,7 +9162,7 @@ export class Game {
         const sent = !!dz && now() > dz.due && Math.random() < Math.min(0.6, 0.25 + (dz.strikes ?? 0) * 0.1);
         const thief = sent ? null : maybeThief(this.world);
         const known = sent ? null : thief ? (thief.known ? (this.people.find((k) => k.id === thief.known) ?? null) : null) : comeBack(this.people);
-        const person = sent ? this.enforcerFor(dz!) : (thief ?? (known ? meet(known) : makePerson()));
+        const person = sent ? this.enforcerFor(dz!) : (thief ?? (known ? meet(known) : makePerson(this.cornerFeel.chances)));
         const s = this.lurkState;
         s.times++;
         s.seen[person.kind]++;

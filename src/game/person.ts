@@ -370,8 +370,8 @@ const ITEMS: Record<Kind, [Item, number][]> = {
 };
 
 /** A new random person (who you saw this lurk). */
-export function makePerson(): Person {
-  const kind = pick(CHANCES);
+export function makePerson(chances: [Kind, number][] = CHANCES): Person {
+  const kind = pick(chances);
   const personality = pick(PERSONALITY_CHANCES[kind]);
   const extra = PERSONALITIES[personality].carry ?? {};
   const carrying = ITEMS[kind].filter(([item, c]) => Math.random() < c + (extra[item.name] ?? 0)).map(([item]) => ({ ...item }));

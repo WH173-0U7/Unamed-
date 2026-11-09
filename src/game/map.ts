@@ -606,6 +606,7 @@ export function mapHtml(marks: MapMark[], sel?: Building, zoom = { z: 1, tx: 0, 
     `<div class="map-zoomctl">` +
     `<button type="button" data-mapzoom="in" aria-label="Zoom in"${zoom.z >= MAP_ZMAX - 0.01 ? ' disabled' : ''}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></button>` +
     `<button type="button" data-mapzoom="out" aria-label="Zoom out"${zoom.z <= 1.01 ? ' disabled' : ''}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12"/></svg></button>` +
+    `<button type="button" data-mapzoom="fit" aria-label="Whole map"${zoom.z <= 1.01 ? ' hidden' : ''}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 8V4h4M12 4h4v4M16 12v4h-4M8 16H4v-4"/></svg></button>` +
     `</div>`;
   return `<div class="map${zoom.z > 1.01 ? ' zoomed' : ''}"><div class="map-zoom" style="${zoomStyle(zoom)}">${streetsSvg()}${outline}${pins}</div>${ctl}</div>`;
 }

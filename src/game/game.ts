@@ -2072,14 +2072,15 @@ export class Game {
   private sheetAction(b: HTMLButtonElement) {
     if (b.dataset.close !== undefined) this.closeSheet();
     else if (b.dataset.forget) this.forgetHome(b.dataset.forget);
+    else if (b.dataset.mapzoom === 'fit') this.mapShow({ z: 1, tx: 0, ty: 0 }, true);
     else if (b.dataset.mapzoom) this.mapZoomBy(b.dataset.mapzoom === 'in' ? 1.8 : 1 / 1.8);
     else if (b.dataset.mappick) {
       this.mapPick = b.dataset.mappick;
       const fromList = !!b.closest('.map-list');
       this.renderSheet();
-      // (Zoom in on it: from wherever the map was.)
+      // (A pin: the map stays put. Picked from the list while zoomed in, it slides into view if it's off the edge.)
       const pin = this.sheetEl.querySelector<HTMLElement>('.map-pin.picked');
-      if (pin) this.mapFocus((parseFloat(pin.style.left) / 100) * MAP_W, (parseFloat(pin.style.top) / 100) * MAP_H);
+      if (pin && fromList) this.mapReveal((parseFloat(pin.style.left) / 100) * MAP_W, (parseFloat(pin.style.top) / 100) * MAP_H);
       // (Bring its card into view: from the list under the map, or a pin with the card below the fold.)
       this.sheetEl.querySelector(fromList ? '.map-card' : '.map-card button')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     } else if (b.dataset.place) this.goTo(b.dataset.place as Place);
@@ -7820,14 +7821,26 @@ export class Game {
     } else layer.classList.remove('slide');
     layer.setAttribute('style', zoomStyle(this.mapView));
     m.classList.toggle('zoomed', this.mapView.z > 1.01);
-    const [zin, zout] = m.querySelectorAll<HTMLButtonElement>('[data-mapzoom]');
+    const [zin, zout, fit] = m.querySelectorAll<HTMLButtonElement>('[data-mapzoom]');
     if (zin) zin.disabled = this.mapView.z >= MAP_ZMAX - 0.01;
     if (zout) zout.disabled = this.mapView.z <= 1.01;
+    if (fit) fit.hidden = this.mapView.z <= 1.01;
   }
   /** Zoom in on a spot on the map (a building you tapped, a pin): it slides to the middle. */
   private mapFocus(x: number, y: number) {
-    const z = Math.max(this.mapView.z, 2.6);
+    // (Already in close: leave the map where it is, unless it's near the edge.)
+    if (this.mapView.z >= 1.8) return this.mapReveal(x, y);
+    const z = 2.6;
     this.mapShow({ z, tx: 0.5 - (x / MAP_W) * z, ty: 0.5 - (y / MAP_H) * z }, true);
+  }
+  /** Zoomed in and that spot's off (or right at) the edge: slide it into view, at the same zoom. */
+  private mapReveal(x: number, y: number) {
+    const v = this.mapView;
+    if (v.z <= 1.01) return;
+    const sx = (x / MAP_W) * v.z + v.tx;
+    const sy = (y / MAP_H) * v.z + v.ty;
+    if (sx > 0.15 && sx < 0.85 && sy > 0.15 && sy < 0.85) return;
+    this.mapShow({ z: v.z, tx: 0.5 - (x / MAP_W) * v.z, ty: 0.5 - (y / MAP_H) * v.z }, true);
   }
   /** The + and − buttons: in or out on the middle of what you can see. */
   private mapZoomBy(f: number) {
@@ -7846,10 +7859,15 @@ export class Game {
       start = { v: { ...this.mapView }, pts: [...pts.values()].map((p) => ({ ...p })), r: m.getBoundingClientRect() };
     };
     const sig = this.listeners.signal;
+    // (How fast a drag was going as it let go, for the map to glide on and slow down.)
+    let vel = { x: 0, y: 0, t: 0 };
+    let glide = 0;
     this.sheetEl.addEventListener('pointerdown', (e) => {
       const m = (e.target as Element).closest<HTMLElement>('.map');
       if (!m || this.sheet !== 'places' || (e.target as Element).closest('.map-zoomctl')) return;
+      cancelAnimationFrame(glide);
       if (!pts.size) this.mapMoved = false;
+      vel = { x: 0, y: 0, t: performance.now() };
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       begin(m);
     }, { signal: sig });
@@ -7877,16 +7895,41 @@ export class Game {
         const dy = p.y - start.pts[0].y;
         if (!this.mapMoved && Math.hypot(dx, dy) < 8) return;
         this.mapMoved = true;
+        const before = this.mapView;
         this.mapShow({ z: v.z, tx: v.tx + dx / r.width, ty: v.ty + dy / r.height }, false);
+        const t = performance.now();
+        const dt = Math.max(1, t - vel.t);
+        // (Smoothed: the last few moves, in map widths a millisecond.)
+        vel = { x: vel.x * 0.5 + ((this.mapView.tx - before.tx) / dt) * 0.5, y: vel.y * 0.5 + ((this.mapView.ty - before.ty) / dt) * 0.5, t };
       } else if (now.length === 1 && Math.hypot(p.x - start.pts[0].x, p.y - start.pts[0].y) >= 8) this.mapMoved = true;
     }, { signal: sig });
     const end = (e: PointerEvent) => {
       if (!pts.delete(e.pointerId)) return;
       if (this.mapMoved) this.mapDragEnd = performance.now();
       const m = this.sheetEl.querySelector<HTMLElement>('.map');
+      const wasPinch = (start?.pts.length ?? 0) >= 2;
       // (One finger left after a pinch: it carries on as a drag from here.)
-      if (pts.size && m) begin(m);
-      else start = null;
+      if (pts.size && m) return begin(m);
+      start = null;
+      // A pinch let go just short of all the way out: all the way out.
+      if (wasPinch && this.mapView.z < 1.12) return this.mapShow({ z: 1, tx: 0, ty: 0 }, true);
+      // A flick: the map glides on and slows to a stop.
+      const fresh = performance.now() - vel.t < 60;
+      if (e.type === 'pointerup' && this.mapView.z > 1.01 && fresh && Math.hypot(vel.x, vel.y) > 0.0004 && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        let { x: vx, y: vy } = vel;
+        let last = performance.now();
+        const step = (t: number) => {
+          const dt = Math.min(40, t - last);
+          last = t;
+          const v = this.mapView;
+          this.mapShow({ z: v.z, tx: v.tx + vx * dt, ty: v.ty + vy * dt }, false);
+          const k = Math.pow(0.994, dt);
+          vx *= k;
+          vy *= k;
+          if (Math.hypot(vx, vy) > 0.00003 && this.sheet === 'places') glide = requestAnimationFrame(step);
+        };
+        glide = requestAnimationFrame(step);
+      }
     };
     this.sheetEl.addEventListener('pointerup', end, { signal: sig });
     this.sheetEl.addEventListener('pointercancel', end, { signal: sig });
@@ -7919,8 +7962,8 @@ export class Game {
     if (!b && !c) return;
     this.mapPick = b ? `bld:${b.id}` : `corner:${c!.id}`;
     this.renderSheet();
+    // (A building: zoomed out, in on it, so the small ones next to it are easy to tap. A corner stays put.)
     if (b) this.mapFocus(b.x + b.w / 2, b.y + b.h / 2);
-    else this.mapFocus(c!.x, c!.y);
     this.sheetEl.querySelector('.map-card')?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
   }
   /** What a building on the map is, for its card: what it's called, a line about it, and what you can do there. */

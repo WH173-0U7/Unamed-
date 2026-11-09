@@ -5254,6 +5254,7 @@ body[data-drug='withdrawal'] #game {
   -webkit-tap-highlight-color: transparent;
 }
 .map-zoomctl button:disabled { opacity: 0.35; cursor: default; }
+.map-zoomctl button[hidden] { display: none; }
 .map-zoomctl svg {
   display: block;
   width: 100%;

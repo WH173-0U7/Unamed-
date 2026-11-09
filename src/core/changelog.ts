@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.85',
+    date: 'Nov 10',
+    items: [
+      'Tapping a pin on the map no longer zooms in. Tapping a building still zooms in when you’re zoomed out, and leaves the map where it is when you’re already in close.',
+      'Zooming feels better: a flick keeps the map gliding, a pinch let go near the edge snaps all the way out, and a new button shows the whole map again.',
+    ],
+  },
+  {
     v: '2.84',
     date: 'Nov 10',
     items: [

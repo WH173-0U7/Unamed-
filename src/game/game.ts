@@ -32,6 +32,7 @@ import { cashFill, cashFits, cashWhere, pocketCash, roomForCents, spotMl } from 
 import { mlOf } from './money';
 import { lootIcon, lootMark } from './lootIcon';
 import { STYLES, STYLE_HOW, STYLE_NAMES, stylesOf } from './styles';
+import { BIN_MAX, BIN_REFILL, TOSS_ODDS, binsLook, cutOdds, rareOdds, rollDig, shooOdds, spoilOdds, uncommonOdds, type BinArea, type BinFind } from './scavenge';
 import { CORNERS, DEFAULT_CORNER, MAP_H, MAP_W, MAP_ZMAX, PLACE_AT, PLACE_ICON, addressAt, blocksBetween, buildingAddr, buildingAt, buildingById, buildingOfPlace, buildings, cornerById, mapHtml, zoomStyle, type Building, type District, type MapMark } from './map';
 import { MEDS, take, alarmOf, alarmStat, bulkOf, concealOf, exposure, hideStat, spotsFor, hidesWord, inBag, nextSpot, showWord, showing, cashOf, purseKg, wear, wouldLeave, kgLabel, carriedKg, carryLimit, awayTo, fitsIn, findRoom, SIZE_RANK, OVERLOAD, TIRING_LOAD, measure, medById, newInventory, noRoomWhy, stow, upgradeInventory, usedKg, tooHeavy, reweigh, freeHand, type Inventory, type InvItem, type Spot as Pocket, type MedId } from './inventory';
 
@@ -389,7 +390,9 @@ export class Game {
   private readonly youBtn: HTMLButtonElement;
   private readonly shopEl: HTMLElement;
   private readonly sheetEl: HTMLElement;
-  private sheet: 'places' | 'pockets' | 'stats' | 'police' | null = null;
+  private sheet: 'places' | 'pockets' | 'stats' | 'police' | 'scav' | null = null;
+  /** This time at the bins: what each dig turned up, newest first. */
+  private scavLog: string[] = [];
   /** On the map: what you've tapped (its card shows under the map). */
   private mapPick: string | null = null;
   /** How the map is zoomed: z times, its layer moved by (tx, ty) parts of the map (0 to 1 − z). */
@@ -1986,7 +1989,7 @@ export class Game {
     addEventListener('pointerup', (e) => e.pointerType === 'mouse' && up(-1), opt);
   }
 
-  private openSheet(kind: 'places' | 'pockets' | 'stats' | 'police') {
+  private openSheet(kind: 'places' | 'pockets' | 'stats' | 'police' | 'scav') {
     // Stopped by the police: nothing else opens over that.
     if (this.sheet === 'police' && kind !== 'police' && !(kind === 'stats' && this.lockedAway)) return;
     // (Held, or lying down: only the You page, nothing else.)
@@ -2000,7 +2003,7 @@ export class Game {
     }
     this.renderSheet();
     // Where to go comes in from the left, pockets from the right.
-    this.sheetEl.classList.toggle('from-left', kind === 'places');
+    this.sheetEl.classList.toggle('from-left', kind === 'places' || kind === 'scav');
     this.sheetEl.classList.toggle('from-right', kind === 'pockets');
     this.sheetEl.classList.toggle('from-bottom', kind === 'stats');
     this.sheetEl.hidden = false;
@@ -2103,7 +2106,8 @@ export class Game {
     else if (b.dataset.bump) this.bump(Number(b.dataset.bump));
     else if (b.dataset.bagup) this.bagUp(Number(b.dataset.bagup));
     else if (b.dataset.gig) this.gigAct(b.dataset.gig, Number(b.dataset.gigi));
-    else if (b.dataset.bins !== undefined) this.searchBins();
+    else if (b.dataset.bins !== undefined) this.openBins();
+    else if (b.dataset.dig) this.digBins();
     else if (b.dataset.stash) this.stashItem(Number(b.dataset.stash));
     else if (b.dataset.inject) this.inject(Number(b.dataset.inject));
     else if (b.dataset.pack) this.packLoose(Number(b.dataset.pack));
@@ -3001,7 +3005,8 @@ export class Game {
     const water = /^(water bottle|bottle of water)$/i.test(it.name);
     const groceries = /^groceries$/i.test(it.name);
     const sandwich = /^sandwich$/i.test(it.name);
-    if (!water && !groceries && !sandwich && !/^lunch in a plastic tub$/i.test(it.name)) return;
+    const trash = it.food === 'trash';
+    if (!water && !groceries && !sandwich && !trash && !/^lunch in a plastic tub$/i.test(it.name)) return;
     if (this.inside && !this.privateSpace) {
       this.note(['Not in here. Someone behind the counter is already watching you.']);
       return;
@@ -3013,7 +3018,15 @@ export class Game {
     }
     if (water) h.drankAt = now();
     else h.ateAt = now();
-    h.fatigue = Math.max(0, fatigueNow(h) - (water ? 3 : 6));
+    // Out of the trash and gone off: it takes more out of you than it gives.
+    if (trash && it.spoiled) {
+      inv.items.splice(i, 1);
+      addFatigue(h, 6);
+      this.refresh();
+      this.note([oneOf([`Halfway through the ${lc(it.name)} you taste it: it’s gone off. You spit out what you can. You feel worse than before.`, `The ${lc(it.name)} smells fine and tastes wrong. You get it down anyway, and regret it. It leaves you drained.`])]);
+      return;
+    }
+    h.fatigue = Math.max(0, fatigueNow(h) - (water ? 3 : trash ? 4 : 6));
     if (!water) h.stress = Math.max(0, (h.stress ?? 0) - 3);
     let line: string;
     if (groceries) {
@@ -3024,6 +3037,9 @@ export class Game {
         inv.items.splice(i, 1);
         line += ' That’s the last of it.';
       }
+    } else if (trash) {
+      inv.items.splice(i, 1);
+      line = oneOf([`You eat the ${lc(it.name)} out of the trash, standing up. It’s food.`, `You eat the ${lc(it.name)} without looking at it too closely. It helps.`]);
     } else if (sandwich) {
       inv.items.splice(i, 1);
       line = oneOf(['You tear the plastic off with your teeth and eat the sandwich in a few bites.', 'You eat the sandwich standing up. Mostly bread. It helps.']);
@@ -6128,54 +6144,157 @@ export class Game {
   private get cansCount(): number {
     return this.inventory.items.filter((x) => x.name === 'Empty cans').reduce((n, x) => n + (x.doses ?? 0), 0);
   }
-  /** The bins on your block: how many cans they hold now (they fill back up over a few hours). */
-  private get bins(): { left: number; at: number } {
-    const b = (this.save.state.bins ??= { left: 10, at: now() }) as { left: number; at: number };
+  /** The bins on each block: how full they are (they fill back up over a few hours), a bag just thrown out, the day's rare find, and being told to clear off. */
+  private binAt(id: string): { left: number; at: number; tossed?: boolean; rareDay?: string; shooedUntil?: number } {
+    const st = this.save.state;
+    // (Older saves: one lot of bins for everywhere.)
+    if (!st.bins || typeof st.bins !== 'object' || 'left' in (st.bins as object)) st.bins = {};
+    const all = st.bins as Record<string, { left: number; at: number; tossed?: boolean; rareDay?: string; shooedUntil?: number }>;
+    const b = (all[id] ??= { left: BIN_MAX * 0.8, at: now() });
     const hours = (now() - b.at) / 3_600_000;
     if (hours > 0) {
-      b.left = Math.min(12, b.left + hours * 2.5);
+      b.left = Math.min(BIN_MAX, b.left + hours * BIN_REFILL);
       b.at = now();
     }
     return b;
   }
-  private binsWhy(): string | null {
-    if (this.place !== 'street' || this.atBar || !this.canLurk) return 'Not now';
-    if (fatigueNow(this.health) >= FATIGUE_SPENT) return 'Too worn out';
-    return this.bins.left < 1 ? 'Picked clean. Give it a few hours.' : null;
+  /** Where your corner's bins are: its part of town, or out back of the bar. */
+  private get binArea(): BinArea {
+    return this.corner.bar ? 'bar' : this.corner.district;
   }
-  /** Going through the bins along the block: cans to cash in, and now and then something else. */
-  private searchBins() {
+  private binsWhy(): string | null {
+    if (this.place !== 'street' || !this.canLurk) return 'Not now';
+    if (fatigueNow(this.health) >= FATIGUE_SPENT) return 'Too worn out';
+    const b = this.binAt(this.corner.id);
+    if ((b.shooedUntil ?? 0) > now()) return `They told you to clear off. Not till ${clockText(b.shooedUntil!)}.`;
+    return b.left < 1 ? binsLook(0) : null;
+  }
+  /** Going through the bins on your block: its own screen, one dig at a time. */
+  private openBins() {
     if (this.binsWhy()) return;
-    const b = this.bins;
+    this.scavLog = [];
+    this.openSheet('scav');
+  }
+  /** One dig: a couple of minutes elbow-deep in other people's trash. */
+  private digBins() {
+    if (this.sheet !== 'scav') return;
+    if (this.binsWhy()) return this.renderSheet();
+    const c = this.corner;
+    const area = this.binArea;
+    const b = this.binAt(c.id);
+    const lvl = this.stats.scavenging.level;
+    const h = this.health;
+    addFatigue(h, 1);
+    train(this.stats, 'scavenging', 1);
+    const lines: string[] = [];
+    // Somebody wants you out of their trash.
+    if (Math.random() < shooOdds(lvl, area)) {
+      b.shooedUntil = now() + 30 * 60_000;
+      h.stress = Math.min(100, (h.stress ?? 0) + 3);
+      lines.push(
+        oneOf(
+          area === 'bar'
+            ? ['The back door bangs open. “Hey! Get out of there before I call somebody.” You put the lid down and go.', 'The barman comes out with a bag of empties and sees you. “Not here. Go on.” You go.']
+            : area === 'downtown'
+              ? ['A shopkeeper raps on the glass and points you away. When you don’t move fast enough, he comes out. “Not my bins. Go.”', 'A security guard in a yellow vest walks over. “Move along. Now.” You move along.']
+              : area === 'southside'
+                ? ['A man on a forklift stops and leans on the horn until you walk away.', 'Someone shouts from a loading dock: “That’s private property!” You walk away.']
+                : ['A window goes up. “Get out of my trash!” Lights come on along the block. You walk away.', 'A woman on her porch watches you, then takes out her phone. You don’t wait to find out who she’s calling.'],
+        ),
+      );
+      this.scavLog.unshift(lines.join(' '));
+      this.refresh();
+      this.renderSheet();
+      return;
+    }
+    const tossed = !!b.tossed;
+    b.tossed = false;
+    const day = new Date(now()).toDateString();
+    const finds = rollDig(area, b.left, lvl, tossed, b.rareDay !== day);
+    b.left = Math.max(0, b.left - 1);
+    if (!finds.length)
+      lines.push(oneOf(['Nothing. Coffee grounds and wet paper.', 'Nothing worth having.', 'You tear open a bag: diapers. You tie it back up.', 'Nothing but takeout boxes and cat litter.', 'Nothing. Somebody got here first.']));
+    for (const { tier, find } of finds) {
+      if (tier === 'rare') b.rareDay = day;
+      if (tier !== 'common') train(this.stats, 'scavenging', tier === 'rare' ? 8 : 3);
+      lines.push(this.takeFind(find, lvl));
+    }
+    // Broken glass in a bag (gloves help, and knowing how to go through a bag).
+    if (Math.random() < cutOdds(lvl, gloved(this.inventory))) {
+      h.bleeding = Math.max(h.bleeding, 1);
+      h.blood = Math.max(0, h.blood - 40);
+      lines.push(gloved(this.inventory) ? 'Broken glass in a bag goes right through your glove. Your palm’s bleeding.' : 'You reach into a bag and a broken bottle opens up your palm. You’re bleeding.');
+    }
+    // Someone throws something out while you're here: the next dig's a better one.
+    if (Math.random() < TOSS_ODDS) {
+      b.tossed = true;
+      b.left = Math.min(BIN_MAX, b.left + 1);
+      lines.push(
+        oneOf(
+          area === 'bar'
+            ? ['The kitchen door opens and someone heaves a full bag into the dumpster without looking at you.']
+            : area === 'downtown'
+              ? ['A man in a suit tosses a bag into the bin on his way past, still on his phone.', 'A store clerk drags out a bag at the end of a shift and drops it by the curb.']
+              : area === 'southside'
+                ? ['A worker on a smoke break throws a box out by the loading dock.']
+                : ['Someone comes down their steps with a full trash bag and sets it by the curb.', 'A woman clearing out an apartment drops a box by the bins and goes back inside.'],
+        ),
+      );
+    }
+    this.scavLog.unshift(lines.join(' '));
+    if (this.scavLog.length > 10) this.scavLog.length = 10;
+    this.refresh();
+    this.renderSheet();
+  }
+  /** Something out of the bins: into your pockets, if there's room. */
+  private takeFind(f: BinFind, lvl: number): string {
     const inv = this.inventory;
-    addFatigue(this.health, 2);
-    const n = Math.max(1, Math.min(Math.floor(b.left), 2 + Math.floor(Math.random() * 5)));
-    b.left -= n;
-    const lines = [oneOf(['You go through the bins along the block, elbow-deep in other people’s trash.', 'You work your way down the block, lifting lids, picking through bags.', 'You check every bin and dumpster on the block. Someone has been through some of them already.'])];
+    const rnd = (r: [number, number]) => r[0] + Math.floor(Math.random() * (r[1] - r[0] + 1));
+    if (f.cans) return this.addCans(rnd(f.cans));
+    if (f.cash) {
+      const c = rnd(f.cash);
+      const left = cents(pocketCash(inv, fewest(c)));
+      return `${f.line} ${money(c - left)}.${left ? ` You’ve no room for the other ${money(left)}.` : ''}`;
+    }
+    const it = { ...f.item! };
+    if (it.food === 'trash') it.spoiled = Math.random() < spoilOdds(lvl);
+    if (stow(inv, it)) return f.line;
+    const m = measure(it);
+    return `${f.line} You’ve nowhere to put it. ${noRoomWhy(inv, m.size, m.kg)}`;
+  }
+  /** Cans into the bag of them you're carrying (or a new one). */
+  private addCans(n: number): string {
+    const inv = this.inventory;
     const have = inv.items.find((x) => x.name === 'Empty cans');
     const sp = have && inv.spots.find((s) => s.id === have.spot);
     const more = n * 0.015;
-    if (have && (!sp || usedKg(inv, sp.id) + more > sp.maxKg + 1e-9 || tooHeavy(inv, more))) lines.push(`${n} more can${n === 1 ? '' : 's'}, and nowhere to put ${n === 1 ? 'it' : 'them'}. ${noRoomWhy(inv, 'small', more)}`);
-    else if (have) {
+    if (have && (!sp || usedKg(inv, sp.id) + more > sp.maxKg + 1e-9 || tooHeavy(inv, more))) return `${n} more can${n === 1 ? '' : 's'}, and nowhere to put ${n === 1 ? 'it' : 'them'}. ${noRoomWhy(inv, 'small', more)}`;
+    if (have) {
       have.doses = (have.doses ?? 0) + n;
       have.kg = Math.round((have.doses ?? 0) * 15) / 1000;
-      lines.push(`${n} more can${n === 1 ? '' : 's'}. ${have.doses} in all.`);
-    } else if (stow(inv, { kind: 'misc', name: 'Empty cans', detail: 'Rinsed out, crushed flat, in a plastic bag', doses: n, size: 'small', kg: Math.round(n * 15) / 1000 })) lines.push(`${n} can${n === 1 ? '' : 's'}, crushed flat into a plastic bag.`);
-    else lines.push(`${n} can${n === 1 ? '' : 's'}, and nowhere to put ${n === 1 ? 'it' : 'them'}. ${noRoomWhy(inv, 'small')}`);
-    // Now and then, something else.
-    const f = Math.random();
-    if (f < 0.05) {
-      if (stow(inv, { kind: 'misc', name: 'Lighter', detail: 'Someone threw it out half full', doses: 40 })) lines.push('A lighter, still half full.');
-    } else if (f < 0.1) {
-      if (stow(inv, { kind: 'misc', name: 'Loose cigarettes', doses: 1 + Math.floor(Math.random() * 3) })) lines.push('A couple of cigarettes in a crushed pack.');
-    } else if (f < 0.16) {
-      const c = 5 + Math.floor(Math.random() * 46);
-      const left = cents(pocketCash(inv, fewest(c)));
-      if (!left) lines.push(`${money(c)} in loose change at the bottom of a bag.`);
+      return `${n} more can${n === 1 ? '' : 's'}. ${have.doses} in all.`;
     }
-    this.refresh();
-    this.renderSheet();
-    this.note(lines);
+    if (stow(inv, { kind: 'misc', name: 'Empty cans', detail: 'Rinsed out, crushed flat, in a plastic bag', doses: n, size: 'small', kg: Math.round(n * 15) / 1000 })) return `${n} can${n === 1 ? '' : 's'}, crushed flat into a plastic bag.`;
+    return `${n} can${n === 1 ? '' : 's'}, and nowhere to put ${n === 1 ? 'it' : 'them'}. ${noRoomWhy(inv, 'small')}`;
+  }
+  /** The bins screen: how full they are, a dig, and what each dig turned up. */
+  private scavHtml(): string {
+    const c = this.corner;
+    const b = this.binAt(c.id);
+    const why = this.binsWhy();
+    const btn = (attr: string, v: string | number, label: string, no?: string | false | null) => `<button type="button" data-${attr}="${v}" ${no ? `disabled title="${no}"` : ''}>${label}${no ? `<small>${no}</small>` : ''}</button>`;
+    const li = (name: string, small: string, button: string) => `<li><div><b>${name}</b><small>${small}</small></div><span class="li-btns">${button}</span></li>`;
+    const cans = this.cansCount;
+    const lvl = this.stats.scavenging.level;
+    return (
+      `<p class="scav-where">${c.bar ? `Out back of ${c.name}` : c.name}. ${binsLook(b.left)}</p>` +
+      `<div class="spot-bar"><i style="width:${Math.round((100 * Math.max(0, b.left)) / BIN_MAX)}%"></i><span>${b.tossed ? 'A bag just went in' : 'What’s left in the bins'}</span></div>` +
+      `<ul class="shop-list">` +
+      li('Keep digging', `A couple of minutes, a little more tired.${lvl > 1 ? ` Scavenging ${lvl}.` : ''}`, btn('dig', 1, 'Dig', why)) +
+      li('Stop', `Put the lids back and walk away.${cans ? ` You’ve ${cans} can${cans === 1 ? '' : 's'}: 10¢ each at the gas station.` : ''}`, btn('close', 1, 'Stop')) +
+      `</ul>` +
+      (this.scavLog.length ? `<div class="scav-log">${this.scavLog.map((l, i) => `<p${i ? '' : ' class="new"'}>${l}</p>`).join('')}</div>` : `<p class="scav-hint">Most bags are nothing. Now and then, something somebody shouldn’t have thrown out.</p>`)
+    );
   }
   /** At the gas station: the cans back, for the deposit. */
   private cashCans() {
@@ -8077,7 +8196,7 @@ export class Game {
       `<div class="map-card-head"><span class="map-card-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${picked.icon}"/></svg></span><div><b>${picked.name}</b><small>${isHere ? 'You’re here.' : far ? `${far} block${far === 1 ? '' : 's'} from you.` : 'Just round the corner.'}</small></div></div>` +
       `<p>${picked.small}</p>` +
       (isHere || !picked.go ? '' : `<button type="button" class="map-go" ${picked.go}>${picked.key === 'place:street' ? 'Back out to your corner' : picked.tone === 'corner' ? 'Work this corner' : 'Walk there'}</button>`) +
-      (isHere && picked.key === 'place:street' && !this.atBar ? ((why) => `<button type="button" class="map-go" data-bins ${why ? 'disabled' : ''}>Go through the bins${why ? `<small>${why}</small>` : ''}</button>`)(this.binsWhy()) : '') +
+      (isHere && picked.key === 'place:street' ? ((why) => `<button type="button" class="map-go" data-bins ${why ? 'disabled' : ''}>${this.atBar ? 'Go through the bins out back' : 'Go through the bins'}${why ? `<small>${why}</small>` : ''}</button>`)(this.binsWhy()) : '') +
       (isHere ? '' : (picked.extra ?? '')) +
       `</div>`;
     // The addresses and cars you know, as buttons too: easier to tell apart than the pins.
@@ -8813,6 +8932,10 @@ export class Game {
       card.innerHTML = `<div class="sheet-head"><h2>Where to?</h2>${close}</div><div class="sheet-body places">${this.mapSheetHtml()}</div>`;
       return;
     }
+    if (this.sheet === 'scav') {
+      card.innerHTML = `<div class="sheet-head"><h2>${this.atBar ? 'Out back' : 'The bins'}</h2>${close}</div><div class="sheet-body scav">${this.scavHtml()}</div>`;
+      return;
+    }
     const inv = this.inventory;
     const h = this.health;
     const total = inv.items.reduce((t, i) => t + i.kg, 0);
@@ -8926,7 +9049,7 @@ export class Game {
                 if (/^(loose |pack of )?cigarettes$/i.test(x.name)) acts += act('smoke', this.smoking ? 'Smoking' : 'Smoke', (x.doses ?? 1) <= 0 ? 'Empty' : this.smokeBlocked());
                 if (x.drink) acts += act('drink', 'Drink', (x.doses ?? 0) <= 0 ? 'Empty' : this.canOpenSheet ? null : 'Not now');
                 // Food and water: someone else's, but it does you good.
-                if (/^(lunch in a plastic tub|groceries|sandwich)$/i.test(x.name)) acts += act('eat', 'Eat', !this.canOpenSheet ? 'Not now' : this.hungerWait ? 'You’re full' : null);
+                if (x.food === 'trash' || /^(lunch in a plastic tub|groceries|sandwich)$/i.test(x.name)) acts += act('eat', 'Eat', !this.canOpenSheet ? 'Not now' : this.hungerWait ? 'You’re full' : null);
                 if (/^(water bottle|bottle of water)$/i.test(x.name)) acts += act('water', 'Drink', !this.canOpenSheet ? 'Not now' : this.thirstWait ? 'Not thirsty' : null);
                 if (x.kind === 'wear' && x.slot) acts += act('puton', 'Put on', this.canOpenSheet ? null : 'Not now');
                 // A phone: the delivery app, if it's yours or unlocked.
@@ -9190,6 +9313,13 @@ export class Game {
         ['A lucky one knocking you out cold', `−${pct(toughnessResist(st))}`],
         ['A bone breaking', `−${pct(toughnessResist(st))}`],
       ],
+      scavenging: [
+        ['Something useful in a dig', `1 in ${Math.round(1 / uncommonOdds(st.scavenging.level))}`],
+        ['Something rare', `1 in ${Math.round(1 / rareOdds(st.scavenging.level))}`],
+        ['Food that’s gone off', pct(spoilOdds(st.scavenging.level))],
+        ['Cutting yourself on glass', `${(cutOdds(st.scavenging.level, false) * 100).toFixed(1)}% a dig (less in gloves)`],
+        ['Being told to clear off', `${(shooOdds(st.scavenging.level, 'flats') * 100).toFixed(1)}% a dig`],
+      ],
       speech: [
         ['Lies that land', `+${pct(lieBonus(st))}`],
         ['Talking them into handing it over', `+${pct(persuadeBonus(st.speech.level))}`],
@@ -9198,6 +9328,7 @@ export class Game {
       ],
     };
     const how: Record<StatName, string> = {
+      scavenging: 'Going through the bins. More when you find something useful, and more again for something rare.',
       speech: 'Talking your way out of things (the police, a clerk who doubts your ID, someone who catches you following them), and selling. More when the lie, or the sale, works.',
       sneak: 'Surveilling, ambushes (bum rush, sucker punch, shove), and selling without anyone noticing.',
       strength: 'Landing blows, and carrying a heavy load around (slowly).',

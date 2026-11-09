@@ -29,7 +29,7 @@
  *   Trained by talking (more when the lie works).
  */
 
-export type StatName = 'sneak' | 'strength' | 'unarmed' | 'weapons' | 'agility' | 'stamina' | 'toughness' | 'intimidation' | 'speech';
+export type StatName = 'sneak' | 'strength' | 'unarmed' | 'weapons' | 'agility' | 'stamina' | 'toughness' | 'intimidation' | 'speech' | 'scavenging';
 
 export interface Stat {
   level: number;
@@ -49,9 +49,10 @@ export const STAT_NAMES: Record<StatName, string> = {
   toughness: 'Toughness',
   intimidation: 'Intimidation',
   speech: 'Speech',
+  scavenging: 'Scavenging',
 };
 /** Shorter names for the stats along the top of a small screen. */
-export const STAT_SHORT: Record<StatName, string> = { sneak: 'Stl', strength: 'Str', unarmed: 'Fist', weapons: 'Wpn', agility: 'Agi', stamina: 'Stm', toughness: 'Tuf', intimidation: 'Fear', speech: 'Talk' };
+export const STAT_SHORT: Record<StatName, string> = { sneak: 'Stl', strength: 'Str', unarmed: 'Fist', weapons: 'Wpn', agility: 'Agi', stamina: 'Stm', toughness: 'Tuf', intimidation: 'Fear', speech: 'Talk', scavenging: 'Scv' };
 
 /** Levels go to 100, and each one takes longer than the last. */
 export const MAX_LEVEL = 100;
@@ -67,6 +68,7 @@ export function newStats(): Stats {
     toughness: { level: 1, xp: 0 },
     intimidation: { level: 1, xp: 0 },
     speech: { level: 1, xp: 0 },
+    scavenging: { level: 1, xp: 0 },
   };
 }
 

@@ -62,6 +62,9 @@ export interface InvItem {
   unlockAsked?: boolean;
   /** Something to drink (beer, liquor, an energy drink), swigs in `doses`. */
   drink?: 'beer' | 'liquor' | 'energy';
+  /** Food out of the trash (see scavenge.ts); spoiled, it wears you out instead of helping. */
+  food?: 'trash';
+  spoiled?: boolean;
   /** Car keys: when you took them (owners report a stolen car fast), and whether you found the car (and went through it). */
   takenAt?: number;
   car?: 'found' | 'gone';
@@ -241,6 +244,19 @@ export function measure(x: { kind: string; name: string; med?: MedId; product?: 
   if (/^toolbox$/i.test(n)) return { size: 'large', kg: 6 };
   if (/^games console$/i.test(n)) return { size: 'large', kg: 3.2 };
   if (/^(gold chain|wedding ring|watch|earrings|class ring|bracelet)$/i.test(n)) return { size: 'small', kg: /watch/i.test(n) ? 0.12 : 0.02 };
+  // Out of the trash (see scavenge.ts).
+  if (/^sleeping bag$/i.test(n)) return { size: 'large', kg: 1.6 };
+  if (/^duffel bag$/i.test(n)) return { size: 'large', kg: 0.9 };
+  if (/^blanket$/i.test(n)) return { size: 'large', kg: 1.2 };
+  if (/^crowbar$/i.test(n)) return { size: 'large', kg: 1.4 };
+  if (/^claw hammer$/i.test(n)) return { size: 'medium', kg: 0.6 };
+  if (/^bike lock$/i.test(n)) return { size: 'medium', kg: 1.1 };
+  if (/^copper wire$/i.test(n)) return { size: 'medium', kg: 0.8 };
+  if (/^paperback books$/i.test(n)) return { size: 'medium', kg: 0.9 };
+  if (/^umbrella$/i.test(n)) return { size: 'medium', kg: 0.35 };
+  if (/^flashlight$/i.test(n)) return { size: 'small', kg: 0.2 };
+  if (/^gift card$/i.test(n)) return { size: 'small', kg: 0.005 };
+  if (/^(half a sandwich|cold fries|bruised apples|day-old bagels|takeout leftovers)$/i.test(n)) return { size: 'small', kg: 0.3 };
   if (x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card') return { size: 'small', kg: 0.005 };
   // Clothes, off: rolled up, a cap folded, glasses in a pocket.
   if (x.kind === 'wear') {

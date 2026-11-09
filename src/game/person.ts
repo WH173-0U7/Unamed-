@@ -214,6 +214,9 @@ export interface Loot {
 
   /** Something to drink (uses in `doses`). */
   drink?: 'beer' | 'liquor' | 'energy';
+  /** Food out of the trash (see scavenge.ts): eaten from Pockets; spoiled, it wears you out instead. */
+  food?: 'trash';
+  spoiled?: boolean;
   /** Car keys: the car's state, carried over if they're taken off you and found again. */
   car?: 'found' | 'gone';
   carSearched?: boolean;

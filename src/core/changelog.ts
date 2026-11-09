@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.87',
+    date: 'Nov 10',
+    items: [
+      'Going through the bins is now scavenging: its own screen, one dig at a time, for as long as you like. Each block’s bins run low as you dig and fill back up over a few hours.',
+      'What turns up depends on the block: office trash downtown, clothes and kitchen knives in the Flats, old coats and jewelry in Old Town, tools and copper in Southside, empties out back of a bar. Mostly cans and nothing; now and then something useful; very rarely something worth a little.',
+      'Sometimes people throw a bag out while you’re there, and the next dig is a better one.',
+      'New skill, Scavenging: the more you dig, the more you find and the more rare things you spot, and the less often you get cut on broken glass, eat something that’s gone off, or get told to clear off.',
+      'Food from the trash takes the edge off like other food. If it’s gone off, it leaves you more tired instead.',
+    ],
+  },
+  {
     v: '2.86',
     date: 'Nov 10',
     items: [

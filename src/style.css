@@ -1694,6 +1694,44 @@ body.in-game #menu {
   color: var(--ink-faint);
 }
 
+/* Going through the bins: how full they are, a dig, and what each dig turned up (newest first). */
+.sheet-body.scav .scav-where {
+  margin: 4px 2px 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-dim);
+  overflow-wrap: anywhere;
+}
+.sheet-body.scav .scav-hint {
+  margin: 12px 2px 0;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--ink-faint);
+}
+.scav-log {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.scav-log p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-faint);
+  overflow-wrap: anywhere;
+}
+.scav-log p + p {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.scav-log p.new {
+  color: var(--ink);
+  animation: opts-in 0.25s ease both;
+}
+
 /* Each pocket or bag, and how full it is. */
 .pocket-wear,
 .pocket-where {

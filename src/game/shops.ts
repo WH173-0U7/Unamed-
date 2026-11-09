@@ -185,6 +185,15 @@ export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'kno
   if (/^earrings$/i.test(n)) return 250;
   if (/^watch$/i.test(n)) return 120;
   if (/phone charger/i.test(n)) return 5;
+  // Out of the trash (see scavenge.ts): a little, at most.
+  if (/^(gift card|sleeping bag|duffel bag)$/i.test(n)) return 100;
+  if (/^copper wire$/i.test(n)) return 15;
+  if (/^crowbar$/i.test(n)) return 12;
+  if (/^(claw hammer|bike lock)$/i.test(n)) return 10;
+  if (/^flashlight$/i.test(n)) return 8;
+  if (/^umbrella$/i.test(n)) return 6;
+  if (/^blanket$/i.test(n)) return 5;
+  if (/^paperback books$/i.test(n)) return 4;
   if (x.kind === 'car keys') return 80;
   if (x.kind === 'id') return /expired/.test(n) ? 10 : 60;
   // (A stopped card is a piece of plastic.)

@@ -74,31 +74,33 @@ export interface MapMark {
 
 /** The symbols for places. */
 export const PLACE_ICON: Record<string, string> = {
-  street: 'M12 21V8.5 M12 8.5c0-3 2-5 5-5 M15 3.5h4.5l-.6 2.3h-3.3z M9 21h6',
-  pharmacy: 'M9.5 3.5h5v6h6v5h-6v6h-5v-6h-6v-5h6z',
-  gas: 'M5 20.5V5a1.5 1.5 0 0 1 1.5-1.5h6A1.5 1.5 0 0 1 14 5v15.5 M3.5 20.5h12 M5 9.5h9 M14 8.5l3.5 2.5v6a1.5 1.5 0 0 0 3 0V9.5l-2.5-2.5',
-  pawn: 'M12 4.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5 M6.5 14a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5 M17.5 14a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5 M12 9.5V12 M8.3 14.7L12 12l3.7 2.7',
-  room: 'M3 19.5v-11 M3 15h18v4.5 M7 11a1.75 1.75 0 1 0 0 3.5a1.75 1.75 0 1 0 0-3.5 M10.5 15v-3.5h7A3.5 3.5 0 0 1 21 15',
-  fence: 'M3 5h18v14H3z M3 9.7h18 M3 14.3h18 M9 5v4.7 M15 5v4.7 M6 9.7v4.6 M12 9.7v4.6 M18 9.7v4.6 M9 14.3V19 M15 14.3V19',
-  liquor: 'M10 2.5h4v4l2 3v11a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-11l2-3z M8 13h8 M8 16.5h8',
-  hospital: 'M12 2.5a9.5 9.5 0 1 0 0 19a9.5 9.5 0 1 0 0-19 M8.5 7.5v9 M15.5 7.5v9 M8.5 12h7',
-  guns: 'M2.5 7.5h18v4.5h-8l-1.2 3h-2.6l.6-3H7.5l-1.8 6.5H2.8L4.5 12H2.5z M20.5 9.5h1',
-  court: 'M3 9.5L12 4l9 5.5z M5.5 9.5v8 M10 9.5v8 M14 9.5v8 M18.5 9.5v8 M3 20.5h18 M4 17.5h16',
-  records: 'M6 2.5h9l3.5 3.5v15.5H6z M15 2.5V6h3.5 M9 10h6.5 M9 13.5h6.5 M9 17h4',
-  bank: 'M3 9L12 4l9 5z M5 9v9 M19 9v9 M3 20.5h18 M12 10.5v7 M14 12c0-1-1-1.5-2-1.5s-2 .5-2 1.5 1 1.4 2 1.6 2 .6 2 1.6-1 1.5-2 1.5-2-.5-2-1.5',
-  plasma: 'M12 3.5c3.2 4.2 5.5 7.2 5.5 10.2a5.5 5.5 0 0 1-11 0c0-3 2.3-6 5.5-10.2z M9.4 14.2a2.6 2.6 0 0 0 2.6 2.6',
+  // (One set: a 24 grid, outlines only, everything centred on 12,12 and kept inside 3..21.)
+  street: 'M6.75 21h7 M10.25 21V7.5 M10.25 7.5c0-2.2 1.6-4 4-4h.5 M13.25 3.5h4.5l-.75 2.75h-3z',
+  pharmacy: 'M9.5 4h5v5.5H20v5h-5.5V20h-5v-5.5H4v-5h5.5z',
+  gas: 'M5 20.5V5.5a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v15 M3.5 20.5h12 M7.5 7h4v3.5h-4z M14 10h2a1.5 1.5 0 0 1 1.5 1.5v4.5a1.5 1.5 0 0 0 3 0V8L18 5.5',
+  pawn: 'M12 4a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5 M6.5 14.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5 M17.5 14.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5 M12 9v3 M8.3 15.2L12 12l3.7 3.2',
+  room: 'M3 17.5v-11 M3 13h18v4.5 M7 9a1.75 1.75 0 1 0 0 3.5a1.75 1.75 0 1 0 0-3.5 M10.5 13V9.5h7A3.5 3.5 0 0 1 21 13',
+  fence: 'M3 6h18v12H3z M3 10h18 M3 14h18 M9 6v4 M15 6v4 M6 10v4 M12 10v4 M18 10v4 M9 14v4 M15 14v4',
+  liquor: 'M10 3h4v3.5l2 3V20a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V9.5l2-3z M8 13h8 M8 16.5h8',
+  hospital: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M9 8v8 M15 8v8 M9 12h6',
+  guns: 'M2.5 6.5h18V11h-8l-1.2 3h-2.6l.6-3H7.5l-1.8 6.5H2.8L4.5 11H2.5z M20.5 8.5h1',
+  court: 'M12 3.5v17 M8 20.5h8 M5 7h14 M5 7l-2.5 6a2.5 2.5 0 0 0 5 0z M19 7l-2.5 6a2.5 2.5 0 0 0 5 0z',
+  records: 'M5.5 3h9l4 4v14h-13z M14.5 3v4h4 M8.5 10.5h7 M8.5 14h7 M8.5 17.5h4.5',
+  bank: 'M3 9.5L12 4.5l9 5z M3 20h18 M5 17.5h14 M6 9.5v8 M10 9.5v8 M14 9.5v8 M18 9.5v8',
+  plasma: 'M12 4c3.2 4.2 5.5 7.2 5.5 10.2a5.5 5.5 0 0 1-11 0c0-3 2.3-6 5.5-10.2z M9.4 14.7a2.6 2.6 0 0 0 2.6 2.6',
   home: 'M3.5 11L12 4l8.5 7 M5.5 9.5V20h13V9.5 M10 20v-5h4v5',
-  car: 'M3.5 15.5v-3l2-5h13l2 5v3 M3.5 15.5h17v3H18v-1.5H6v1.5H3.5z M6 12.5h12 M7 15.5h.01 M17 15.5h.01',
-  corner: 'M4 12h16 M12 4v16',
+  car: 'M5 11l1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11 M3.5 17v-4.5A1.5 1.5 0 0 1 5 11h14a1.5 1.5 0 0 1 1.5 1.5V17z M5.5 17v2 M18.5 17v2 M7 14h1.5 M15.5 14H17',
+  corner: 'M12 21v-9 M12 3.5v2 M5 5.5h11l3 2.5-3 2.5H5z M8.5 21h7',
   building: 'M5 21V5.5L12 3l7 2.5V21 M3 21h18 M9 8h.01 M15 8h.01 M9 12h.01 M15 12h.01 M10.5 21v-4.5h3V21',
-  bar: 'M5 4h14l-7 8z M12 12v8 M8 20.5h8 M7.5 6.5h9',
-  church: 'M12 2.5v5 M10 4.5h4 M5 21V12l7-4.5 7 4.5v9 M3 21h18 M10 21v-4a2 2 0 0 1 4 0v4',
+  bar: 'M5 4h14l-7 8z M12 12v8 M8 20h8 M7.5 6.5h9',
+  church: 'M12 3v4.5 M10 5h4 M5 21V12l7-4.5 7 4.5v9 M3 21h18 M10 21v-4a2 2 0 0 1 4 0v4',
   shelter: 'M3 20h18 M5 20V9l7-5 7 5v11 M9 20v-6h6v6',
-  vacant: 'M4 21V9l8-6 8 6v12 M4 21h16 M8 11l3 3 M11 11l-3 3 M14 15l3 3 M17 15l-3 3',
-  warehouse: 'M3 21V9l9-5 9 5v12 M3 21h18 M7 21v-8h10v8 M7 15.5h10 M7 18h10',
-  school: 'M3 9.5L12 5l9 4.5L12 14z M7 11.5v4.5c0 1.5 2.5 3 5 3s5-1.5 5-3v-4.5 M21 9.5v5',
+  vacant: 'M4 20.5V9l8-6 8 6v11.5 M3 20.5h18 M8 11l3 3 M11 11l-3 3 M13 15l3 3 M16 15l-3 3',
+  warehouse: 'M3 20.5V9l9-5 9 5v11.5 M3 20.5h18 M7 20.5v-8h10v8 M7 15h10 M7 17.75h10',
+  school: 'M2.5 9.5L12 5l9.5 4.5L12 14z M7 11.5V16c0 1.5 2.5 3 5 3s5-1.5 5-3v-4.5 M21.5 9.5v5',
   lot: 'M4 4h16v16H4z M9.5 16.5v-9h3.2a2.7 2.7 0 0 1 0 5.4H9.5',
-  laundromat: 'M5 3h14v18H5z M5 7h14 M12 10.5a4 4 0 1 0 0 8a4 4 0 1 0 0-8',
+  laundromat: 'M5 3h14v18H5z M5 7h14 M12 10a4 4 0 1 0 0 8a4 4 0 1 0 0-8 M8 5h.01',
+  tower: 'M8 21l1.5-9.5h5L16 21 M7 11.5h10v-4a5 5 0 0 0-10 0z M9.5 16h5',
 };
 
 /** A number from two others (the same block, the same buildings, every time). */
@@ -495,44 +497,60 @@ function decorSvg(): string {
     `<path d="M24 410 q5 -1.2 10 0 M78 414 q5 -1.2 10 0 M118 409 q5 -1.2 10 0 M206 412 q5 -1.2 10 0 M252 415 q5 -1.2 10 0" fill="none" stroke="rgba(150,180,205,0.12)" stroke-width="0.5"/>`;
   // The rail line along the top: ballast, ties, two rails.
   const rail = `<rect x="0" y="8.2" width="${MAP_W}" height="8.6" fill="#1a1918"/><rect x="0" y="9.6" width="${MAP_W}" height="5.8" fill="url(#m-ties)"/><path d="M0 11h${MAP_W} M0 14h${MAP_W}" stroke="#55534f" stroke-width="0.55"/>`;
-  return `${river}${rail}<g class="m-blocks">${blocks.join('')}</g>${lots.map(rect).join('')}<g class="m-blds">${blds.map(rect).join('')}</g>${park}`;
+  // (The bank: a stone edge along the water.)
+  const bank = `<path class="m-bank" d="M0 ${RIVER_Y + 0.4} C60 ${RIVER_Y - 7.6} 120 ${RIVER_Y + 8.4} 180 ${RIVER_Y + 1.4} S260 ${RIVER_Y - 4.6} 300 ${RIVER_Y + 4.4}"/>`;
+  // Big roofs: a parapet just inside the edge (one path for them all).
+  const roofs = blds
+    .filter((b) => b.w > 9 && b.h > 9 && b.kind !== 'garage')
+    .map((b) => `M${f1(b.x + 1.1)} ${f1(b.y + 1.1)}h${f1(b.w - 2.2)}v${f1(b.h - 2.2)}h${f1(-(b.w - 2.2))}z`)
+    .join('');
+  return `${river}${bank}${rail}<g class="m-blocks">${blocks.join('')}</g>${lots.map(rect).join('')}<g class="m-blds">${blds.map(rect).join('')}</g><path class="m-roofs" d="${roofs}"/>${park}`;
 }
 /** Over the streets: what parts of town are called, landmarks that aren't places to go, a compass, the scale. */
 function overSvg(): string {
   const districts = [
-    [205, 34, 'DOWNTOWN'],
+    [195, 34, 'DOWNTOWN'],
     [62, 186, 'THE FLATS'],
     [226, 232, 'OLD TOWN'],
     [86, 352, 'SOUTHSIDE'],
   ]
     .map(([x, y, t]) => `<text class="m-district" x="${x}" y="${y}" text-anchor="middle">${t}</text>`)
     .join('');
-  // (The label sits under the mark; `side` puts it beside the mark instead, or above it, clear of a street name or a pin.)
+  // Landmarks: a small badge in the same style as the pins (the same glyphs), dead
+  // centre on its building; the name a fixed distance below it (beside or above, the
+  // same distance, where a street name or a pin would be in the way).
+  const R = 4;
+  const GAP = 2.2;
   const mark = (x: number, y: number, d: string, label: string, anchor = 'middle', side: 'below' | 'above' | 'beside' = 'below') => {
-    const tx = side === 'beside' ? (anchor === 'end' ? x - 5 : x + 5) : anchor === 'start' ? x - 3 : anchor === 'end' ? x + 3 : x;
-    const ty = side === 'beside' ? y + 2 : side === 'above' ? y - 5 : y + 8.6;
-    return `<g class="m-landmark"><circle cx="${x}" cy="${y}" r="3.6"/><path transform="translate(${x - 2.6} ${y - 2.6}) scale(0.22)" d="${d}"/><text x="${tx}" y="${ty}" text-anchor="${anchor}">${label}</text></g>`;
+    // (Below or above: centred, or starting at the badge's left edge, or ending at its right.)
+    const tx = side === 'beside' ? (anchor === 'end' ? x - R - GAP : x + R + GAP) : anchor === 'start' ? x - R : anchor === 'end' ? x + R : x;
+    const ty = side === 'beside' ? y : side === 'above' ? y - R - GAP : y + R + GAP;
+    const base = side === 'beside' ? 'central' : side === 'above' ? 'auto' : 'hanging';
+    return `<g class="m-landmark"><circle cx="${f1(x)}" cy="${f1(y)}" r="${R}"/><path transform="translate(${(x - 3).toFixed(2)} ${(y - 3).toFixed(2)}) scale(0.25)" d="${d}"/><text x="${f1(tx)}" y="${f1(ty)}" text-anchor="${anchor}" dominant-baseline="${base}">${label}</text></g>`;
   };
-  const marks = [
-    mark(66, 128, 'M12 2.5v19 M6 8h12 M7 21.5h10', 'ST. AGNES'),
-    mark(18, 223, 'M5 5h14v14H5z M8 12a4 4 0 1 0 8 0a4 4 0 1 0-8 0', 'LAUNDROMAT', 'start'),
-    mark(282, 30, 'M8 21.5l2-11h4l2 11 M7 10.5h10v-4a5 5 0 0 0-10 0z', 'WATER TOWER', 'end'),
-    mark(26, 292, 'M3 20h18 M5 20V9l7-5 7 5v11 M9 20v-6h6v6', 'SHELTER', 'start'),
-  ].join('');
-  // The bars, the school, the lock-ups by the river: small marks on their buildings.
+  // (Every one on its own building's middle.)
   const { blds } = layout();
   const at = (k: BuildingKind) => blds.filter((b) => b.kind === k);
-  const BAR = 'M5 4h14l-7 8z M12 12v8 M8 20.5h8';
-  const BAR_LABEL: Record<string, [string, 'below' | 'above' | 'beside']> = { 'Blue Lantern': ['start', 'above'], 'Low Tide': ['start', 'beside'], 'Rosie’s': ['end', 'beside'] };
+  const one = (k: BuildingKind, d: string, label: string, anchor = 'middle', side: 'below' | 'above' | 'beside' = 'below') =>
+    at(k).slice(0, 1).map((b) => mark(b.cx, b.cy, d, label, anchor, side));
+  const BAR_LABEL: Record<string, [string, 'below' | 'above' | 'beside']> = { 'Blue Lantern': ['start', 'above'], 'Low Tide': ['start', 'beside'], 'Anchor Room': ['start', 'below'], 'Rosie’s': ['end', 'beside'] };
+  const marks = [
+    ...one('church', PLACE_ICON.church, 'ST. AGNES', 'middle', 'above'),
+    ...one('laundromat', PLACE_ICON.laundromat, 'LAUNDROMAT', 'start'),
+    ...one('shelter', PLACE_ICON.shelter, 'SHELTER', 'start', 'beside'),
+    // (The water tower stands on a roof downtown: not a building of its own.)
+    mark(282, 30, PLACE_ICON.tower, 'WATER TOWER', 'end', 'beside'),
+  ].join('');
+  // The bars, the school, the lock-ups by the river.
   const extra = [
     // (Each bar's name placed clear of the streets' names and the pins around it.)
     ...at('bar').map((b) => {
       const name = (b.name ?? 'BAR').replace(/^The /, '');
       const [anchor, side] = BAR_LABEL[name] ?? ['middle', 'below'];
-      return mark(b.cx, b.cy, BAR, name.toUpperCase(), anchor, side);
+      return mark(b.cx, b.cy, PLACE_ICON.bar, name.toUpperCase(), anchor, side);
     }),
-    ...at('school').map((b) => mark(b.cx, b.cy, 'M3 9.5L12 5l9 4.5L12 14z M7 11.5v4.5c0 1.5 2.5 3 5 3s5-1.5 5-3v-4.5', 'SCHOOL')),
-    ...at('warehouse').slice(0, 1).map((b) => mark(b.cx, b.cy, 'M3 21V9l9-5 9 5v12 M7 21v-8h10v8', 'STORAGE')),
+    ...one('school', PLACE_ICON.school, 'SCHOOL'),
+    ...one('warehouse', PLACE_ICON.warehouse, 'STORAGE'),
   ].join('');
   // A compass, and how long a block is.
   const compass = `<g class="m-compass" transform="translate(288 64)"><circle r="7.5"/><path d="M0 -6L2 0H-2Z" class="n"/><path d="M0 6L2 0H-2Z"/><text y="-9.5" text-anchor="middle">N</text></g>`;
@@ -541,7 +559,10 @@ function overSvg(): string {
 }
 
 /** The streets themselves, as SVG: the curbs, then the asphalt, then the names. */
+let streetsCache: string | null = null;
 function streetsSvg(): string {
+  // (The same every time: drawn once.)
+  if (streetsCache) return streetsCache;
   const casing: string[] = [];
   const fill: string[] = [];
   const centre: string[] = [];
@@ -560,16 +581,30 @@ function streetsSvg(): string {
   }
   for (const [name, [x1, y1, x2, y2]] of Object.entries(STUBS)) {
     road(x1, y1, x2, y2, STUB_W);
-    if (x1 === x2) label(x1, (y1 + y2) / 2, -90, name);
+    // (Sorrel Ct's name low on it, clear of the bank's pin at the top.)
+    if (x1 === x2) label(x1, y2 - 13, -90, name);
     // (Left of centre: clear of the YOU marker at the corner of Grand and Ninth.)
     else label(x1 + (x2 - x1) * 0.37, y1, 0, name);
   }
   // Streets run across, avenues up and down (avenues on top, wider).
-  const stLabelAt: Record<string, number> = { 'Alder St': 60, 'Larkin St': 120, 'Pruitt St': 58, 'Ninth St': 240, 'Delmar St': 64, 'Bellamy St': 126, 'Ivy St': 240 };
+  const stLabelAt: Record<string, number> = { 'Alder St': 120, 'Larkin St': 60, 'Pruitt St': 58, 'Ninth St': 115, 'Delmar St': 64, 'Bellamy St': 126, 'Ivy St': 240 };
+  const stLine: string[] = [];
   for (const [name, y] of Object.entries(STS)) {
     road(0, y, MAP_W, y, ST_W);
+    stLine.push(`M0 ${y}H${MAP_W}`);
     label(stLabelAt[name] ?? 60, y, 0, name);
   }
+  centre.push(`<path class="st" d="${stLine.join('')}"/>`);
+  // A zebra crossing on each side of every corner (one path: the stripes are its dashes).
+  const zebra: string[] = [];
+  for (const x of Object.values(AVES))
+    for (const y of Object.values(STS)) {
+      const ox = AVE_W / 2 + 1.1;
+      const oy = ST_W / 2 + 1.1;
+      // (Across the avenue, above and below the street; across the street, either side of the avenue.)
+      zebra.push(`M${f1(x - AVE_W / 2 + 0.4)} ${f1(y - oy)}H${f1(x + AVE_W / 2 - 0.4)}`, `M${f1(x - AVE_W / 2 + 0.4)} ${f1(y + oy)}H${f1(x + AVE_W / 2 - 0.4)}`);
+      zebra.push(`M${f1(x - ox)} ${f1(y - ST_W / 2 + 0.4)}V${f1(y + ST_W / 2 - 0.4)}`, `M${f1(x + ox)} ${f1(y - ST_W / 2 + 0.4)}V${f1(y + ST_W / 2 - 0.4)}`);
+    }
   const aveLabelAt: Record<string, number[]> = { 'Kestrel Ave': [67, 342], 'Halsey Ave': [115, 281], 'Grand Ave': [67, 287], 'Fulton Ave': [140, 349], 'Cobb Ave': [232, 62] };
   for (const [name, x] of Object.entries(AVES)) {
     road(x, 0, x, RIVER_Y, AVE_W);
@@ -588,7 +623,8 @@ function streetsSvg(): string {
     `<linearGradient id="m-water" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f1a22"/><stop offset="1" stop-color="#0a1218"/></linearGradient>` +
     `<filter id="m-shade" x="-5%" y="-5%" width="110%" height="110%"><feDropShadow dx="0.7" dy="0.9" stdDeviation="0.35" flood-color="#000" flood-opacity="0.75"/></filter>` +
     `</defs>`;
-  return `<svg class="map-streets" viewBox="0 0 ${MAP_W} ${MAP_H}" preserveAspectRatio="none" aria-hidden="true">${defs}<rect width="${MAP_W}" height="${MAP_H}" fill="#0b0c0d"/>${decorSvg()}<g class="m-casing">${casing.join('')}</g><g class="m-road">${fill.join('')}</g><g class="m-centre">${centre.join('')}</g><g class="m-labels">${labels.join('')}</g>${overSvg()}</svg>`;
+  streetsCache = `<svg class="map-streets" viewBox="0 0 ${MAP_W} ${MAP_H}" preserveAspectRatio="none" aria-hidden="true">${defs}<rect width="${MAP_W}" height="${MAP_H}" fill="#0b0c0d"/>${decorSvg()}<g class="m-casing">${casing.join('')}</g><g class="m-road">${fill.join('')}</g><path class="m-zebra" d="${zebra.join('')}"/><g class="m-centre">${centre.join('')}</g><g class="m-labels">${labels.join('')}</g>${overSvg()}</svg>`;
+  return streetsCache;
 }
 
 /** The map, with everything on it (and the building you've tapped, outlined). */

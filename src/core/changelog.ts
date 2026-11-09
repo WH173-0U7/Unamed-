@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.86',
+    date: 'Nov 10',
+    items: [
+      'The map got a cleaner look: every icon in one matching style, pins sitting right on their buildings, and corners marked with small diamonds.',
+      'Streets have curbs, crosswalks and center lines; buildings have roof edges; the river has a stone bank. Labels no longer pile on top of each other.',
+      'The courthouse shows scales of justice now, so it doesn’t look like the bank.',
+    ],
+  },
+  {
     v: '2.85',
     date: 'Nov 10',
     items: [

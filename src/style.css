@@ -5171,31 +5171,41 @@ body[data-drug='withdrawal'] #game {
 .map-pin {
   position: absolute;
   /* (Smaller on a smaller map, so they don't pile up.) */
-  width: min(30px, 10.5%);
+  width: min(26px, 9%);
   height: auto;
   aspect-ratio: 1;
   margin: 0;
-  padding: 5px;
+  /* (Every pin the same: one disc, one ring, the glyph in the middle of it.) */
+  padding: 0;
+  display: grid;
+  place-items: center;
   translate: -50% -50%;
   border: 0;
   border-radius: 50%;
   color: var(--pin);
-  background: radial-gradient(circle, color-mix(in srgb, var(--pin) 22%, #000) 0 55%, color-mix(in srgb, var(--pin) 8%, #000) 56%);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pin) 55%, transparent), 0 0 10px color-mix(in srgb, var(--pin) 25%, transparent);
+  background: color-mix(in srgb, var(--pin) 12%, #0e0f10);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--pin) 70%, transparent), 0 1px 3px rgba(0, 0, 0, 0.8), 0 0 8px color-mix(in srgb, var(--pin) 18%, transparent);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 .map-pin svg {
   display: block;
-  width: 100%;
-  height: 100%;
-  filter: drop-shadow(0.6px 0 rgba(255, 36, 72, 0.5)) drop-shadow(-0.6px 0 rgba(0, 224, 255, 0.45));
+  width: 62%;
+  height: 62%;
 }
 .map-pin[data-tone='place'] { --pin: var(--ink); }
 .map-pin[data-tone='shut'] { --pin: rgba(236, 235, 230, 0.38); }
 .map-pin[data-tone='home'] { --pin: var(--loot-keys); }
 .map-pin[data-tone='car'] { --pin: var(--loot-card); }
-.map-pin[data-tone='corner'] { --pin: #e8c66a; width: min(20px, 7%); padding: 4px; }
+/* A corner you could work: a small diamond, not a button-looking "+". */
+.map-pin[data-tone='corner'] {
+  --pin: #e8c66a;
+  width: min(12px, 4.4%);
+  border-radius: 2px;
+  rotate: 45deg;
+  background: color-mix(in srgb, var(--pin) 30%, #0e0f10);
+}
+.map-pin[data-tone='corner'] svg { display: none; }
 .map-card[data-tone='corner'] { --pin: #e8c66a; }
 /* The building you've tapped: outlined on the map (taps go through it, to the map). */
 .map-sel {
@@ -5274,7 +5284,7 @@ body[data-drug='withdrawal'] #game {
 }
 .map-pin.picked {
   z-index: 2;
-  box-shadow: 0 0 0 2px var(--pin), 0 0 16px color-mix(in srgb, var(--pin) 55%, transparent);
+  box-shadow: inset 0 0 0 2px var(--pin), 0 0 0 2px rgba(0, 0, 0, 0.7), 0 0 14px color-mix(in srgb, var(--pin) 55%, transparent);
 }
 /* You are here: a slow pulse. */
 .map-pin.here {
@@ -6466,11 +6476,31 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
   filter: url(#m-shade);
 }
 .map-streets .m-blds rect {
-  stroke: rgba(0, 0, 0, 0.55);
-  stroke-width: 0.3;
+  /* (A roof edge catching a little light.) */
+  stroke: rgba(236, 235, 230, 0.09);
+  stroke-width: 0.35;
+}
+/* Big roofs: a parapet just inside the edge. */
+.map-streets .m-roofs {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 0.45;
+}
+/* Crossings at the corners, and a dashed line down the middle of the streets. */
+.map-streets .m-zebra {
+  fill: none;
+  stroke: rgba(225, 224, 216, 0.16);
+  stroke-width: 1.5;
+  stroke-dasharray: 0.55 0.55;
+}
+.map-streets .m-bank {
+  fill: none;
+  stroke: rgba(160, 170, 160, 0.14);
+  stroke-width: 0.6;
 }
 .map-streets .m-casing line {
-  stroke: #050506;
+  /* (The curb: a pale edge between the sidewalk and the road.) */
+  stroke: #3a3b3f;
   stroke-linecap: butt;
 }
 .map-streets .m-casing line.bridge {
@@ -6480,10 +6510,16 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
   stroke: #2a2b2e;
   stroke-linecap: butt;
 }
-.map-streets .m-centre line {
+.map-streets .m-centre line,
+.map-streets .m-centre path {
+  fill: none;
   stroke: rgba(214, 196, 140, 0.22);
   stroke-width: 0.35;
   stroke-dasharray: 2.4 2.4;
+}
+.map-streets .m-centre path.st {
+  stroke: rgba(225, 224, 216, 0.1);
+  stroke-width: 0.3;
 }
 .map-streets .m-labels text {
   font: 600 4.7px var(--font-ui);
@@ -6503,14 +6539,14 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
   paint-order: stroke;
 }
 .map-streets .m-landmark circle {
-  fill: #24262a;
-  stroke: rgba(236, 235, 230, 0.3);
-  stroke-width: 0.4;
+  fill: #141517;
+  stroke: rgba(236, 235, 230, 0.5);
+  stroke-width: 0.45;
 }
 .map-streets .m-landmark path {
   fill: none;
-  stroke: rgba(236, 235, 230, 0.7);
-  stroke-width: 3.6;
+  stroke: rgba(236, 235, 230, 0.8);
+  stroke-width: 2.2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }

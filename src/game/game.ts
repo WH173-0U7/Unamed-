@@ -8028,7 +8028,9 @@ export class Game {
       const shut = !!p.hours && !isOpen(p.hours);
       const hours = p.id === 'street' ? '' : p.hours ? `<i class="${shut ? 'shut' : 'open'}">${hoursText(p.hours)}</i>` : '<i class="open">Open all hours</i>';
       const small = p.id === 'street' ? `${corner.name}. ${feel(corner.bar ? 'bar' : corner.district)}${this.nearSchool() ? ' A block from the school: get caught selling here and it’s a federal charge.' : ''}` : `${(at as { addr: string }).addr}. ${p.desc}${hours}`;
-      spots.push({ key: `place:${p.id}`, x: at.x, y: at.y, icon: PLACE_ICON[p.id] ?? PLACE_ICON.street, tone: shut ? 'shut' : 'place', name: p.id === 'street' ? 'Your corner' : p.name, small, go: `data-place="${p.id}"`, bld: buildingOfPlace(p.id) });
+      // (The pin stands on its building, dead centre: not at the address's spot on the street.)
+      const pb = p.id === 'street' ? undefined : buildingOfPlace(p.id);
+      spots.push({ key: `place:${p.id}`, x: pb ? pb.cx : at.x, y: pb ? pb.cy : at.y, icon: PLACE_ICON[p.id] ?? PLACE_ICON.street, tone: shut ? 'shut' : 'place', name: p.id === 'street' ? 'Your corner' : p.name, small, go: `data-place="${p.id}"`, bld: pb });
     }
     // The other corners you could work.
     for (const c of CORNERS) {
@@ -8085,7 +8087,7 @@ export class Game {
           .map((x) => `<button type="button" data-mappick="${x.key}" data-tone="${x.tone}" class="${x === picked ? 'on' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${x.icon}"/></svg><span><b>${x.name}</b><small>${x === here ? 'You’re here' : `${blocksBetween(here, x) ? `${blocksBetween(here, x)} block${blocksBetween(here, x) === 1 ? '' : 's'} away` : 'Just round the corner'} · ${x.small.replace(/<[^>]+>/g, '').split(' · ')[0]}`}</small></span></button>`)
           .join('')}</div>`
       : '';
-    return `${mapHtml(marks, picked.bld, this.mapView)}${card}<p class="map-hint">Tap any building on the map, a pin, or a corner (+)${mine.length ? ', or an address below' : ''}. Pinch, or use the zoom buttons, to look closer.</p>${list}`;
+    return `${mapHtml(marks, picked.bld, this.mapView)}${card}<p class="map-hint">Tap any building on the map, a pin, or a corner (◆)${mine.length ? ', or an address below' : ''}. Pinch, or use the zoom buttons, to look closer.</p>${list}`;
   }
   // ---------- The buildings on the map: what each one is for ----------
 

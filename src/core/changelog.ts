@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.89',
+    date: 'Nov 10',
+    items: [
+      'Map buildings have clear outlines, so you can tell where one ends and the next begins.',
+      'Not every building is a box anymore: some are L-shaped, notched, built around a courtyard, or cut along a diagonal street. Tapping one outlines its real shape.',
+    ],
+  },
+  {
     v: '2.88',
     date: 'Nov 10',
     items: [

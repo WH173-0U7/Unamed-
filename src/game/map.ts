@@ -186,6 +186,8 @@ export interface Building {
   name?: string;
   /** Its grey, on the map. */
   fill: string;
+  /** Its footprint, when it isn't a plain rectangle (an L, a notch, a courtyard, a corner cut along a slanted road): corners in order, clockwise. Always inside x, y, w, h, and never over its centre. */
+  shape?: [number, number][];
 }
 /** Somewhere to stand and sell: a corner. */
 export interface Corner {
@@ -269,7 +271,7 @@ function layout() {
       const r = rnd(i * 13 + 1, j * 7 + 2);
       const tone = (k: number) => {
         const t = rnd(i * 31 + k, j * 17 + k);
-        const g = Math.round(d === 'downtown' ? 48 + t * 18 : 40 + t * 20);
+        const g = Math.round(d === 'downtown' ? 46 + t * 24 : 36 + t * 26);
         return `rgb(${g},${g},${g + 3})`;
       };
       const bld = (x: number, y: number, bw: number, bh: number, k: number, kind: BuildingKind) => {
@@ -381,9 +383,127 @@ function layout() {
   edge.slice(0, 5).forEach((b) => (b.kind = 'warehouse'));
   const VACANT: Record<District, number> = { southside: 0.08, flats: 0.05, oldtown: 0.025, downtown: 0 };
   for (const b of blds) if ((b.kind === 'house' || b.kind === 'rowhouse') && hash(`${b.id}:empty`) < VACANT[b.district]) b.kind = 'vacant';
+  for (const b of blds) b.shape = shapeOf(b);
   plan = { blocks, lots, blds };
   return plan;
 }
+
+/**
+ * Not every building's a box: some are an L, a T, a U round a courtyard, or a
+ * box with a corner notched out; the ones on a slanted road have the corner
+ * cut along it. The big ones most often, row houses seldom (a row should read
+ * as a row). Decided by the building's id, so it's the same every time. The
+ * cuts never reach the middle, so its pin always stands on it.
+ */
+/** A well-mixed 0..1 from a string (for shapes only: the plain hash clusters on near-identical ids). */
+const mix = (str: string) => {
+  let h = Math.round(hash(str) * 4294967295) >>> 0;
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967295;
+};
+function shapeOf(b: Building): [number, number][] | undefined {
+  const { x, y, w, h } = b;
+  if (w < 3.2 || h < 3.2) return undefined;
+  const u = mix(`${b.id}:shape`);
+  const v = mix(`${b.id}:shape2`);
+  // Clockwise from the top left, a cut corner made of the points given.
+  const box = (k: number, cut: [number, number][]) => {
+    const c: [number, number][] = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+    return [...c.slice(0, k), ...cut, ...c.slice(k + 1)];
+  };
+  const row = b.kind === 'rowhouse' || b.kind === 'garage' || b.kind === 'vacant';
+  // (A row house only right on the road; anything bigger, if it's near.)
+  const nearRoad = SLANTS.find((r) => roadToRect(r, x, y, w, h) < ROAD_W / 2 + (row ? 2.4 : 5.5));
+  // On a slanted road: the corner nearest it, cut parallel to it (a row house, less often).
+  if (nearRoad && w > 4 && h > 4 && u < (row ? 0.6 : 0.85)) {
+    const [x1, y1, x2, y2] = nearRoad;
+    const corners: [number, number][] = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+    // (Only the corners a cut along this road can run across: top right or bottom left on a road running down to the right.)
+    const down = (x2 - x1) * (y2 - y1) > 0;
+    let k = -1;
+    let best = Infinity;
+    corners.forEach(([px, py], i) => {
+      if (down ? i % 2 === 0 : i % 2 === 1) return;
+      const d = distTo(px, py, nearRoad);
+      if (d < best) {
+        best = d;
+        k = i;
+      }
+    });
+    if (k < 0) return undefined;
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    const ux = Math.abs((x2 - x1) / len);
+    const uy = Math.abs((y2 - y1) / len);
+    const t = Math.min((0.46 * w) / ux, (0.46 * h) / uy);
+    const a = t * ux; // along the top or bottom
+    const c = t * uy; // along the side
+    const [px, py] = corners[k];
+    const sx = k === 0 || k === 3 ? 1 : -1;
+    const sy = k === 0 || k === 1 ? 1 : -1;
+    // (Clockwise: the point on the edge coming in, then the one going out.)
+    const pts: [number, number][] = k === 0 || k === 2 ? [[px, py + sy * c], [px + sx * a, py]] : [[px + sx * a, py], [px, py + sy * c]];
+    return box(k, pts);
+  }
+  const area = w * h;
+  const big = (area > 70 && !row) || b.kind === 'warehouse' || b.kind === 'school' || b.kind === 'church' || b.kind === 'shelter' || b.kind === 'tower';
+  const odds = b.kind === 'school' || b.kind === 'church' || b.kind === 'shelter' || b.kind === 'warehouse' ? 0.95 : big ? 0.65 : row ? 0.13 : area > 28 ? 0.4 : 0.15;
+  if (u >= odds) return undefined;
+  const corner = Math.floor(v * 4);
+  const [cx0, cy0, cx1, cy1] = [x, y, x + w, y + h];
+  const pick = mix(`${b.id}:kind`);
+  // A courtyard, open on one side (big ones only).
+  if (big && w > 9 && h > 9 && pick < 0.25) {
+    const cw = w * 0.36;
+    const cd = h * 0.34;
+    const ax = x + (w - cw) / 2;
+    return corner % 2
+      ? [[cx0, cy0], [ax, cy0], [ax, cy0 + cd], [ax + cw, cy0 + cd], [ax + cw, cy0], [cx1, cy0], [cx1, cy1], [cx0, cy1]]
+      : [[cx0, cy0], [cx1, cy0], [cx1, cy1], [ax + cw, cy1], [ax + cw, cy1 - cd], [ax, cy1 - cd], [ax, cy1], [cx0, cy1]];
+  }
+  // A T: both corners off one long side.
+  if (w > 7 && pick < 0.45) {
+    const cw = w * 0.28;
+    const cd = h * 0.38;
+    return corner % 2
+      ? [[cx0 + cw, cy0], [cx1 - cw, cy0], [cx1 - cw, cy0 + cd], [cx1, cy0 + cd], [cx1, cy1], [cx0, cy1], [cx0, cy0 + cd], [cx0 + cw, cy0 + cd]]
+      : [[cx0, cy0], [cx1, cy0], [cx1, cy1 - cd], [cx1 - cw, cy1 - cd], [cx1 - cw, cy1], [cx0 + cw, cy1], [cx0 + cw, cy1 - cd], [cx0, cy1 - cd]];
+  }
+  // An L (a big bite out of a corner), or a small notch.
+  const f = pick < 0.75 ? 0.4 : 0.24;
+  const cw = w * f;
+  const cd = h * f;
+  const c: [number, number][] = [[cx0, cy0], [cx1, cy0], [cx1, cy1], [cx0, cy1]];
+  const [px, py] = c[corner];
+  const sx = corner === 0 || corner === 3 ? 1 : -1;
+  const sy = corner === 0 || corner === 1 ? 1 : -1;
+  const pts: [number, number][] = corner === 0 || corner === 2
+    ? [[px, py + sy * cd], [px + sx * cw, py + sy * cd], [px + sx * cw, py]]
+    : [[px + sx * cw, py], [px + sx * cw, py + sy * cd], [px, py + sy * cd]];
+  return box(corner, pts);
+}
+/** A building's footprint as SVG path data. */
+export const shapePath = (b: Building, grow = 0): string => {
+  if (!b.shape) return `M${f1(b.x - grow)} ${f1(b.y - grow)}h${f1(b.w + grow * 2)}v${f1(b.h + grow * 2)}h${f1(-(b.w + grow * 2))}z`;
+  // (Grown outward from its middle: near enough, for an outline.)
+  const pts = grow ? b.shape.map(([px, py]) => [px + Math.sign(px - b.cx) * grow, py + Math.sign(py - b.cy) * grow]) : b.shape;
+  return `M${pts.map(([px, py]) => `${f1(px)} ${f1(py)}`).join('L')}z`;
+};
+/** Inside its footprint. */
+const inShape = (pts: [number, number][], x: number, y: number) => {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i];
+    const [xj, yj] = pts[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+};
+/** How far a point is from a footprint's edge. */
+const toShape = (pts: [number, number][], x: number, y: number) => Math.min(...pts.map(([ax, ay], i) => distTo(x, y, [ax, ay, pts[(i + 1) % pts.length][0], pts[(i + 1) % pts.length][1]])));
 
 /** Every building on the map, and every parking lot. */
 export const buildings = (): Building[] => {
@@ -423,7 +543,9 @@ export function buildingAt(x: number, y: number, reach = 5): Building | undefine
     // (Inside it: the smallest one you're inside wins, a shed over the lot it's on.)
     const dx = Math.max(b.x - x, 0, x - (b.x + b.w));
     const dy = Math.max(b.y - y, 0, y - (b.y + b.h));
-    const d = Math.hypot(dx, dy) + (dx || dy ? 0 : -1000 + (b.w * b.h) / 1e4);
+    // (Not a box: inside its outline, or how far from it.)
+    const off = b.shape && !dx && !dy && !inShape(b.shape, x, y) ? toShape(b.shape, x, y) : 0;
+    const d = off || Math.hypot(dx, dy) + (dx || dy ? 0 : -1000 + (b.w * b.h) / 1e4);
     if (d < bd) {
       bd = d;
       best = b;
@@ -484,6 +606,27 @@ export function buildingAddr(b: Building, unit = ''): string {
 function decorSvg(): string {
   const { blocks, lots, blds } = layout();
   const rect = (b: Building) => `<rect x="${f1(b.x)}" y="${f1(b.y)}" width="${f1(b.w)}" height="${f1(b.h)}" fill="${b.fill}"/>`;
+  // A building: a box, or its own outline.
+  const foot = (b: Building) => (b.shape ? `<path d="${shapePath(b)}" fill="${b.fill}"/>` : rect(b));
+  // The lit edges, where the light comes from (up and to the left), a hair inside: one path for them all.
+  const lit = blds
+    .map((b) => {
+      const pts = b.shape ?? [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]];
+      return pts
+        .map(([ax, ay], i) => {
+          const [bx, by] = pts[(i + 1) % pts.length];
+          const len = Math.hypot(bx - ax, by - ay);
+          if (len < 0.8) return '';
+          // (Clockwise, on a screen: the outward side is to the left of the way the edge runs.)
+          const nx = (by - ay) / len;
+          const ny = -(bx - ax) / len;
+          if (nx * -0.6 + ny * -0.8 <= 0.2) return '';
+          const k = 0.32;
+          return `M${f1(ax - nx * k)} ${f1(ay - ny * k)}L${f1(bx - nx * k)} ${f1(by - ny * k)}`;
+        })
+        .join('');
+    })
+    .join('');
   // The park: lawn, trees, a path that winds, the pond.
   const trees = Array.from({ length: 22 }, (_, k) => {
     const x = 156 + rnd(k, 11) * 48;
@@ -501,10 +644,10 @@ function decorSvg(): string {
   const bank = `<path class="m-bank" d="M0 ${RIVER_Y + 0.4} C60 ${RIVER_Y - 7.6} 120 ${RIVER_Y + 8.4} 180 ${RIVER_Y + 1.4} S260 ${RIVER_Y - 4.6} 300 ${RIVER_Y + 4.4}"/>`;
   // Big roofs: a parapet just inside the edge (one path for them all).
   const roofs = blds
-    .filter((b) => b.w > 9 && b.h > 9 && b.kind !== 'garage')
+    .filter((b) => b.w > 9 && b.h > 9 && b.kind !== 'garage' && !b.shape)
     .map((b) => `M${f1(b.x + 1.1)} ${f1(b.y + 1.1)}h${f1(b.w - 2.2)}v${f1(b.h - 2.2)}h${f1(-(b.w - 2.2))}z`)
     .join('');
-  return `${river}${bank}${rail}<g class="m-blocks">${blocks.join('')}</g>${lots.map(rect).join('')}<g class="m-blds">${blds.map(rect).join('')}</g><path class="m-roofs" d="${roofs}"/>${park}`;
+  return `${river}${bank}${rail}<g class="m-blocks">${blocks.join('')}</g>${lots.map(rect).join('')}<g class="m-blds">${blds.map(foot).join('')}</g><path class="m-lit" d="${lit}"/><path class="m-roofs" d="${roofs}"/>${park}`;
 }
 /** Over the streets: what parts of town are called, landmarks that aren't places to go, a compass, the scale. */
 function overSvg(): string {
@@ -636,7 +779,7 @@ export function mapHtml(marks: MapMark[], sel?: Building, zoom = { z: 1, tx: 0, 
     )
     .join('');
   const outline = sel
-    ? `<svg class="map-sel" viewBox="0 0 ${MAP_W} ${MAP_H}" preserveAspectRatio="none" aria-hidden="true"><rect x="${f1(sel.x - 1.2)}" y="${f1(sel.y - 1.2)}" width="${f1(sel.w + 2.4)}" height="${f1(sel.h + 2.4)}" rx="1"/></svg>`
+    ? `<svg class="map-sel" viewBox="0 0 ${MAP_W} ${MAP_H}" preserveAspectRatio="none" aria-hidden="true">${sel.shape ? `<path d="${shapePath(sel, 1.2)}"/>` : `<rect x="${f1(sel.x - 1.2)}" y="${f1(sel.y - 1.2)}" width="${f1(sel.w + 2.4)}" height="${f1(sel.h + 2.4)}" rx="1"/>`}</svg>`
     : '';
   const ctl =
     `<div class="map-zoomctl">` +

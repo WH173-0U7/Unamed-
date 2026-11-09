@@ -5253,7 +5253,8 @@ body[data-drug='withdrawal'] #game {
   height: 100%;
   pointer-events: none;
 }
-.map-sel rect {
+.map-sel rect,
+.map-sel path {
   fill: rgba(255, 107, 127, 0.18);
   stroke: #ff6b7f;
   stroke-width: 0.9;
@@ -6513,9 +6514,17 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
 .map-streets .m-blds {
   filter: url(#m-shade);
 }
-.map-streets .m-blds rect {
-  /* (A roof edge catching a little light.) */
-  stroke: rgba(236, 235, 230, 0.09);
+.map-streets .m-blds rect,
+.map-streets .m-blds path {
+  /* (A dark line round each one, so a row reads as so many buildings.) */
+  stroke: #0c0d0e;
+  stroke-width: 0.7;
+  stroke-linejoin: miter;
+}
+/* The roof edges that catch the light (top and left), a hair inside each one. */
+.map-streets .m-lit {
+  fill: none;
+  stroke: rgba(236, 235, 230, 0.15);
   stroke-width: 0.35;
 }
 /* Big roofs: a parapet just inside the edge. */

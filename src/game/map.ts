@@ -592,7 +592,7 @@ function streetsSvg(): string {
 }
 
 /** The map, with everything on it (and the building you've tapped, outlined). */
-export function mapHtml(marks: MapMark[], sel?: Building): string {
+export function mapHtml(marks: MapMark[], sel?: Building, zoom = { z: 1, tx: 0, ty: 0 }): string {
   const pins = marks
     .map(
       (m) =>
@@ -602,5 +602,14 @@ export function mapHtml(marks: MapMark[], sel?: Building): string {
   const outline = sel
     ? `<svg class="map-sel" viewBox="0 0 ${MAP_W} ${MAP_H}" preserveAspectRatio="none" aria-hidden="true"><rect x="${f1(sel.x - 1.2)}" y="${f1(sel.y - 1.2)}" width="${f1(sel.w + 2.4)}" height="${f1(sel.h + 2.4)}" rx="1"/></svg>`
     : '';
-  return `<div class="map">${streetsSvg()}${outline}${pins}</div>`;
+  const ctl =
+    `<div class="map-zoomctl">` +
+    `<button type="button" data-mapzoom="in" aria-label="Zoom in"${zoom.z >= MAP_ZMAX - 0.01 ? ' disabled' : ''}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></button>` +
+    `<button type="button" data-mapzoom="out" aria-label="Zoom out"${zoom.z <= 1.01 ? ' disabled' : ''}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12"/></svg></button>` +
+    `</div>`;
+  return `<div class="map${zoom.z > 1.01 ? ' zoomed' : ''}"><div class="map-zoom" style="${zoomStyle(zoom)}">${streetsSvg()}${outline}${pins}</div>${ctl}</div>`;
 }
+/** How far the map zooms in. */
+export const MAP_ZMAX = 5;
+/** The zoomed layer's place: scaled by z from its top left, then moved by (tx, ty) parts of the map's size. */
+export const zoomStyle = (v: { z: number; tx: number; ty: number }) => `--z:${v.z.toFixed(3)};transform:translate(${(v.tx * 100).toFixed(3)}%,${(v.ty * 100).toFixed(3)}%) scale(${v.z.toFixed(3)})`;

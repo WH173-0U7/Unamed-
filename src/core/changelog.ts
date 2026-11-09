@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.83',
+    date: 'Nov 10',
+    items: [
+      'The map zooms: pinch it, or use the + and − buttons. Zoomed in, drag it around with one finger.',
+      'Tapping a building, a pin or an address now zooms in on it, so small buildings are easy to pick.',
+    ],
+  },
+  {
     v: '2.82',
     date: 'Nov 10',
     items: [

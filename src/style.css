@@ -5220,6 +5220,57 @@ body[data-drug='withdrawal'] #game {
   opacity: 0.75;
 }
 .sheet-body.places .map { cursor: pointer; }
+.sheet-body.places .map { touch-action: pan-y; }
+.sheet-body.places .map.zoomed { touch-action: none; cursor: grab; }
+/* The zoomed layer: the streets, the outline and the pins, scaled together. */
+.map-zoom {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+.map-zoom.slide { transition: transform 0.38s cubic-bezier(0.2, 0.7, 0.2, 1); }
+/* (Pins stay their size however far in you go.) */
+.map-zoom .map-pin { scale: calc(1 / var(--z, 1)); }
+.map-zoomctl {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.map-zoomctl button {
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 8px;
+  border: 0;
+  border-radius: 50%;
+  color: var(--ink);
+  background: rgba(10, 10, 11, 0.82);
+  box-shadow: 0 0 0 1px var(--line), 0 2px 8px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.map-zoomctl button:disabled { opacity: 0.35; cursor: default; }
+.map-zoomctl svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-zoom.slide { transition: none; }
+}
+/* (A short landscape map: smaller buttons, so they don't cover it.) */
+@media (max-height: 440px) {
+  .map-zoomctl { right: 4px; bottom: 4px; gap: 4px; }
+  .map-zoomctl button { width: 30px; height: 30px; padding: 7px; }
+}
 .map-pin.picked {
   z-index: 2;
   box-shadow: 0 0 0 2px var(--pin), 0 0 16px color-mix(in srgb, var(--pin) 55%, transparent);

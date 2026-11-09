@@ -1913,6 +1913,13 @@ body.in-game #menu {
   grid-template-columns: repeat(4, auto);
   gap: 6px 22px;
   margin: 6px 0 0;
+  max-width: 100%;
+}
+@media (max-width: 400px) {
+  .death-sum {
+    grid-template-columns: repeat(2, auto);
+    gap: 8px 28px;
+  }
 }
 .death-sum dt {
   font-size: 10px;
@@ -4256,7 +4263,7 @@ body[data-buttons] #enc .enc-extra button {
 /* Folded, each bar keeps its value on the same line (two bars, two lines). */
 #enc:not(.status-open)[data-stage='combat'] .enc-fighter .enc-bar,
 #enc:not(.status-open)[data-stage='over'] .enc-fighter .enc-bar {
-  grid-template-columns: 40px minmax(0, 1fr) auto;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
   gap: 0 5px;
 }
 #enc:not(.status-open)[data-stage='combat'] .enc-fighter .enc-bar em,
@@ -5919,7 +5926,7 @@ body:has(.lockup) #pause-btn {
 @media (max-height: 340px) {
   /* (Folded: just the bars, a real length; tap for the numbers.) */
   #enc:not(.status-open) .enc-fighter .enc-bar {
-    grid-template-columns: 34px minmax(40px, 1fr) !important;
+    grid-template-columns: 52px minmax(24px, 1fr) !important;
   }
   #enc:not(.status-open) .enc-fighter .enc-bar em {
     display: none !important;
@@ -6917,9 +6924,20 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
     transform: translate(-50%, -14px);
   }
 }
+@keyframes floater-fade-down {
+  0%,
+  70% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .floater.down.go {
-    animation-name: floater-fade;
+    animation-name: floater-fade-down;
   }
 }
 /* ---------- Layout sweep (v2.74) ---------- */
@@ -7156,4 +7174,59 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
 }
 .stat-card h3 b {
   margin-left: auto;
+}
+
+/* ---------- Night layout sweep (v2.81) ---------- */
+/* Narrow phones: the date wraps instead of running into your status chips. */
+@media (max-width: 360px) {
+  #clock span {
+    max-width: 120px;
+    text-align: right;
+  }
+}
+/* Settings: a switch stays on the right of its label, even with a line under it. */
+.row:has(> .switch) > .label {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.row.slider {
+  grid-template-columns: auto minmax(90px, 1fr) 38px;
+}
+/* Greyed-out shop buttons: the reason why stays readable. */
+.shop-list button:disabled {
+  opacity: 1;
+  color: var(--ink-faint);
+}
+.lockup .lockup-btns .jail-giveup {
+  text-wrap: balance;
+}
+/* Short upright screens in a search or fight: the log gives way so every button can be reached. */
+@media (max-height: 600px) and (orientation: portrait) {
+  #enc:not(.log-open) .enc-actions {
+    flex: 0 1 auto;
+    min-height: 0;
+  }
+  #enc:not(.log-open) .enc-actions > .enc-opts:not(.enc-extra) {
+    min-height: 52px;
+  }
+}
+/* Sideways, a place's description is never cut off: three lines tall, the rest scrolls. */
+@media (orientation: landscape) and (max-height: 560px) {
+  #shop .shop-head p:not(.shop-hours) {
+    display: block;
+    -webkit-line-clamp: unset;
+    max-height: calc(3 * 1.25em);
+    line-height: 1.25;
+    padding-bottom: 2px;
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 8px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 8px), transparent);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+@media (orientation: landscape) and (max-height: 340px) {
+  #shop .shop-head p:not(.shop-hours) {
+    display: none;
+  }
 }

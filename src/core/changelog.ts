@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.81',
+    date: 'Nov 10',
+    items: [
+      'Working a bar now feels like a bar: no street or rain lines, you rest with your head on the bar, people are “across the bar”, and no going through the bins.',
+      'St. Agnes locks its doors from 8 PM to 7 AM. When the church or shelter closes on you, you end up back on the street, and the rest screen shows the closing time.',
+      'Shelter check-in is only from 7 PM to 4 AM. Your lock-up updates right away if the rent runs out while you’re standing there.',
+      'Screen fixes: the search screen’s bottom buttons fit on small phones, “Stamina” no longer runs into its bar, the date no longer bumps into your status tags, map labels no longer sit on top of each other, and the death screen fits with big cash amounts.',
+      'Smaller touches: Settings switches line up, greyed-out shop buttons are readable, place descriptions can be read in full sideways, and a few repeated or broken lines fixed.',
+    ],
+  },
+  {
     v: '2.80',
     date: 'Nov 10',
     items: [

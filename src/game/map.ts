@@ -27,7 +27,7 @@ export const PLACE_AT: Partial<Record<Place, { x: number; y: number; addr: strin
   gas: { x: 238, y: 285, addr: 'Fulton Ave and Delmar St' },
   pawn: { x: 118, y: 175, addr: 'Halsey Ave, off Pruitt St' },
   room: { x: 270, y: 178, addr: 'Cobb Ave, near Ninth St' },
-  fence: { x: 62, y: 230, addr: 'Behind the laundromat, off Ninth St' },
+  fence: { x: 71, y: 230, addr: 'Behind the laundromat, off Ninth St' },
   liquor: { x: 122, y: 285, addr: 'Grand Ave and Delmar St' },
   hospital: { x: 58, y: 66, addr: 'Kestrel Ave and Alder St' },
   guns: { x: 268, y: 340, addr: 'Cobb Ave, past Bellamy St' },
@@ -502,13 +502,17 @@ function overSvg(): string {
   const districts = [
     [205, 34, 'DOWNTOWN'],
     [62, 186, 'THE FLATS'],
-    [236, 248, 'OLD TOWN'],
+    [226, 232, 'OLD TOWN'],
     [86, 352, 'SOUTHSIDE'],
   ]
     .map(([x, y, t]) => `<text class="m-district" x="${x}" y="${y}" text-anchor="middle">${t}</text>`)
     .join('');
-  const mark = (x: number, y: number, d: string, label: string, anchor = 'middle') =>
-    `<g class="m-landmark"><circle cx="${x}" cy="${y}" r="3.6"/><path transform="translate(${x - 2.6} ${y - 2.6}) scale(0.22)" d="${d}"/><text x="${anchor === 'start' ? x - 3 : anchor === 'end' ? x + 3 : x}" y="${y + 8.6}" text-anchor="${anchor}">${label}</text></g>`;
+  // (The label sits under the mark; `side` puts it beside the mark instead, or above it, clear of a street name or a pin.)
+  const mark = (x: number, y: number, d: string, label: string, anchor = 'middle', side: 'below' | 'above' | 'beside' = 'below') => {
+    const tx = side === 'beside' ? (anchor === 'end' ? x - 5 : x + 5) : anchor === 'start' ? x - 3 : anchor === 'end' ? x + 3 : x;
+    const ty = side === 'beside' ? y + 2 : side === 'above' ? y - 5 : y + 8.6;
+    return `<g class="m-landmark"><circle cx="${x}" cy="${y}" r="3.6"/><path transform="translate(${x - 2.6} ${y - 2.6}) scale(0.22)" d="${d}"/><text x="${tx}" y="${ty}" text-anchor="${anchor}">${label}</text></g>`;
+  };
   const marks = [
     mark(66, 128, 'M12 2.5v19 M6 8h12 M7 21.5h10', 'ST. AGNES'),
     mark(18, 223, 'M5 5h14v14H5z M8 12a4 4 0 1 0 8 0a4 4 0 1 0-8 0', 'LAUNDROMAT', 'start'),
@@ -519,13 +523,19 @@ function overSvg(): string {
   const { blds } = layout();
   const at = (k: BuildingKind) => blds.filter((b) => b.kind === k);
   const BAR = 'M5 4h14l-7 8z M12 12v8 M8 20.5h8';
+  const BAR_LABEL: Record<string, [string, 'below' | 'above' | 'beside']> = { 'Blue Lantern': ['start', 'above'], 'Low Tide': ['start', 'beside'], 'Rosie’s': ['end', 'beside'] };
   const extra = [
-    ...at('bar').map((b) => mark(b.cx, b.cy, BAR, (b.name ?? 'BAR').replace(/^The /, '').toUpperCase())),
+    // (Each bar's name placed clear of the streets' names and the pins around it.)
+    ...at('bar').map((b) => {
+      const name = (b.name ?? 'BAR').replace(/^The /, '');
+      const [anchor, side] = BAR_LABEL[name] ?? ['middle', 'below'];
+      return mark(b.cx, b.cy, BAR, name.toUpperCase(), anchor, side);
+    }),
     ...at('school').map((b) => mark(b.cx, b.cy, 'M3 9.5L12 5l9 4.5L12 14z M7 11.5v4.5c0 1.5 2.5 3 5 3s5-1.5 5-3v-4.5', 'SCHOOL')),
     ...at('warehouse').slice(0, 1).map((b) => mark(b.cx, b.cy, 'M3 21V9l9-5 9 5v12 M7 21v-8h10v8', 'STORAGE')),
   ].join('');
   // A compass, and how long a block is.
-  const compass = `<g class="m-compass" transform="translate(281 64)"><circle r="7.5"/><path d="M0 -6L2 0H-2Z" class="n"/><path d="M0 6L2 0H-2Z"/><text y="-9.5" text-anchor="middle">N</text></g>`;
+  const compass = `<g class="m-compass" transform="translate(288 64)"><circle r="7.5"/><path d="M0 -6L2 0H-2Z" class="n"/><path d="M0 6L2 0H-2Z"/><text y="-9.5" text-anchor="middle">N</text></g>`;
   const scale = `<g class="m-scale"><rect x="3" y="20.5" width="62" height="11" rx="1.5"/><path d="M6 28.5h57 M6 26.5v4 M63 26.5v4 M34.5 27.5v2"/><text x="34.5" y="25.4" text-anchor="middle">1 BLOCK</text></g>`;
   return `<g class="m-districts">${districts}</g><g class="m-landmarks">${marks}${extra}</g>${compass}${scale}`;
 }
@@ -545,7 +555,7 @@ function streetsSvg(): string {
   for (const [name, [x1, y1, x2, y2]] of Object.entries(ROADS)) {
     road(x1, y1, x2, y2, ROAD_W);
     const a = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
-    const at = name === 'Tanner Rd' ? 0.47 : 0.6;
+    const at = name === 'Tanner Rd' ? 0.47 : 0.9;
     label(x1 + (x2 - x1) * at, y1 + (y2 - y1) * at, a, name);
   }
   for (const [name, [x1, y1, x2, y2]] of Object.entries(STUBS)) {
@@ -555,12 +565,12 @@ function streetsSvg(): string {
     else label(x1 + (x2 - x1) * 0.37, y1, 0, name);
   }
   // Streets run across, avenues up and down (avenues on top, wider).
-  const stLabelAt: Record<string, number> = { 'Alder St': 60, 'Larkin St': 120, 'Pruitt St': 60, 'Ninth St': 240, 'Delmar St': 60, 'Bellamy St': 120, 'Ivy St': 240 };
+  const stLabelAt: Record<string, number> = { 'Alder St': 60, 'Larkin St': 120, 'Pruitt St': 58, 'Ninth St': 240, 'Delmar St': 64, 'Bellamy St': 126, 'Ivy St': 240 };
   for (const [name, y] of Object.entries(STS)) {
     road(0, y, MAP_W, y, ST_W);
     label(stLabelAt[name] ?? 60, y, 0, name);
   }
-  const aveLabelAt: Record<string, number[]> = { 'Kestrel Ave': [67, 342], 'Halsey Ave': [122, 287], 'Grand Ave': [67, 287], 'Fulton Ave': [177, 342], 'Cobb Ave': [232, 122] };
+  const aveLabelAt: Record<string, number[]> = { 'Kestrel Ave': [67, 342], 'Halsey Ave': [115, 281], 'Grand Ave': [67, 287], 'Fulton Ave': [140, 349], 'Cobb Ave': [232, 62] };
   for (const [name, x] of Object.entries(AVES)) {
     road(x, 0, x, RIVER_Y, AVE_W);
     centre.push(`<line x1="${x}" y1="0" x2="${x}" y2="${RIVER_Y}"/>`);

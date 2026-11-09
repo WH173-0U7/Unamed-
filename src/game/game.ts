@@ -130,6 +130,8 @@ const MEAL_EVERY = 20 * 3_600_000;
 const SCHOOL_CHARGE = 'Distribution near a school';
 const pewHours = (t = now()) => ((h) => h >= 7 && h < 20)(new Date(t).getHours());
 const shelterHours = (t = now()) => ((h) => h >= 19 || h < 9)(new Date(t).getHours());
+/** When the shelter still takes people in: from seven, until the small hours (not just before they put everyone out). */
+const shelterCheckIn = (t = now()) => ((h) => h >= 19 || h < 4)(new Date(t).getHours());
 /** The next time it's this hour o'clock (the church locks at 8 PM, the shelter puts you out at 9 AM). */
 const nextAt = (hour: number, t = now()) => {
   const d = new Date(t);
@@ -1040,15 +1042,15 @@ export class Game {
         return;
       }
       this.encounter = null;
-      this.lieDown('street', [WET_AMOUNT[this.weather.now] > 0 ? `You find a doorway out of the ${isSnow(this.weather.now) ? 'snow' : 'rain'} and lie down.` : 'You find somewhere out of the way, sit down against the wall, and close your eyes.']);
+      this.lieDown('street', [this.atBar ? 'You fold your arms on the bar, put your head down, and close your eyes. Nobody stops you.' : WET_AMOUNT[this.weather.now] > 0 ? `You find a doorway out of the ${isSnow(this.weather.now) ? 'snow' : 'rain'} and lie down.` : 'You find somewhere out of the way, sit down against the wall, and close your eyes.']);
       return;
     }
     this.encounter = null;
     this.wipeBlood();
-    const raining = WET_AMOUNT[this.weather.now] > 0;
+    const raining = !this.atBar && WET_AMOUNT[this.weather.now] > 0;
     const lieAfter = fatigueNow(this.health) >= 3;
     this.health.restHealAt = now();
-    const lines = [raining ? `You find a doorway out of the ${isSnow(this.weather.now) ? 'snow' : 'rain'} and rest.` : 'You find somewhere quiet and rest.', ...passHours(this.health, REST_HOURS, true, !lieAfter)];
+    const lines = [this.atBar ? 'You take a booth at the back and rest.' : raining ? `You find a doorway out of the ${isSnow(this.weather.now) ? 'snow' : 'rain'} and rest.` : 'You find somewhere quiet and rest.', ...passHours(this.health, REST_HOURS, true, !lieAfter)];
     if (this.health.dead) return this.die(lines);
     const h = this.health;
     if (h.cold) {
@@ -1092,7 +1094,7 @@ export class Game {
     const el = document.createElement('div');
     el.id = 'rest';
     el.className = 'lockup';
-    const where = h.restWhere === 'room' ? 'In your room at the motel, the door wedged shut.' : h.restWhere === 'car' ? 'In the back seat, doors locked, windows fogged.' : h.restWhere === 'squat' ? 'In the back room of an empty house, out of sight of the street.' : h.restWhere === 'shelter' ? 'On a cot at the shelter, your shoes under your head so nobody takes them.' : h.restWhere === 'pew' ? 'On a back pew at St. Agnes, the candles guttering.' : WET_AMOUNT[this.weather.now] > 0 ? 'In a doorway, out of the weather, your back to the wall.' : 'Against a wall, out of the way, your eyes shut.';
+    const where = h.restWhere === 'room' ? 'In your room at the motel, the door wedged shut.' : h.restWhere === 'car' ? 'In the back seat, doors locked, windows fogged.' : h.restWhere === 'squat' ? 'In the back room of an empty house, out of sight of the street.' : h.restWhere === 'shelter' ? 'On a cot at the shelter, your shoes under your head so nobody takes them.' : h.restWhere === 'pew' ? 'On a back pew at St. Agnes, the candles guttering.' : this.atBar ? 'Head down on the bar, the jukebox going.' : WET_AMOUNT[this.weather.now] > 0 ? 'In a doorway, out of the weather, your back to the wall.' : 'Against a wall, out of the way, your eyes shut.';
     const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
     el.innerHTML =
       `<h2>Resting</h2>` +
@@ -1118,7 +1120,13 @@ export class Game {
     // that comes first, so being away past closing doesn't count as sleeping on.)
     if ((h.restWhere === 'pew' || h.restWhere === 'shelter') && (now() >= (h.restEnd ?? Infinity) || (h.restWhere === 'pew' ? !pewHours() : !shelterHours()))) {
       fatigueNow(h);
-      this.save.state.laterLines = [...((this.save.state.laterLines as string[] | undefined) ?? []), h.restWhere === 'pew' ? 'Someone shakes your shoulder: they’re locking up for the night.' : 'The lights come on and a volunteer walks the rows calling time. Everyone out.'];
+      this.save.state.laterLines = [...((this.save.state.laterLines as string[] | undefined) ?? []), h.restWhere === 'pew' ? 'Someone shakes your shoulder: they’re locking up for the night. You’re shown out onto the street.' : 'The lights come on and a volunteer walks the rows calling time. Everyone out, onto the street.'];
+      // (Out the door with everyone else: back on your corner.)
+      if (this.place === 'spot') {
+        this.place = 'street';
+        this.wasInside = this.inside;
+        this.insideAt = 'street';
+      }
       return this.getUp(false);
     }
     const f = fatigueNow(h);
@@ -1134,7 +1142,7 @@ export class Game {
     const two = (n: number) => String(n).padStart(2, '0');
     (el.querySelector('.rest-bar i') as HTMLElement).style.width = `${Math.max(0, 100 - f)}%`;
     el.querySelector('.jail-left')!.textContent = `${two(hh)}:${two(mm)}:${two(ss)} to fresh`;
-    el.querySelector('.jail-out')!.textContent = `${FATIGUE_NAMES[fatigueLevel(Math.round(f))]} (${Math.round(f)} / 100) · rested by ${clockText(now() + restLeft(h))}`;
+    el.querySelector('.jail-out')!.textContent = `${FATIGUE_NAMES[fatigueLevel(Math.round(f))]} (${Math.round(f)} / 100) · ${h.restEnd != null && h.restEnd < now() + restLeft(h) ? `${h.restWhere === 'pew' ? 'they lock up at' : 'everyone out at'} ${clockText(h.restEnd)}` : `rested by ${clockText(now() + restLeft(h))}`}`;
   }
   /** Up again: rested, or not quite. */
   private getUp(rested: boolean) {
@@ -2093,7 +2101,7 @@ export class Game {
   }
 
   /** Walk somewhere else. */
-  private goTo(p: Place) {
+  private goTo(p: Place, arrive?: string[]) {
     this.roomView = 'room';
     // (Stopped by the police: you're not walking anywhere.)
     if (this.ending || this.save.state.policeStop) return;
@@ -2142,7 +2150,7 @@ export class Game {
     uiGlitch(p === 'street' ? this.view : this.shopEl, 0.55);
     const info = placeInfo(p);
     const inside = this.inside;
-    const lines = [
+    const lines = arrive ? [...arrive] : [
       !inside && info.indoors && p !== 'spot' ? `You get to the ${info.name}. The doors are locked.` : {
         street: 'You head back out into the street.',
         pharmacy: 'You walk to the all-night pharmacy.',
@@ -6106,7 +6114,7 @@ export class Game {
     return b;
   }
   private binsWhy(): string | null {
-    if (this.place !== 'street' || !this.canLurk) return 'Not now';
+    if (this.place !== 'street' || this.atBar || !this.canLurk) return 'Not now';
     if (fatigueNow(this.health) >= FATIGUE_SPENT) return 'Too worn out';
     return this.bins.left < 1 ? 'Picked clean. Give it a few hours.' : null;
   }
@@ -7893,7 +7901,7 @@ export class Game {
       `<div class="map-card-head"><span class="map-card-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${picked.icon}"/></svg></span><div><b>${picked.name}</b><small>${isHere ? 'You’re here.' : far ? `${far} block${far === 1 ? '' : 's'} from you.` : 'Just round the corner.'}</small></div></div>` +
       `<p>${picked.small}</p>` +
       (isHere || !picked.go ? '' : `<button type="button" class="map-go" ${picked.go}>${picked.key === 'place:street' ? 'Back out to your corner' : picked.tone === 'corner' ? 'Work this corner' : 'Walk there'}</button>`) +
-      (isHere && picked.key === 'place:street' ? ((why) => `<button type="button" class="map-go" data-bins ${why ? 'disabled' : ''}>Go through the bins${why ? `<small>${why}</small>` : ''}</button>`)(this.binsWhy()) : '') +
+      (isHere && picked.key === 'place:street' && !this.atBar ? ((why) => `<button type="button" class="map-go" data-bins ${why ? 'disabled' : ''}>Go through the bins${why ? `<small>${why}</small>` : ''}</button>`)(this.binsWhy()) : '') +
       (isHere ? '' : (picked.extra ?? '')) +
       `</div>`;
     // The addresses and cars you know, as buttons too: easier to tell apart than the pins.
@@ -7940,8 +7948,7 @@ export class Game {
     const c = this.corner;
     const line = c.bar ? `You find a stool at the end of the bar in ${c.name}, where you can see the door and the room.` : `You walk over to ${c.name} and find a spot to stand.`;
     if (this.place !== 'street') {
-      this.goTo('street');
-      this.note([line, CORNER_FEEL[c.bar ? 'bar' : c.district].blurb]);
+      this.goTo('street', [line, CORNER_FEEL[c.bar ? 'bar' : c.district].blurb, ...(this.nearSchool() ? ['There’s a school a block away. Get caught selling here and it’s a federal charge, with more time.'] : [])]);
       return;
     }
     this.closeSheet();
@@ -7952,6 +7959,10 @@ export class Game {
     this.note([line, CORNER_FEEL[c.bar ? 'bar' : c.district].blurb, ...(this.nearSchool() ? ['There’s a school a block away. Get caught selling here and it’s a federal charge, with more time.'] : [])]);
   }
 
+  /** Working a bar's room (on the street, as far as places go, but under a roof). */
+  private get atBar(): boolean {
+    return this.place === 'street' && !!this.corner.bar;
+  }
   /** The building you've walked into (a bar, the church, an empty house), if that's where you are. */
   private get atSpot(): Building | undefined {
     return this.place === 'spot' ? spotOf(this.save.state.spotAt) : undefined;
@@ -7965,6 +7976,11 @@ export class Game {
     const b = spotOf(id);
     if (!b || this.ending || this.save.state.policeStop) return;
     if (this.place === 'spot' && this.save.state.spotAt === id) return this.closeSheet();
+    // (The church locks its doors at night.)
+    if (b.kind === 'church' && !pewHours()) {
+      this.closeSheet();
+      return this.note([`You go up the steps of ${b.name ?? 'St. Agnes'}. The doors are locked for the night. They open again at seven.`]);
+    }
     if (this.place === 'spot') this.place = 'street';
     this.save.state.spotAt = id;
     this.goTo('spot');
@@ -8030,6 +8046,14 @@ export class Game {
     return here && now() > l.until ? [`The rent on the unit ran out. They give you ${LOCKUP_GRACE / 86_400_000} days, then cut the lock.`] : [];
   }
 
+  /** Standing at your own unit when the grace days run out: they come and cut the lock there and then. */
+  private tickLockup() {
+    const l = this.lockup;
+    if (!l || !this.running || this.atSpot?.id !== l.bld || now() <= l.until + LOCKUP_GRACE) return;
+    const lines = this.checkLockup();
+    this.refresh();
+    this.note(lines);
+  }
   /** A button inside one of the buildings. */
   private spotAct(what: string) {
     const b = this.atSpot;
@@ -8107,7 +8131,7 @@ export class Game {
       return;
     }
     if (what === 'bed' && b.kind === 'shelter') {
-      if (!shelterHours()) return;
+      if (!shelterCheckIn()) return;
       if (((this.save.state.shelterAt as number | undefined) ?? 0) >= shelterNight()) return;
       if (!tired) return this.note(['“Beds are for sleeping.” You’re not tired enough yet.']);
       // At the door: they go through your things, and keep what they don't allow.
@@ -8170,7 +8194,7 @@ export class Game {
       const last = (this.save.state.shelterAt as number | undefined) ?? 0;
       return {
         head: head(b.name ?? 'The shelter', 'A low brick building with a ramp, a buzzer and a sign: NO WEAPONS · NO DRUGS · NO ALCOHOL ON PREMISES. Beds from seven.'),
-        body: `<ul class="shop-list">${li('A bed for the night', 'Free. They search you at the door and keep any weapon or drugs they find.', btn('spotact', 'bed', 'Check in', (!shelterHours() && 'Beds from 7 PM') || (last >= shelterNight() && 'Once a night') || (!tired && 'Not tired')))}</ul>`,
+        body: `<ul class="shop-list">${li('A bed for the night', 'Free. They search you at the door and keep any weapon or drugs they find.', btn('spotact', 'bed', 'Check in', (!shelterCheckIn() && 'Beds from 7 PM') || (last >= shelterNight() && 'Once a night') || (!tired && 'Not tired')))}</ul>`,
       };
     }
     return { head: head('A building', ''), body: '' };
@@ -8186,7 +8210,7 @@ export class Game {
     if (this.place !== 'street') this.goTo('street');
     else this.closeSheet();
     if (this.place !== 'street') return;
-    this.startWork({ kind: 'watch', since: now(), until: now() + WATCH_MS, bld: b.id }, [`You find a doorway across from ${buildingAddr(b)}, light a cigarette you don’t smoke, and watch.`]);
+    this.startWork({ kind: 'watch', since: now(), until: now() + WATCH_MS, bld: b.id }, [`You light a cigarette you don’t smoke and settle in.`]);
   }
   /** The watch, done: who lives there (if you saw), or someone saw you. */
   private endWatch(w: Work, finished: boolean): string[] {
@@ -8199,7 +8223,10 @@ export class Game {
       const home = homeFor(b);
       this.learnHome(home, new Set([home.id]));
       return [
-        `A ${home.sex === 'Male' ? 'man' : 'woman'} comes out to the mailbox and goes back in. The name on the box: ${home.owner.split(' ').slice(-1)[0].toUpperCase()}.`,
+        ((who, name, hr) =>
+          hr >= 22 || hr < 6
+            ? `A ${who} comes home late, keys out, and lets ${who === 'man' ? 'himself' : 'herself'} in. A light goes on upstairs. The name on the box by the door: ${name}.`
+            : `A ${who} comes out to the mailbox and goes back in. The name on the box: ${name}.`)(home.sex === 'Male' ? 'man' : 'woman', home.owner.split(' ').slice(-1)[0].toUpperCase(), new Date(now()).getHours()),
         home.household === 'alone' ? 'Nobody else comes or goes. They live alone, by the look of it.' : 'Someone else is in there too: a voice through the window, a second shape behind the curtain.',
         ...(home.car ? [`A ${home.car} in front of it, theirs by the way they look at it.`] : []),
         `You know the address now: ${home.addr}. It’s on your map.`,
@@ -8276,7 +8303,7 @@ export class Game {
       `<section class="stat-card customers-card"><h3><span>Your customers</span><b>${STANDING_NAMES[lvl]}</b></h3>` +
       (Number.isFinite(next) ? `<div class="spot-bar status-bar"><i style="width:${Math.round(Math.min(100, (pts / next) * 100))}%"></i><span>${pts} / ${next}</span></div>` : '') +
       `<p class="stat-how">${sales} sold · ${regs.length} regular${regs.length === 1 ? '' : 's'}.${Number.isFinite(next) ? ` More sales and regulars make you a ${STANDING_NAMES[lvl + 1].toLowerCase()}.` : ''}</p>` +
-      (rows ? `<dl class="stat-now cust-list">${rows}${regs.length > 8 ? `<div><dt>And</dt><dd>${regs.length - 8} more</dd></div>` : ''}</dl>` : '') +
+      (rows ? `<dl class="stat-now cust-list">${rows}${regs.length > 8 ? `<div><dd>And ${regs.length - 8} more</dd></div>` : ''}</dl>` : '') +
       `</section>`
     );
   }
@@ -8909,7 +8936,7 @@ export class Game {
       r.className = 'seen-race';
       r.textContent = crowd.length
         ? what && !e.resident && !e.enforcer && !p.title ? what.replace(/^./, (x) => x.toUpperCase()) : ''
-        : e.resident || e.enforcer || p.title || !what ? 'Across the street' : `${what.replace(/^./, (x) => x.toUpperCase())}, across the street`;
+        : ((far) => (e.resident || e.enforcer || p.title || !what ? far.replace(/^./, (x) => x.toUpperCase()) : `${what.replace(/^./, (x) => x.toUpperCase())}, ${far}`))(this.atBar ? 'across the bar' : 'across the street');
       const tap = document.createElement('span');
       tap.className = 'seen-tap';
       tap.textContent = crowd.length ? 'Watching' : 'Tap to approach';
@@ -9516,6 +9543,7 @@ export class Game {
     // (The body first: hours spent inside or lying down heal as that, before the door opens or you get up.)
     this.healOnClock();
     this.tickCrowd();
+    this.tickLockup();
     if (this.jail && !this.dead) this.tickJail();
     else if (this.health.restingSince != null && !this.dead) this.tickRest();
     else if (this.work && !this.dead) this.tickWork();

@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.88',
+    date: 'Nov 10',
+    items: [
+      'Cans from the bins go wherever you have room: when one pocket’s full, the bag moves to a roomier pocket or a new bag starts in another one, and if only some fit you keep those.',
+      'The “more than you can carry” message uses the same numbers as your Pockets screen: what you’ve got on you, and your limit.',
+    ],
+  },
+  {
     v: '2.87',
     date: 'Nov 10',
     items: [

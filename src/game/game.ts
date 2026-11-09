@@ -6262,20 +6262,47 @@ export class Game {
     const m = measure(it);
     return `${f.line} You’ve nowhere to put it. ${noRoomWhy(inv, m.size, m.kg)}`;
   }
-  /** Cans into the bag of them you're carrying (or a new one). */
+  /** Cans into a bag of them you're carrying: topped up where there's room, moved to a roomier pocket, or a new bag somewhere else. */
   private addCans(n: number): string {
     const inv = this.inventory;
-    const have = inv.items.find((x) => x.name === 'Empty cans');
-    const sp = have && inv.spots.find((s) => s.id === have.spot);
-    const more = n * 0.015;
-    if (have && (!sp || usedKg(inv, sp.id) + more > sp.maxKg + 1e-9 || tooHeavy(inv, more))) return `${n} more can${n === 1 ? '' : 's'}, and nowhere to put ${n === 1 ? 'it' : 'them'}. ${noRoomWhy(inv, 'small', more)}`;
-    if (have) {
-      have.doses = (have.doses ?? 0) + n;
-      have.kg = Math.round((have.doses ?? 0) * 15) / 1000;
-      return `${n} more can${n === 1 ? '' : 's'}. ${have.doses} in all.`;
-    }
-    if (stow(inv, { kind: 'misc', name: 'Empty cans', detail: 'Rinsed out, crushed flat, in a plastic bag', doses: n, size: 'small', kg: Math.round(n * 15) / 1000 })) return `${n} can${n === 1 ? '' : 's'}, crushed flat into a plastic bag.`;
-    return `${n} can${n === 1 ? '' : 's'}, and nowhere to put ${n === 1 ? 'it' : 'them'}. ${noRoomWhy(inv, 'small')}`;
+    const KG = 0.015;
+    const kgOf = (k: number) => Math.round(k * 15) / 1000;
+    const bags = () => inv.items.filter((x) => x.name === 'Empty cans');
+    const total = () => bags().reduce((k, x) => k + (x.doses ?? 0), 0);
+    const roomIn = (x: InvItem, more: number) => {
+      const sp = inv.spots.find((s) => s.id === x.spot);
+      return !!sp && usedKg(inv, sp.id) + more * KG <= sp.maxKg + 1e-9;
+    };
+    /** As many of the k as can go somewhere: into a bag that has room, a bag moved somewhere roomier, or a new bag. */
+    const put = (k: number): boolean => {
+      if (tooHeavy(inv, k * KG)) return false;
+      const fits = bags().find((x) => roomIn(x, k));
+      if (fits) {
+        fits.doses = (fits.doses ?? 0) + k;
+        fits.kg = kgOf(fits.doses);
+        return true;
+      }
+      // (The bag's outgrown its pocket: into one with room for all of it.)
+      for (const x of bags()) {
+        const others: Inventory = { ...inv, items: inv.items.filter((y) => y !== x) };
+        const to = findRoom(others, 'small', kgOf((x.doses ?? 0) + k), x);
+        if (to) {
+          x.spot = to.id;
+          x.doses = (x.doses ?? 0) + k;
+          x.kg = kgOf(x.doses);
+          return true;
+        }
+      }
+      return !!stow(inv, { kind: 'misc', name: 'Empty cans', detail: 'Rinsed out, crushed flat, in a plastic bag', doses: k, size: 'small', kg: kgOf(k) });
+    };
+    const had = total();
+    let took = 0;
+    for (let k = n; k >= 1 && !took; k--) if (put(k)) took = k;
+    const left = n - took;
+    const s = (k: number) => (k === 1 ? '' : 's');
+    if (!took) return `${n} can${s(n)}, and nowhere to put ${n === 1 ? 'it' : 'them'}. ${noRoomWhy(inv, 'small', n * KG)}`;
+    const head = had ? `${took} more can${s(took)}. ${total()} in all.` : `${took} can${s(took)}, crushed flat into a plastic bag.`;
+    return left ? `${head} No room for the other ${left}. ${noRoomWhy(inv, 'small', KG)}` : head;
   }
   /** The bins screen: how full they are, a dig, and what each dig turned up. */
   private scavHtml(): string {

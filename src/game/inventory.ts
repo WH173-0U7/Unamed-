@@ -424,7 +424,8 @@ export function findRoom(inv: Inventory, size: Size, kg: number, x?: { kind: str
 
 /** Why it won't go anywhere. */
 export function noRoomWhy(inv: Inventory, size: Size, kg = 0.01): string {
-  if (tooHeavy(inv, kg)) return `It’s more than you can carry: ${kgLabel(Math.round(inv.maxKg! * OVERLOAD * 10) / 10)} is the most you can manage, weighed down. Strength raises it.`;
+  // (The same numbers the Pockets screen shows: what you've got on you, of your limit.)
+  if (tooHeavy(inv, kg)) return `It’s more than you can carry. You’ve ${kgLabel(Math.round(carriedKg(inv) * 10) / 10)} on you, and your limit is ${kgLabel(inv.maxKg!)}: you can go a quarter over that, weighed down, and no more. Strength raises it.`;
   // (A sheath or a holster takes only what it's made for.)
   const spots = inv.spots.filter((s) => fitsIn(s));
   if (!spots.some((s) => SIZE_RANK[s.fits] >= SIZE_RANK[size])) {

@@ -180,6 +180,31 @@ export function weaponText(t: Tier, kind: 'blade' | 'blunt' | 'bottle' | 'broken
             `A feint, then the ${w}, ${where}. You’re back out of reach before they feel it.`,
             `You step off the line and slice them ${where}.`,
           ];
+  // The tools that hit hard: each one swings its own way.
+  if (/hammer/.test(w))
+    return t === 0
+      ? [`You swing the hammer wild and it glances off them ${where}.`, `You flail with the hammer; the head catches them ${where}.`]
+      : t === 1
+        ? [`You bring the hammer down ${into}.`, `You swing the hammer and it lands ${where} with a dull crack.`]
+        : [`You choke up on the hammer and put it ${into}, short and fast.`, `A tight, ugly swing of the hammer, ${where}.`];
+  if (/crowbar/.test(w))
+    return t === 0
+      ? [`You heave the crowbar around and it clangs off them ${where}.`, `You swing the crowbar like it weighs a ton; it catches them ${where}.`]
+      : t === 1
+        ? [`You swing the crowbar two-handed and it lands ${where}.`, `The crowbar comes round and cracks them ${where}.`]
+        : [`You keep the crowbar short and jab the end ${into}.`, `You let the crowbar’s weight do it: one swing, ${where}.`];
+  if (/bike lock/.test(w))
+    return t === 0
+      ? [`You swing the U-lock wild and it smacks them ${where}.`, `You flail with the U-lock; it bangs off them ${where}.`]
+      : t === 1
+        ? [`You swing the U-lock like a club and it smacks them ${where}.`, `The steel loop of the lock catches them ${where}.`]
+        : [`You whip the U-lock round on a short arc, ${where}.`, `A hard, short swing of the lock, ${where}.`];
+  if (/flashlight/.test(w))
+    return t === 0
+      ? [`You swing the flashlight blindly and it thumps them ${where}.`, `You hit them with the flashlight, more or less ${where}.`]
+      : t === 1
+        ? [`You crack them ${where} with the flashlight.`, `You hammer the butt of the flashlight ${into}.`]
+        : [`You hold the flashlight like a baton and drive it ${into}.`, `A fast backhand with the flashlight, ${where}.`];
   return t === 0
     ? [`You swing the ${w} wildly and it hits them ${where}.`, `You flail with the ${w}; it catches them ${where}.`]
     : t === 1

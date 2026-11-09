@@ -1,6 +1,6 @@
 import { basePrice, keyOf } from './drugs';
 import type { Hours } from './clock';
-import type { InvItem } from './inventory';
+import { isBluntTool, type InvItem } from './inventory';
 
 /**
  * Places you can go besides the street, and what they deal in. Opening hours
@@ -219,7 +219,7 @@ export function offer(place: 'pawn' | 'fence', x: InvItem): { cents: number } | 
   if (place === 'pawn') {
     if (kind === 'id' || kind === 'credit card' || kind === 'debit card') return { why: '“I don’t touch that.”' };
     if (kind === 'car keys' || x.secret) return { why: '“Get that out of my shop.”' };
-    if (kind === 'weapon') return { why: '“I don’t buy weapons off the street.”' };
+    if (kind === 'weapon' && !isBluntTool(x.name)) return { why: '“I don’t buy weapons off the street.”' };
     if (x.med || /cigarettes|lighter|matches|groceries|lunch|sandwich|water|receipt|note|keys|baggie/i.test(x.name)) return { why: "Not worth his time" };
     if (v <= 0) return { why: "He won’t take it" };
     // Pawn shops pay a fraction, rounded down to the quarter.

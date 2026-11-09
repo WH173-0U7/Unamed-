@@ -19,6 +19,7 @@ export const CHANGES: Release[] = [
       'Sometimes people throw a bag out while you’re there, and the next dig is a better one.',
       'New skill, Scavenging: the more you dig, the more you find and the more rare things you spot, and the less often you get cut on broken glass, eat something that’s gone off, or get told to clear off.',
       'Food from the trash takes the edge off like other food. If it’s gone off, it leaves you more tired instead.',
+      'Blunt weapons: a claw hammer, a crowbar, a U-lock or a flashlight can be swung in a fight. They knock people out and break bones rather than cut. A crowbar is hard to hide; a flashlight barely draws a look. The pawn shop still buys them as tools.',
     ],
   },
   {

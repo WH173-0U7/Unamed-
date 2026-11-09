@@ -10,7 +10,7 @@ import { caffeineEdge } from './health';
 import { partOfDay } from './clock';
 import { knifeOf, type Knife } from './knives';
 import { gunOf } from './guns';
-import { awayTo, freeHand, lootLabel, take, type Inventory } from './inventory';
+import { awayTo, freeHand, isBluntTool, lootLabel, take, type Inventory } from './inventory';
 import {
   STAT_NAMES,
   toughnessResist,
@@ -471,6 +471,7 @@ const handsFull = (e: Encounter) => (e.weapons ?? []).filter((w) => w.hand).leng
 function shortName(n: string): string {
   if (/broken bottle/i.test(n)) return 'broken bottle';
   if (knifeOf(n) && !/bottle|syringe/i.test(n)) return 'knife';
+  if (/^bike lock$/i.test(n)) return 'U-lock';
   return lc(n).split(' ').pop() ?? lc(n);
 }
 function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolean): Option[] {
@@ -489,7 +490,7 @@ function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolea
       : [
       w.spray
         ? { id: `wpn:${w.i}`, label: 'Pepper spray them', hint: full ? 'Your hands are full' : (w.doses ?? 3) <= 0 ? 'Empty' : e.them.blinded > 0 ? 'They’re already blind' : `${w.doses ?? 3} left · blinds them`, disabled: full || (w.doses ?? 3) <= 0 || e.them.blinded > 0, cat }
-        : { id: `wpn:${w.i}`, label: /^bottle$/i.test(w.name) ? 'Swing the bottle' : /syringe/i.test(w.name) ? (w.loaded ? `Stab with the syringe (${w.known ? w.loaded : 'loaded'})` : 'Stab with the empty syringe') : `${w.cuts ? (knifeOf(w.name)?.style === 'stab' ? 'Stab' : 'Slash') : 'Hit'} (${lc(w.name)})`, hint: full ? 'Your hands are full' : tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0} damage${w.cuts && !/^bottle$|syringe/i.test(w.name) ? ', cuts' : ''}${w.loaded ? ', may inject them' : ''}`, disabled: full || tired(COST.weapon), cat },
+        : { id: `wpn:${w.i}`, label: /^bottle$/i.test(w.name) ? 'Swing the bottle' : isBluntTool(w.name) ? `Swing the ${shortName(w.name)}` : /syringe/i.test(w.name) ? (w.loaded ? `Stab with the syringe (${w.known ? w.loaded : 'loaded'})` : 'Stab with the empty syringe') : `${w.cuts ? (knifeOf(w.name)?.style === 'stab' ? 'Stab' : 'Slash') : 'Hit'} (${lc(w.name)})`, hint: full ? 'Your hands are full' : tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0} damage${w.cuts && !/^bottle$|syringe/i.test(w.name) ? ', cuts' : ''}${w.loaded ? ', may inject them' : ''}`, disabled: full || tired(COST.weapon), cat },
       // A whole bottle can be broken for an edge (it doesn't always break).
       ...(/^bottle$/i.test(w.name) ? [{ id: `smash:${w.i}`, label: 'Smash the bottle', hint: full ? 'Your hands are full' : tired(COST.punch) ? 'Too tired' : 'For a jagged edge: it cuts', disabled: full || tired(COST.punch), cat }] : []),
         ])(false)),

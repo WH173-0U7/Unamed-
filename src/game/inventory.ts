@@ -222,6 +222,11 @@ export function measure(x: { kind: string; name: string; med?: MedId; product?: 
     if (/revolver/.test(n)) return { size: 'medium', kg: 0.8 };
     if (/pistol/.test(n)) return { size: 'small', kg: 0.65 };
     if (/bottle/.test(n)) return { size: 'medium', kg: 0.45 };
+    // Tools that hit hard (see BLUNT_TOOLS).
+    if (/^crowbar$/.test(n)) return { size: 'large', kg: 1.4 };
+    if (/^claw hammer$/.test(n)) return { size: 'medium', kg: 0.6 };
+    if (/^bike lock$/.test(n)) return { size: 'medium', kg: 1.1 };
+    if (/^flashlight$/.test(n)) return { size: 'medium', kg: 0.3 };
     // An eight-inch kitchen or combat knife won't go in a small pocket.
     if (/kitchen|combat|hunting/.test(n)) return { size: 'medium', kg: 0.22 };
     if (/knife|folder|karambit|razor|dagger|switchblade|shiv/.test(n)) return { size: 'small', kg: 0.12 };
@@ -707,6 +712,10 @@ export function concealOf(sp: Pick<Spot, 'on' | 'name'>, top?: string): number {
   return 0.4;
 }
 
+/** Everyday tools that make blunt weapons: a pawn shop still buys them as tools. */
+export const BLUNT_TOOLS = /^(claw hammer|crowbar|bike lock|flashlight)$/i;
+export const isBluntTool = (name: string) => BLUNT_TOOLS.test(name);
+
 /** How hard a weapon is to keep out of sight, 0..1 (a long kitchen knife; a shiv). */
 export function bulkOf(x: { kind: string; name: string }): number {
   if (x.kind !== 'weapon') return 0;
@@ -717,6 +726,10 @@ export function bulkOf(x: { kind: string; name: string }): number {
   if (/broken bottle/.test(n)) return 0.95;
   if (/kitchen|combat/.test(n)) return 0.85;
   if (/^bottle$/.test(n)) return 0.7;
+  if (/^crowbar$/.test(n)) return 0.95;
+  if (/^bike lock$/.test(n)) return 0.7;
+  if (/^claw hammer$/.test(n)) return 0.6;
+  if (/^flashlight$/.test(n)) return 0.4;
   if (/hunting/.test(n)) return 0.6;
   if (/steak/.test(n)) return 0.45;
   if (/shiv|box cutter|syringe|razor/.test(n)) return 0.12;
@@ -746,6 +759,8 @@ export function alarmOf(x: { kind: string; name: string }): number {
   const k = knifeOf(x.name);
   if (k) return k.alarm;
   const n = x.name.toLowerCase();
+  // (A tool in your hand reads as a tool, till you raise it.)
+  if (isBluntTool(n)) return /crowbar/.test(n) ? 0.55 : /hammer/.test(n) ? 0.45 : /lock/.test(n) ? 0.3 : 0.15;
   return /pistol|revolver|shotgun/.test(n) ? 1 : /broken bottle/.test(n) ? 1 : /^bottle$/.test(n) ? 0.25 : /spray/.test(n) ? 0.15 : /box cutter/.test(n) ? 0.3 : /syringe/.test(n) ? 0.6 : /^knife$/.test(n) ? 0.6 : 0.5;
 }
 /** A weapon's two numbers, in words. */

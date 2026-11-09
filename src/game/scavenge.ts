@@ -97,11 +97,11 @@ export const BIN_LOOT: Record<BinArea, Record<Tier, BinFind[]>> = {
     common: [CANS, FOODS[0], FOODS[3], CHANGE, SMOKES],
     uncommon: [
       { item: { kind: 'misc', name: 'Copper wire', detail: 'A coil of it, stripped' }, line: 'A coil of stripped copper wire.', w: 3 },
-      { item: { kind: 'misc', name: 'Claw hammer', detail: 'The handle’s taped' }, line: 'A claw hammer, the handle wrapped in tape.', w: 2 },
-      { item: { kind: 'misc', name: 'Crowbar', detail: 'Rusty' }, line: 'A rusty crowbar under a pile of pallets.', w: 1.5 },
+      { item: { kind: 'weapon', name: 'Claw hammer', detail: 'The handle’s taped', weapon: 8 }, line: 'A claw hammer, the handle wrapped in tape.', w: 2 },
+      { item: { kind: 'weapon', name: 'Crowbar', detail: 'Rusty', weapon: 9 }, line: 'A rusty crowbar under a pile of pallets.', w: 1.5 },
       { item: { kind: 'weapon', name: 'Box cutter', weapon: 5, cuts: true }, line: 'A box cutter, a blade still in it.', w: 2 },
-      { item: { kind: 'misc', name: 'Bike lock', detail: 'A U-lock, with its key' }, line: 'A U-lock, its key still in it.', w: 1.5 },
-      { item: { kind: 'misc', name: 'Flashlight', detail: 'Works if you hit it' }, line: 'A flashlight. It works if you hit it.', w: 2 },
+      { item: { kind: 'weapon', name: 'Bike lock', detail: 'A U-lock, with its key', weapon: 7 }, line: 'A U-lock, its key still in it.', w: 1.5 },
+      { item: { kind: 'weapon', name: 'Flashlight', detail: 'Works if you hit it', weapon: 4 }, line: 'A flashlight. It works if you hit it.', w: 2 },
       GLOVES,
     ],
     rare: [

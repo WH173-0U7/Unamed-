@@ -137,7 +137,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
   const tabIcon = (c: Category) => (TAB_ICON[c] ? `<svg class="tab-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${TAB_ICON[c]}"/></svg>` : '');
   const attr = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
   /**
-   * A hint as a few short tags ("Sneak", "a turn", "Their phone") rather than
+   * A hint as a few short tags ("Stealth", "a turn", "Their phone") rather than
    * a sentence: its pieces, where they're short; else its first short clause.
    * (The whole hint stays on the button, for a long press or a screen reader.)
    */

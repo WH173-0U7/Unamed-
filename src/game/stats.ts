@@ -1,7 +1,7 @@
 /**
  * Your stats. Each one starts at level 1 and only goes up by using it:
  *
- * - **Sneak:** anything stealthy. Raises the chance your ambush (bum rush,
+ * - **Stealth:** anything stealthy. Raises the chance your ambush (bum rush,
  *   sucker punch, shove) lands instead of being blocked, dodged or countered,
  *   and makes you harder to notice while following someone. Trained by
  *   surveilling and ambushing.
@@ -40,7 +40,7 @@ export interface Stat {
 export type Stats = Record<StatName, Stat>;
 
 export const STAT_NAMES: Record<StatName, string> = {
-  sneak: 'Sneak',
+  sneak: 'Stealth',
   strength: 'Strength',
   unarmed: 'Unarmed',
   weapons: 'Weapons',
@@ -51,7 +51,7 @@ export const STAT_NAMES: Record<StatName, string> = {
   speech: 'Speech',
 };
 /** Shorter names for the stats along the top of a small screen. */
-export const STAT_SHORT: Record<StatName, string> = { sneak: 'Snk', strength: 'Str', unarmed: 'Fist', weapons: 'Wpn', agility: 'Agi', stamina: 'Stm', toughness: 'Tuf', intimidation: 'Fear', speech: 'Talk' };
+export const STAT_SHORT: Record<StatName, string> = { sneak: 'Stl', strength: 'Str', unarmed: 'Fist', weapons: 'Wpn', agility: 'Agi', stamina: 'Stm', toughness: 'Tuf', intimidation: 'Fear', speech: 'Talk' };
 
 /** Levels go to 100, and each one takes longer than the last. */
 export const MAX_LEVEL = 100;

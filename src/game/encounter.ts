@@ -23,7 +23,6 @@ import {
   staminaRegen,
   strengthDamage,
   weaponAccuracy,
-  lieBonus,
   persuadeBonus,
   weaponDamage,
   train,
@@ -915,13 +914,13 @@ function rawOptions(e: Encounter): Option[] {
         { id: 'follow', label: e.distance < 2 ? 'Follow' : 'Keep following', hint: e.suspicion >= 45 ? 'They’re onto you: they may run' : e.distance < 2 ? 'Closer: easier to see, easier to be seen' : 'Each step risks being noticed', cat: 'surveil' },
         // Right behind them, and you've seen what's in their pockets: lift it.
         ...(e.known.pockets && e.distance >= 2 && !e.them.down
-          ? liftables(e).map((L) => ({ id: `lift:${L.key}`, label: L.label, hint: e.liftNoRoom?.includes(L.key) ? 'No room' : e.suspicion >= 45 ? 'They’re watching you: much harder' : 'Sneak. If they feel it, they’ll know', disabled: !!e.liftNoRoom?.includes(L.key), cat: 'surveil' as Category }))
+          ? liftables(e).map((L) => ({ id: `lift:${L.key}`, label: L.label, hint: e.liftNoRoom?.includes(L.key) ? 'No room' : e.suspicion >= 45 ? 'They’re watching you: much harder' : 'Stealth. If they feel it, they’ll know', disabled: !!e.liftNoRoom?.includes(L.key), cat: 'surveil' as Category }))
           : []),
         ...(e.known.build ? [] : [{ id: 'build', label: 'Size up their build', cat: 'surveil' as Category }]),
         ...(e.known.carrying ? [] : [{ id: 'carrying', label: "See what they’re carrying", disabled: e.distance < 1, hint: e.distance < 1 ? 'Need to be closer' : undefined, cat: 'surveil' as Category }]),
         ...(e.known.awareness ? [] : [{ id: 'awareness', label: 'Judge how alert they are', cat: 'surveil' as Category }]),
         // Noticed, or nearly: cover for yourself.
-        ...(e.suspicion >= 35 && !e.recognised ? [{ id: 'bluff', label: 'Act natural', hint: 'Speech: look like you belong here', cat: 'surveil' as Category }] : []),
+        ...(e.suspicion >= 35 && !e.recognised ? [{ id: 'bluff', label: 'Act natural', hint: 'Stealth: look like you belong here', cat: 'surveil' as Category }] : []),
         ...(e.known.sex && e.known.race ? [] : [{ id: 'sex', label: 'Get a look at them', hint: e.distance < 1 ? 'Hard to tell from here' : 'Their face, their build', cat: 'surveil' as Category }]),
         ...(e.known.personality ? [] : [{ id: 'read', label: 'Read them', hint: e.distance < 1 ? 'Need to be closer' : 'What kind of person?', disabled: e.distance < 1, cat: 'surveil' as Category }]),
         // Talking to them (asking for change, a supplier, selling): walk up first.
@@ -1352,18 +1351,37 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
       case 'bluff': {
         // (Someone who knows you isn't fooled by acting natural.)
         if (e.recognised) return impacts;
-        // Stop, check your phone, look lost: anything but following them.
-        const odds = clamp(0.35 + lieBonus(stats) - (e.conspicuous ? 0.2 : 0) - (e.exposed ?? 0) * 0.4 - aw * 0.06, 0.05, 0.92);
+        // Stop, tie a lace, read a timetable: anything but following them. It's
+        // how you carry yourself, not anything you say (Stealth).
+        const odds = clamp(0.35 + ((stats.sneak?.level ?? 1) - 1) * 0.006 - (e.conspicuous ? 0.2 : 0) - (e.exposed ?? 0) * 0.4 - aw * 0.06, 0.05, 0.92);
+        // (Only something to stare at if you've got one on you.)
+        const phone = !!inv?.items.some((x) => x.kind === 'phone');
         if (Math.random() < odds) {
           e.suspicion = Math.max(0, e.suspicion - 35);
           // (Calmer now: the signs come again if it climbs back.)
           e.warned = e.suspicion >= 75 ? 2 : e.suspicion >= 45 ? 1 : 0;
-          say('you', oneOf(['You stop and frown at your phone like you’re lost, and let them get ahead. They glance back once, and lose interest.', 'You cross to a shop window and study it. In the glass you watch them decide you’re nobody.', 'You make a call to no one, laughing at nothing. They look away.']));
-          you.gain('speech', 4);
+          say('you', oneOf([
+            'You crouch to retie a shoelace that wasn’t undone and let them get ahead. They glance back once, and lose interest.',
+            'You cross to a shop window and study it. In the glass you watch them decide you’re nobody.',
+            'You stop at a bus shelter and read the timetable like it matters. When you look up, they’ve stopped checking behind them.',
+            'You pat your pockets like you’ve forgotten something, sigh, and turn back a few steps. They stop looking.',
+            'You slow down to read a flyer stapled to a pole: a lost cat, a room for rent. They walk on without another look.',
+            'You wait at the crossing like everyone else, eyes on the light. Whatever they thought about you, they let it go.',
+            ...(phone
+              ? ['You stop and frown at your phone like you’re lost, and let them get ahead. They glance back once, and lose interest.', 'You put your phone to your ear and talk to no one, laughing at nothing. They look away.']
+              : []),
+          ]));
+          you.gain('sneak', 4);
         } else {
           e.suspicion += 25;
-          say('you', oneOf(['You stop dead and stare at your phone. It looks exactly like what it is.', 'You try to look casual and overdo it. They look right at you.']));
-          you.gain('speech', 1);
+          say('you', oneOf([
+            'You try to look casual and overdo it. They look right at you.',
+            'You stop dead in front of a shop window. It looks exactly like what it is.',
+            'You bend to tie a lace that’s already tied, and they turn and watch you do it.',
+            'You stop to read a flyer and read it for far too long. They’ve noticed.',
+            ...(phone ? ['You stop dead and stare at your phone. It looks exactly like what it is.'] : []),
+          ]));
+          you.gain('sneak', 1);
         }
         break;
       }

@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.84',
+    date: 'Nov 10',
+    items: [
+      'Sneak is now called Stealth. Your level carries over.',
+      '“Act natural” is about how you carry yourself, not talking: it trains Stealth (not Speech), and your Stealth decides whether it works.',
+      'New ways to act natural: retying a lace, reading a bus timetable, a flyer on a pole, patting your pockets, waiting at the crossing. You only look at a phone if you actually have one.',
+    ],
+  },
+  {
     v: '2.83',
     date: 'Nov 10',
     items: [

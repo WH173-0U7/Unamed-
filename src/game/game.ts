@@ -7936,7 +7936,7 @@ export class Game {
         small: `${where}. Someone lives here; you don’t know who.`,
         icon: PLACE_ICON.home,
         go: '',
-        extra: `<button type="button" class="map-go" data-watch="${b.id}" ${why ? 'disabled' : ''}>Watch the place<small>${why || `About ten minutes, from a doorway across the street. Your sneak decides whether you see who lives there, or they see you.`}</small></button>`,
+        extra: `<button type="button" class="map-go" data-watch="${b.id}" ${why ? 'disabled' : ''}>Watch the place<small>${why || `About ten minutes, from a doorway across the street. Your stealth decides whether you see who lives there, or they see you.`}</small></button>`,
       };
     };
     switch (b.kind) {

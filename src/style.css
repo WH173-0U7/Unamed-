@@ -7107,3 +7107,7 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
     margin: 0;
   }
 }
+/* The police card: what they want you for, in red. */
+.police-card .stat-how.warrant {
+  color: #e06a5a;
+}

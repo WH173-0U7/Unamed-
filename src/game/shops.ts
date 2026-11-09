@@ -238,7 +238,7 @@ export interface Stock {
   price: number;
   desc: string;
   /** Something to wear: which slot it goes in. */
-  slot?: 'top' | 'bottom' | 'bag' | 'head' | 'face' | 'eyes' | 'gear';
+  slot?: 'top' | 'bottom' | 'bag' | 'head' | 'face' | 'eyes' | 'hands' | 'gear';
   /** Medicine (goes in your pockets as that). */
   med?: import('./inventory').MedId;
   /** Uses (a pack of 20, a book of matches, a full lighter). */
@@ -284,6 +284,9 @@ export const GAS_STOCK: Stock[] = [
   { id: 'cap', name: 'Baseball cap', price: 22, desc: 'Off the spinner. Shades your eyes from cameras.', slot: 'head' },
   { id: 'beanie', name: 'Beanie', price: 16, desc: 'Covers your hair.', slot: 'head' },
   { id: 'shades', name: 'Sunglasses', price: 20, desc: 'Gas station shades. Hides your eyes. At night, a bit odd.', slot: 'eyes' },
+  { id: 'gaiter', name: 'Neck gaiter', price: 9, desc: 'A tube of fleece. Down, it’s a scarf; up, it covers your nose and mouth. Nobody thinks twice.', slot: 'face' },
+  { id: 'clearglasses', name: 'Clear glasses', price: 12, desc: 'Reading glasses with the lenses popped and swapped for plain ones. A small change; nobody notices.', slot: 'eyes' },
+  { id: 'gloves', name: 'Gloves', price: 7, desc: 'Thin black work gloves. No prints on what you touch.', slot: 'hands' },
 ];
 
 export const PAWN_STOCK: Stock[] = [
@@ -309,6 +312,10 @@ export const PAWN_STOCK: Stock[] = [
   { id: 'cap', name: 'Baseball cap', price: 12, desc: 'Second-hand. Shades your eyes from cameras.', slot: 'head' },
   { id: 'beanie', name: 'Beanie', price: 10, desc: 'Second-hand. Covers your hair.', slot: 'head' },
   { id: 'shades', name: 'Sunglasses', price: 25, desc: 'A decent used pair from the case. Hides your eyes. At night, a bit odd.', slot: 'eyes' },
+  { id: 'lowcap', name: 'Low cap', price: 14, desc: 'A deep, stiff brim, worn low. A camera on the wall sees the top of a hat.', slot: 'head' },
+  { id: 'widebrim', name: 'Wide-brim hat', price: 18, desc: 'A bucket hat with a wide floppy brim. From above, all hat.', slot: 'head' },
+  { id: 'balaclava', name: 'Balaclava', price: 15, desc: 'Black, eyes only. Nothing else hides you as well, and nothing else looks so much like trouble.', slot: 'face' },
+  { id: 'reversible', name: 'Reversible jacket', price: 40, desc: 'Black one side, grey the other. Turn it inside out and you’re someone else in a description. Three pockets.', slot: 'top' },
 ];
 
 // ---------- The ER (self-pay) ----------
@@ -348,7 +355,48 @@ export const CHARGES: Record<string, { bail: number; fine: number; days: number;
   // Out of custody without leave, and helping someone do it.
   Escape: { bail: 0, fine: 0, days: 730, sev: 14 },
   'Aiding an escape': { bail: 0, fine: 0, days: 1095, sev: 14 },
-  Bribery: { bail: 1000, fine: 1000, days: 30, sev: 5 },
+  'Bribery of a public official': { bail: 1000, fine: 1000, days: 30, sev: 5 },
   'Attempted escape': { bail: 0, fine: 0, days: 180, sev: 8 },
+  // Federal law: real maximums, squeezed down like everything else here.
+  'Access device fraud': { bail: 2500, fine: 2000, days: 120, sev: 6 },
+  'Aggravated identity theft': { bail: 5000, fine: 2500, days: 730, sev: 9 },
+  'Identity theft': { bail: 1500, fine: 1500, days: 60, sev: 5 },
+  'Bank fraud': { bail: 5000, fine: 3000, days: 365, sev: 8 },
+  'Robbery (Hobbs Act)': { bail: 10000, fine: 5000, days: 730, sev: 12 },
+  Robbery: { bail: 5000, fine: 2500, days: 365, sev: 8 },
+  Carjacking: { bail: 15000, fine: 5000, days: 1095, sev: 13 },
+  'Interstate transport of a stolen vehicle': { bail: 2500, fine: 2000, days: 180, sev: 7 },
+  'Possession of stolen mail': { bail: 1000, fine: 1000, days: 60, sev: 4 },
+  'Maintaining a drug-involved premises': { bail: 5000, fine: 3000, days: 365, sev: 9 },
+  'Witness tampering': { bail: 5000, fine: 3000, days: 365, sev: 9 },
+  'Assaulting a federal officer': { bail: 10000, fine: 5000, days: 365, sev: 10 },
 };
-export const chargeOf = (c: string) => CHARGES[c] ?? { bail: 300, fine: 300, days: 3, sev: 2 };
+/** Old names, from before (saves keep them; they read as the new ones). */
+const CHARGE_ALIAS: Record<string, string> = { Bribery: 'Bribery of a public official' };
+export const chargeName = (c: string) => CHARGE_ALIAS[c] ?? c;
+export const chargeOf = (c: string) => CHARGES[chargeName(c)] ?? { bail: 300, fine: 300, days: 3, sev: 2 };
+/** The law it's under: federal code, or a local charge. */
+const CHARGE_CODE: Record<string, string> = {
+  'Access device fraud': '18 U.S.C. § 1029',
+  'Aggravated identity theft': '18 U.S.C. § 1028A',
+  'Identity theft': '18 U.S.C. § 1028',
+  'Bank fraud': '18 U.S.C. § 1344',
+  'Robbery (Hobbs Act)': '18 U.S.C. § 1951',
+  Carjacking: '18 U.S.C. § 2119',
+  'Interstate transport of a stolen vehicle': '18 U.S.C. § 2312',
+  'Possession of stolen mail': '18 U.S.C. § 1708',
+  'Possession with intent to distribute': '21 U.S.C. § 841',
+  'Selling a controlled substance': '21 U.S.C. § 841',
+  'Possession of marijuana with intent to sell': '21 U.S.C. § 841',
+  'Possession of a controlled substance': '21 U.S.C. § 844',
+  'Possession of marijuana': '21 U.S.C. § 844',
+  'Maintaining a drug-involved premises': '21 U.S.C. § 856',
+  'Witness tampering': '18 U.S.C. § 1512',
+  'Bribery of a public official': '18 U.S.C. § 201',
+  Escape: '18 U.S.C. § 751',
+  'Aiding an escape': '18 U.S.C. § 752',
+  'Failure to appear': '18 U.S.C. § 3146',
+  'Assaulting a federal officer': '18 U.S.C. § 111',
+};
+/** “Access device fraud (18 U.S.C. § 1029)”, or “Assault (local charge)”. */
+export const chargeLabel = (c: string) => `${chargeName(c)} (${CHARGE_CODE[chargeName(c)] ?? 'local charge'})`;

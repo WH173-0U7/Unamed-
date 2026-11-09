@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createFullscreenShader, glslHash } from '../fx/fullscreen';
+import { crackShared } from '../fx/crackShared';
 
 /**
  * An old CRT television filling the screen. Powering on plays the classic
@@ -21,6 +22,9 @@ export function createTv(renderer: THREE.WebGLRenderer) {
       uniform float uJam;         // 0..1: interference (signal cutting out)
       uniform float uOff;         // seconds since switched off (-1: not switching off)
       uniform float uDim;         // the hour: a touch darker at night
+      uniform sampler2D tShard;   // the broken glass in front of it (see crackShared.ts)
+      uniform float uShard;       // how far the cracks have spread (0 = whole glass)
+      uniform float uShardPx;     // how far a shard bends the picture, at most (pixels)
       varying vec2 vUv;
       ${glslHash}
 
@@ -128,8 +132,17 @@ export function createTv(renderer: THREE.WebGLRenderer) {
         // A brief vertical roll as the picture locks in.
         uv.y = fract(uv.y + (1.0 - smoothstep(0.75, 1.6, t)) * step(0.75, t) * 0.25);
 
+        // Broken glass in front: each shard bends the picture its own way,
+        // and splits its colours a little more.
+        vec2 bend = vec2(0.0);
+        if (uShard > 0.001) {
+          vec4 sh = texture2D(tShard, vUv);
+          float rev = step(0.5, sh.a) * step(sh.b, uShard);
+          bend = (sh.rg - 0.5) * 2.0 * rev;
+          uv += bend * uShardPx / uRes;
+        }
         // Colour fringing: wide while unstable, settling to a hint.
-        float ca = 0.0012 + 0.014 * smoothstep(0.35, 0.6, t) * (1.0 - smoothstep(0.8, 2.6, t));
+        float ca = 0.0012 + 0.014 * smoothstep(0.35, 0.6, t) * (1.0 - smoothstep(0.8, 2.6, t)) + length(bend) * 0.005;
         vec3 col = vec3(tube(uv + vec2(ca, 0.0), t), tube(uv, t), tube(uv - vec2(ca, 0.0), t));
         float field = sin(uv.x * 5.0 + t * 2.3) + sin(uv.y * 4.0 - t * 1.7) + sin((uv.x + uv.y) * 3.0 + t * 3.1);
         col += (0.5 + 0.5 * cos(6.28318 * (field * 0.25 + vec3(0.0, 0.33, 0.67)))) * degauss * 0.3;
@@ -164,6 +177,9 @@ export function createTv(renderer: THREE.WebGLRenderer) {
       uJam: { value: 0 },
       uOff: { value: -1 },
       uDim: { value: 1 },
+      tShard: { value: null },
+      uShard: { value: 0 },
+      uShardPx: { value: 0 },
       uTime: { value: 0 },
       uRes: { value: new THREE.Vector2(1, 1) },
       uLines: { value: 240 },
@@ -176,6 +192,9 @@ export function createTv(renderer: THREE.WebGLRenderer) {
   let offAt: number | null = null;
   /** Debug: freeze the sequence at a given moment. */
   let frozen: number | null = null;
+  // The broken-glass map, as a texture (remade when the glass breaks a new way).
+  let shardTex: THREE.CanvasTexture | null = null;
+  let shardVersion = -1;
 
   return {
     get isOn() {
@@ -195,6 +214,7 @@ export function createTv(renderer: THREE.WebGLRenderer) {
     },
     /** Frees the TV's GPU buffers (when its game is done with). */
     dispose() {
+      shardTex?.dispose();
       pass.dispose();
     },
     powerOff() {
@@ -237,6 +257,20 @@ export function createTv(renderer: THREE.WebGLRenderer) {
       pass.material.uniforms.uOff.value = offAt === null ? -1 : time - offAt;
       // (Switching off, the last picture is still on the tube.)
       if (offAt === null) pass.material.uniforms.uPicture.value = e < 0 ? 0 : Math.min(1, Math.max(0, (e - PICTURE_AT) / 0.8));
+      // Through the cracks: the shards bend what's behind them, more as it spreads.
+      const u = pass.material.uniforms;
+      if (crackShared.map && crackShared.version !== shardVersion) {
+        shardVersion = crackShared.version;
+        shardTex?.dispose();
+        shardTex = new THREE.CanvasTexture(crackShared.map);
+        shardTex.minFilter = THREE.NearestFilter;
+        shardTex.magFilter = THREE.NearestFilter;
+        shardTex.generateMipmaps = false;
+        u.tShard.value = shardTex;
+      }
+      const lv = shardTex ? crackShared.level : 0;
+      u.uShard.value = lv;
+      u.uShardPx.value = lv > 0 ? 18 * renderer.getPixelRatio() * (0.4 + 0.6 * Math.min(1, lv / 0.7)) : 0;
       pass.render(renderer);
     },
   };

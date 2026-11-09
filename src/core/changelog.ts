@@ -11,6 +11,21 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.76',
+    date: 'Nov 9',
+    items: [
+      'Seven heat levels, None to Most wanted. Serious crimes push it higher; high heat takes much longer to fade.',
+      'A warrant in your name holds your heat up until you deal with it.',
+      'Crimes only count against you if they know it was you: your face seen, your ID found, prints, or the police there. Masked, they only get a description, and changing your look shakes it.',
+      'With a warrant out and your face showing, police recognise you (almost always if they’ve booked you before). Masked and wanted, they may make you take it off.',
+      'Cameras at the ATM and the pawn shop: if your face is on the footage, a warrant follows a few hours later.',
+      'Federal charges with their codes (access device fraud, aggravated identity theft, bank fraud, and more). State-type crimes are marked as local charges.',
+      'New things to hide your face: neck gaiter, clear glasses and gloves at the gas station; low cap, wide-brim hat, balaclava and a reversible jacket you can flip at the pawn shop. Shops say how much each hides, and Pockets says how hidden your face is.',
+      'Broken glass looks broken: cracks that bend the picture behind them, glinting edges, shards and impact haze, even on slower phones.',
+      'Dirt and grime look real: blotchy grime, grit, smears and a palm print, streaky wipes, and water spots after rain.',
+    ],
+  },
+  {
     v: '2.75',
     date: 'Nov 9',
     items: [

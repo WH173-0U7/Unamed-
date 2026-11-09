@@ -28,7 +28,9 @@ const ID = 'crack-ghost';
 /** The map is drawn small (it's flat colours with straight edges) and stretched. */
 const MAP_SCALE = 0.25;
 /** The most a shard shifts what's behind it, in CSS pixels. */
-const MAX_SHIFT = 9;
+const MAX_SHIFT = 16;
+/** Where it starts (how far the cracks have spread). */
+const FROM = 0.03;
 
 export function createCrackGhost(target: HTMLElement) {
   const svg = document.createElementNS(NS, 'svg');
@@ -37,15 +39,27 @@ export function createCrackGhost(target: HTMLElement) {
   svg.setAttribute('height', '0');
   svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none';
   svg.innerHTML =
+    // Full: two copies bent different ways through the shards, one reddish
+    // and one cold blue (light splitting in the break), over the picture.
     `<filter id="${ID}" x="0" y="0" width="100%" height="100%" filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse" color-interpolation-filters="sRGB">` +
     `<feImage result="map" preserveAspectRatio="none" x="0" y="0" width="1" height="1" />` +
-    `<feDisplacementMap in="SourceGraphic" in2="map" scale="0" xChannelSelector="R" yChannelSelector="G" result="shifted" />` +
-    `<feComponentTransfer in="shifted" result="ghost"><feFuncA type="linear" slope="0" /></feComponentTransfer>` +
-    `<feMerge><feMergeNode in="SourceGraphic" /><feMergeNode in="ghost" /></feMerge>` +
+    `<feDisplacementMap in="SourceGraphic" in2="map" scale="0" xChannelSelector="R" yChannelSelector="G" result="d1" />` +
+    `<feColorMatrix in="d1" type="matrix" values="1 0 0 0 0  0 0.35 0 0 0  0 0 0.3 0 0  0 0 0 0 0" result="g1" />` +
+    `<feDisplacementMap in="SourceGraphic" in2="map" scale="0" xChannelSelector="G" yChannelSelector="R" result="d2" />` +
+    `<feColorMatrix in="d2" type="matrix" values="0.3 0 0 0 0  0 0.9 0 0 0  0 0 1 0 0  0 0 0 0 0" result="g2" />` +
+    `<feMerge><feMergeNode in="SourceGraphic" /><feMergeNode in="g1" /><feMergeNode in="g2" /></feMerge>` +
+    `</filter>` +
+    // Lite (a phone that can't keep up with that): one plain copy.
+    `<filter id="${ID}-lite" x="0" y="0" width="100%" height="100%" filterUnits="objectBoundingBox" primitiveUnits="userSpaceOnUse" color-interpolation-filters="sRGB">` +
+    `<feImage result="map" preserveAspectRatio="none" x="0" y="0" width="1" height="1" />` +
+    `<feDisplacementMap in="SourceGraphic" in2="map" scale="0" xChannelSelector="R" yChannelSelector="G" result="d1" />` +
+    `<feComponentTransfer in="d1" result="g1"><feFuncA type="linear" slope="0" /></feComponentTransfer>` +
+    `<feMerge><feMergeNode in="SourceGraphic" /><feMergeNode in="g1" /></feMerge>` +
     `</filter>`;
   document.body.append(svg);
-  const img = svg.querySelector('feImage')!;
-  const disp = svg.querySelector('feDisplacementMap')!;
+  const imgs = [...svg.querySelectorAll('feImage')];
+  const disps = [...svg.querySelectorAll('feDisplacementMap')];
+  const mats = [...svg.querySelectorAll('feColorMatrix')];
   const alpha = svg.querySelector('feFuncA')!;
 
   const map = document.createElement('canvas');
@@ -57,12 +71,14 @@ export function createCrackGhost(target: HTMLElement) {
   let on = false;
   // (Reduced motion: the picture stays steady.)
   const still = matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-  let slow = false;
+  /** 0: the full look; 1: lite (one copy); 2: off (the cracks and the bent picture still show). Remembered for the visit. */
+  let tier = 0;
   try {
-    slow = sessionStorage.getItem(TOO_SLOW) === '1';
+    tier = Math.min(2, Number(sessionStorage.getItem(TOO_SLOW) ?? 0) || 0);
   } catch {
     /* no storage */
   }
+  let level0 = 0;
   /**
    * It's a heavy effect on some phones. While it's showing, count frames:
    * if it drags the game under 30 a second, it goes off and stays off.
@@ -95,15 +111,17 @@ export function createCrackGhost(target: HTMLElement) {
       since = t;
       stalls = 0;
       if (fps < 30) {
-        slow = true;
+        // Too heavy for this phone: a step lighter (and, if that's still too much, none).
+        tier++;
         try {
-          sessionStorage.setItem(TOO_SLOW, '1');
+          sessionStorage.setItem(TOO_SLOW, String(tier));
         } catch {
           /* no storage */
         }
         target.style.filter = '';
         on = false;
         watching = 0;
+        if (tier < 2) this_update(level0);
         return;
       }
     }
@@ -129,10 +147,45 @@ export function createCrackGhost(target: HTMLElement) {
       c.fill();
     }
     const url = map.toDataURL('image/png');
-    img.setAttribute('href', url);
-    img.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url);
-    img.setAttribute('width', String(w));
-    img.setAttribute('height', String(h));
+    for (const img of imgs) {
+      img.setAttribute('href', url);
+      img.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url);
+      img.setAttribute('width', String(w));
+      img.setAttribute('height', String(h));
+    }
+  };
+
+  /** How far the cracks have spread (0..1): more shards, a bigger shift, a stronger ghost. */
+  const this_update = (level: number) => {
+    level0 = level;
+    const want = !still && tier < 2 && settings.quality !== 'low' && level > FROM && shards.length > 0 && w > 0;
+    if (!want) {
+      if (on) {
+        target.style.filter = '';
+        on = false;
+      }
+      return;
+    }
+    drawMap(level);
+    const k = Math.min(1, (level - FROM) / 0.5);
+    const scale = MAX_SHIFT * 2 * (0.4 + 0.6 * k);
+    disps[0].setAttribute('scale', scale.toFixed(1));
+    disps[1].setAttribute('scale', (-scale * 0.7).toFixed(1));
+    disps[2].setAttribute('scale', scale.toFixed(1));
+    const a = (0.28 + 0.27 * k).toFixed(2);
+    mats[0].setAttribute('values', `1 0 0 0 0  0 0.35 0 0 0  0 0 0.3 0 0  0 0 0 ${a} 0`);
+    mats[1].setAttribute('values', `0.3 0 0 0 0  0 0.9 0 0 0  0 0 1 0 0  0 0 0 ${a} 0`);
+    alpha.setAttribute('slope', (0.3 + 0.3 * k).toFixed(2));
+    const f = `url(#${tier === 0 ? ID : `${ID}-lite`})`;
+    if (!on || target.style.filter !== f) {
+      target.style.filter = f;
+      if (!on) {
+        frames = 0;
+        since = 0;
+      }
+      on = true;
+      if (!watching) watching = requestAnimationFrame(watch);
+    }
   };
 
   return {
@@ -145,25 +198,7 @@ export function createCrackGhost(target: HTMLElement) {
     },
     /** How far the cracks have spread (0..1): more shards, a bigger shift, a stronger ghost. */
     update(level: number) {
-      const want = !still && !slow && settings.quality !== 'low' && level > 0.06 && shards.length > 0 && w > 0;
-      if (!want) {
-        if (on) {
-          target.style.filter = '';
-          on = false;
-        }
-        return;
-      }
-      drawMap(level);
-      const k = Math.min(1, (level - 0.06) / 0.6);
-      disp.setAttribute('scale', (MAX_SHIFT * 2 * (0.35 + 0.65 * k)).toFixed(1));
-      alpha.setAttribute('slope', (0.22 + 0.3 * k).toFixed(2));
-      if (!on) {
-        target.style.filter = `url(#${ID})`;
-        on = true;
-        frames = 0;
-        since = 0;
-        if (!watching) watching = requestAnimationFrame(watch);
-      }
+      this_update(level);
     },
     dispose() {
       target.style.filter = '';

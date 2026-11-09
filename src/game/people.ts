@@ -357,21 +357,69 @@ export interface Infamy {
   killsSeen?: number;
   /** Break-ins they've a description (or a doorbell video) of you for. */
   burglaries?: number;
+  /**
+   * Crimes done with your face covered: they don't know it was you, only what
+   * they were looking at ("a man in a dark puffer and a cap"). It has its own
+   * heat, and fades like yours.
+   */
+  desc?: { text: string; clothes: string; heat: number; at: number };
 }
 
 export const newInfamy = (): Infamy => ({ rep: 0, heat: 0, at: now() });
 
-/** Talk dies down; the police move on to other things. */
-/** Heat lost per real hour. */
+/** Heat levels: where each starts, and its name. */
+export const HEAT_AT = [0, 10, 25, 40, 60, 75, 90];
+export const HEAT_NAMES = ['None', 'Noticed', 'Low', 'Watched', 'Wanted', 'Hunted', 'Most wanted'];
+export const heatLevel = (h: number) => HEAT_AT.reduce((n, at, i) => (h >= at ? i : n), 0);
+/** Heat lost per real hour, by level: the low ones go fast, the top ones take days. */
+export const HEAT_FADE = [12, 12, 12, 6, 3, 1.5, 0.8];
+/** Heat lost per real hour at this level (for the You page's estimate). */
 export const HEAT_FADE_PER_HOUR = 12;
+/** Heat after that many hours of cooling off (level by level, each at its own pace). */
+export function coolHeat(h: number, hours: number): number {
+  let left = hours;
+  while (h > 0 && left > 0) {
+    const lvl = heatLevel(h);
+    const rate = HEAT_FADE[lvl];
+    const floor = HEAT_AT[lvl];
+    // (Down to the bottom of this level, then the next level's pace.)
+    const need = lvl === 0 ? h / rate : (h - floor) / rate + 1e-6;
+    if (need >= left) return Math.max(0, h - rate * left);
+    h = lvl === 0 ? 0 : floor - 1e-6;
+    left -= need;
+  }
+  return Math.max(0, h);
+}
+/** Hours until heat drops below the level it's at now (0 at None). */
+export function hoursToDrop(h: number): number {
+  const lvl = heatLevel(h);
+  if (!lvl) return 0;
+  return (h - HEAT_AT[lvl]) / HEAT_FADE[lvl];
+}
+/**
+ * Heat for something you did: the worse it was, the higher it can take you
+ * (petty things alone never past Watched), and the hotter you are already,
+ * the less each new thing adds.
+ */
+export function heatGain(heat: number, amount: number, sev = 3): number {
+  if (amount <= 0) return heat;
+  const cap = sev <= 3 ? 55 : sev <= 6 ? 74 : sev <= 9 ? 89 : 100;
+  const add = amount * Math.max(0.25, 1 - heat / 140);
+  return Math.max(heat, Math.min(cap, heat + add));
+}
+/** Talk dies down; the police move on to other things. */
 export function fade(f: Infamy, t = now()) {
   // A clock set ahead and then put right: start counting again from now.
   if (f.at > t + DAY) f.at = t;
   const days = (t - f.at) / DAY;
   if (days <= 0) return;
   f.rep = Math.max(0, f.rep - days * 2);
-  // (Heat dies down fast: 12 an hour, so even Wanted cools to nothing in about eight hours.)
-  f.heat = Math.max(0, f.heat - days * 24 * HEAT_FADE_PER_HOUR);
+  f.heat = coolHeat(f.heat, days * 24);
+  // (The description they have of a masked stranger fades the same way.)
+  if (f.desc) {
+    f.desc.heat = coolHeat(f.desc.heat, days * 24);
+    if (f.desc.heat <= 0) delete f.desc;
+  }
   f.at = t;
 }
 
@@ -385,5 +433,3 @@ export const REP_LEVELS: [number, string][] = [
   [220, 'A legend of the street'],
 ];
 export const repName = (r: number) => REP_LEVELS.filter(([at]) => r >= at).pop()![1];
-export const HEAT_NAMES = ['None', 'Low', 'Watched', 'Wanted'];
-export const heatLevel = (h: number) => (h >= 60 ? 3 : h >= 30 ? 2 : h >= 8 ? 1 : 0);

@@ -3,6 +3,8 @@ import type { Spill } from '../game/encounter';
 import { createFullscreenShader, glslHash } from './fullscreen';
 import { drawCracks } from './cracks';
 import { createCrackGhost } from './crackGhost';
+import { crackShared, setShardMap } from './crackShared';
+import { settings } from '../core/settings';
 
 /**
  * The glass: one layer drawn on the GPU over everything (the game and every
@@ -171,8 +173,13 @@ export function createGlass(opts: GlassOptions = {}) {
         float smear = s.b * (1.0 - w * streak * 0.26) + gone * mix(0.42, 0.66, wet) * streak;
         // Dust is moved about; skin leaves a little grease, most at the edges.
         float edge = smoothstep(0.55, 0.95, d / uR);
-        // Dirt comes off with a wipe or two (and a clean finger leaves nothing).
-        float grime = s.a * (1.0 - w * 0.45 * streak);
+        // Dirt comes off with a wipe or two, unevenly: the ridges of a finger
+        // leave fine streaks of it behind, and some is pushed out to the sides
+        // of the stroke (a clean finger leaves nothing).
+        float fine = 0.5 + 0.5 * vnoise(vec2(across * 0.9, dot(p - uA, dir) * 0.05), uSeed + 7.0);
+        float lift2 = w * (0.2 + 0.55 * streak * fine);
+        float gb = texture2D(tState, toUv(p - dir * min(L * 1.2, uR * 0.7))).a;
+        float grime = s.a * (1.0 - lift2) + edge * w * 0.16 * gb;
         gl_FragColor = vec4(r2, g2, min(smear, 0.9), min(grime, 1.0));
       }
     `,
@@ -213,6 +220,9 @@ export function createGlass(opts: GlassOptions = {}) {
       uniform float uGlitch;
       uniform sampler2D tCrack;
       uniform float uCrack;
+      uniform vec4 uImp[3];   // impact points: x, y (screen points), haze radius, when it shows
+      uniform float uFull;    // 1: the full look; 0 (low quality): the lighter one
+      uniform float uWet;     // 0..1: water on the glass lately
       ${glslHash}
       ${noiseGlsl}
 
@@ -251,36 +261,129 @@ export function createGlass(opts: GlassOptions = {}) {
         vec2 dy = vec2(0.0, uTexel.y);
         float blotch = vnoise(P / 45.0, 7.0) * 0.6 + vnoise(P / 11.0, 8.0) * 0.4;
 
-        // ---- Grime: a greasy haze and specks of dust and dirt.
+        // ---- Grime: real dirt on a screen. Layered smudges with soft edges,
+        // thicker where fingers and cloths never quite reach (the edges and
+        // corners), brown, grey or yellowish by patch, with dust and fine
+        // grit in it, and a faint greasy sheen where the light catches it.
         float gr = s.a;
-        vec2 cell = floor(P / 2.5);
-        float speck = step(1.0 - gr * 0.1, hash(cell, 31.0));
-        float darkSpeck = step(0.5, hash(cell, 32.0));
-        float haze = gr * (0.3 + 0.7 * blotch);
-        float grimeA = clamp(haze * 0.32 + speck * (0.2 + 0.3 * hash(cell, 33.0)), 0.0, 0.75);
-        vec3 grimeCol = mix(vec3(0.46, 0.43, 0.37), vec3(0.09, 0.07, 0.05), darkSpeck * speck);
+        vec2 ec = abs(vUv - 0.5) * 2.0;
+        float rim = smoothstep(0.55, 1.0, max(ec.x, ec.y));
+        float g = clamp(gr * (1.0 + rim * 0.45), 0.0, 1.0);
+        float n1 = vnoise(P / 70.0, 7.0);
+        float n2 = vnoise(P / 22.0, 8.0);
+        float n3 = vnoise(P / 6.0, 9.0);
+        float mott = n1 * 0.5 + n2 * 0.33 + n3 * 0.17;
+        // Soft-edged: a smudge thins out to nothing, it doesn't stop.
+        float haze = smoothstep(0.0, 0.9, g) * (0.25 + 0.75 * mott);
+        // Colour by patch: road grime, grey dust, old yellowed grease.
+        vec3 grimeCol = mix(vec3(0.40, 0.35, 0.28), vec3(0.42, 0.42, 0.40), n1);
+        grimeCol = mix(grimeCol, vec3(0.50, 0.44, 0.27), smoothstep(0.55, 0.85, vnoise(P / 120.0, 11.0)) * 0.7);
+        float grimeA = haze * 0.34;
+        // Dust and grit: fine round grains everywhere it's dirty, the odd bigger speck.
         vec3 rgb = grimeCol * grimeA;
         float a = grimeA;
+        vec2 cell = floor(P / 2.2);
+        vec2 gc = vec2(hash(cell, 36.0), hash(cell, 37.0)) * 0.6 + 0.2;
+        float gd = length(fract(P / 2.2) - gc) * 2.2;
+        float grit = step(1.0 - g * 0.14, hash(cell, 31.0)) * (1.0 - smoothstep(0.35, 0.8, gd));
+        float gA = grit * (0.22 + 0.25 * hash(cell, 33.0));
+        rgb = vec3(0.55, 0.52, 0.46) * gA + rgb * (1.0 - gA);
+        a = gA + a * (1.0 - gA);
+        vec2 cell2 = floor(P / 6.0);
+        vec2 sc = vec2(hash(cell2, 38.0), hash(cell2, 39.0)) * 0.5 + 0.25;
+        float srad = 0.7 + hash(cell2, 40.0) * 1.4;
+        float sd = length((fract(P / 6.0) - sc) * 6.0 * vec2(1.0, 0.8 + 0.4 * hash(cell2, 41.0)));
+        float speck = step(1.0 - g * 0.06, hash(cell2, 34.0)) * (1.0 - smoothstep(srad * 0.45, srad, sd));
+        float darkSpeck = step(0.45, hash(cell2, 32.0));
+        float sA = speck * (0.4 + 0.35 * hash(cell2, 35.0));
+        vec3 sCol = mix(vec3(0.62, 0.59, 0.52), vec3(0.08, 0.06, 0.05), darkSpeck);
+        rgb = sCol * sA + rgb * (1.0 - sA);
+        a = sA + a * (1.0 - sA);
+        // A greasy sheen: the light from the top left catching the slopes of a smear.
+        if (uFull > 0.5 && g > 0.02) {
+          float gx = S(uv + dx * 2.0).a - S(uv - dx * 2.0).a;
+          float gy = S(uv + dy * 2.0).a - S(uv - dy * 2.0).a;
+          float lit = clamp(dot(normalize(vec3(-gx * 6.0, -gy * 6.0, 1.0)), normalize(vec3(-0.5, 0.6, 0.65))), 0.0, 1.0);
+          float sheen = pow(lit, 18.0) * smoothstep(0.05, 0.4, g) * 0.16;
+          rgb += vec3(0.85, 0.83, 0.75) * sheen;
+          a = max(a, sheen);
+        }
+        // Water: spots that dry into faint rings, more while it's wet.
+        vec2 wc = floor(P / 26.0);
+        vec2 wo = vec2(hash(wc, 51.0), hash(wc, 52.0)) * 26.0;
+        float wr = 3.0 + hash(wc, 53.0) * 7.0;
+        float wd = length(P - wc * 26.0 - wo);
+        float wring = smoothstep(wr - 1.4, wr - 0.4, wd) * (1.0 - smoothstep(wr - 0.4, wr + 0.6, wd));
+        float wbody = (1.0 - smoothstep(0.0, wr, wd)) * 0.35;
+        float spotOn = step(hash(wc, 54.0), 0.22 + uWet * 0.4);
+        float spotA = spotOn * (wring + wbody * uWet) * (0.16 * uWet + 0.12 * smoothstep(0.05, 0.5, g));
+        rgb = mix(rgb, vec3(0.7, 0.72, 0.74) * spotA, spotA);
+        a = spotA + a * (1.0 - spotA);
+        a = min(a, 0.72);
 
         // ---- Cracks: in the glass itself, under whatever's on it. Each line
         // is a bright, cold glint with a dark edge beside it (light bending
         // through the break), revealed where its threshold is under the level.
         if (uCrack > 0.002) {
           vec4 k = texture2D(tCrack, vUv);
+          // Red is the crack line's strength; where it's 0, it's the body of a shard.
+          float isLine = smoothstep(0.06, 0.28, k.r);
+          float rev = smoothstep(k.g - 0.02, k.g + 0.01, uCrack) * k.a;
+          float show = rev * isLine;
+          // A pixel and a half either side, across the break: light splits
+          // into a red edge on one side and a cold blue one on the other.
+          vec2 ox = vec2(1.6, 0.0) / uRes;
+          vec2 oy = vec2(0.0, 1.6) / uRes;
+          vec4 kp = texture2D(tCrack, vUv + ox + oy);
+          vec4 km = texture2D(tCrack, vUv - ox - oy);
+          float lp = smoothstep(kp.g - 0.02, kp.g + 0.01, uCrack) * kp.a * smoothstep(0.06, 0.28, kp.r);
+          float lm = smoothstep(km.g - 0.02, km.g + 0.01, uCrack) * km.a * smoothstep(0.06, 0.28, km.r);
+          // ---- The pieces: each its own tilt, so each catches the light its own way.
+          float facet = rev * (1.0 - isLine) * step(0.02, k.b);
+          float tone = k.b * 2.0 - 1.0;
+          float sheen = facet * (0.05 + 0.07 * uFull) * max(tone, 0.0) * (0.7 + 0.6 * vnoise(P / 60.0, 74.0));
+          float shade = facet * 0.11 * max(-tone, 0.0);
+          rgb = vec3(0.82, 0.88, 0.95) * sheen + rgb * (1.0 - sheen);
+          a = sheen + a * (1.0 - sheen);
+          rgb *= 1.0 - shade;
+          a = shade + a * (1.0 - shade);
+          // ---- Chromatic edges along the breaks.
+          float fr = lp * (1.0 - show) * 0.32;
+          float fc = lm * (1.0 - show) * 0.32;
+          rgb = vec3(1.0, 0.22, 0.18) * fr + rgb * (1.0 - fr);
+          a = fr + a * (1.0 - fr);
+          rgb = vec3(0.2, 0.85, 1.0) * fc + rgb * (1.0 - fc);
+          a = fc + a * (1.0 - fc);
+          // ---- The line itself: a dark seam with a bright, cold glint down
+          // its middle, brightest where the break faces the light.
           vec2 off = vec2(1.3, -1.3) / uRes;
           vec4 k2 = texture2D(tCrack, vUv + off);
-          float show = smoothstep(k.g - 0.02, k.g + 0.01, uCrack) * k.a;
-          float show2 = smoothstep(k2.g - 0.02, k2.g + 0.01, uCrack) * k2.a;
-          // Broken glass catches the light unevenly: dull grey in most places,
-          // a sharp bright glint where the break faces the light.
-          float nz = vnoise(P / 34.0, 71.0);
-          float glim = 0.45 + 0.4 * nz + 0.9 * pow(smoothstep(0.55, 0.95, vnoise(P / 18.0, 72.0)), 2.0);
-          float shadow = show2 * (1.0 - show) * 0.4;
+          float show2 = smoothstep(k2.g - 0.02, k2.g + 0.01, uCrack) * k2.a * smoothstep(0.06, 0.28, k2.r);
+          float shadow = show2 * (1.0 - show) * 0.55;
           rgb = rgb * (1.0 - shadow);
           a = shadow + a * (1.0 - shadow);
-          float lineA = clamp(show * (0.3 + 0.6 * k.r) * glim, 0.0, 0.95);
-          rgb = vec3(0.86, 0.9, 0.96) * lineA + rgb * (1.0 - lineA);
+          float nz = vnoise(P / 34.0, 71.0);
+          float glim = 0.55 + 0.45 * nz + 1.1 * pow(smoothstep(0.55, 0.95, vnoise(P / 18.0, 72.0)), 2.0);
+          float lineA = clamp(show * (0.42 + 0.5 * k.r) * glim, 0.0, 0.92);
+          rgb = vec3(0.9, 0.94, 1.0) * lineA + rgb * (1.0 - lineA);
           a = lineA + a * (1.0 - lineA);
+          // Glints: the odd hard point of light on a broken edge.
+          float glint = show * pow(smoothstep(0.82, 1.0, hash(floor(P / 3.0), 75.0)), 3.0) * uFull;
+          rgb += vec3(1.0) * glint * 0.9;
+          a = max(a, glint);
+          // ---- Where it was hit: crushed white, and a milky haze around it.
+          float frostA = 0.0;
+          for (int i = 0; i < 3; i++) {
+            vec4 im = uImp[i];
+            if (im.z <= 0.0) continue;
+            float on = smoothstep(im.w, im.w + 0.06, uCrack);
+            float d = length(P - im.xy);
+            float frost = (1.0 - smoothstep(0.0, im.z, d)) * (0.55 + 0.45 * vnoise(P / 7.0, 76.0 + float(i)));
+            frostA += on * frost;
+          }
+          frostA = clamp(frostA, 0.0, 1.0) * (0.16 + 0.08 * uFull);
+          rgb = vec3(0.78, 0.8, 0.83) * frostA + rgb * (1.0 - frostA);
+          a = frostA + a * (1.0 - frostA);
           // Close to going out, the world dims at the edges.
           vec2 cv = (vUv - 0.5) * vec2(aspect, 1.0);
           float dim = smoothstep(0.55, 1.0, uCrack) * smoothstep(0.25, 0.95, length(cv / vec2(max(aspect, 1.0) * 0.6, 0.62))) * 0.55;
@@ -395,6 +498,9 @@ export function createGlass(opts: GlassOptions = {}) {
       uGlitch: { value: 0 },
       tCrack: { value: crackTex },
       uCrack: { value: 0 },
+      uImp: { value: [new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4()] },
+      uFull: { value: 1 },
+      uWet: { value: 0 },
     },
   );
   showPass.material.transparent = true;
@@ -424,6 +530,9 @@ export function createGlass(opts: GlassOptions = {}) {
   let time = 0;
   let hurt = 0;
   let glitch = 0;
+  /** Water on the glass lately (rain running down it), 0..1: it dries off over a minute or so. */
+  let wet = 0;
+  let wetShown = 0;
   let low = 0;
   /** Cracks: how far they've spread (shown), where they're heading, and whether the pattern is fresh. */
   let crack = 0;
@@ -1144,11 +1253,36 @@ export function createGlass(opts: GlassOptions = {}) {
         const y = h * (0.62 + rnd() * 0.36);
         stamp(x, y, 40 + rnd() * 70 * (0.6 + power), 0.22 + power * 0.18, 1.4 + rnd(), rnd() * 3, true);
       }
+      // A greasy hand on the glass, catching yourself: a palm and four fingertips, smeared.
+      if (power > 0.5 && rnd() < 0.7) {
+        const hx = w * (side + (rnd() - 0.5) * 0.35);
+        const hy = h * (0.5 + rnd() * 0.35);
+        const s = Math.min(w, h) * (0.07 + rnd() * 0.03);
+        const tilt = (rnd() - 0.5) * 0.8;
+        const drag = rnd() * Math.PI * 2;
+        stamp(hx, hy, s * 1.5, 0.16, 1.3, tilt, true);
+        for (let f = 0; f < 4; f++) {
+          const fa = tilt - Math.PI / 2 + (f - 1.5) * 0.32;
+          const fx = hx + Math.cos(fa) * s * 1.9;
+          const fy = hy + Math.sin(fa) * s * 1.9;
+          stamp(fx, fy, s * 0.42, 0.22, 1.5, fa, true);
+          // (Dragged a little as you pushed off: a short smear from each.)
+          stamp(fx + Math.cos(drag) * s * 0.4, fy + Math.sin(drag) * s * 0.4, s * 0.38, 0.1, 2.2, drag, true);
+        }
+      }
       // Grit: specks thrown up, thickest low down.
       for (let i = 0; i < 60 + power * 160; i++) {
         const x = w * (side + (rnd() - 0.5) * 0.9);
         const y = h * (1 - Math.pow(rnd(), 1.6) * 0.75);
         stamp(x, y, 2 + rnd() * 4, 0.6 + rnd() * 0.4, 1, 0, true);
+      }
+      // And it collects along the edges and into the corners.
+      for (let i = 0; i < 6 + power * 10; i++) {
+        const along = rnd();
+        const e = Math.floor(rnd() * 4);
+        const x = e === 0 ? w * along : e === 1 ? w * along : e === 2 ? 0 : w;
+        const y = e === 0 ? 0 : e === 1 ? h : h * along;
+        stamp(x, y, 24 + rnd() * 40, 0.08 + power * 0.06, 1.8, e < 2 ? 0 : Math.PI / 2, true);
       }
       pctx.globalCompositeOperation = 'source-over';
       painted(false);
@@ -1166,6 +1300,11 @@ export function createGlass(opts: GlassOptions = {}) {
       time += dt;
       hurt = Math.max(0, hurt - dt * 1.4);
       glitch = Math.max(0, glitch - dt * 2.4);
+      wet = Math.max(0, wet - dt * 0.015);
+      if (Math.abs(wet - wetShown) > 0.03) {
+        wetShown = wet;
+        redraw = true;
+      }
       sinceFresh += dt;
       quiet += dt;
       if (!w) return;
@@ -1243,8 +1382,14 @@ export function createGlass(opts: GlassOptions = {}) {
       // Cracks: they spread fast when you're hit, and fade slowly as you
       // come to. A new pattern for the next time it breaks.
       if (crackTarget > 0 && crackStale && crack < 0.01 && w) {
-        const shards = drawCracks(crackCanvas, w, h, crackScale, (Math.random() * 1e9) | 0);
+        const { shards, impacts } = drawCracks(crackCanvas, w, h, crackScale, (Math.random() * 1e9) | 0);
         ghost?.setShards(shards, w, h);
+        setShardMap(shards, w, h);
+        const imp = showPass.material.uniforms.uImp.value as THREE.Vector4[];
+        imp.forEach((v, i) => {
+          const p = impacts[i];
+          v.set(p?.x ?? 0, p?.y ?? 0, p ? Math.min(p.reach * 0.18, Math.min(w, h) * 0.16) : 0, p?.t ?? 1);
+        });
         crackTex.dispose();
         crackTex = newCrackTex();
         showPass.material.uniforms.tCrack.value = crackTex;
@@ -1257,6 +1402,7 @@ export function createGlass(opts: GlassOptions = {}) {
           crackStale = true;
         }
         redraw = true;
+        crackShared.level = crack;
         ghost?.update(crack);
       }
 
@@ -1281,6 +1427,8 @@ export function createGlass(opts: GlassOptions = {}) {
       su.uLow.value = 0;
       su.uGlitch.value = glitch;
       su.uCrack.value = crack;
+      su.uFull.value = settings.quality === 'low' ? 0 : 1;
+      su.uWet.value = wet;
       renderer.setRenderTarget(null);
       renderer.clear();
       showPass.render(renderer);
@@ -1289,6 +1437,7 @@ export function createGlass(opts: GlassOptions = {}) {
     /** Water running down the glass from (ax, ay) to (bx, by): a narrow, gentle wipe. */
     wash(ax: number, ay: number, bx: number, by: number, r: number, power: number) {
       wipes.push({ ax, ay, bx, by, seed: Math.random() * 1000, r, p: power });
+      wet = Math.min(1, wet + 0.08 * power);
     },
 
     /** A flicker of static over everything (the screen changing). */

@@ -25,9 +25,26 @@ function rng(seed: number) {
 
 import type { Shard } from './crackGhost';
 
-/** Draws the cracks; returns the shards of glass between them (for seeing double, see crackGhost.ts). */
-export function drawCracks(canvas: HTMLCanvasElement, w: number, h: number, scale: number, seed: number): Shard[] {
+/** Where the glass was hit: the centre, how far its crushed core and its haze reach, when it shows (0..1). */
+export interface Impact {
+  x: number;
+  y: number;
+  core: number;
+  reach: number;
+  t: number;
+}
+
+/**
+ * Draws the cracks; returns the shards of glass between them (for seeing
+ * double, see crackGhost.ts and crackShared.ts) and the impact points.
+ *
+ * Under the cracks, each shard is filled too (red 0: not a crack; green its
+ * threshold; blue a tone of its own, how it catches the light), so the glass
+ * reads as broken pieces, not lines drawn on it.
+ */
+export function drawCracks(canvas: HTMLCanvasElement, w: number, h: number, scale: number, seed: number): { shards: Shard[]; impacts: Impact[] } {
   const shards: Shard[] = [];
+  const impacts: Impact[] = [];
   canvas.width = Math.max(1, Math.round(w * scale));
   canvas.height = Math.max(1, Math.round(h * scale));
   const c = canvas.getContext('2d')!;
@@ -92,8 +109,7 @@ export function drawCracks(canvas: HTMLCanvasElement, w: number, h: number, scal
     return pts;
   };
 
-  const impacts = 3;
-  for (let i = 0; i < impacts; i++) {
+  for (let i = 0; i < 3; i++) {
     // Not dead centre, not hard against the edge.
     const cx = w * (0.14 + R() * 0.72);
     const cy = h * (0.12 + R() * 0.76);
@@ -103,6 +119,7 @@ export function drawCracks(canvas: HTMLCanvasElement, w: number, h: number, scal
 
     // The crushed core: a tiny star of short, bright splinters.
     const core = 6 + R() * 6;
+    impacts.push({ x: cx, y: cy, core, reach, t: t0 });
     for (let k = 0; k < 16; k++) {
       const a = R() * Math.PI * 2;
       const r1 = R() * core * 0.4;
@@ -169,5 +186,16 @@ export function drawCracks(canvas: HTMLCanvasElement, w: number, h: number, scal
       }
     }
   }
-  return shards;
+  // The pieces themselves, under the cracks: a flat tone each.
+  c.globalCompositeOperation = 'destination-over';
+  for (const s of shards) {
+    const tone = 0.15 + R() * 0.85;
+    c.fillStyle = `rgb(0,${Math.round(Math.min(1, Math.max(0, s.t)) * 255)},${Math.round(tone * 255)})`;
+    c.beginPath();
+    s.pts.forEach((p, i) => (i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)));
+    c.closePath();
+    c.fill();
+  }
+  c.globalCompositeOperation = 'source-over';
+  return { shards, impacts };
 }

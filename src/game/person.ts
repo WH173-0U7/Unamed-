@@ -210,7 +210,7 @@ export interface Loot {
   /** Nothing in it: the machine said so. */
   empty?: boolean;
   /** Something to wear, taken off: where it goes when you put it back on. */
-  slot?: 'top' | 'bottom' | 'bag' | 'head' | 'face' | 'eyes';
+  slot?: 'top' | 'bottom' | 'bag' | 'head' | 'face' | 'eyes' | 'hands';
 
   /** Something to drink (uses in `doses`). */
   drink?: 'beer' | 'liquor' | 'energy';

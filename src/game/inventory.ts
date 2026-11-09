@@ -52,7 +52,7 @@ export interface InvItem {
   /** Nothing in it: the machine said so. */
   empty?: boolean;
   /** Something to wear, taken off: where it goes when you put it back on. */
-  slot?: 'top' | 'bottom' | 'bag' | 'head' | 'face' | 'eyes';
+  slot?: 'top' | 'bottom' | 'bag' | 'head' | 'face' | 'eyes' | 'hands';
   /** Your own ID (which life it's for: see World.lives). Never evidence. */
   own?: number;
   /** A phone: locked (someone else's, and you can't get in) or not; decided the first time you look. */

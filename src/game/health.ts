@@ -19,6 +19,8 @@ export interface Health {
   /** Lying down since then (real time, ms), and where. */
   restingSince?: number;
   restWhere?: 'street' | 'room' | 'car' | 'squat' | 'shelter' | 'pew';
+  /** Somewhere that closes (a pew, a shelter cot): resting there counts only until then. */
+  restEnd?: number;
   restCar?: string;
   blood: number;
   maxBlood: number;
@@ -487,8 +489,11 @@ export const fatigueLevel = (f: number) => (f >= FATIGUE_SPENT ? 4 : f >= 70 ? 3
 export function fatigueNow(h: Health, t = Date.now()): number {
   const at = h.fatigueAt ?? t;
   if (h.fatigue && t > at) {
-    const rate = restRate(h);
-    h.fatigue = Math.max(0, h.fatigue - ((t - at) / 3_600_000) * rate);
+    // (Resting somewhere that closes: the rest rate only until closing; after that, on your feet.)
+    const end = h.restingSince != null && h.restEnd != null ? h.restEnd : Infinity;
+    const restH = Math.max(0, (Math.min(t, end) - Math.min(at, end)) / 3_600_000);
+    const idleH = Math.max(0, (t - Math.max(at, end)) / 3_600_000);
+    h.fatigue = Math.max(0, h.fatigue - restH * restRate(h) - idleH * FATIGUE_IDLE_PER_HOUR);
   }
   // (Never back: a clock set back and put right again doesn't count the same hours twice.)
   h.fatigueAt = Math.max(at, t);
@@ -500,7 +505,11 @@ export function addFatigue(h: Health, n: number) {
 /** How much worse your odds are, worn out: up to 15% at the end of your rope. */
 export const fatigueOdds = (h: Health) => Math.min(0.15, fatigueNow(h) * 0.0015);
 /** Real time until you're fresh, lying down (ms). */
-export const restLeft = (h: Health) => (fatigueNow(h) / (h.restingSince != null ? restRate(h) : 50)) * 3_600_000;
+export const restLeft = (h: Health) => {
+  const left = (fatigueNow(h) / (h.restingSince != null ? restRate(h) : 50)) * 3_600_000;
+  // (Somewhere that closes: no later than closing.)
+  return h.restingSince != null && h.restEnd != null ? Math.max(0, Math.min(left, h.restEnd - Date.now())) : left;
+};
 
 export interface InjuryInfo {
   name: string;

@@ -1,7 +1,7 @@
 import { AMBUSH_TEXT, TECH_ALT, TECH_TEXT, kickText, missText, punchText, stompText, tierOf, tierUpLine, weaponText, type Tier } from './practice';
 import { AWARENESS, BUILDS, NAMES, personalityOf, type Item, type Loot, type Person } from './person';
 import { money } from './money';
-import { amountText, keyName, keyProduct, quote, requestFor, substitutes, type MarketKey } from './drugs';
+import { amountText, keyName, keyProduct, midName, pillCount, quote, requestFor, substitutes, type MarketKey, type PillKind } from './drugs';
 import { demandVoice, fearTier, homeThreatVoice, hushVoice, indoors, isBrute, voice, type Moment } from './voices';
 export { fearTier, FEAR_TIER_NAMES } from './voices';
 import { lootMark, type LootGlyph, type LootTone } from './lootIcon';
@@ -1140,7 +1140,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
   if (e.stage === 'over') return impacts;
   const p = e.person;
   const aw = AWARENESS.indexOf(p.awareness);
-  const who = e.enforcer || p.title === "Dez's man" ? 'big man' : e.resident ? (p.sex === 'Male' ? 'man' : 'woman') : p.kind === 'homeless' ? 'homeless one' : NAMES[p.kind].toLowerCase();
+  const who = e.enforcer || /^Dez['’]s man$/.test(p.title ?? '') ? 'big man' : e.resident ? (p.sex === 'Male' ? 'man' : 'woman') : p.kind === 'homeless' ? 'homeless one' : p.kind === 'civilian' ? (p.sex === 'Male' ? 'man' : 'woman') : NAMES[p.kind].toLowerCase();
 
   // Someone you hurt, and they've been looking for you: they find you first.
   if (id === 'ambushed' && e.stage === 'seen') {
@@ -1207,7 +1207,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           say('info', "They know you, and they’re running.");
           bolt('lost-them', 3);
         }
-      } else say('info', `${p.kind === 'homeless' ? 'Someone homeless' : `A ${who}`}, ${DISTANCE[0].toLowerCase()}. They haven’t seen you.`);
+      } else say('info', `${p.kind === 'homeless' ? 'Someone homeless' : p.kind === 'civilian' && !e.resident ? 'Someone' : `A ${who}`}, ${DISTANCE[0].toLowerCase()}. They haven’t seen you.`);
     }
     return impacts;
   }
@@ -3429,11 +3429,12 @@ function sellOption(e: Encounter): Option {
   const have = k ? (e.stock?.[k]?.n ?? 0) : 0;
   // (A regular asks for their usual, and someone who came over says what they want; anyone else you find out by asking.)
   const known = e.regular || e.cameOver;
-  if (!k || !e.wantAmt || !known) return { id: 'sell', label: '“You looking?”', hint: (e.zips ?? 0) < 1 ? 'No baggies' : 'Sell them something · Speech', disabled: (e.zips ?? 0) < 1, cat: 'talk' };
+  if (!k || !e.wantAmt || !known) return { id: 'sell', label: '“You looking?”', hint: (e.zips ?? 0) < 1 ? 'No zip bags' : 'Sell them something · Speech', disabled: (e.zips ?? 0) < 1, cat: 'talk' };
   const p = keyProduct(k);
   const bags = e.wantBags ?? 1;
-  const what = `${bags} bag${bags === 1 ? '' : 's'} of ${keyName(k).toLowerCase()} (${amountText(p, e.bagSize ?? e.wantAmt)}${bags > 1 ? ' each' : ''})`;
-  const short = have < e.wantAmt ? (have ? `You’ve only got ${amountText(p, have)}` : `You’ve got no ${keyName(k).toLowerCase()}`) : (e.zips ?? 0) < bags ? 'No baggies' : null;
+  // (Pills are counted out, not weighed: "3 percs".)
+  const what = p === 'pills' ? pillCount(k as PillKind, e.wantAmt) : `${bags} bag${bags === 1 ? '' : 's'} of ${midName(k)} (${amountText(p, e.bagSize ?? e.wantAmt)}${bags > 1 ? ' each' : ''})`;
+  const short = have < e.wantAmt ? (have ? `You’ve only got ${amountText(p, have)}` : `You’ve got no ${midName(k)}`) : (e.zips ?? 0) < bags ? 'No zip bags' : null;
   return { id: 'sell', label: `Sell ${what}`, hint: short ?? `$${Math.round((e.quote?.cents ?? 0) / 100)} · Speech`, disabled: !!short, cat: 'talk' };
 }
 
@@ -3445,12 +3446,12 @@ function sellTo(e: Encounter) {
   e.facedYou = true;
   const stock = e.stock ?? {};
   const want = e.wants ?? 'powder';
-  const name = (k: MarketKey) => keyName(k).toLowerCase();
+  const name = (k: MarketKey) => midName(k);
   // Bags of whatever size you sell that in: as many as they want.
   const bags = e.wantBags ?? 1;
   const amtFor = (k: MarketKey) => bags * (e.sellSizes?.[keyProduct(k)] ?? requestFor(k, p.kind, p.age));
   const has = (k: MarketKey) => (stock[k]?.n ?? 0) >= amtFor(k) && (e.zips ?? 0) >= bags;
-  const bagsOf = (k: MarketKey) => `${bags === 1 ? 'a bag' : `${bags} bags`} of ${keyName(k).toLowerCase()}`;
+  const bagsOf = (k: MarketKey) => (keyProduct(k) === 'pills' ? pillCount(k as PillKind, amtFor(k)) : `${bags === 1 ? 'a bag' : `${bags} bags`} of ${midName(k)}`);
   const cap = (t: string) => t.replace(/^./, (c) => c.toUpperCase());
   say('you', e.regular ? oneOf(['You give them a nod. “Same as last time?”', '“Hey. You need?”']) : oneOf(['You fall in beside them and keep your voice low. “You looking?”', 'You catch their eye. “You need something? I got you.”', '“Hey. You good? I can help you out.”']));
   const ask = bagsOf(want);

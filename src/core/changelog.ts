@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.80',
+    date: 'Nov 10',
+    items: [
+      'Overnight fixes: the pew and the shelter cot end at closing time even if you were away; the shelter is once a night; watching houses keeps your map list short; lock-up messages only at your own unit.',
+      'The school-zone charge only applies to selling done near the school.',
+      'A bar you’re working counts as indoors (no rain, no cold). Blacking out in a bar works like on the street.',
+      'Nobody from a stop or a shift is left standing across the street when you come back; being cuffed never carries over to a new character.',
+      'Wording: plurals and capitals fixed (Xanax, Adderall), pills sold as pills (“Sell 3 percs”), one name per thing, American spelling, no old opening hours.',
+    ],
+  },
+  {
     v: '2.79',
     date: 'Nov 9',
     items: [

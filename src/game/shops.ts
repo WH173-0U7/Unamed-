@@ -137,7 +137,7 @@ export const PLACES: PlaceInfo[] = [
   {
     id: 'bank',
     name: 'First Civic Bank',
-    desc: 'Change money, and keep it in an account (with ID). A coin machine in the lobby, any hour.',
+    desc: 'Change money, and keep it in an account (with ID). A coin machine in the lobby.',
     hours: WEEKDAYS(9, 17, [9, 13]),
     blurb: 'Marble and quiet. A guard by the door watches you come in.',
     indoors: true,
@@ -317,7 +317,7 @@ export const PAWN_STOCK: Stock[] = [
   { id: 'lowcap', name: 'Low cap', price: 14, desc: 'A deep, stiff brim, worn low. A camera on the wall sees the top of a hat.', slot: 'head' },
   { id: 'widebrim', name: 'Wide-brim hat', price: 18, desc: 'A bucket hat with a wide floppy brim. From above, all hat.', slot: 'head' },
   { id: 'balaclava', name: 'Balaclava', price: 15, desc: 'Black, eyes only. Nothing else hides you as well, and nothing else looks so much like trouble.', slot: 'face' },
-  { id: 'reversible', name: 'Reversible jacket', price: 40, desc: 'Black one side, grey the other. Turn it inside out and you’re someone else in a description. Three pockets.', slot: 'top' },
+  { id: 'reversible', name: 'Reversible jacket', price: 40, desc: 'Black one side, gray the other. Turn it inside out and you’re someone else in a description. Three pockets.', slot: 'top' },
 ];
 
 // ---------- The ER (self-pay) ----------
@@ -342,7 +342,7 @@ export const CHARGES: Record<string, { bail: number; fine: number; days: number;
   'Possession of stolen property': { bail: 250, fine: 300, days: 3, sev: 2 },
   'Possession of a controlled substance': { bail: 500, fine: 500, days: 7, sev: 3 },
   'Possession of marijuana': { bail: 100, fine: 150, days: 2, sev: 1 },
-  'Possession of marijuana with intent to sell': { bail: 1000, fine: 1000, days: 20, sev: 5 },
+  'Possession of marijuana with intent to distribute': { bail: 1000, fine: 1000, days: 20, sev: 5 },
   'Carrying an illegal weapon': { bail: 400, fine: 400, days: 5, sev: 3 },
   'Brandishing a weapon': { bail: 1000, fine: 800, days: 14, sev: 5 },
   'Resisting arrest': { bail: 500, fine: 400, days: 5, sev: 2 },
@@ -366,7 +366,7 @@ export const CHARGES: Record<string, { bail: number; fine: number; days: number;
   'Aggravated identity theft': { bail: 5000, fine: 2500, days: 730, sev: 9 },
   'Identity theft': { bail: 1500, fine: 1500, days: 60, sev: 5 },
   'Bank fraud': { bail: 5000, fine: 3000, days: 365, sev: 8 },
-  'Robbery (Hobbs Act)': { bail: 10000, fine: 5000, days: 730, sev: 12 },
+  'Hobbs Act robbery': { bail: 10000, fine: 5000, days: 730, sev: 12 },
   Robbery: { bail: 5000, fine: 2500, days: 365, sev: 8 },
   Carjacking: { bail: 15000, fine: 5000, days: 1095, sev: 13 },
   'Interstate transport of a stolen vehicle': { bail: 2500, fine: 2000, days: 180, sev: 7 },
@@ -381,6 +381,8 @@ const CHARGE_ALIAS: Record<string, string> = {
   // (Older names for the same federal charges.)
   'Possession of a controlled substance with intent to distribute': 'Possession with intent to distribute',
   'Possession with intent': 'Possession with intent to distribute',
+  'Robbery (Hobbs Act)': 'Hobbs Act robbery',
+  'Possession of marijuana with intent to sell': 'Possession of marijuana with intent to distribute',
 };
 export const chargeName = (c: string) => CHARGE_ALIAS[c] ?? c;
 export const chargeOf = (c: string) => CHARGES[chargeName(c)] ?? { bail: 300, fine: 300, days: 3, sev: 2 };
@@ -390,14 +392,14 @@ const CHARGE_CODE: Record<string, string> = {
   'Aggravated identity theft': '18 U.S.C. § 1028A',
   'Identity theft': '18 U.S.C. § 1028',
   'Bank fraud': '18 U.S.C. § 1344',
-  'Robbery (Hobbs Act)': '18 U.S.C. § 1951',
+  'Hobbs Act robbery': '18 U.S.C. § 1951',
   Carjacking: '18 U.S.C. § 2119',
   'Interstate transport of a stolen vehicle': '18 U.S.C. § 2312',
   'Possession of stolen mail': '18 U.S.C. § 1708',
   'Possession with intent to distribute': '21 U.S.C. § 841',
   'Selling a controlled substance': '21 U.S.C. § 841',
   'Distribution near a school': '21 U.S.C. § 860',
-  'Possession of marijuana with intent to sell': '21 U.S.C. § 841',
+  'Possession of marijuana with intent to distribute': '21 U.S.C. § 841',
   'Possession of a controlled substance': '21 U.S.C. § 844',
   'Possession of marijuana': '21 U.S.C. § 844',
   'Maintaining a drug-involved premises': '21 U.S.C. § 856',

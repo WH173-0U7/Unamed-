@@ -185,7 +185,11 @@ export function upgradeInventory(inv: Inventory) {
     delete inv.cash;
   }
   // (A pack used to be called just "Cigarettes": hard to tell from loose ones.)
-  for (const x of inv.items) if (x.name === 'Cigarettes') x.name = 'Pack of cigarettes';
+  for (const x of inv.items) {
+    if (x.name === 'Cigarettes') x.name = 'Pack of cigarettes';
+    // (A straight apostrophe, before the text was tidied.)
+    else if (x.name === "Driver's license") x.name = 'Driver’s license';
+  }
   if (inv.spots) return;
   const fresh = newInventory();
   inv.clothes = fresh.clothes;

@@ -162,10 +162,24 @@ export const PILLS: Record<PillKind, PillInfo> = {
   klonopin: { street: 'K-pins', generic: 'Clonazepam, 1 mg', price: 5, returnH: 24 },
 };
 
+/** One pill, as you'd say it. */
+const PILL_ONE: Record<PillKind, string> = { xanax: 'Xanax bar', perc: 'perc', oxy: '30 (a blue)', adderall: 'Adderall', vicodin: 'vike', valium: 'Valium', klonopin: 'K-pin' };
+/** So many pills, as you'd say it: "3 percs", "a Xanax bar". */
+export function pillCount(k: PillKind, n: number): string {
+  if (n === 1) return `${/^[AEIOU]/.test(PILL_ONE[k]) ? 'an' : 'a'} ${PILL_ONE[k]}`;
+  const many = PILLS[k].street;
+  return `${n} ${/^(Xanax|Adderall|Valium|K-pins)/.test(many) ? many : many[0].toLowerCase() + many.slice(1)}`;
+}
+
 /** Every market key, in the order they're listed. */
 export const MARKET_KEYS: MarketKey[] = ['weed', 'powder', 'crack', 'crystal', 'heroin', 'oxy', 'perc', 'vicodin', 'xanax', 'klonopin', 'valium', 'adderall'];
 
 export const keyName = (k: MarketKey) => (k in PILLS ? PILLS[k as PillKind].street : PRODUCTS[k as Product].name);
+/** The name mid-sentence: lower case, except a brand (Xanax, Adderall, Valium, K-pins). */
+export const midName = (k: MarketKey) => {
+  const n = keyName(k);
+  return /^(Xanax|Adderall|Valium|K-pins)/.test(n) ? n : n[0].toLowerCase() + n.slice(1);
+};
 export const keyProduct = (k: MarketKey): Product => (k in PILLS ? 'pills' : (k as Product));
 export const basePrice = (k: MarketKey) => (k in PILLS ? PILLS[k as PillKind].price : PRODUCTS[k as Product].price);
 export const baseReturnH = (k: MarketKey) => (k in PILLS ? PILLS[k as PillKind].returnH : PRODUCTS[k as Product].returnH);
@@ -277,8 +291,8 @@ export function marketWord(m: Market, k: MarketKey): { word: string; arrow: '↑
 
 /** What happened out there (for a line on the street, when you're there to hear it). */
 export const EVENT_LINES: Record<MarketEvent['kind'], (k: MarketKey) => string> = {
-  drought: (k) => `Word on the street: a bust upstate. ${keyName(k)} is hard to find, and the price is going up.`,
-  glut: (k) => `Word on the street: somebody got a big load in. ${keyName(k)} is everywhere, and cheap.`,
+  drought: (k) => `Word on the street: a bust upstate. Nobody can find ${midName(k)}, and the price is going up.`,
+  glut: (k) => `Word on the street: somebody got a big load in. There’s ${midName(k)} everywhere, and it’s cheap.`,
 };
 
 /**

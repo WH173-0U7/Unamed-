@@ -122,7 +122,7 @@ export const veryConspicuous = (inv: Inventory) => {
 /** Your top, as people see it (a reversible jacket shows one side or the other). */
 export const topSeen = (inv: Inventory) => {
   const top = inv.clothes[0];
-  return top && /reversible/i.test(top) ? `${top} (${wearing(inv).flipped ? 'grey side out' : 'black side out'})` : top;
+  return top && /reversible/i.test(top) ? `${top} (${wearing(inv).flipped ? 'gray side out' : 'black side out'})` : top;
 };
 
 /** A masked face makes people uneasy. */
@@ -140,7 +140,7 @@ export function describe(inv: Inventory): string {
   if (w.head) bits.push(`a ${w.head.toLowerCase()}`);
   if (w.eyes) bits.push(/clear/i.test(w.eyes) ? 'glasses' : 'sunglasses');
   const top = inv.clothes[0];
-  if (top) bits.push(/reversible/i.test(top) ? `a ${w.flipped ? 'grey' : 'black'} jacket` : `a ${top.toLowerCase()}`);
+  if (top) bits.push(/reversible/i.test(top) ? `a ${w.flipped ? 'gray' : 'black'} jacket` : `a ${top.toLowerCase()}`);
   // ("someone in a balaclava, a cap and a black jacket": commas, and an “and” before the last.)
   const b = bits.slice(0, 3);
   return b.length ? `someone in ${b.length > 1 ? `${b.slice(0, -1).join(', ')} and ${b[b.length - 1]}` : b[0]}` : 'someone';

@@ -529,7 +529,7 @@ function dress(kind: Kind, carrying: Item[], who: { name: string; age: number; s
     const g = r() < 0.6 ? clothes[1] : clothes[0];
     const w = (l: Omit<Loot, 'where'>) => put(l, g, 'wallet');
     const dl = kind === 'civilian' || r() < 0.5;
-    if (r() < 0.92) w({ kind: 'id', name: dl ? "Driver's license" : 'State ID', detail: `${name}, ${age}`, ...card(dl) });
+    if (r() < 0.92) w({ kind: 'id', name: dl ? 'Driver’s license' : 'State ID', detail: `${name}, ${age}`, ...card(dl) });
     // What's behind the cards goes by what they earn: the house they live in says that, or the life they lead.
     const means = home?.wealth ?? (kind === 'civilian' ? 1 : kind === 'drunk' ? 0.55 : 0.25);
     if (r() < 0.85) w({ kind: 'debit card', name: 'Debit card', detail: name, ...debitMoney(kind, means) });

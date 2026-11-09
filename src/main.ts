@@ -167,7 +167,7 @@ const menu = createMenu({
     if (hasSave()) {
       menu.confirm({
         title: 'Start a new game?',
-        body: 'Your saved game will be replaced within a few seconds of starting. This cannot be undone.',
+        body: 'Your saved game will be replaced within a few seconds of starting. This can’t be undone.',
         ok: 'Start new game',
         onOk: () => startGame(true),
       });
@@ -184,7 +184,7 @@ const menu = createMenu({
     }
     menu.confirm({
       title: 'Delete saved game?',
-      body: 'Your progress will be erased from this device. This cannot be undone.',
+      body: 'Your progress will be erased from this device. This can’t be undone.',
       ok: 'Delete',
       onOk: () => {
         deleteSave();
@@ -199,7 +199,7 @@ const menu = createMenu({
 $('btn-reset-game').addEventListener('click', () => {
   menu.confirm({
     title: 'Reset the whole game?',
-    body: 'Every character, everyone you used to be, and the whole city is wiped, and a fresh game starts. This cannot be undone.',
+    body: 'Every character, everyone you used to be, and the whole city is wiped, and a fresh game starts. This can’t be undone.',
     ok: 'Reset',
     onOk: () => {
       if (game) {

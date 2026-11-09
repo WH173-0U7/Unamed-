@@ -179,11 +179,12 @@ const STREETS = ['Alder St', 'Kestrel Ave', 'Larkin St', 'Halsey Ave', 'Pruitt S
 const CARS = ['Toyota', 'Honda', 'Ford', 'Chevy', 'Nissan', 'Hyundai', 'Dodge', 'Subaru', 'Kia'];
 
 /** Where someone lives. The homeless have nowhere; the rest, something to go home to. */
-export function makeHome(o: { name: string; sex: Sex; kind: Kind; age: number }): Home | null {
+export function makeHome(o: { name: string; sex: Sex; kind: Kind; age: number; type?: HomeType }): Home | null {
   const r = Math.random;
   if (o.kind === 'homeless') return null;
   const type: HomeType =
-    o.kind === 'junkie' ? (r() < 0.6 ? 'room' : 'apartment') : o.kind === 'drunk' ? (r() < 0.55 ? 'apartment' : r() < 0.5 ? 'rowhouse' : 'house') : r() < 0.5 ? 'apartment' : r() < 0.35 ? 'rowhouse' : 'house';
+    o.type ??
+    (o.kind === 'junkie' ? (r() < 0.6 ? 'room' : 'apartment') : o.kind === 'drunk' ? (r() < 0.55 ? 'apartment' : r() < 0.5 ? 'rowhouse' : 'house') : r() < 0.5 ? 'apartment' : r() < 0.35 ? 'rowhouse' : 'house');
   const floor = type === 'apartment' ? 1 + Math.floor(r() * 5) : type === 'room' ? 1 + Math.floor(r() * 3) : 1;
   const num = type === 'house' ? 100 + Math.floor(r() * 4900) : 10 + Math.floor(r() * 990);
   const unit = type === 'apartment' ? `, Apt ${floor}${'ABCDEF'[Math.floor(r() * 6)]}` : type === 'room' ? `, Rm ${floor}${pad(1 + Math.floor(r() * 18))}` : '';

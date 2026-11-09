@@ -335,7 +335,7 @@ export function hushVoice(e: Encounter, how: 'refuse' | 'lie' | 'swear'): string
 export function homeThreatVoice(e: Encounter): string[] {
   const band = bandOf(e.person.personality);
   const tier = fearTier(e.them.fear ?? 0);
-  if (band === 'brute') return tier >= 4 ? ['The colour goes out of their face. For once, they’ve got nothing to say.', 'They go very still. “Leave my family out of this.” It isn’t a threat any more.'] : ['They go pale and quiet. The sneer stays on, but only just.', 'Something shifts behind their eyes. They don’t answer.'];
+  if (band === 'brute') return tier >= 4 ? ['The color goes out of their face. For once, they’ve got nothing to say.', 'They go very still. “Leave my family out of this.” It isn’t a threat any more.'] : ['They go pale and quiet. The sneer stays on, but only just.', 'Something shifts behind their eyes. They don’t answer.'];
   if (band === 'sly') return tier >= 4 ? ['“Please. Please, not at home. I’ll do whatever you want.”', 'All the smoothness goes. “Okay. Okay. You win. Just not at home.”'] : ['The easy smile slips. “There’s no need for that.”', '“Hey. Hey. Let’s keep this between us, out here.”'];
   return tier >= 3
     ? ['“Please. Please, I’ve got people there. Please.”', 'They start to beg, and can’t stop. “Don’t come to my house. Please don’t.”', 'Their legs go. They sit down hard, shaking. “Please. Not there.”']

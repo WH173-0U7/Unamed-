@@ -537,6 +537,9 @@ export function createGlass(opts: GlassOptions = {}) {
   /** Cracks: how far they've spread (shown), where they're heading, and whether the pattern is fresh. */
   let crack = 0;
   let crackTarget = 0;
+  /** The crack level last drawn, and when the crack last moved (real clock). */
+  let crackDrawn = 0;
+  let crackAt = 0;
   let crackStale = true;
   let crackScale = 1;
   let pendingDirty = false;
@@ -1395,15 +1398,24 @@ export function createGlass(opts: GlassOptions = {}) {
         showPass.material.uniforms.tCrack.value = crackTex;
         crackStale = false;
       }
+      // (On the real clock, not the frame's: a slow phone's capped frames don't stretch the fade out.)
+      const tCrack = performance.now();
+      const cdt = crackAt ? Math.min(1, Math.max(0, (tCrack - crackAt) / 1000)) : dt;
+      crackAt = tCrack;
       if (crack !== crackTarget) {
-        crack = crackTarget > crack ? Math.min(crackTarget, crack + dt * 1.6) : Math.max(crackTarget, crack - dt * 0.12);
+        const rising = crackTarget > crack;
+        crack = rising ? Math.min(crackTarget, crack + cdt * 1.6) : Math.max(crackTarget, crack - cdt * 0.12);
         if (crack < 0.004 && crackTarget === 0) {
           crack = 0;
           crackStale = true;
         }
-        redraw = true;
-        crackShared.level = crack;
-        ghost?.update(crack);
+        // (Fading: redrawn only when it's visibly less, not every frame.)
+        if (rising || crack === crackTarget || Math.abs(crack - crackDrawn) > 0.02) {
+          crackDrawn = crack;
+          redraw = true;
+          crackShared.level = crack;
+          ghost?.update(crack);
+        }
       }
 
       // Kept on the device once things have settled.

@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.78',
+    date: 'Nov 9',
+    items: [
+      'Turning yourself in at the courthouse lists what you’re wanted for.',
+      'A deputy or ER cop who knows your face talks like it, inside, with no patrol car; you can go with him or run.',
+      'Your mask stays on at the ATM and in the bank lobby, so it can beat the camera (it still looks suspicious). Court dates no longer mention old opening hours.',
+      'Descriptions read naturally (“someone in a balaclava, a baseball cap and a hoodie”).',
+      'Cracked glass runs much more smoothly on slower phones, and fading cracks no longer slow things down.',
+    ],
+  },
+  {
     v: '2.77',
     date: 'Nov 9',
     items: [

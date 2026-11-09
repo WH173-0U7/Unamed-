@@ -136,12 +136,14 @@ export function describe(inv: Inventory): string {
   const w = wearing(inv);
   const bits: string[] = [];
   if (w.face && w.masked) bits.push(`a ${w.face.toLowerCase()}`);
-  if (w.hood && hasHood(inv)) bits.push('a hood up');
+  if (w.hood && hasHood(inv)) bits.push('a hood');
   if (w.head) bits.push(`a ${w.head.toLowerCase()}`);
   if (w.eyes) bits.push(/clear/i.test(w.eyes) ? 'glasses' : 'sunglasses');
   const top = inv.clothes[0];
   if (top) bits.push(/reversible/i.test(top) ? `a ${w.flipped ? 'grey' : 'black'} jacket` : `a ${top.toLowerCase()}`);
-  return bits.length ? `someone in ${bits.slice(0, 3).join(', ')}` : 'someone';
+  // ("someone in a balaclava, a cap and a black jacket": commas, and an “and” before the last.)
+  const b = bits.slice(0, 3);
+  return b.length ? `someone in ${b.length > 1 ? `${b.slice(0, -1).join(', ')} and ${b[b.length - 1]}` : b[0]}` : 'someone';
 }
 
 /** The clothes someone might know you by again. */

@@ -128,10 +128,34 @@ export function createCrackGhost(target: HTMLElement) {
     watching = requestAnimationFrame(watch);
   };
 
+  /**
+   * The map, at a few steps of how far the cracks have spread: each step drawn
+   * once per break and encoded off the main thread (toBlob), then reused.
+   */
+  const urls = new Map<number, string>();
+  let gen = 0;
+  /** A map for this break is in the filter (until then, it stays off: an empty map would shift everything). */
+  let hasMap = false;
+  const setHref = (url: string) => {
+    hasMap = true;
+    for (const img of imgs) {
+      img.setAttribute('href', url);
+      img.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url);
+      img.setAttribute('width', String(w));
+      img.setAttribute('height', String(h));
+    }
+  };
   const drawMap = (level: number) => {
-    const show = shards.filter((s) => s.t <= level);
-    if (show.length === drawn) return;
-    drawn = show.length;
+    // (Five steps: the shards show in batches, never a re-encode per shard.)
+    const step = Math.min(5, Math.ceil(level * 5));
+    if (step === drawn) return;
+    drawn = step;
+    const have = urls.get(step);
+    if (have) {
+      setHref(have);
+      return;
+    }
+    const show = shards.filter((s) => s.t <= step / 5);
     map.width = Math.max(1, Math.round(w * MAP_SCALE));
     map.height = Math.max(1, Math.round(h * MAP_SCALE));
     const c = map.getContext('2d')!;
@@ -146,13 +170,23 @@ export function createCrackGhost(target: HTMLElement) {
       c.closePath();
       c.fill();
     }
-    const url = map.toDataURL('image/png');
-    for (const img of imgs) {
-      img.setAttribute('href', url);
-      img.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url);
-      img.setAttribute('width', String(w));
-      img.setAttribute('height', String(h));
-    }
+    const mine = gen;
+    map.toBlob((blob) => {
+      // (A new break came in meanwhile: this one's no use.)
+      if (!blob || mine !== gen) return;
+      const url = URL.createObjectURL(blob);
+      urls.set(step, url);
+      if (drawn === step) {
+        setHref(url);
+        this_update(level0);
+      }
+    }, 'image/png');
+  };
+  const forget = () => {
+    gen++;
+    hasMap = false;
+    for (const u of urls.values()) URL.revokeObjectURL(u);
+    urls.clear();
   };
 
   /** How far the cracks have spread (0..1): more shards, a bigger shift, a stronger ghost. */
@@ -167,6 +201,13 @@ export function createCrackGhost(target: HTMLElement) {
       return;
     }
     drawMap(level);
+    if (!hasMap) {
+      if (on) {
+        target.style.filter = '';
+        on = false;
+      }
+      return;
+    }
     const k = Math.min(1, (level - FROM) / 0.5);
     // (With buttons to press, the doubled copy stays small: what you see is where you tap.)
     const busy = target.classList.contains('in-encounter') ? 0.5 : 1;
@@ -197,12 +238,14 @@ export function createCrackGhost(target: HTMLElement) {
       w = width;
       h = height;
       drawn = -1;
+      forget();
     },
     /** How far the cracks have spread (0..1): more shards, a bigger shift, a stronger ghost. */
     update(level: number) {
       this_update(level);
     },
     dispose() {
+      forget();
       target.style.filter = '';
       svg.remove();
     },

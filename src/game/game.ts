@@ -2106,7 +2106,8 @@ export class Game {
     const lines: string[] = [];
     const h = this.health;
     const w = wearing(this.inventory);
-    if (w.masked) {
+    // (The bank's cash machines are in the lobby, off the street: a covered face stays covered there.)
+    if (w.masked && this.place !== 'bank') {
       w.masked = false;
       lines.push(`You pull the ${w.face!.toLowerCase()} down before you go in.`);
     }
@@ -2688,6 +2689,11 @@ export class Game {
     const anon = camAnonymity(inv);
     const lines: string[] = [];
     lines.push(anon >= 0.5 ? 'You keep your face down, away from the camera, and push the card in.' : 'You push the card in. The little camera over the screen watches you.');
+    // (Covered up at a cash machine: the camera can't see you, but a guard and the people in line can see that.)
+    if (wearing(inv).masked) {
+      lines.push('Someone waiting in the lobby takes one look at your face covering and leaves.');
+      this.reportedHeat(3, anonymity(inv), { sev: 3 });
+    }
     if (!card.pinOk) {
       inv.items.splice(i, 1);
       lines.push(`You type ${card.pin}. WRONG PIN. You try again. On the third try the machine swallows the card. They lied to you.`);
@@ -4039,7 +4045,7 @@ export class Game {
     delete this.save.state.bailOffer;
     this.save.state.policeResult = [
       `You pay the ${money(want)}${want > fromCash ? ' (some of it from your bank account)' : ''} and sign where they tell you to.`,
-      `Your court date: ${dateText(c.courtAt)}, at the County Courthouse (weekdays, 9 to 4). Show up and you get the bail back. Don’t, and there’ll be a warrant out for you.`,
+      `Your court date: ${dateText(c.courtAt)}, at the County Courthouse. Show up and you get the bail back. Don’t, and there’ll be a warrant out for you.`,
     ];
     sound.coin();
     this.refresh();
@@ -4071,7 +4077,7 @@ export class Game {
     this.save.state.policeResult = [
       'You get one call. Dez picks up on the fourth ring, listens, and sighs. “You owe me.” An hour later, you’re out.',
       `You owe him ${money(owe)} now.`,
-      `Your court date: ${dateText(c.courtAt)}, at the County Courthouse (weekdays, 9 to 4). Show up and you get the bail back. Don’t, and there’ll be a warrant out for you.`,
+      `Your court date: ${dateText(c.courtAt)}, at the County Courthouse. Show up and you get the bail back. Don’t, and there’ll be a warrant out for you.`,
     ];
     this.refresh();
     this.renderSheet();
@@ -4644,7 +4650,7 @@ export class Game {
               : x.hearingAt != null
                 ? `In County, waiting for a hearing on ${dateText(x.hearingAt)}.${x.bail ? ` Bail is ${money(x.bail)}.` : ' No bail.'}`
                 : `${x.what}. Out ${dueText(x.until)}.`;
-          return `<div class="mark"><h4>${x.name}</h4><p class="stat-how">${where}${x.status === 'inside' ? ' Visit them at the County Courthouse (weekdays, 9 to 4).' : ''}</p></div>`;
+          return `<div class="mark"><h4>${x.name}</h4><p class="stat-how">${where}${x.status === 'inside' ? ' Visit them at the County Courthouse.' : ''}</p></div>`;
         })
         .join('') +
       `</section>`
@@ -4955,7 +4961,7 @@ export class Game {
     const rows = Object.entries(merged);
     return (
       `<section class="stat-card record"><h3><span>Criminal record</span><b>${r.arrests ? `${r.arrests} arrest${r.arrests > 1 ? 's' : ''}` : this.case?.warrant ? 'Wanted' : 'Clean'}</b></h3>` +
-      (this.case ? `<p class="record-case${this.case.warrant ? ' warrant' : ''}">${this.case.warrant ? `WARRANT out for you: ${this.case.warrantFor === 'sting' ? 'the buy you ran from' : this.case.warrantFor === 'escape' ? 'the escape' : this.case.warrantFor === 'crime' ? list2((this.case.warrantCharges ?? []).map((x) => chargeName(x).toLowerCase())) || 'what you did' : 'missed court'}. If the police see your face, they’ll take you in. Turn yourself in at the County Courthouse to end it.` : `Court date: ${dateText(this.case.courtAt)}, County Courthouse (weekdays, 9 to 4). Charges: ${this.case.charges.map((x) => x.toLowerCase()).join(', ')}.${this.case.bailPaid ? ` Bail paid: ${money(this.case.bailPaid)} (back when you show up).` : ''}`}</p>` : '') +
+      (this.case ? `<p class="record-case${this.case.warrant ? ' warrant' : ''}">${this.case.warrant ? `WARRANT out for you: ${this.case.warrantFor === 'sting' ? 'the buy you ran from' : this.case.warrantFor === 'escape' ? 'the escape' : this.case.warrantFor === 'crime' ? list2((this.case.warrantCharges ?? []).map((x) => chargeName(x).toLowerCase())) || 'what you did' : 'missed court'}. If the police see your face, they’ll take you in. Turn yourself in at the County Courthouse to end it.` : `Court date: ${dateText(this.case.courtAt)}, County Courthouse. Charges: ${this.case.charges.map((x) => x.toLowerCase()).join(', ')}.${this.case.bailPaid ? ` Bail paid: ${money(this.case.bailPaid)} (back when you show up).` : ''}`}</p>` : '') +
       ((d) => (d ? `<p class="record-case${now() > d.due ? ' warrant' : ''}">You owe Dez ${money(d.owed)}${now() > d.due ? `. You’re late (it was due ${dueText(d.due)}), ${(d.vigDays ?? 0) >= VIG_DAYS ? "he’s done waiting" : 'it grows every day'}, and he’s sending someone.` : `, due ${dateText(d.due)} ${clockText(d.due)}. In the alley.`}</p>` : ''))(this.debt) +
       (now() < ((this.save.state.probationUntil as number) ?? 0) ? `<p class="record-case">On probation until ${dateText(this.save.state.probationUntil as number)} ${clockText(this.save.state.probationUntil as number)}: get charged with anything and you’re held, no bail.</p>` : '') +
       (r.arrests
@@ -5088,7 +5094,7 @@ export class Game {
     const inv = this.inventory;
     const w = wearing(inv);
     if (what === 'mask' && w.face) {
-      if (!w.masked && this.inside && !this.inOwnRoom) {
+      if (!w.masked && this.inside && !this.inOwnRoom && this.place !== 'bank') {
         this.note([`Not in here. You’d be thrown out, or worse.`]);
         return;
       }
@@ -7789,10 +7795,10 @@ export class Game {
         ? `<p class="shop-broke">The metal detector shrieks. The deputy finds the ${lc(metal.name)} and steps in front of you. “Not in here. Get rid of it and come back.”</p>`
         : open
         ? c
-          ? `<ul class="shop-list">${li(c.warrant ? 'Turn yourself in' : 'Appear for your hearing', `${c.charges.map((x) => x.toLowerCase()).join(', ')}.${c.warrant ? ' There’s a warrant: they’ll hold you overnight first.' : ` Your date: ${hearingToday(c.courtAt) ? 'today' : dateText(c.courtAt)}.`}`, btn('court', 'appear', 'Go in'))}</ul>` +
+          ? `<ul class="shop-list">${li(c.warrant ? 'Turn yourself in' : 'Appear for your hearing', ((all) => `${all.length ? `${all.map((x) => chargeHtml(x)).join(', ')}.` : c.warrant ? 'There’s a warrant out for you.' : ''}${c.warrant ? ' They’ll hold you overnight first.' : ` Your date: ${hearingToday(c.courtAt) ? 'today' : dateText(c.courtAt)}.`}`.trim())([...new Set([...c.charges, ...(c.warrant ? c.warrantCharges ?? [] : [])])]), btn('court', 'appear', 'Go in'))}</ul>` +
             `<p class="shop-broke">Could go any way: dropped, a fine, probation, or jail time. Your record counts against you; a good story counts for you.</p>`
           : `<p class="shop-broke">Your name isn’t on any list. Nothing for you here.</p>`
-        : `<p class="shop-closed">The doors are locked. Open weekdays, 9 to 4.</p>`;
+        : `<p class="shop-closed">The doors are locked.</p>`;
       body += this.jailVisitHtml(open && !metal, btn, li);
     } else if (place === 'plasma') {
       body = open ? this.plasmaHtml(btn, li) : `<p class="shop-closed">The doors are locked. Open Monday to Saturday, 7 to 7.</p>`;
@@ -7803,7 +7809,7 @@ export class Game {
       body = open
         ? `<ul class="shop-list">${li(!mine && this.save.state.hadId ? 'Replacement ID' : 'State ID', mine ? `You have one: ${mine.detail}.` : this.save.state.hadId ? 'Yours is gone: a new one, the same name, the same photo booth.' : 'Your name, your photo, your address (more or less).', btn('records', 'id', money(ID_FEE * 100), (mine && 'You have one') || (c < ID_FEE * 100 && 'Not enough cash')))}</ul>` +
           `<p class="shop-broke">With your own ID you can open a bank account, sell to and buy from the pawn shop, and buy alcohol, without anyone looking at you twice.</p>`
-        : `<p class="shop-closed">The doors are locked. Open weekdays, 9 to 4.</p>`;
+        : `<p class="shop-closed">The doors are locked.</p>`;
     } else if (place === 'liquor') {
       body = open
         ? `<ul class="shop-list">${LIQUOR_STOCK.map((s) => li(named(stockThing(s)), s.desc, this.stockBtns(s, c, btn))).join('')}</ul>` +
@@ -7992,6 +7998,8 @@ export class Game {
           ? why + `<p>A flashlight on you over the open trunk lid. “Step away from the car. Hands where I can see them.”</p>`
           : this.save.state.policeStop === 'car'
           ? why + `<p>A second flashlight on the other window. “Step out of the vehicle. Slowly. Hands where I can see them.”</p>`
+          : this.save.state.policeKnow
+          ? why + `<p>“Don’t. Hands where I can see them.” He says your name like he’s been waiting to.</p>`
           : why +
             `<p>${/patrol car/i.test(why) ? 'It pulls in beside you' : 'A patrol car pulls up beside you'}, lights off. Two of them get out. One has a hand on his belt.</p>` +
             `<p>“${masked ? 'Take that off your face. ' : ''}Hold up. Where are you headed ${partOfDay() === 'night' || partOfDay() === 'dusk' ? 'tonight' : 'today'}?”</p>`) +
@@ -8006,6 +8014,8 @@ export class Game {
           ? `<button type="button" class="place" data-police="stay"><b>Step away</b><small>Do as they say. They’ll run the plate.</small></button>` + this.bribeBtn()
           : this.save.state.policeStop === 'car'
           ? `<button type="button" class="place" data-police="stay"><b>Step out</b><small>Do as they say. They’ll run the plate.</small></button>` + this.bribeBtn()
+          : this.save.state.policeKnow
+          ? `<button type="button" class="place" data-police="stay"><b>Go with him</b><small>He knows who you are. There’s a warrant.</small></button>`
           : `<button type="button" class="place" data-police="stay"><b>Stay calm</b><small>Let them talk. They’ll want to search you.</small></button>` +
             `<button type="button" class="place" data-police="talk"><b>Talk your way out</b><small>Speech. A good story and they move on without a search; a bad one and they look harder.</small></button>` +
             this.bribeBtn()) +

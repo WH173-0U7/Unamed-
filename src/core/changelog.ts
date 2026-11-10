@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.91',
+    date: 'Nov 10',
+    items: [
+      'Scavenging: Dig is greyed out when there’s no room on you for even something small, so nothing you find gets lost.',
+      'If you find something too big for the room you’ve got, you set it by the bins instead of losing it. It’s listed on the bins screen to take once you’ve made room, until the next day.',
+    ],
+  },
+  {
     v: '2.90',
     date: 'Nov 10',
     items: [

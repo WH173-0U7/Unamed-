@@ -11,6 +11,18 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.96',
+    date: 'Nov 10',
+    items: [
+      'Dealing fixes: a buyer who’s short can only talk you down a little, not take a bag for whatever’s in their pocket.',
+      'Pills sell from the bottle: no zip bags needed or used for them.',
+      'Selling a lot on one corner makes it cheaper there again, the way it used to.',
+      'Your regulars are the last people the city forgets, and a regular from a life before can’t be “burned” by the new you.',
+      'The school-zone charge only applies when you’re caught on your corner, not at a car, a house or the courthouse.',
+      'A police stop at a car only takes the keys to that car.',
+    ],
+  },
+  {
     v: '2.95',
     date: 'Nov 10',
     items: [

@@ -3448,12 +3448,15 @@ function sellOption(e: Encounter): Option {
   const have = k ? (e.stock?.[k]?.n ?? 0) : 0;
   // (A regular asks for their usual, and someone who came over says what they want; anyone else you find out by asking.)
   const known = e.regular || e.cameOver;
-  if (!k || !e.wantAmt || !known) return { id: 'sell', label: '“You looking?”', hint: (e.zips ?? 0) < 1 ? 'No zip bags' : 'Sell them something · Speech', disabled: (e.zips ?? 0) < 1, cat: 'talk' };
+  // (Pills go from the bottle: no bag needed for those.)
+  const pillsOnHand = Object.entries(e.stock ?? {}).some(([key, v]) => keyProduct(key as MarketKey) === 'pills' && (v?.n ?? 0) > 0);
+  const noBags = (e.zips ?? 0) < 1 && !pillsOnHand;
+  if (!k || !e.wantAmt || !known) return { id: 'sell', label: '“You looking?”', hint: noBags ? 'No zip bags' : 'Sell them something · Speech', disabled: noBags, cat: 'talk' };
   const p = keyProduct(k);
   const bags = e.wantBags ?? 1;
   // (Pills are counted out, not weighed: "3 percs".)
   const what = p === 'pills' ? pillCount(k as PillKind, e.wantAmt) : `${bags} bag${bags === 1 ? '' : 's'} of ${midName(k)} (${amountText(p, e.bagSize ?? e.wantAmt)}${bags > 1 ? ' each' : ''})`;
-  const short = have < e.wantAmt ? (have ? `You’ve only got ${amountText(p, have)}` : `You’ve got no ${midName(k)}`) : (e.zips ?? 0) < bags ? 'No zip bags' : null;
+  const short = have < e.wantAmt ? (have ? `You’ve only got ${amountText(p, have)}` : `You’ve got no ${midName(k)}`) : p !== 'pills' && (e.zips ?? 0) < bags ? 'No zip bags' : null;
   return { id: 'sell', label: `Sell ${what}`, hint: short ?? `$${Math.round((e.quote?.cents ?? 0) / 100)} · Speech`, disabled: !!short, cat: 'talk' };
 }
 
@@ -3469,7 +3472,7 @@ function sellTo(e: Encounter) {
   // Bags of whatever size you sell that in: as many as they want.
   const bags = e.wantBags ?? 1;
   const amtFor = (k: MarketKey) => bags * (e.sellSizes?.[keyProduct(k)] ?? requestFor(k, p.kind, p.age));
-  const has = (k: MarketKey) => (stock[k]?.n ?? 0) >= amtFor(k) && (e.zips ?? 0) >= bags;
+  const has = (k: MarketKey) => (stock[k]?.n ?? 0) >= amtFor(k) && (keyProduct(k) === 'pills' || (e.zips ?? 0) >= bags);
   const bagsOf = (k: MarketKey) => (keyProduct(k) === 'pills' ? pillCount(k as PillKind, amtFor(k)) : `${bags === 1 ? 'a bag' : `${bags} bags`} of ${midName(k)}`);
   const cap = (t: string) => t.replace(/^./, (c) => c.toUpperCase());
   say('you', e.regular ? oneOf(['You give them a nod. “Same as last time?”', '“Hey. You need?”']) : oneOf(['You fall in beside them and keep your voice low. “You looking?”', 'You catch their eye. “You need something? I got you.”', '“Hey. You good? I can help you out.”']));
@@ -3556,7 +3559,8 @@ function sellTo(e: Encounter) {
       bolt('lost-them', 1.2);
       return;
     }
-    if (cents >= Math.min(price / 2, 800)) {
+    // (Short: they can talk you down a little, not to whatever's in their pocket.)
+    if (cents >= Math.max(price * 0.75, 800)) {
       const all = Math.floor(cents / 100) * 100;
       say('them', `“I only got ${Math.floor(cents / 100)}. Come on. That’s all I got.” They hold it out, crumpled.`);
       say('you', 'You take it, and hand it over.');

@@ -273,7 +273,9 @@ export function remember(
   // Full: forget whoever matters least (no grudge, longest ago), not the oldest enemy.
   while (people.length > MAX_PEOPLE) {
     let worst = 0;
-    for (let i = 1; i < people.length - 1; i++) if ((people[i].memory.grudge ?? 0) < (people[worst].memory.grudge ?? 0)) worst = i;
+    // (Your regulars are the last to go: they're business.)
+    const weight = (q: (typeof people)[number]) => (q.memory.grudge ?? 0) + (q.memory.customer && !q.memory.otherLife ? 1000 : 0);
+    for (let i = 1; i < people.length - 1; i++) if (weight(people[i]) < weight(people[worst])) worst = i;
     people.splice(worst, 1);
   }
   return k;

@@ -859,7 +859,8 @@ export class Game {
     const inv = this.inventory;
     if (e.them.dead && e.person.known) this.world.thieves = this.world.thieves.filter((t) => t.person.known !== e.person.known);
     const before = e.person.known ? this.people.find((k) => k.id === e.person.known)?.memory.sawFace : false;
-    const wasCustomer = !!(e.person.known && this.people.find((k) => k.id === e.person.known)?.memory.customer);
+    // (A regular of the life before: not yours to lose.)
+    const wasCustomer = ((m) => !!m?.customer && !m.otherLife)(e.person.known ? this.people.find((k) => k.id === e.person.known)?.memory : undefined);
     const k = remember(this.people, e, e.seenAs ?? { anon: anonymity(inv), looked: describe(inv), clothes: lookClothes(inv) }, { robbed: !!e.robbed, stomped: !!e.stomped, mugged: !!e.mugged, tortured: e.tortured ?? 0 });
     if (k && (e.sale || wasCustomer)) this.customerBought(k, e, wasCustomer);
     if (!k || k.memory.beatYou || !this.people.includes(k)) return;
@@ -2292,6 +2293,7 @@ export class Game {
     if ((p === 'court' || p === 'hospital') && this.case?.warrant && anonymity(this.inventory) < 0.5 && Math.random() < (p === 'court' ? 0.35 : 0.2) * (this.record.arrests > 0 ? 1.3 : 1)) {
       this.place = 'street';
       this.save.state.policeKnow = true;
+      this.save.state.policeOffCorner = true;
       this.save.state.policeWhy = [...lines, p === 'court' ? 'A deputy by the metal detector looks at you, then at the sheet taped by his radio. He steps out from behind the desk.' : 'A cop at the ER desk, waiting on a statement, looks up. He knows your face from somewhere. Then he knows where.'];
       this.save.state.policeStop = true;
       this.refresh();
@@ -3614,7 +3616,9 @@ export class Game {
       const i = this.cars.indexOf(c);
       if (i >= 0) this.cars.splice(i, 1);
     }
-    const mine = (x: InvItem) => x.kind === 'car keys' && (c ? x.carId === c.id : !!x.car);
+    // (No car to go with it: nothing of yours to take.)
+    if (!c) return;
+    const mine = (x: InvItem) => x.kind === 'car keys' && x.carId === c.id;
     if (keys) this.inventory.items = this.inventory.items.filter((x) => !mine(x));
     else for (const x of this.inventory.items) if (mine(x)) x.car = 'gone';
   }
@@ -3843,6 +3847,9 @@ export class Game {
     // (Only for an ordinary stop, with cash on you and nothing they're already after you for.)
     if (choice === 'bribe' && (sting || burglary || !!this.case?.warrant || inv.items.some((x) => x.kind === 'weapon' && x.hand) || cashOf(inv) < 20)) choice = 'stay';
     const upstairs = (this.atHome?.type === 'apartment' && this.atHome.floor > 1) || this.atHome?.type === 'room';
+    // (Caught on your corner, or somewhere else: at a car, in a house, at the courthouse. Only the corner counts for the school.)
+    const onCorner = this.place === 'street' && !carStop && !burglary && !this.save.state.policeOffCorner;
+    delete this.save.state.policeOffCorner;
     // (Out of the house either way; whether you got away is settled below.)
     // At a car (or out looking for one): the car, if they've come for it.
     const stopCar = carStop ? this.carById(this.save.state.carAt) : undefined;
@@ -4184,7 +4191,7 @@ export class Game {
       // Selling (or holding to sell) within a block of the school: a federal charge on top.
       // (Only what this stop caught: a buy you ran from elsewhere doesn't count, one you ran from here does.)
       const soldHere = charges.filter((x) => x === 'Selling a controlled substance').length > servedStings || charges.some((x) => /intent to (distribute|sell)/.test(x));
-      if (((this.place === 'street' && this.nearSchool() && soldHere) || servedSchool) && !charges.includes(SCHOOL_CHARGE)) charges.push(SCHOOL_CHARGE);
+      if (((onCorner && this.nearSchool() && soldHere) || servedSchool) && !charges.includes(SCHOOL_CHARGE)) charges.push(SCHOOL_CHARGE);
       // It goes on your record: every arrest, and every charge.
       const rec = this.record;
       rec.arrests++;
@@ -5615,8 +5622,8 @@ export class Game {
     const key = e.sale?.key ?? 'powder';
     const unit = this.takeAmount(key, e.sale?.units ?? 1);
     if (!unit) return;
-    // Weighed out into baggies, one a bag, as you hand it over.
-    let bagsLeft = e.sale?.bags ?? 1;
+    // Weighed out into baggies, one a bag, as you hand it over (pills straight from the bottle).
+    let bagsLeft = keyProduct(key) === 'pills' ? 0 : (e.sale?.bags ?? 1);
     for (const z of inv.items.filter((x) => x.name === 'Zip bags')) {
       const t = Math.min(bagsLeft, z.doses ?? 0);
       z.doses = (z.doses ?? 0) - t;
@@ -5665,7 +5672,8 @@ export class Game {
     if (this.crowd.length) (e.log ??= []).push({ by: 'info', text: 'Somebody on the street saw the hand-off.' });
     // More of it on this corner: flood it, and the price round here drops.
     // (By what changed hands, not by weight: an eighth of weed floods it no faster than half a gram of powder.)
-    addLocalSupply(this.market, key, d.price / 100 / 2500, this.cornerDistrict);
+    // (About a bag's worth of local supply for every $50 sold: a flooded corner gets cheaper.)
+    addLocalSupply(this.market, key, d.price / 5000, this.cornerDistrict);
     // Pressed pills: nobody knows what's in them. Some don't wake up.
     if (unit.pressed && Math.random() < 0.06) e.odLater = true;
     if (!this.crowd.length) train(this.stats, 'sneak', 2);
@@ -5901,7 +5909,7 @@ export class Game {
       li('Digital scale', count(/^digital scale$/i) ? 'On the table.' : 'You haven’t got one.', '') +
       li('Cutting kit', count(/^cutting kit$/i) ? 'On the table.' : 'You haven’t got one.', '') +
       li('Lactose', count(/^lactose powder$/i) ? `${amountText('powder', count(/^lactose powder$/i))} left.` : 'None.', '') +
-      li('Zip bags', count(/^zip bags$/i) ? `${count(/^zip bags$/i)} empty bag${count(/^zip bags$/i) === 1 ? '' : 's'}.` : 'None: you need one for each bag you sell. The gas station has them.', '');
+      li('Zip bags', count(/^zip bags$/i) ? `${count(/^zip bags$/i)} empty bag${count(/^zip bags$/i) === 1 ? '' : 's'}.` : 'None: you need one for each bag you sell (pills go from the bottle). The gas station has them.', '');
     return (
       `<ul class="shop-list">${li('Your business', 'Room 14, the table by the window, the door locked.', btn('room', 'back', 'Back to the room'))}</ul>` +
       `<h3>Product</h3><ul class="shop-list">${prod || li('Nothing here', 'Buy from Dez in the alley.', '')}${sizes}</ul>` +

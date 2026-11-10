@@ -2024,6 +2024,19 @@ export class Game {
   }
   /** What happened while Places or the police were open, shown when they close. */
   private heldNote: string[] = [];
+  /** Walking somewhere from the map: the map stays open (you close it when you're ready). */
+  private stayOnMap = false;
+  /** What you found where you last walked to from the map (gone from what's waiting once you walk on). */
+  private arrived: string[] = [];
+  private dropArrived() {
+    if (this.arrived.length) this.heldNote = this.heldNote.filter((l) => !this.arrived.includes(l));
+    this.arrived = [];
+  }
+  /** Close the sheet, unless you walked there from the map: then it stays, showing where you are now. */
+  private leaveSheet() {
+    if (this.stayOnMap && this.sheet === 'places') return;
+    this.closeSheet();
+  }
   private closeSheet() {
     this.sheetNote = [];
     if (this.sheet) uiGlitch(null, 0.25);
@@ -2033,6 +2046,7 @@ export class Game {
     this.view.classList.remove('lockup-you');
     const held = this.heldNote;
     this.heldNote = [];
+    this.arrived = [];
     if (held.length && !this.closed && this.tvState.on) requestAnimationFrame(() => !this.closed && this.note(held));
   }
 
@@ -2086,10 +2100,18 @@ export class Game {
       if (pin && fromList) this.mapReveal((parseFloat(pin.style.left) / 100) * MAP_W, (parseFloat(pin.style.top) / 100) * MAP_H);
       // (Bring its card into view: from the list under the map, or a pin with the card below the fold.)
       this.sheetEl.querySelector(fromList ? '.map-card' : '.map-card button')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    } else if (b.dataset.place) this.goTo(b.dataset.place as Place);
-    else if (b.dataset.home) this.goHome(b.dataset.home);
-    else if (b.dataset.spot) this.goSpot(b.dataset.spot);
-    else if (b.dataset.corner) this.workCorner(b.dataset.corner);
+    } else if (b.dataset.place || b.dataset.home || b.dataset.spot || b.dataset.corner) {
+      // (Walking there from the map: the map stays open, showing you where you are now.)
+      this.stayOnMap = this.sheet === 'places';
+      try {
+        if (b.dataset.place) this.goTo(b.dataset.place as Place);
+        else if (b.dataset.home) this.goHome(b.dataset.home);
+        else if (b.dataset.spot) this.goSpot(b.dataset.spot);
+        else if (b.dataset.corner) this.workCorner(b.dataset.corner!);
+      } finally {
+        this.stayOnMap = false;
+      }
+    }
     else if (b.dataset.watch) ((x) => x && this.startWatch(x))(buildingById(b.dataset.watch));
     else if (b.dataset.use) this.useMed(Number(b.dataset.use));
     else if (b.dataset.drop) this.drop(Number(b.dataset.drop));
@@ -2132,9 +2154,12 @@ export class Game {
     if (this.ending || this.save.state.policeStop) return;
     this.shopNote = [];
     // (What was waiting while Places was open goes first, ahead of where you've got to, not over it.)
-    const held = { lines: this.heldNote };
-    this.heldNote = [];
-    this.closeSheet();
+    // (From the map, it stays open: what you find there waits, under the map, till you close it.)
+    const onMap = this.stayOnMap && this.sheet === 'places';
+    if (onMap) this.dropArrived();
+    const held = { lines: onMap ? [] : this.heldNote };
+    if (!onMap) this.heldNote = [];
+    this.leaveSheet();
     if (held.lines.length) requestAnimationFrame(() => held.lines.length && !this.closed && this.note(held.lines));
     if (p === this.place || HIDDEN_PLACES.has(p)) return;
     if (p === 'home' && !this.homeById(this.save.state.homeAt)) return;
@@ -2225,6 +2250,10 @@ export class Game {
     }
     this.note(lines);
     buzz(10);
+    if (onMap && this.sheet === 'places') {
+      this.arrived = lines;
+      this.renderSheet();
+    }
   }
 
   /** Whether you were inside the place you're at (it can open or close around you). */
@@ -8233,7 +8262,7 @@ export class Game {
           .map((x) => `<button type="button" data-mappick="${x.key}" data-tone="${x.tone}" class="${x === picked ? 'on' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${x.icon}"/></svg><span><b>${x.name}</b><small>${x === here ? 'You’re here' : `${blocksBetween(here, x) ? `${blocksBetween(here, x)} block${blocksBetween(here, x) === 1 ? '' : 's'} away` : 'Just round the corner'} · ${x.small.replace(/<[^>]+>/g, '').split(' · ')[0]}`}</small></span></button>`)
           .join('')}</div>`
       : '';
-    return `${mapHtml(marks, picked.bld, this.mapView)}${card}<p class="map-hint">Tap any building on the map, a pin, or a corner (◆)${mine.length ? ', or an address below' : ''}. Pinch, or use the zoom buttons, to look closer.</p>${list}`;
+    return `${mapHtml(marks, picked.bld, this.mapView)}${this.heldNote.length ? this.noteHtml(this.heldNote.slice(-3), 'sheet-note map-arrived') : ''}${card}<p class="map-hint">Tap any building on the map, a pin, or a corner (◆)${mine.length ? ', or an address below' : ''}. Pinch, or use the zoom buttons, to look closer.</p>${list}`;
   }
   // ---------- The buildings on the map: what each one is for ----------
 
@@ -8273,12 +8302,19 @@ export class Game {
       this.goTo('street', [line, CORNER_FEEL[c.bar ? 'bar' : c.district].blurb, ...(this.nearSchool() ? ['There’s a school a block away. Get caught selling here and it’s a federal charge, with more time.'] : [])]);
       return;
     }
-    this.closeSheet();
+    this.leaveSheet();
     if (was === id) return;
     this.save.state.crowd = [];
     if (this.encounter?.stage === 'seen') this.encounter = null;
     this.refresh();
-    this.note([line, CORNER_FEEL[c.bar ? 'bar' : c.district].blurb, ...(this.nearSchool() ? ['There’s a school a block away. Get caught selling here and it’s a federal charge, with more time.'] : [])]);
+    const onMap = this.sheet === 'places';
+    if (onMap) this.dropArrived();
+    const lines = [line, CORNER_FEEL[c.bar ? 'bar' : c.district].blurb, ...(this.nearSchool() ? ['There’s a school a block away. Get caught selling here and it’s a federal charge, with more time.'] : [])];
+    this.note(lines);
+    if (onMap) {
+      this.arrived = lines;
+      this.renderSheet();
+    }
   }
 
   /** Working a bar's room (on the street, as far as places go, but under a roof). */
@@ -8300,8 +8336,10 @@ export class Game {
     if (this.place === 'spot' && this.save.state.spotAt === id) return this.closeSheet();
     // (The church locks its doors at night.)
     if (b.kind === 'church' && !pewHours()) {
-      this.closeSheet();
-      return this.note([`You go up the steps of ${b.name ?? 'St. Agnes'}. The doors are locked for the night. They open again at seven.`]);
+      this.leaveSheet();
+      this.note([`You go up the steps of ${b.name ?? 'St. Agnes'}. The doors are locked for the night. They open again at seven.`]);
+      if (this.sheet === 'places') this.renderSheet();
+      return;
     }
     if (this.place === 'spot') this.place = 'street';
     this.save.state.spotAt = id;

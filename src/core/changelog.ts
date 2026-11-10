@@ -11,6 +11,13 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.90',
+    date: 'Nov 10',
+    items: [
+      'Walking somewhere from the map no longer closes it. The map stays open with you at your new spot and a line about where you got to; close it when you’re ready to look around.',
+    ],
+  },
+  {
     v: '2.89',
     date: 'Nov 10',
     items: [

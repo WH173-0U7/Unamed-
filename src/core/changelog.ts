@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.93',
+    date: 'Nov 10',
+    items: [
+      'Fixes: you can always get back to what you found at the bins, even once they’re picked clean or you’re too worn out to dig.',
+      'Spoiled trash food no longer stops you eating real food for two hours.',
+      'Cans fill every pocket they can, a bag at a time. Take now says why when something won’t fit, instead of doing nothing.',
+      'Turned away at the pawn shop from the map, you now see it right away. The map shows where you got to first.',
+      'Wording fixes on the bins screen and the Scavenging card.',
+    ],
+  },
+  {
     v: '2.92',
     date: 'Nov 10',
     items: [

@@ -367,7 +367,8 @@ interface Found {
   cans?: number;
   day: string;
 }
-/** A thing by name, in a sentence: "the claw hammer", but "half a sandwich", "some cold fries". */
+/** A thing by name, in a sentence: "the claw hammer", but "half a sandwich". */
+// (Names that already say how much, like "half a sandwich", go without "the".)
 const theThing = (name: string) => (/^(half|some|a|an|two|three|four)\b/i.test(name) ? name.toLowerCase() : `the ${name.toLowerCase()}`);
 /** How many things can wait on the pile at once. */
 const FOUND_MAX = 12;
@@ -2205,6 +2206,7 @@ export class Game {
     if (((this.save.state.pawnBan as number) ?? 0) > now() + 30 * 60_000) this.save.state.pawnBan = now() + 30 * 60_000;
     if (p === 'pawn' && ((this.save.state.pawnBan as number) ?? 0) > now()) {
       this.note(['He sees you through the glass and shakes his head. The door stays locked.']);
+      if (onMap && this.sheet === 'places') this.renderSheet();
       return;
     }
     if (p !== 'street') this.save.state.crowd = [];
@@ -3079,9 +3081,7 @@ export class Game {
       this.note([water ? 'You’re not thirsty. You just had some water.' : 'You’re not hungry. You just ate.']);
       return;
     }
-    if (water) h.drankAt = now();
-    else h.ateAt = now();
-    // Out of the trash and gone off: it takes more out of you than it gives.
+    // Out of the trash and gone off: it takes more out of you than it gives (and you're still hungry).
     if (trash && it.spoiled) {
       inv.items.splice(i, 1);
       addFatigue(h, 6);
@@ -3089,6 +3089,8 @@ export class Game {
       this.note([oneOf([`Halfway through the ${lc(it.name)} you taste it: it’s gone off. You spit out what you can. You feel worse than before.`, `The ${lc(it.name)} smells fine and tastes wrong. You get it down anyway, and regret it. It leaves you drained.`])]);
       return;
     }
+    if (water) h.drankAt = now();
+    else h.ateAt = now();
     h.fatigue = Math.max(0, fatigueNow(h) - (water ? 3 : trash ? 4 : 6));
     if (!water) h.stress = Math.max(0, (h.stress ?? 0) - 3);
     let line: string;
@@ -6236,19 +6238,24 @@ export class Game {
   private get binArea(): BinArea {
     return this.corner.bar ? 'bar' : this.corner.district;
   }
+  /** Why you can't get at the bins at all (to dig, or to sort through what you found). */
   private binsWhy(): string | null {
     if (this.place !== 'street' || !this.canLurk) return 'Not now';
-    if (fatigueNow(this.health) >= FATIGUE_SPENT) return 'Too worn out';
     const b = this.binAt(this.corner.id);
-    if ((b.shooedUntil ?? 0) > now()) return `They told you to clear off. Not till ${clockText(b.shooedUntil!)}.`;
+    if ((b.shooedUntil ?? 0) > now()) return `They told you to clear off. Not till ${clockText(b.shooedUntil!)}`;
+    // (Picked clean, or too tired to dig: what you found is still there to sort through.)
+    if (b.found?.length) return null;
+    if (fatigueNow(this.health) >= FATIGUE_SPENT) return 'Too worn out';
     return b.left < 1 ? binsLook(0) : null;
   }
   /** Why you can't dig: the bins themselves, or nowhere on you for even a small thing. */
   private digWhy(): string | null {
     const why = this.binsWhy();
     if (why) return why;
+    if (fatigueNow(this.health) >= FATIGUE_SPENT) return 'Too worn out';
+    if (this.binAt(this.corner.id).left < 1) return binsLook(0);
     // (What you find waits on the pile for you to take or leave: just not too big a pile.)
-    if ((this.binAt(this.corner.id).found?.length ?? 0) >= FOUND_MAX) return 'Sort through what you’ve found first';
+    if ((this.binAt(this.corner.id).found?.length ?? 0) >= FOUND_MAX - 1) return 'Sort through what you’ve found first';
     return null;
   }
   /** Going through the bins on your block: its own screen, one dig at a time. */
@@ -6339,13 +6346,19 @@ export class Game {
       const had = this.cansCount;
       const line = this.addCans(x.cans);
       const got = this.cansCount - had;
-      if (!got) return this.renderSheet();
+      if (!got) {
+        this.scavLog.unshift(`No room for the cans. ${noRoomWhy(this.inventory, 'small', 0.015)}`);
+        return this.renderSheet();
+      }
       x.cans -= got;
       this.scavLog.unshift(line);
       if (x.cans > 0) return (this.refresh(), this.renderSheet());
     } else {
       const { spot: _s, ...it } = x.item!;
-      if (!stow(this.inventory, it)) return this.renderSheet();
+      if (!stow(this.inventory, it)) {
+        this.scavLog.unshift(`No room for ${theThing(x.item!.name)}. ${noRoomWhy(this.inventory, x.item!.size, x.item!.kg)}`);
+        return this.renderSheet();
+      }
       this.scavLog.unshift(`You take ${theThing(x.item!.name)}.`);
     }
     b.found!.splice(i, 1);
@@ -6362,7 +6375,7 @@ export class Game {
     if (!x) return;
     b.found!.splice(i, 1);
     if (!b.found!.length) delete b.found;
-    this.scavLog.unshift(x.cans ? `You leave the ${x.cans} can${x.cans === 1 ? '' : 's'}.` : `You leave ${theThing(x.item!.name)}.`);
+    this.scavLog.unshift(x.cans ? (x.cans === 1 ? 'You leave the can.' : `You leave the ${x.cans} cans.`) : `You leave ${theThing(x.item!.name)}.`);
     this.scavSel = Math.min(this.scavSel, Math.max(0, (b.found?.length ?? 1) - 1));
     this.renderSheet();
   }
@@ -6383,7 +6396,7 @@ export class Game {
     let why: string | null = null;
     if (x.cans) {
       const canBag = inv.items.some((y) => y.name === 'Empty cans' && ((sp) => !!sp && usedKg(inv, sp.id) + 0.015 <= sp.maxKg + 1e-9)(inv.spots.find((s) => s.id === y.spot)));
-      if (!canBag && !findRoom(inv, 'small', 0.015)) why = noRoomWhy(inv, 'small', 0.015);
+      if (tooHeavy(inv, 0.015) || (!canBag && !findRoom(inv, 'small', 0.015))) why = noRoomWhy(inv, 'small', 0.015);
     } else if (!(x.item!.kind === 'weapon' ? findRoom(inv, x.item!.size, x.item!.kg, x.item) || findRoom(inv, x.item!.size, x.item!.kg) : findRoom(inv, x.item!.size, x.item!.kg, x.item))) why = noRoomWhy(inv, x.item!.size, x.item!.kg);
     const name = x.cans ? `${x.cans} can${x.cans === 1 ? '' : 's'}` : x.item!.name;
     const what = x.cans ? 'Crushed flat: 10¢ each at the gas station' : `${x.item!.detail ?? ''}${x.item!.detail ? ' · ' : ''}${x.item!.size}, ${kgLabel(x.item!.kg)}`;
@@ -6409,6 +6422,7 @@ export class Game {
     if (f.cash) {
       const c = rnd(f.cash);
       const left = cents(pocketCash(inv, fewest(c)));
+      if (left >= c) return `${f.line} You’ve no room left for it, not even for change.`;
       return `${f.line} ${money(c - left)}.${left ? ` You’ve no room for the other ${money(left)}.` : ''}`;
     }
     const it = { ...f.item! };
@@ -6452,7 +6466,13 @@ export class Game {
     };
     const had = total();
     let took = 0;
-    for (let k = n; k >= 1 && !took; k--) if (put(k)) took = k;
+    // (As many as will go, a bag at a time, till they're all in or nothing more fits.)
+    while (took < n) {
+      let placed = 0;
+      for (let k = n - took; k >= 1 && !placed; k--) if (put(k)) placed = k;
+      if (!placed) break;
+      took += placed;
+    }
     const left = n - took;
     const s = (k: number) => (k === 1 ? '' : 's');
     if (!took) return `${n} can${s(n)}, and nowhere to put ${n === 1 ? 'it' : 'them'}. ${noRoomWhy(inv, 'small', n * KG)}`;
@@ -8395,7 +8415,7 @@ export class Game {
           .map((x) => `<button type="button" data-mappick="${x.key}" data-tone="${x.tone}" class="${x === picked ? 'on' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${x.icon}"/></svg><span><b>${x.name}</b><small>${x === here ? 'You’re here' : `${blocksBetween(here, x) ? `${blocksBetween(here, x)} block${blocksBetween(here, x) === 1 ? '' : 's'} away` : 'Just round the corner'} · ${x.small.replace(/<[^>]+>/g, '').split(' · ')[0]}`}</small></span></button>`)
           .join('')}</div>`
       : '';
-    return `${mapHtml(marks, picked.bld, this.mapView)}${this.heldNote.length ? this.noteHtml(this.heldNote.slice(-3), 'sheet-note map-arrived') : ''}${card}<p class="map-hint">Tap any building on the map, a pin, or a corner (◆)${mine.length ? ', or an address below' : ''}. Pinch, or use the zoom buttons, to look closer.</p>${list}`;
+    return `${mapHtml(marks, picked.bld, this.mapView)}${this.heldNote.length ? this.noteHtml(this.arrived.length ? this.arrived.slice(0, 3) : this.heldNote.slice(-3), 'sheet-note map-arrived') : ''}${card}<p class="map-hint">Tap any building on the map, a pin, or a corner (◆)${mine.length ? ', or an address below' : ''}. Pinch, or use the zoom buttons, to look closer.</p>${list}`;
   }
   // ---------- The buildings on the map: what each one is for ----------
 
@@ -9515,8 +9535,8 @@ export class Game {
         ['A bone breaking', `−${pct(toughnessResist(st))}`],
       ],
       scavenging: [
-        ['Something useful in a dig', `1 in ${Math.round(1 / uncommonOdds(st.scavenging.level))}`],
-        ['Something rare', `1 in ${Math.round(1 / rareOdds(st.scavenging.level))}`],
+        ['A find that’s something useful', `1 in ${Math.round(1 / uncommonOdds(st.scavenging.level))}`],
+        ['A find that’s something rare', `1 in ${Math.round(1 / rareOdds(st.scavenging.level))}`],
         ['Food that’s gone off', pct(spoilOdds(st.scavenging.level))],
         ['Cutting yourself on glass', `${(cutOdds(st.scavenging.level, false) * 100).toFixed(1)}% a dig (less in gloves)`],
         ['Being told to clear off', `${(shooOdds(st.scavenging.level, 'flats') * 100).toFixed(1)}% a dig`],

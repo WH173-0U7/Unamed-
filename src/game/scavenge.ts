@@ -168,5 +168,5 @@ export function binsLook(left: number): string {
   if (left >= 9) return 'Plenty of bags yet, most of them not opened.';
   if (left >= 5) return 'Somebody’s been through some of these already.';
   if (left >= 1) return 'Mostly wet cardboard now.';
-  return 'Picked clean. Give it a few hours.';
+  return 'Picked clean. Give it half an hour or so.';
 }

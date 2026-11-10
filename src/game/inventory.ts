@@ -253,13 +253,9 @@ export function measure(x: { kind: string; name: string; med?: MedId; product?: 
   if (/^sleeping bag$/i.test(n)) return { size: 'large', kg: 1.6 };
   if (/^duffel bag$/i.test(n)) return { size: 'large', kg: 0.9 };
   if (/^blanket$/i.test(n)) return { size: 'large', kg: 1.2 };
-  if (/^crowbar$/i.test(n)) return { size: 'large', kg: 1.4 };
-  if (/^claw hammer$/i.test(n)) return { size: 'medium', kg: 0.6 };
-  if (/^bike lock$/i.test(n)) return { size: 'medium', kg: 1.1 };
   if (/^copper wire$/i.test(n)) return { size: 'medium', kg: 0.8 };
   if (/^paperback books$/i.test(n)) return { size: 'medium', kg: 0.9 };
   if (/^umbrella$/i.test(n)) return { size: 'medium', kg: 0.35 };
-  if (/^flashlight$/i.test(n)) return { size: 'small', kg: 0.2 };
   if (/^gift card$/i.test(n)) return { size: 'small', kg: 0.005 };
   if (/^(half a sandwich|cold fries|bruised apples|day-old bagels|takeout leftovers)$/i.test(n)) return { size: 'small', kg: 0.3 };
   if (x.kind === 'id' || x.kind === 'credit card' || x.kind === 'debit card') return { size: 'small', kg: 0.005 };
@@ -432,7 +428,7 @@ export function noRoomWhy(inv: Inventory, size: Size, kg = 0.01): string {
     return size === 'large' ? 'Too big to carry without a backpack.' : size === 'medium' ? "Won’t fit in a pocket. You’d need a bag." : 'You have no pockets.';
   }
   if (!spots.some((s) => SIZE_RANK[s.fits] >= SIZE_RANK[size] && s.maxKg >= kg - 1e-9)) return "Too heavy for any pocket you’ve got. You’d need a bag.";
-  return cashBulk(inv) > 0.35 ? 'Your pockets are stuffed with cash.' : 'There is no room left.';
+  return cashBulk(inv) > 0.35 ? 'Your pockets are stuffed with cash.' : 'There’s no room left.';
 }
 
 /** Puts something into the first place it fits. Returns null if there's no room. */

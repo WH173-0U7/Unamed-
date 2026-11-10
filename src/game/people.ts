@@ -434,4 +434,4 @@ export const REP_LEVELS: [number, string][] = [
   [150, 'Dreaded'],
   [220, 'A legend of the street'],
 ];
-export const repName = (r: number) => REP_LEVELS.filter(([at]) => r >= at).pop()![1];
+export const repName = (r: number) => (REP_LEVELS.filter(([at]) => r >= at).pop() ?? REP_LEVELS[0])[1];

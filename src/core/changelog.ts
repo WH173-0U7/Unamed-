@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.97',
+    date: 'Nov 10',
+    items: [
+      'Saves are sturdier: a damaged save that loads but can’t put you back where you were now falls back to the one before it, instead of leaving the menu stuck.',
+      'Damaged lists and numbers in a save are repaired when it loads, so one bad value can’t lock up the map, the You page or lurking.',
+      'A save from a newer version of the game isn’t loaded and written over by an older one. The menu never shows “saved NaN days ago”.',
+    ],
+  },
+  {
     v: '2.96',
     date: 'Nov 10',
     items: [

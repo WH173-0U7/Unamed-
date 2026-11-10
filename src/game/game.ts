@@ -435,6 +435,7 @@ export class Game {
     private readonly fx: Glass,
   ) {
     this.tv = createTv(renderer);
+    this.repairSave();
     // (Old bagged product, from before it went by weight: one lot, from the start.)
     try {
       this.unbag();
@@ -711,9 +712,56 @@ export class Game {
     return (this.save.state.tv ??= { on: false }) as TvState;
   }
 
+  /** A save that's been knocked about (by hand, or a bad write): lists that should be lists, numbers that should be numbers. */
+  private repairSave() {
+    const st = this.save.state as Record<string, unknown>;
+    const obj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
+    const list = <T,>(o: Record<string, unknown>, k: string) => {
+      if (k in o && !Array.isArray(o[k])) o[k] = [];
+      if (Array.isArray(o[k])) o[k] = (o[k] as T[]).filter((v) => v != null);
+    };
+    const num = (o: Record<string, unknown>, k: string, d: number) => {
+      if (k in o && !Number.isFinite(o[k] as number)) o[k] = d;
+    };
+    list(st, 'homes');
+    if (Array.isArray(st.homes)) st.homes = (st.homes as unknown[]).filter((h) => obj(h) && typeof h.addr === 'string' && typeof h.id === 'string');
+    list(st, 'cars');
+    if (obj(st.inventory)) list(st.inventory, 'clothes');
+    if (obj(st.health)) {
+      num(st.health, 'fatigueAt', Date.now());
+      num(st.health, 'fatigue', 0);
+      num(st.health, 'stress', 0);
+      for (const k of ['fatigue', 'stress']) if (typeof st.health[k] === 'number') st.health[k] = Math.min(100, Math.max(0, st.health[k] as number));
+      for (const k of ['restEnd', 'restingSince']) if (k in st.health && !Number.isFinite(st.health[k] as number)) delete st.health[k];
+    }
+    if (obj(st.debt)) num(st.debt, 'owed', 0);
+    if (obj(st.case)) list(st.case, 'charges');
+    for (const k of ['stash', 'room']) if (obj(st[k])) list(st[k] as Record<string, unknown>, 'items');
+    if (obj(st.vacant)) for (const v of Object.values(st.vacant)) if (obj(v)) list(v, 'items');
+    if (obj(st.bins)) for (const b of Object.values(st.bins)) if (obj(b)) {
+      list(b, 'aside');
+      list(b, 'found');
+      if (Array.isArray(b.found)) b.found = (b.found as unknown[]).filter((f) => obj(f) && (obj(f.item) || (Number.isFinite(f.cans) && (f.cans as number) > 0))).slice(0, 40);
+    }
+    const w = (this.save.state.world ?? null) as Record<string, unknown> | null;
+    if (obj(w)) {
+      list(w, 'thieves');
+      list(w, 'people');
+      list(w, 'selves');
+      num(w, 'lives', 1);
+      if (obj(w.infamy)) {
+        for (const k of ['rep', 'heat']) {
+          if (typeof w.infamy[k] === 'string') w.infamy[k] = Number(w.infamy[k]);
+          num(w.infamy, k, 0);
+        }
+        num(w.infamy, 'at', Date.now());
+      }
+    }
+  }
   private get lurkState(): LurkState {
     const s = (this.save.state.lurk ??= { times: 0, seen: {}, races: {} }) as LurkState;
     s.races ??= {};
+    if (!s.seen || typeof s.seen !== 'object') s.seen = {};
     for (const [k] of CHANCES) s.seen[k] ??= 0;
     for (const [r] of RACE_CHANCES) s.races[r] ??= 0;
     return s;

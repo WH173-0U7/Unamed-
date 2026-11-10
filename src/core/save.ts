@@ -52,6 +52,8 @@ function parse(raw: string | null): SaveData | null {
     // (Damaged: not something a game could have written.)
     if (data.state != null && (typeof data.state !== 'object' || Array.isArray(data.state))) return null;
     if (data.playTime != null && !Number.isFinite(data.playTime)) return null;
+    // (From a newer version of the game than this one: don't load it and quietly write over what it knows.)
+    if (typeof data.version === 'number' && data.version > SAVE_VERSION) return null;
     return migrate(data);
   } catch {
     return null;
@@ -64,7 +66,7 @@ function migrate(data: Partial<SaveData>): SaveData {
   return {
     version: SAVE_VERSION,
     createdAt: data.createdAt ?? Date.now(),
-    savedAt: data.savedAt ?? data.createdAt ?? Date.now(),
+    savedAt: Number.isFinite(data.savedAt) ? data.savedAt! : Number.isFinite(data.createdAt) ? data.createdAt! : Date.now(),
     playTime: data.playTime ?? 0,
     state: data.state ?? {},
     rev: typeof data.rev === 'number' ? data.rev : 0,

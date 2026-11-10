@@ -281,8 +281,8 @@ function updatePauseInfo() {
   menu.setPauseInfo(`played ${formatPlayTime(s.playTime)} · last saved ${formatAgo(s.savedAt)}`);
 }
 
-function startGame(fresh: boolean) {
-  const data = fresh ? newSave() : loadSave();
+function startGame(fresh: boolean, fromBackup = false) {
+  const data = fresh ? newSave() : fromBackup ? loadBackup() : loadSave();
   if (!data) {
     menu.toast("Couldn’t load the saved game");
     menu.setSaveInfo(null);
@@ -326,7 +326,21 @@ function startGame(fresh: boolean) {
   } else {
     // Continue: back to the pause screen where the game was saved.
     state = 'paused';
-    game.restorePaused();
+    try {
+      game.restorePaused();
+    } catch {
+      // (It loaded, but won't put you back where you were: the backup, if there is one; otherwise say so.)
+      game.close();
+      game = null;
+      state = 'menu';
+      document.body.classList.remove('in-game', 'paused');
+      if (!fromBackup && loadBackup()) {
+        menu.toast('The save was damaged: loaded the one before it');
+        return startGame(false, true);
+      }
+      menu.toast("The saved game is damaged and can’t be loaded");
+      return;
+    }
     if (game.dead) {
       // (Closed on the death screen: it's still up, and that's where you are.)
       state = 'playing';

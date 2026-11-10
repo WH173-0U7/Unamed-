@@ -180,9 +180,9 @@ export function homeFor(b: Building): Home {
 }
 /** At an address: outside, or in, and what's happened so far. */
 /** Everything in the save that's this character's (not the world's). */
-const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'policeKnow', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'policeArrested', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'hadId', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'footage', 'laterLines', 'restLines', 'connect', 'work', 'workLines', 'plasma', 'gig', 'bins', 'crowd', 'corner', 'spotAt', 'vacant', 'lockup', 'churchMeal', 'shelterAt', 'watched', 'policeCuffed', 'policeDucked', 'dezCalled'];
+const CHAR_KEYS = ['encounter', 'stats', 'health', 'inventory', 'humanity', 'place', 'policeStop', 'policeKnow', 'me', 'account', 'moves', 'koLines', 'record', 'policeResult', 'policeArrested', 'case', 'probationUntil', 'bailOffer', 'pawnBan', 'policeWhy', 'endLines', 'wokeLines', 'stash', 'room', 'sales', 'erSeen', 'debt', 'stingCash', 'homes', 'homeAt', 'job', 'homesLearned', 'idOk', 'hadId', 'cars', 'carAt', 'hunt', 'carStopHow', 'carReported', 'jail', 'footage', 'laterLines', 'restLines', 'connect', 'work', 'workLines', 'plasma', 'gig', 'bins', 'crowd', 'corner', 'spotAt', 'vacant', 'lockup', 'churchMeal', 'shelterAt', 'watched', 'policeCuffed', 'policeDucked', 'dezCalled', 'policeOffCorner'];
 /** What only makes sense in the moment (a stop, a fight, a door you're at): not kept when you stop being them. */
-const MOMENT_KEYS = ['spotAt', 'work', 'workLines', 'laterLines', 'restLines', 'crowd', 'encounter', 'policeStop', 'policeKnow', 'policeResult', 'policeArrested', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow', 'policeCuffed', 'policeDucked', 'dezCalled'];
+const MOMENT_KEYS = ['spotAt', 'work', 'workLines', 'laterLines', 'restLines', 'crowd', 'encounter', 'policeStop', 'policeKnow', 'policeResult', 'policeArrested', 'bailOffer', 'jail', 'job', 'homeAt', 'carAt', 'hunt', 'koLines', 'endLines', 'wokeLines', 'policeWhy', 'carStopHow', 'policeCuffed', 'policeDucked', 'dezCalled', 'policeOffCorner'];
 /**
  * Someone you used to be: kept whole (stats, body, pockets, record), inside
  * or out on the streets, to free, to meet, and to go on as again.
@@ -4164,12 +4164,10 @@ export class Game {
         const dope = evidence.filter((x) => x.secret && x.secret !== 'empty');
         const hot = evidence.filter((x) => !dope.includes(x));
         if (dope.length) {
-          // (Two of the same: "both eight-balls", not "the eight-ball and the eight-ball".)
+          // (Two of the same: "the eight-ball, and another just like it", not "the eight-ball and the eight-ball".)
           const names = [...new Set(dope.map((x) => lc(x.name)))];
-          // ("bag of powder" → "bags of powder"; "eight-ball" → "eight-balls")
-          const many = (n: string) => (/ of /.test(n) ? n.replace(/^(\S+)/, '$1s') : `${n}s`);
           const what =
-            dope.length === 1 ? `the ${names[0]}` : names.length === 1 ? (dope.length === 2 ? `both ${many(names[0])}` : `all ${dope.length} ${many(names[0])}`) : names.length === 2 ? `the ${names[0]} and the ${names[1]}` : `the ${names[0]}, the ${names[1]} and more`;
+            dope.length === 1 ? `the ${names[0]}` : names.length === 1 ? (dope.length === 2 ? `the ${names[0]}, and another just like it` : `the ${names[0]}, and ${dope.length - 1} more just like it`) : names.length === 2 ? `the ${names[0]} and the ${names[1]}` : `the ${names[0]}, the ${names[1]} and more`;
           lines.push(`They find ${what}. One of them holds ${dope.length === 1 ? 'it' : 'one'} up to the light. “Well, well.”`);
         }
         if (hot.length) lines.push(`They find ${hot.length === 1 ? `the ${lc(hot[0].name)}` : `${hot.length} things that aren’t yours`}. “${hot.length === 1 ? 'Whose is this' : 'Whose are these'}?”`);
@@ -7753,6 +7751,7 @@ export class Game {
       this.leaveHome();
       h.scene = { until: now() + 45 * 60_000 };
       this.place = 'street';
+      this.save.state.policeOffCorner = true;
       this.save.state.policeWhy = lines;
       this.save.state.policeStop = true;
       this.refresh();

@@ -11,6 +11,17 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '3.00',
+    date: 'Nov 10',
+    items: [
+      'Fixes to the last round of fixes: loading the backup after a damaged save now keeps saving normally, instead of closing with “played somewhere else”.',
+      'With one arm broken and a knife in the other hand, “Take out” for something else is no longer greyed out when that hand is free.',
+      'Caught outside a house as a prowler, the school-zone charge doesn’t apply.',
+      'A police search that finds two of the same package reads naturally whatever it’s called.',
+      'Cheap sales (under $8) can be talked down a little like any other.',
+    ],
+  },
+  {
     v: '2.99',
     date: 'Nov 10',
     items: [

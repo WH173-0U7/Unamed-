@@ -283,6 +283,8 @@ function updatePauseInfo() {
 
 function startGame(fresh: boolean, fromBackup = false) {
   const data = fresh ? newSave() : fromBackup ? loadBackup() : loadSave();
+  // (The backup takes over from the damaged save: its count goes on from there, or its first write is refused as stale.)
+  if (data && fromBackup) data.rev = Math.max(data.rev ?? 0, loadSave()?.rev ?? 0);
   if (!data) {
     menu.toast("Couldn’t load the saved game");
     menu.setSaveInfo(null);

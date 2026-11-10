@@ -466,9 +466,10 @@ function searchOptions(e: Encounter): Option[] {
 
 /** Something in each hand already. */
 const handsFull = (e: Encounter) => {
-  // (A broken arm, wrist or hand holds nothing.)
-  const lame = ['left', 'right'].filter((sd) => e.you.broken.some((p) => p === `${sd} arm` || p === `${sd} wrist` || p === `${sd} hand`)).length;
-  return (e.weapons ?? []).filter((w) => w.hand).length + (e.carrying ?? 0) >= 2 - lame;
+  // Each hand: holding something, or no use (a broken arm, wrist or hand holds nothing).
+  const busy = new Set<string>((e.weapons ?? []).filter((w) => w.hand).map((w) => w.hand as string));
+  for (const sd of ['left', 'right']) if (e.you.broken.some((p) => p === `${sd} arm` || p === `${sd} wrist` || p === `${sd} hand`)) busy.add(sd);
+  return busy.size + (e.carrying ?? 0) >= 2;
 };
 /** Your weapons, as attacks (pepper spray, while it lasts). */
 /** A weapon by what it is, short ("knife", "bat"), for the buttons. */
@@ -3565,7 +3566,7 @@ function sellTo(e: Encounter) {
       return;
     }
     // (Short: they can talk you down a little, not to whatever's in their pocket.)
-    if (cents >= Math.max(price * 0.75, 800)) {
+    if (cents >= price * 0.75 && cents >= Math.min(800, price)) {
       const all = Math.floor(cents / 100) * 100;
       say('them', `“I only got ${Math.floor(cents / 100)}. Come on. That’s all I got.” They hold it out, crumpled.`);
       say('you', 'You take it, and hand it over.');

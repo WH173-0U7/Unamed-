@@ -361,6 +361,19 @@ type Phase = 'idle' | 'cut' | 'waiting';
  * `save.state`, so it is saved at every pause point automatically, including
  * an encounter in progress.
  */
+/** One thing on the pile by the bins: something you found, or the cans. */
+interface Found {
+  item?: InvItem;
+  cans?: number;
+  day: string;
+}
+/** A thing by name, in a sentence: "the claw hammer", but "half a sandwich", "some cold fries". */
+const theThing = (name: string) => (/^(half|some|a|an|two|three|four)\b/i.test(name) ? name.toLowerCase() : `the ${name.toLowerCase()}`);
+/** How many things can wait on the pile at once. */
+const FOUND_MAX = 12;
+/** One row of the finds wheel (CSS: .scav-item height). */
+const WHEEL_ROW = 40;
+
 export class Game {
   running = false;
   /** You bled out, and the death screen is up. */
@@ -393,6 +406,8 @@ export class Game {
   private sheet: 'places' | 'pockets' | 'stats' | 'police' | 'scav' | null = null;
   /** This time at the bins: what each dig turned up, newest first. */
   private scavLog: string[] = [];
+  /** Which of what you've found the wheel has in its middle. */
+  private scavSel = 0;
   /** On the map: what you've tapped (its card shows under the map). */
   private mapPick: string | null = null;
   /** How the map is zoomed: z times, its layer moved by (tx, ty) parts of the map (0 to 1 − z). */
@@ -472,6 +487,16 @@ export class Game {
     this.youBtn.onclick = () => this.openSheet('stats');
     this.edgeSwipes();
     this.mapGestures();
+    // The finds wheel: when it stops turning, what's in the middle is picked.
+    {
+      let t = 0;
+      this.sheetEl.addEventListener('scroll', (e) => {
+        const w = e.target as HTMLElement;
+        if (!w.classList?.contains('scav-wheel')) return;
+        clearTimeout(t);
+        t = window.setTimeout(() => this.scavPicked(Math.round(w.scrollTop / WHEEL_ROW)), 90);
+      }, { capture: true, signal: this.listeners.signal });
+    }
     this.sheetEl.onclick = (ev) => this.sheetClick(ev);
     this.shopEl.onclick = (ev) => {
       const b = (ev.target as HTMLElement).closest('button');
@@ -2130,7 +2155,15 @@ export class Game {
     else if (b.dataset.gig) this.gigAct(b.dataset.gig, Number(b.dataset.gigi));
     else if (b.dataset.bins !== undefined) this.openBins();
     else if (b.dataset.dig) this.digBins();
-    else if (b.dataset.aside) this.takeAside(Number(b.dataset.aside));
+    else if (b.dataset.ftake) this.takeFound(Number(b.dataset.ftake));
+    else if (b.dataset.fleave) this.leaveFound(Number(b.dataset.fleave));
+    else if (b.dataset.wheel) {
+      // (A tap on one: it turns to the middle.)
+      const i = Number(b.dataset.wheel);
+      this.scavPicked(i);
+      const w = this.sheetEl.querySelector<HTMLElement>('.scav-wheel');
+      w?.scrollTo({ top: i * WHEEL_ROW, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }
     else if (b.dataset.stash) this.stashItem(Number(b.dataset.stash));
     else if (b.dataset.inject) this.inject(Number(b.dataset.inject));
     else if (b.dataset.pack) this.packLoose(Number(b.dataset.pack));
@@ -6175,22 +6208,27 @@ export class Game {
     return this.inventory.items.filter((x) => x.name === 'Empty cans').reduce((n, x) => n + (x.doses ?? 0), 0);
   }
   /** The bins on each block: how full they are (they fill back up over a few hours), a bag just thrown out, the day's rare find, and being told to clear off. */
-  private binAt(id: string): { left: number; at: number; tossed?: boolean; rareDay?: string; shooedUntil?: number; aside?: { item: InvItem; day: string }[] } {
+  private binAt(id: string): { left: number; at: number; tossed?: boolean; rareDay?: string; shooedUntil?: number; aside?: { item: InvItem; day: string }[]; found?: Found[] } {
     const st = this.save.state;
     // (Older saves: one lot of bins for everywhere.)
     if (!st.bins || typeof st.bins !== 'object' || 'left' in (st.bins as object)) st.bins = {};
-    const all = st.bins as Record<string, { left: number; at: number; tossed?: boolean; rareDay?: string; shooedUntil?: number; aside?: { item: InvItem; day: string }[] }>;
+    const all = st.bins as Record<string, { left: number; at: number; tossed?: boolean; rareDay?: string; shooedUntil?: number; aside?: { item: InvItem; day: string }[]; found?: Found[] }>;
     const b = (all[id] ??= { left: BIN_MAX * 0.8, at: now() });
     const hours = (now() - b.at) / 3_600_000;
     if (hours > 0) {
       b.left = Math.min(BIN_MAX, b.left + hours * BIN_REFILL);
       b.at = now();
     }
-    // (What you set aside by the bins is gone by the next day: the truck, or somebody else.)
-    if (b.aside?.length) {
+    // (Older saves: what was set aside is what you've found.)
+    if (b.aside) {
+      b.found = [...(b.found ?? []), ...b.aside.map((x) => ({ item: x.item, day: x.day }))];
+      delete b.aside;
+    }
+    // (What you leave by the bins is gone by the next day: the truck, or somebody else.)
+    if (b.found?.length) {
       const day = new Date(now()).toDateString();
-      b.aside = b.aside.filter((x) => x.day === day);
-      if (!b.aside.length) delete b.aside;
+      b.found = b.found.filter((x) => x.day === day);
+      if (!b.found.length) delete b.found;
     }
     return b;
   }
@@ -6209,9 +6247,8 @@ export class Game {
   private digWhy(): string | null {
     const why = this.binsWhy();
     if (why) return why;
-    const inv = this.inventory;
-    const canBag = inv.items.some((x) => x.name === 'Empty cans' && ((sp) => !!sp && usedKg(inv, sp.id) + 0.015 <= sp.maxKg + 1e-9)(inv.spots.find((s) => s.id === x.spot)));
-    if (!canBag && !findRoom(inv, 'small', 0.05)) return tooHeavy(inv, 0.05) ? 'You’re carrying all you can' : 'No room on you. Make some space first';
+    // (What you find waits on the pile for you to take or leave: just not too big a pile.)
+    if ((this.binAt(this.corner.id).found?.length ?? 0) >= FOUND_MAX) return 'Sort through what you’ve found first';
     return null;
   }
   /** Going through the bins on your block: its own screen, one dig at a time. */
@@ -6257,6 +6294,7 @@ export class Game {
     const day = new Date(now()).toDateString();
     const finds = rollDig(area, b.left, lvl, tossed, b.rareDay !== day);
     b.left = Math.max(0, b.left - 1);
+    if (finds.some((f) => !f.find.cash)) this.scavSel = 0;
     if (!finds.length)
       lines.push(oneOf(['Nothing. Coffee grounds and wet paper.', 'Nothing worth having.', 'You tear open a bag: diapers. You tie it back up.', 'Nothing but takeout boxes and cat litter.', 'Nothing. Somebody got here first.']));
     for (const { tier, find } of finds) {
@@ -6291,25 +6329,83 @@ export class Game {
     this.refresh();
     this.renderSheet();
   }
-  /** Picking up something you set by the bins. */
-  private takeAside(i: number) {
+  /** Taking something off the pile of what you've found. */
+  private takeFound(i: number) {
     if (this.sheet !== 'scav') return;
     const b = this.binAt(this.corner.id);
-    const x = b.aside?.[i];
+    const x = b.found?.[i];
     if (!x) return;
-    const { spot: _s, ...it } = x.item;
-    if (!stow(this.inventory, it)) return this.renderSheet();
-    b.aside!.splice(i, 1);
-    if (!b.aside!.length) delete b.aside;
-    this.scavLog.unshift(`You pick up the ${lc(x.item.name)}.`);
+    if (x.cans) {
+      const had = this.cansCount;
+      const line = this.addCans(x.cans);
+      const got = this.cansCount - had;
+      if (!got) return this.renderSheet();
+      x.cans -= got;
+      this.scavLog.unshift(line);
+      if (x.cans > 0) return (this.refresh(), this.renderSheet());
+    } else {
+      const { spot: _s, ...it } = x.item!;
+      if (!stow(this.inventory, it)) return this.renderSheet();
+      this.scavLog.unshift(`You take ${theThing(x.item!.name)}.`);
+    }
+    b.found!.splice(i, 1);
+    if (!b.found!.length) delete b.found;
+    this.scavSel = Math.min(this.scavSel, Math.max(0, (b.found?.length ?? 1) - 1));
     this.refresh();
     this.renderSheet();
   }
-  /** Something out of the bins: into your pockets, if there's room. */
+  /** Leaving something on the pile: it goes back in the bin. */
+  private leaveFound(i: number) {
+    if (this.sheet !== 'scav') return;
+    const b = this.binAt(this.corner.id);
+    const x = b.found?.[i];
+    if (!x) return;
+    b.found!.splice(i, 1);
+    if (!b.found!.length) delete b.found;
+    this.scavLog.unshift(x.cans ? `You leave the ${x.cans} can${x.cans === 1 ? '' : 's'}.` : `You leave ${theThing(x.item!.name)}.`);
+    this.scavSel = Math.min(this.scavSel, Math.max(0, (b.found?.length ?? 1) - 1));
+    this.renderSheet();
+  }
+  /** The wheel's middle moved: what's picked, and its Take and Leave (without drawing the whole screen again). */
+  private scavPicked(i: number) {
+    const b = this.binAt(this.corner.id);
+    const n = b.found?.length ?? 0;
+    if (!n) return;
+    this.scavSel = Math.max(0, Math.min(n - 1, i));
+    const wheel = this.sheetEl.querySelector<HTMLElement>('.scav-wheel');
+    wheel?.querySelectorAll('.scav-item').forEach((el, k) => el.classList.toggle('on', k === this.scavSel));
+    const pick = this.sheetEl.querySelector<HTMLElement>('.scav-pick');
+    if (pick) pick.innerHTML = this.scavPickHtml(b.found![this.scavSel], this.scavSel);
+  }
+  /** Under the wheel: what's in the middle, and whether you've room for it. */
+  private scavPickHtml(x: Found, i: number): string {
+    const inv = this.inventory;
+    let why: string | null = null;
+    if (x.cans) {
+      const canBag = inv.items.some((y) => y.name === 'Empty cans' && ((sp) => !!sp && usedKg(inv, sp.id) + 0.015 <= sp.maxKg + 1e-9)(inv.spots.find((s) => s.id === y.spot)));
+      if (!canBag && !findRoom(inv, 'small', 0.015)) why = noRoomWhy(inv, 'small', 0.015);
+    } else if (!(x.item!.kind === 'weapon' ? findRoom(inv, x.item!.size, x.item!.kg, x.item) || findRoom(inv, x.item!.size, x.item!.kg) : findRoom(inv, x.item!.size, x.item!.kg, x.item))) why = noRoomWhy(inv, x.item!.size, x.item!.kg);
+    const name = x.cans ? `${x.cans} can${x.cans === 1 ? '' : 's'}` : x.item!.name;
+    const what = x.cans ? 'Crushed flat: 10¢ each at the gas station' : `${x.item!.detail ?? ''}${x.item!.detail ? ' · ' : ''}${x.item!.size}, ${kgLabel(x.item!.kg)}`;
+    return `<li><div><b>${name}</b><small>${what}</small></div><span class="li-btns"><button type="button" data-ftake="${i}" ${why ? `disabled title="${why}"` : ''}>Take${why ? `<small>${why}</small>` : ''}</button><button type="button" data-fleave="${i}">Leave</button></span></li>`;
+  }
+  /** Something out of the bins: cash into your pocket; anything else onto the pile, for you to take or leave. */
   private takeFind(f: BinFind, lvl: number): string {
     const inv = this.inventory;
     const rnd = (r: [number, number]) => r[0] + Math.floor(Math.random() * (r[1] - r[0] + 1));
-    if (f.cans) return this.addCans(rnd(f.cans));
+    const day = new Date(now()).toDateString();
+    const b = this.binAt(this.corner.id);
+    if (f.cans) {
+      const n = rnd(f.cans);
+      // (Cans go with the cans already on the pile.)
+      const pile = b.found?.find((x) => x.cans);
+      if (pile) {
+        pile.cans! += n;
+        b.found!.splice(b.found!.indexOf(pile), 1);
+        b.found!.unshift(pile);
+      } else (b.found ??= []).unshift({ cans: n, day });
+      return `${n} can${n === 1 ? '' : 's'}, crushed flat.`;
+    }
     if (f.cash) {
       const c = rnd(f.cash);
       const left = cents(pocketCash(inv, fewest(c)));
@@ -6317,13 +6413,9 @@ export class Game {
     }
     const it = { ...f.item! };
     if (it.food === 'trash') it.spoiled = Math.random() < spoilOdds(lvl);
-    if (stow(inv, it)) return f.line;
-    // No room: it waits by the bins (till tomorrow) for you to make some.
     const m = measure(it);
-    const b = this.binAt(this.corner.id);
-    (b.aside ??= []).push({ item: { ...it, size: m.size, kg: m.kg, spot: '' } as InvItem, day: new Date(now()).toDateString() });
-    if (b.aside.length > 6) b.aside.shift();
-    return `${f.line} You’ve nowhere to put it, so you set it by the bins. ${noRoomWhy(inv, m.size, m.kg)}`;
+    (b.found ??= []).unshift({ item: { ...it, size: m.size, kg: m.kg, spot: '' } as InvItem, day });
+    return f.line;
   }
   /** Cans into a bag of them you're carrying: topped up where there's room, moved to a roomier pocket, or a new bag somewhere else. */
   private addCans(n: number): string {
@@ -6383,13 +6475,12 @@ export class Game {
       li('Keep digging', `A couple of minutes, a little more tired.${lvl > 1 ? ` Scavenging ${lvl}.` : ''}`, btn('dig', 1, 'Dig', why)) +
       li('Stop', `Put the lids back and walk away.${cans ? ` You’ve ${cans} can${cans === 1 ? '' : 's'}: 10¢ each at the gas station.` : ''}`, btn('close', 1, 'Stop')) +
       `</ul>` +
-      (b.aside?.length
-        ? `<h3>Set by the bins</h3><ul class="shop-list">${b.aside
-            .map((x, i) => {
-              const room = findRoom(this.inventory, x.item.size, x.item.kg, x.item);
-              return li(x.item.name, `${x.item.detail ? `${x.item.detail} · ` : ''}It’ll be gone by tomorrow`, btn('aside', i, 'Take', room ? null : noRoomWhy(this.inventory, x.item.size, x.item.kg)));
-            })
-            .join('')}</ul>`
+      (b.found?.length
+        ? `<h3>What you’ve found <b>${b.found.length}</b></h3>` +
+          `<div class="scav-wheel-box"><div class="scav-wheel" role="listbox" aria-label="What you’ve found">` +
+          b.found.map((x, i) => `<button type="button" role="option" class="scav-item${i === Math.min(this.scavSel, b.found!.length - 1) ? ' on' : ''}" data-wheel="${i}">${x.cans ? `${x.cans} can${x.cans === 1 ? '' : 's'}` : x.item!.name}</button>`).join('') +
+          `</div></div>` +
+          `<ul class="shop-list scav-pick">${this.scavPickHtml(b.found[Math.min(this.scavSel, b.found.length - 1)], Math.min(this.scavSel, b.found.length - 1))}</ul>`
         : '') +
       (this.scavLog.length ? `<div class="scav-log">${this.scavLog.map((l, i) => `<p${i ? '' : ' class="new"'}>${l}</p>`).join('')}</div>` : `<p class="scav-hint">Most bags are nothing. Now and then, something somebody shouldn’t have thrown out.</p>`)
     );
@@ -9041,6 +9132,9 @@ export class Game {
     }
     if (this.sheet === 'scav') {
       card.innerHTML = `<div class="sheet-head"><h2>${this.atBar ? 'Out back' : 'The bins'}</h2>${close}</div><div class="sheet-body scav">${this.scavHtml()}</div>`;
+      // (The wheel, turned to what's picked.)
+      const w = card.querySelector<HTMLElement>('.scav-wheel');
+      if (w) w.scrollTop = Math.min(this.scavSel, w.children.length - 1) * WHEEL_ROW;
       return;
     }
     const inv = this.inventory;

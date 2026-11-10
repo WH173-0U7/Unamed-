@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.92',
+    date: 'Nov 10',
+    items: [
+      'Scavenging: what you dig up doesn’t go straight into your pockets anymore. It goes on a pile by the bins, shown as a wheel you flick up and down. Whatever’s in the middle you can Take or Leave.',
+      'Take is greyed out, with the reason, when you’ve no room for that thing. The pile waits until the next day; with a dozen things on it, sort through them before you dig more. Loose change still goes straight in your pocket.',
+    ],
+  },
+  {
     v: '2.91',
     date: 'Nov 10',
     items: [

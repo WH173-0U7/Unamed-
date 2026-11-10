@@ -1732,6 +1732,75 @@ body.in-game #menu {
   animation: opts-in 0.25s ease both;
 }
 
+/* What you've found: a wheel you flick up and down; the one in the middle is picked. */
+.sheet-body.scav h3 b {
+  margin-left: 6px;
+  font-weight: 400;
+  color: var(--ink-faint);
+}
+.scav-wheel-box {
+  position: relative;
+  margin: 6px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  overflow: hidden;
+}
+/* The band in the middle: what's picked. */
+.scav-wheel-box::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 80px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid rgba(236, 235, 230, 0.35);
+  background: rgba(236, 235, 230, 0.06);
+  pointer-events: none;
+}
+.scav-wheel {
+  height: 200px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-snap-type: y mandatory;
+  /* (Room above the first and below the last, so either can come to the middle.) */
+  padding: 80px 0;
+  box-sizing: border-box;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(transparent, #000 32%, #000 68%, transparent);
+  mask-image: linear-gradient(transparent, #000 32%, #000 68%, transparent);
+}
+.scav-wheel::-webkit-scrollbar { display: none; }
+.scav-wheel .scav-item {
+  display: block;
+  width: 100%;
+  height: 40px;
+  margin: 0;
+  padding: 0 14px;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  scroll-snap-align: center;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink-faint);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.scav-wheel .scav-item.on {
+  color: var(--ink);
+  font-weight: 700;
+}
+.scav-pick {
+  margin-top: 6px;
+}
+
 /* Each pocket or bag, and how full it is. */
 .pocket-wear,
 .pocket-where {

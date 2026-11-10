@@ -4163,7 +4163,15 @@ export class Game {
         // (The drugs said as drugs; anything else, as something that isn't yours.)
         const dope = evidence.filter((x) => x.secret && x.secret !== 'empty');
         const hot = evidence.filter((x) => !dope.includes(x));
-        if (dope.length) lines.push(`They find ${dope.length === 1 ? `the ${lc(dope[0].name)}` : dope.length === 2 ? `the ${lc(dope[0].name)} and the ${lc(dope[1].name)}` : `the ${lc(dope[0].name)}, the ${lc(dope[1].name)} and more`}. One of them holds it up to the light. “Well, well.”`);
+        if (dope.length) {
+          // (Two of the same: "both eight-balls", not "the eight-ball and the eight-ball".)
+          const names = [...new Set(dope.map((x) => lc(x.name)))];
+          // ("bag of powder" → "bags of powder"; "eight-ball" → "eight-balls")
+          const many = (n: string) => (/ of /.test(n) ? n.replace(/^(\S+)/, '$1s') : `${n}s`);
+          const what =
+            dope.length === 1 ? `the ${names[0]}` : names.length === 1 ? (dope.length === 2 ? `both ${many(names[0])}` : `all ${dope.length} ${many(names[0])}`) : names.length === 2 ? `the ${names[0]} and the ${names[1]}` : `the ${names[0]}, the ${names[1]} and more`;
+          lines.push(`They find ${what}. One of them holds ${dope.length === 1 ? 'it' : 'one'} up to the light. “Well, well.”`);
+        }
         if (hot.length) lines.push(`They find ${hot.length === 1 ? `the ${lc(hot[0].name)}` : `${hot.length} things that aren’t yours`}. “${hot.length === 1 ? 'Whose is this' : 'Whose are these'}?”`);
         arrested = true;
         if (evidence.some((x) => x.kind !== 'misc' && !(x.secret && x.secret !== 'empty'))) charges.push('Possession of stolen property');

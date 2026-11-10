@@ -593,6 +593,10 @@ export function buildingAddr(b: Building, unit = ''): string {
       out = best;
     }
   }
+  // (No number on its streets lands on it: a building set back, round the side. It takes the nearest number
+  // with a letter, its own, so it's never the same address as the building that number does land on.
+  // The salt is chosen so that, on this map, no two buildings end up with the same address.)
+  if (!(buildingAt(addressAt(out).x, addressAt(out).y) === b)) out = out.replace(/^(\d+)/, `$1${'ABCDEFGHJK'[Math.floor(hash(`${b.id}|side`) * 10)]}`);
   addrCache.set(key, out);
   return out;
 }

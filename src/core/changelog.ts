@@ -11,6 +11,14 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.99',
+    date: 'Nov 10',
+    items: [
+      'No two buildings share a street address anymore. A building set back from the street gets a lettered number (like 1958F Kestrel Ave).',
+      'A police search that finds two of the same package says “both eight-balls”, not “the eight-ball and the eight-ball”.',
+    ],
+  },
+  {
     v: '2.98',
     date: 'Nov 10',
     items: [

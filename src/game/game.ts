@@ -1592,6 +1592,8 @@ export class Game {
                 : 'Someone saw that. A face in a window, then gone. They saw yours.',
           );
         }
+        // (Left alive, gone later: say so.)
+        if (e.result !== 'killed' && !worse.some((w) => /died|didn’t make it/.test(w))) worse.push('Later, you hear they didn’t make it.');
         this.humanity.kills++;
         const l = this.loseHumanity(KILL_COST);
         if (l) worse.push(l);
@@ -4617,7 +4619,7 @@ export class Game {
     h.healedAt += hours * 3_600_000;
     // (Lying down or locked up, faster: but only up to when that ended, not after.)
     const j = this.jail;
-    const restEnd = j ? j.until : h.restingSince != null ? Infinity : from;
+    const restEnd = j ? j.until : h.restingSince != null ? (h.restEnd ?? Infinity) : from;
     const all = Math.min(hours, 24 * 120);
     const restH = Math.max(0, Math.min(all, restEnd === Infinity ? all : Math.floor((restEnd - from) / 3_600_000)));
     const lines = [...(restH ? passHours(h, restH, true, false, away, false) : []), ...(all - restH && !h.dead ? passHours(h, all - restH, false, false, away, false) : [])];
@@ -6898,11 +6900,13 @@ export class Game {
     // Each of them catches it, or doesn't: Sneak (kept low-key) and a covered face make it easy to miss.
     const sees = c.filter(() => Math.random() < (1 - q) * (1 - anon * 0.5));
     const n = sees.length;
-    e.witnessed = n;
     if (!n) {
+      // (Nobody caught that one. They're still there for the next, and nobody misses a killing.)
       e.watchers = c.length;
+      if (e.them.dead) e.witnessed = c.length;
       return;
     }
+    e.witnessed = n;
     const say = (text: string) => e.log.push({ by: 'info', text });
     say(n === 1 ? (c.length === 1 ? 'Someone on the street sees it.' : 'One of the others on the street sees it.') : 'The others on the street see it.');
     // (Low-key, they're less sure what they saw: Sneak.)

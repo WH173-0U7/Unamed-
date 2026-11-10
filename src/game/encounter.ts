@@ -465,7 +465,11 @@ function searchOptions(e: Encounter): Option[] {
 }
 
 /** Something in each hand already. */
-const handsFull = (e: Encounter) => (e.weapons ?? []).filter((w) => w.hand).length + (e.carrying ?? 0) >= 2;
+const handsFull = (e: Encounter) => {
+  // (A broken arm, wrist or hand holds nothing.)
+  const lame = ['left', 'right'].filter((sd) => e.you.broken.some((p) => p === `${sd} arm` || p === `${sd} wrist` || p === `${sd} hand`)).length;
+  return (e.weapons ?? []).filter((w) => w.hand).length + (e.carrying ?? 0) >= 2 - lame;
+};
 /** Your weapons, as attacks (pepper spray, while it lasts). */
 /** A weapon by what it is, short ("knife", "bat"), for the buttons. */
 function shortName(n: string): string {
@@ -698,7 +702,7 @@ const arms = (f: Body) => Math.min(2, new Set(f.broken.filter((p) => /(arm|wrist
 const ribs = (f: Body) => (f.lung ? 2.4 : f.broken.includes('ribs') ? 1.8 : 1);
 const cost = (f: Body, n: number) => Math.round(n * ribs(f));
 /** How much of your stamina you can get back with broken ribs (you can't fill your lungs). */
-export const staminaCap = (f: Body) => f.maxStamina * (f.lung ? 0.3 : f.broken.includes('ribs') ? 0.5 : 1);
+export const staminaCap = (f: Body) => f.maxStamina * (f.lung ? 0.3 : f.broken.includes('ribs') ? (f.numb ? 0.8 : 0.5) : 1);
 
 /** Chance to run away (or for them, to get away). Legs matter most. */
 function fleeChance(f: Body, other: Body, bonus = 0) {
@@ -1793,7 +1797,8 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
       }
       case 'breathe':
         // (Broken ribs: you can't fill your lungs, whatever you do.)
-        y.stamina = Math.min(staminaCap(y), y.stamina + 22);
+        // (Never less than you had: catching your breath can't take it away.)
+        y.stamina = Math.max(y.stamina, Math.min(staminaCap(y), y.stamina + 22));
         say('you', y.down ? 'You stay down and catch your breath.' : oneOf(['You back off a step and catch your breath.', 'You step back and suck in air.', 'You give yourself a second to breathe.', 'You keep your distance and get your wind back.']));
         break;
     }
@@ -3353,7 +3358,7 @@ function techEffect(t: Technique, newBreaks: Part[] = []) {
       if (drop && T.weaponOut) {
         const w = enc.person.carrying.find((i) => i.name === T.weaponOut);
         if (w) w.dropped = true;
-        say('them', `The ${lc(T.weaponOut)} falls out of their hand.`);
+        say(T.out ? 'info' : 'them', T.out ? `The ${lc(T.weaponOut)} slips from their limp fingers.` : `The ${lc(T.weaponOut)} falls out of their hand.`);
         T.weaponOut = null;
       }
       impacts.push({ target: 'them', ml: 0, severe: true, loc: what === 'ankle' || what === 'leg' ? 'leg' : 'arm', spill: 'none' });
@@ -3849,6 +3854,7 @@ function threatAct(id: string, inv?: Inventory): boolean {
     );
     if (arms_.length) {
       say('you', `You find ${list(arms_.map((it) => a(lc(it.name))))} on them, and make them drop ${arms_.length > 1 ? 'them' : 'it'}.`);
+      for (const it of arms_) it.dropped = true;
       e.them.weaponOut = null;
     }
     if (hid.length) {

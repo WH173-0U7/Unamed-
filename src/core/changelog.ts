@@ -11,6 +11,18 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.98',
+    date: 'Nov 10',
+    items: [
+      'Fight fixes: with both arms broken you can’t pull a knife or a gun to mug someone, and “Take out” is greyed out instead of failing.',
+      'Someone you leave alive who dies afterwards: you’re told (“Later, you hear they didn’t make it”).',
+      'On painkillers, broken ribs let you get your breath back to 80%, and catching your breath never lowers your stamina.',
+      'People on the street who miss the first blow still see what comes after, and nobody misses a killing in front of them.',
+      'Resting at the shelter or church heals at the resting rate only until they put you out.',
+      'Patting someone down and making them drop a weapon leaves it on the ground by them.',
+    ],
+  },
+  {
     v: '2.97',
     date: 'Nov 10',
     items: [

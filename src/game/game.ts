@@ -409,6 +409,8 @@ export class Game {
   private scavLog: string[] = [];
   /** Which of what you've found the wheel has in its middle. */
   private scavSel = 0;
+  /** A row you tapped, that the wheel's turning to. */
+  private wheelTo: { i: number; until: number } | null = null;
   /** On the map: what you've tapped (its card shows under the map). */
   private mapPick: string | null = null;
   /** How the map is zoomed: z times, its layer moved by (tx, ty) parts of the map (0 to 1 − z). */
@@ -495,7 +497,13 @@ export class Game {
         const w = e.target as HTMLElement;
         if (!w.classList?.contains('scav-wheel')) return;
         clearTimeout(t);
-        t = window.setTimeout(() => this.scavPicked(Math.round(w.scrollTop / WHEEL_ROW)), 90);
+        t = window.setTimeout(() => {
+          const at = Math.round(w.scrollTop / WHEEL_ROW);
+          const to = this.wheelTo;
+          if (to && performance.now() < to.until && at !== to.i) return;
+          this.wheelTo = null;
+          this.scavPicked(at);
+        }, 90);
       }, { capture: true, signal: this.listeners.signal });
     }
     this.sheetEl.onclick = (ev) => this.sheetClick(ev);
@@ -2162,6 +2170,8 @@ export class Game {
       // (A tap on one: it turns to the middle.)
       const i = Number(b.dataset.wheel);
       this.scavPicked(i);
+      // (While it turns there, the rows it passes on the way don't count.)
+      this.wheelTo = { i, until: performance.now() + 800 };
       const w = this.sheetEl.querySelector<HTMLElement>('.scav-wheel');
       w?.scrollTo({ top: i * WHEEL_ROW, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     }
@@ -2205,8 +2215,12 @@ export class Game {
     // (Checked before anything else: turned away, you're still where you were.)
     if (((this.save.state.pawnBan as number) ?? 0) > now() + 30 * 60_000) this.save.state.pawnBan = now() + 30 * 60_000;
     if (p === 'pawn' && ((this.save.state.pawnBan as number) ?? 0) > now()) {
-      this.note(['He sees you through the glass and shakes his head. The door stays locked.']);
-      if (onMap && this.sheet === 'places') this.renderSheet();
+      const away = ['He sees you through the glass and shakes his head. The door stays locked.'];
+      this.note(away);
+      if (onMap && this.sheet === 'places') {
+        this.arrived = away;
+        this.renderSheet();
+      }
       return;
     }
     if (p !== 'street') this.save.state.crowd = [];
@@ -6341,7 +6355,8 @@ export class Game {
     if (this.sheet !== 'scav') return;
     const b = this.binAt(this.corner.id);
     const x = b.found?.[i];
-    if (!x) return;
+    // (Gone: the day turned over while you stood there. Show what's really left.)
+    if (!x) return this.renderSheet();
     if (x.cans) {
       const had = this.cansCount;
       const line = this.addCans(x.cans);
@@ -6372,7 +6387,7 @@ export class Game {
     if (this.sheet !== 'scav') return;
     const b = this.binAt(this.corner.id);
     const x = b.found?.[i];
-    if (!x) return;
+    if (!x) return this.renderSheet();
     b.found!.splice(i, 1);
     if (!b.found!.length) delete b.found;
     this.scavLog.unshift(x.cans ? (x.cans === 1 ? 'You leave the can.' : `You leave the ${x.cans} cans.`) : `You leave ${theThing(x.item!.name)}.`);
@@ -8490,8 +8505,14 @@ export class Game {
     // (The church locks its doors at night.)
     if (b.kind === 'church' && !pewHours()) {
       this.leaveSheet();
-      this.note([`You go up the steps of ${b.name ?? 'St. Agnes'}. The doors are locked for the night. They open again at seven.`]);
-      if (this.sheet === 'places') this.renderSheet();
+      const onMap = this.sheet === 'places';
+      if (onMap) this.dropArrived();
+      const away = [`You go up the steps of ${b.name ?? 'St. Agnes'}. The doors are locked for the night. They open again at seven.`];
+      this.note(away);
+      if (onMap) {
+        this.arrived = away;
+        this.renderSheet();
+      }
       return;
     }
     if (this.place === 'spot') this.place = 'street';
@@ -9535,11 +9556,11 @@ export class Game {
         ['A bone breaking', `−${pct(toughnessResist(st))}`],
       ],
       scavenging: [
-        ['Useful find', `1 in ${Math.round(1 / uncommonOdds(st.scavenging.level))}`],
-        ['Rare find', `1 in ${Math.round(1 / rareOdds(st.scavenging.level))}`],
+        ['Useful find', `1\u00a0in\u00a0${Math.round(1 / uncommonOdds(st.scavenging.level))}`],
+        ['Rare find', `1\u00a0in\u00a0${Math.round(1 / rareOdds(st.scavenging.level))}`],
         ['Food gone off', pct(spoilOdds(st.scavenging.level))],
-        ['Cut on glass, bare hands', `${(cutOdds(st.scavenging.level, false) * 100).toFixed(1)}% a dig`],
-        ['Told to clear off', `${(shooOdds(st.scavenging.level, 'flats') * 100).toFixed(1)}% a dig`],
+        ['Cut on glass, bare hands', `${(cutOdds(st.scavenging.level, false) * 100).toFixed(1)}%\u00a0a\u00a0dig`],
+        ['Told to clear off', `${(shooOdds(st.scavenging.level, 'flats') * 100).toFixed(1)}%\u00a0a\u00a0dig`],
       ],
       speech: [
         ['Lies that land', `+${pct(lieBonus(st))}`],

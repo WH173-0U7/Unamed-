@@ -7466,13 +7466,6 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
     padding: 9px;
   }
 }
-/* Stat values stay in one piece ("1 in 13", "4.1% a dig"). */
-.stat-card dd {
-  white-space: nowrap;
-}
-.stat-card dd.wrap {
-  white-space: normal;
-}
 /* A place's description in landscape: a clear fade where it scrolls on, and room before the hours. */
 @media (orientation: landscape) and (max-height: 560px) {
   #shop .shop-head p:not(.shop-hours) {

@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.95',
+    date: 'Nov 10',
+    items: [
+      'Fixed: the You page could be wider than a small phone and cut values off.',
+      'The bins screen catches up if midnight passes while it’s open, instead of buttons that do nothing.',
+      'Turned away at the church or the pawn shop from the map, that line no longer turns up again after you’ve walked somewhere else.',
+      'Tapping a row on the finds wheel and then Take or Leave always acts on that row, even while the wheel is still turning.',
+    ],
+  },
+  {
     v: '2.94',
     date: 'Nov 10',
     items: [

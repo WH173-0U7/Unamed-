@@ -471,7 +471,7 @@ const handsFull = (e: Encounter) => (e.weapons ?? []).filter((w) => w.hand).leng
 function shortName(n: string): string {
   if (/broken bottle/i.test(n)) return 'broken bottle';
   if (knifeOf(n) && !/bottle|syringe/i.test(n)) return 'knife';
-  if (/^bike lock$/i.test(n)) return 'U-lock';
+  if (/^(bike lock|u-lock)$/i.test(n)) return 'U-lock';
   return lc(n).split(' ').pop() ?? lc(n);
 }
 function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolean): Option[] {

@@ -189,7 +189,7 @@ export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'kno
   if (/^(gift card|sleeping bag|duffel bag)$/i.test(n)) return 100;
   if (/^copper wire$/i.test(n)) return 15;
   if (/^crowbar$/i.test(n)) return 12;
-  if (/^(claw hammer|bike lock)$/i.test(n)) return 10;
+  if (/^(claw hammer|bike lock|u-lock)$/i.test(n)) return 10;
   if (/^flashlight$/i.test(n)) return 8;
   if (/^umbrella$/i.test(n)) return 6;
   if (/^blanket$/i.test(n)) return 5;

@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '2.94',
+    date: 'Nov 10',
+    items: [
+      'Screen fixes: fight options in one column on mid-size phones, a shorter finds wheel on short screens so the page still scrolls, bigger map pins and zoom buttons, and stat values that don’t break in half.',
+      'A place’s description sideways fades out where it scrolls, clear of the opening hours. Small buttons are easier to tap; the reason you can’t take something is easier to read.',
+      'The bike lock is called a U-lock everywhere now. Wording fixes on the bins screen, the Scavenging card and a few found items.',
+    ],
+  },
+  {
     v: '2.93',
     date: 'Nov 10',
     items: [
@@ -26,14 +35,14 @@ export const CHANGES: Release[] = [
     date: 'Nov 10',
     items: [
       'Scavenging: what you dig up doesn’t go straight into your pockets anymore. It goes on a pile by the bins, shown as a wheel you flick up and down. Whatever’s in the middle you can Take or Leave.',
-      'Take is greyed out, with the reason, when you’ve no room for that thing. The pile waits until the next day; with a dozen things on it, sort through them before you dig more. Loose change still goes straight in your pocket.',
+      'Take is greyed out, with the reason, when you’ve no room for that thing. The pile waits until the next day; once the pile gets big, sort through it before you dig more. Loose change still goes straight in your pocket.',
     ],
   },
   {
     v: '2.91',
     date: 'Nov 10',
     items: [
-      'Scavenging: Dig is greyed out when there’s no room on you for even something small, so nothing you find gets lost.',
+      'Scavenging: nothing you find gets lost for lack of room.',
       'If you find something too big for the room you’ve got, you set it by the bins instead of losing it. It’s listed on the bins screen to take once you’ve made room, until the next day.',
     ],
   },
@@ -65,7 +74,7 @@ export const CHANGES: Release[] = [
     date: 'Nov 10',
     items: [
       'Going through the bins is now scavenging: its own screen, one dig at a time, for as long as you like. Each block’s bins run low as you dig and fill back up over a few hours.',
-      'What turns up depends on the block: office trash downtown, clothes and kitchen knives in the Flats, old coats and jewelry in Old Town, tools and copper in Southside, empties out back of a bar. Mostly cans and nothing; now and then something useful; very rarely something worth a little.',
+      'What turns up depends on the block: office trash downtown, clothes and kitchen knives in the Flats, old coats and jewelry in Old Town, tools and copper in Southside, empties out back of a bar. Mostly cans, or nothing; now and then something useful; very rarely something worth a little.',
       'Sometimes people throw a bag out while you’re there, and the next dig is a better one.',
       'New skill, Scavenging: the more you dig, the more you find and the more rare things you spot, and the less often you get cut on broken glass, eat something that’s gone off, or get told to clear off.',
       'Food from the trash takes the edge off like other food. If it’s gone off, it leaves you more tired instead.',

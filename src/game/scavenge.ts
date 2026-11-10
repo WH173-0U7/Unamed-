@@ -2,7 +2,7 @@
  * Going through the bins, one dig at a time. What turns up depends on the
  * block: office trash downtown, clothes and kitchen knives in the Flats,
  * old people's things in Old Town, tools and scrap in Southside, empties out
- * back of a bar. Mostly cans and nothing; now and then something useful; very
+ * back of a bar. Mostly cans, or nothing; now and then something useful; very
  * rarely something worth a little at the pawn shop (never much: $20 to $60).
  * The Scavenging skill finds more, and spots spoiled food, broken glass and
  * trouble before it happens.
@@ -69,10 +69,10 @@ export const BIN_LOOT: Record<BinArea, Record<Tier, BinFind[]>> = {
       { item: { kind: 'weapon', name: 'Kitchen knife', weapon: 8, cuts: true }, line: 'A kitchen knife, wrapped in newspaper.', w: 1.5 },
       { item: { kind: 'weapon', name: 'Steak knife', weapon: 5, cuts: true }, line: 'A steak knife, loose in a bag of scraps.', w: 1.5 },
       { item: { kind: 'misc', name: 'Blanket', detail: 'Thin, but warm enough' }, line: 'A thin blanket, folded and thrown out.', w: 2 },
-      { item: { kind: 'misc', name: 'Old phone', detail: 'Cracked screen, it still turns on' }, line: 'An old phone with a cracked screen. It still turns on.', w: 0.5 },
+      { item: { kind: 'misc', name: 'Old phone', detail: 'Cracked screen, but it still turns on' }, line: 'An old phone with a cracked screen. It still turns on.', w: 0.5 },
     ],
     rare: [
-      { item: { kind: 'misc', name: 'Sleeping bag', detail: 'Rolled up, the zip still works' }, line: 'A rolled-up sleeping bag. The zip still works.', w: 2 },
+      { item: { kind: 'misc', name: 'Sleeping bag', detail: 'Rolled up; the zip still works' }, line: 'A rolled-up sleeping bag. The zip still works.', w: 2 },
       TWENTY,
     ],
   },
@@ -100,12 +100,12 @@ export const BIN_LOOT: Record<BinArea, Record<Tier, BinFind[]>> = {
       { item: { kind: 'weapon', name: 'Claw hammer', detail: 'The handle’s taped', weapon: 8 }, line: 'A claw hammer, the handle wrapped in tape.', w: 2 },
       { item: { kind: 'weapon', name: 'Crowbar', detail: 'Rusty', weapon: 9 }, line: 'A rusty crowbar under a pile of pallets.', w: 1.5 },
       { item: { kind: 'weapon', name: 'Box cutter', weapon: 5, cuts: true }, line: 'A box cutter, a blade still in it.', w: 2 },
-      { item: { kind: 'weapon', name: 'Bike lock', detail: 'A U-lock, with its key', weapon: 7 }, line: 'A U-lock, its key still in it.', w: 1.5 },
+      { item: { kind: 'weapon', name: 'U-lock', detail: 'A bike lock, with its key', weapon: 7 }, line: 'A U-lock, its key still in it.', w: 1.5 },
       { item: { kind: 'weapon', name: 'Flashlight', detail: 'Works if you hit it', weapon: 4 }, line: 'A flashlight. It works if you hit it.', w: 2 },
       GLOVES,
     ],
     rare: [
-      { item: { kind: 'misc', name: 'Cordless drill', detail: 'No charger, the battery’s dead' }, line: 'A cordless drill with a dead battery, thrown out with a broken pallet.', w: 2 },
+      { item: { kind: 'misc', name: 'Cordless drill', detail: 'No charger; the battery’s dead' }, line: 'A cordless drill with a dead battery, thrown out with a broken pallet.', w: 2 },
       { item: { kind: 'misc', name: 'Duffel bag', detail: 'Canvas, one handle torn' }, line: 'A canvas duffel bag, one handle torn.', w: 2 },
       TWENTY,
     ],

@@ -1130,7 +1130,7 @@ export class Game {
     const el = document.createElement('div');
     el.id = 'rest';
     el.className = 'lockup';
-    const where = h.restWhere === 'room' ? 'In your room at the motel, the door wedged shut.' : h.restWhere === 'car' ? 'In the back seat, doors locked, windows fogged.' : h.restWhere === 'squat' ? 'In the back room of an empty house, out of sight of the street.' : h.restWhere === 'shelter' ? 'On a cot at the shelter, your shoes under your head so nobody takes them.' : h.restWhere === 'pew' ? 'On a back pew at St. Agnes, the candles guttering.' : this.atBar ? 'Head down on the bar, the jukebox going.' : WET_AMOUNT[this.weather.now] > 0 ? 'In a doorway, out of the weather, your back to the wall.' : 'Against a wall, out of the way, your eyes shut.';
+    const where = h.restWhere === 'room' ? 'In your room at the motel, the door wedged shut.' : h.restWhere === 'car' ? 'In the back seat, doors locked, windows fogged.' : h.restWhere === 'squat' ? 'In the back room of an empty house, out of sight of the street.' : h.restWhere === 'shelter' ? 'On a cot at the shelter, your shoes under your head so nobody takes them.' : h.restWhere === 'pew' ? 'On a back pew at St. Agnes, the candles guttering.' : this.atBar ? 'Head down on the bar, the jukebox going.' : WET_AMOUNT[this.weather.now] > 0 ? 'In a doorway, out of the weather, your back to the wall.' : 'Against a wall, your eyes shut.';
     const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
     el.innerHTML =
       `<h2>Resting</h2>` +
@@ -6493,7 +6493,7 @@ export class Game {
       `<div class="spot-bar"><i style="width:${Math.round((100 * Math.max(0, b.left)) / BIN_MAX)}%"></i><span>${b.tossed ? 'A bag just went in' : 'What’s left in the bins'}</span></div>` +
       `<ul class="shop-list">` +
       li('Keep digging', `A couple of minutes, a little more tired.${lvl > 1 ? ` Scavenging ${lvl}.` : ''}`, btn('dig', 1, 'Dig', why)) +
-      li('Stop', `Put the lids back and walk away.${cans ? ` You’ve ${cans} can${cans === 1 ? '' : 's'}: 10¢ each at the gas station.` : ''}`, btn('close', 1, 'Stop')) +
+      li('Done', `Put the lids back and walk away.${cans ? ` You’ve ${cans} can${cans === 1 ? '' : 's'}: 10¢ each at the gas station.` : ''}`, btn('close', 1, 'Stop')) +
       `</ul>` +
       (b.found?.length
         ? `<h3>What you’ve found <b>${b.found.length}</b></h3>` +
@@ -9535,11 +9535,11 @@ export class Game {
         ['A bone breaking', `−${pct(toughnessResist(st))}`],
       ],
       scavenging: [
-        ['A find that’s something useful', `1 in ${Math.round(1 / uncommonOdds(st.scavenging.level))}`],
-        ['A find that’s something rare', `1 in ${Math.round(1 / rareOdds(st.scavenging.level))}`],
-        ['Food that’s gone off', pct(spoilOdds(st.scavenging.level))],
-        ['Cutting yourself on glass', `${(cutOdds(st.scavenging.level, false) * 100).toFixed(1)}% a dig (less in gloves)`],
-        ['Being told to clear off', `${(shooOdds(st.scavenging.level, 'flats') * 100).toFixed(1)}% a dig`],
+        ['Useful find', `1 in ${Math.round(1 / uncommonOdds(st.scavenging.level))}`],
+        ['Rare find', `1 in ${Math.round(1 / rareOdds(st.scavenging.level))}`],
+        ['Food gone off', pct(spoilOdds(st.scavenging.level))],
+        ['Cut on glass, bare hands', `${(cutOdds(st.scavenging.level, false) * 100).toFixed(1)}% a dig`],
+        ['Told to clear off', `${(shooOdds(st.scavenging.level, 'flats') * 100).toFixed(1)}% a dig`],
       ],
       speech: [
         ['Lies that land', `+${pct(lieBonus(st))}`],

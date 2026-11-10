@@ -193,7 +193,7 @@ export function weaponText(t: Tier, kind: 'blade' | 'blunt' | 'bottle' | 'broken
       : t === 1
         ? [`You swing the crowbar two-handed and it lands ${where}.`, `The crowbar comes round and cracks them ${where}.`]
         : [`You keep the crowbar short and jab the end ${into}.`, `You let the crowbar’s weight do it: one swing, ${where}.`];
-  if (/bike lock/.test(w))
+  if (/bike lock|u-lock/.test(w))
     return t === 0
       ? [`You swing the U-lock wild and it smacks them ${where}.`, `You flail with the U-lock; it bangs off them ${where}.`]
       : t === 1

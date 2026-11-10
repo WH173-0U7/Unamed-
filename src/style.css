@@ -7434,3 +7434,62 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
     display: none;
   }
 }
+
+/* ===== Polish round B (layout sweep) ===== */
+/* Fights, mid-width phones: one column of options (two made every row as tall as its tallest neighbour). */
+body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+}
+/* The finds wheel on a short screen: three rows, so the sheet around it still scrolls. */
+@media (max-height: 440px) {
+  .scav-wheel {
+    height: 120px;
+    padding: 40px 0;
+  }
+  .scav-wheel-box::before {
+    top: 40px;
+  }
+}
+/* Map pins never smaller than a fingertip can find, and zoom buttons big enough to hit. */
+.map-pin {
+  width: clamp(22px, 9%, 26px);
+}
+.map-zoomctl button {
+  width: 40px;
+  height: 40px;
+  padding: 10px;
+}
+@media (max-height: 440px) {
+  .map-zoomctl button {
+    width: 36px;
+    height: 36px;
+    padding: 9px;
+  }
+}
+/* Stat values stay in one piece ("1 in 13", "4.1% a dig"). */
+.stat-card dd {
+  white-space: nowrap;
+}
+.stat-card dd.wrap {
+  white-space: normal;
+}
+/* A place's description in landscape: a clear fade where it scrolls on, and room before the hours. */
+@media (orientation: landscape) and (max-height: 560px) {
+  #shop .shop-head p:not(.shop-hours) {
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
+  }
+  #shop > .shop-head > .shop-hours {
+    margin-top: 6px;
+  }
+}
+/* Small buttons are still 40px to tap. */
+.btn-small {
+  min-height: 40px;
+}
+/* Why you can't take something: readable, it's the only explanation you get. */
+.scav-pick button:disabled small {
+  font-size: 11px;
+  color: var(--ink-dim);
+  opacity: 1;
+}

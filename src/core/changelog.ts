@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '3.02',
+    date: 'Nov 11',
+    items: [
+      'The Color fringe slider works on the menu even with grain, glitch and static all turned off.',
+      'With reduced motion on, being drunk blurs the screen steadily instead of swimming in and out of focus.',
+      'The map opens a little faster the first time.',
+    ],
+  },
+  {
     v: '3.01',
     date: 'Nov 11',
     items: [

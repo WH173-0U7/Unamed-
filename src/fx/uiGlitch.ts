@@ -6,9 +6,9 @@
  */
 export function uiGlitch(el?: Element | null, power = 0.35) {
   if (el instanceof HTMLElement) {
+    // (Restarted a frame later, once the style without it has been seen: forcing a layout right after a big redraw, like the map, costs a lot.)
     el.classList.remove('ui-glitch');
-    void el.offsetWidth; // restart the animation
-    el.classList.add('ui-glitch');
+    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('ui-glitch')));
     // One listener per element, however often it glitches.
     if (!el.dataset.glitchHooked) {
       el.dataset.glitchHooked = '1';

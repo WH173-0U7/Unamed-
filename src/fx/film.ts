@@ -237,6 +237,8 @@ export function createFilm(container: HTMLElement, game = false) {
     /** How strong each part is (from Settings). */
     setLevels(l: FilmLevels) {
       levels = l;
+      // (With grain, glitch and static all off, update() doesn't run: the fringe still follows its slider.)
+      if (l.grain + l.glitch + l.static <= 0.01) setVar('--ca', `${(0.9 * l.fringe).toFixed(1)}px`);
       renderer.domElement.style.display = l.grain + l.glitch + l.static > 0.01 ? '' : 'none';
     },
     /** Something on screen changed or hit: a glitch, and a crackle of static. */

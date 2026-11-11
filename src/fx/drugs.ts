@@ -94,7 +94,8 @@ export function createDrugs() {
       swaying = false;
     }
     // Blurrier the more you've had; it swims in and out of focus.
-    const px = b > 0.01 ? b * 5 * (0.7 + 0.3 * Math.sin(t * 0.8)) : 0;
+    // (Reduced motion: a steady blur, not one that pulses.)
+    const px = b > 0.01 ? b * 5 * (still ? 1 : 0.7 + 0.3 * Math.sin(t * 0.8)) : 0;
     const bs = px < 0.15 ? '' : `blur(${(Math.round(px * 10) / 10).toFixed(1)}px)`;
     if (bs !== blurShown) {
       blurShown = bs;

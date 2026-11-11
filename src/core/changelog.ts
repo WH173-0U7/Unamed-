@@ -11,11 +11,23 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '3.01',
+    date: 'Nov 11',
+    items: [
+      'Fixes: resting on the street clears the people who were around before, so nobody from hours ago steps up when you wake.',
+      'Someone just standing across the street moves on after ten minutes, including if you closed the game on them.',
+      'Your phone still reminds you when you’re rested or out of jail if you quit to the menu before leaving the app.',
+      'Product you’ve already cut, and trash food, keep what they are when a thief takes them and you get them back.',
+      'Blacking out in a bar puts you properly back outside. Nothing the old life had waiting turns up for the new one.',
+      'Wording: no real car or cigarette brands, American spelling throughout, and the Marlow, the shelter and a few others go by one name everywhere.',
+    ],
+  },
+  {
     v: '3.00',
     date: 'Nov 10',
     items: [
       'Fixes to the last round of fixes: loading the backup after a damaged save now keeps saving normally, instead of closing with “played somewhere else”.',
-      'With one arm broken and a knife in the other hand, “Take out” for something else is no longer greyed out when that hand is free.',
+      'With one arm broken and a knife in the other hand, “Take out” for something else is no longer grayed out when that hand is free.',
       'Caught outside a house as a prowler, the school-zone charge doesn’t apply.',
       'A police search that finds two of the same package reads naturally whatever it’s called.',
       'Cheap sales (under $8) can be talked down a little like any other.',
@@ -33,7 +45,7 @@ export const CHANGES: Release[] = [
     v: '2.98',
     date: 'Nov 10',
     items: [
-      'Fight fixes: with both arms broken you can’t pull a knife or a gun to mug someone, and “Take out” is greyed out instead of failing.',
+      'Fight fixes: with both arms broken you can’t pull a knife or a gun to mug someone, and “Take out” is grayed out instead of failing.',
       'Someone you leave alive who dies afterwards: you’re told (“Later, you hear they didn’t make it”).',
       'On painkillers, broken ribs let you get your breath back to 80%, and catching your breath never lowers your stamina.',
       'People on the street who miss the first blow still see what comes after, and nobody misses a killing in front of them.',

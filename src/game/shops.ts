@@ -56,10 +56,10 @@ export const PLACES: PlaceInfo[] = [
   },
   {
     id: 'gas',
-    name: 'Nite Owl Gas',
+    name: 'All-Nite Gas',
     desc: 'Smokes, lighters, first aid, hot coffee, masks and shades.',
     hours: null,
-    blurb: 'Two pumps, one working. Hot dogs turning under a lamp, and a clerk behind scratched glass who has seen it all.',
+    blurb: 'Two pumps, one working. Hot dogs turning under a lamp, and a clerk behind scratched glass who’s seen it all.',
     indoors: true,
   },
   {
@@ -123,7 +123,7 @@ export const PLACES: PlaceInfo[] = [
     name: 'City Records Office',
     desc: 'Get your State ID made.',
     hours: WEEKDAYS(9, 16),
-    blurb: 'A long room of plastic chairs and a ticket machine. Everyone looks like they have been waiting forever.',
+    blurb: 'A long room of plastic chairs and a ticket machine. Everyone looks like they’ve been waiting forever.',
     indoors: true,
   },
   {
@@ -176,7 +176,7 @@ export function worth(x: Pick<InvItem, 'kind' | 'name' | 'med' | 'secret' | 'kno
   if (/^tablet$/i.test(n)) return 220;
   if (/^cordless drill$/i.test(n)) return 110;
   if (/^toolbox$/i.test(n)) return 90;
-  if (/^games console$/i.test(n)) return 280;
+  if (/^games? console$/i.test(n)) return 280;
   // Gold goes by weight; diamonds, small ones, not for much.
   if (/^gold chain$/i.test(n)) return 450;
   if (/^wedding ring$/i.test(n)) return 300;

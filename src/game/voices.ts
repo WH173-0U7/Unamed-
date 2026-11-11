@@ -258,13 +258,13 @@ const DEMAND_COMPLY: Record<Band, [string[], string[], string[], string[]]> = {
     ['They hesitate a long moment, then give in.', 'They swallow, and do it.'],
     ['Their hands are shaking so badly it takes them two tries.', 'They do it, crying quietly.'],
     ['They do it at once, fast, before you can ask again.', '“Okay, okay, okay—” It comes out in a rush.'],
-    ['They do it without looking at you, like it’s happening to someone else.', 'Their voice is flat and very quiet. They don’t cry any more.'],
+    ['They do it without looking at you, like it’s happening to someone else.', 'Their voice is flat and very quiet. They don’t cry anymore.'],
   ],
   sly: [
     ['“Fine. You win this one.”', 'A thin smile. “Since you asked so nicely.”'],
     ['The smile’s gone. They just do it.', '“Alright. Alright. Easy.” They do it carefully.'],
     ['They do it fast, all the charm gone out of them.', '“Here. Here. Don’t— here.”'],
-    ['They do it with nothing left in their face at all.', 'They don’t even try to talk their way out any more.'],
+    ['They do it with nothing left in their face at all.', 'They don’t even try to talk their way out anymore.'],
   ],
   brute: [
     ['They do it, glaring at you the whole time.', '“There. Happy?”'],
@@ -296,7 +296,7 @@ export function demandVoice(e: Encounter, d: Demand, how: 'refuse' | 'comply' | 
 /** “You didn’t see anything.”: what they promise, by who they are and how scared they are. */
 const HUSH: Record<Band, { refuse: [string[], string[]]; lie: string[]; swear: [string[], string[], string[]] }> = {
   victim: {
-    refuse: [['“You can’t just— people saw. People saw you.”', 'They don’t answer. They’re memorising your face.'], ['“I— I won’t say anything.” They don’t sound like they mean it.', '“Okay. Okay.” Their eyes go past you, to the end of the street.']],
+    refuse: [['“You can’t just— people saw. People saw you.”', 'They don’t answer. They’re memorizing your face.'], ['“I— I won’t say anything.” They don’t sound like they mean it.', '“Okay. Okay.” Their eyes go past you, to the end of the street.']],
     lie: ['“I won’t tell anyone. I swear.” Their eyes flick to the end of the street as they say it.', '“Nobody. I won’t tell nobody.” Too quick.'],
     swear: [
       ['“I didn’t see anything. I don’t know you. I swear.”', '“I won’t call anyone. I won’t. I promise.”'],
@@ -335,7 +335,7 @@ export function hushVoice(e: Encounter, how: 'refuse' | 'lie' | 'swear'): string
 export function homeThreatVoice(e: Encounter): string[] {
   const band = bandOf(e.person.personality);
   const tier = fearTier(e.them.fear ?? 0);
-  if (band === 'brute') return tier >= 4 ? ['The color goes out of their face. For once, they’ve got nothing to say.', 'They go very still. “Leave my family out of this.” It isn’t a threat any more.'] : ['They go pale and quiet. The sneer stays on, but only just.', 'Something shifts behind their eyes. They don’t answer.'];
+  if (band === 'brute') return tier >= 4 ? ['The color goes out of their face. For once, they’ve got nothing to say.', 'They go very still. “Leave my family out of this.” It isn’t a threat anymore.'] : ['They go pale and quiet. The sneer stays on, but only just.', 'Something shifts behind their eyes. They don’t answer.'];
   if (band === 'sly') return tier >= 4 ? ['“Please. Please, not at home. I’ll do whatever you want.”', 'All the smoothness goes. “Okay. Okay. You win. Just not at home.”'] : ['The easy smile slips. “There’s no need for that.”', '“Hey. Hey. Let’s keep this between us, out here.”'];
   return tier >= 3
     ? ['“Please. Please, I’ve got people there. Please.”', 'They start to beg, and can’t stop. “Don’t come to my house. Please don’t.”', 'Their legs go. They sit down hard, shaking. “Please. Not there.”']

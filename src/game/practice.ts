@@ -191,14 +191,14 @@ export function weaponText(t: Tier, kind: 'blade' | 'blunt' | 'bottle' | 'broken
     return t === 0
       ? [`You heave the crowbar around and it clangs off them ${where}.`, `You swing the crowbar like it weighs a ton; it catches them ${where}.`]
       : t === 1
-        ? [`You swing the crowbar two-handed and it lands ${where}.`, `The crowbar comes round and cracks them ${where}.`]
+        ? [`You swing the crowbar two-handed and it lands ${where}.`, `The crowbar comes around and cracks them ${where}.`]
         : [`You keep the crowbar short and jab the end ${into}.`, `You let the crowbar’s weight do it: one swing, ${where}.`];
   if (/bike lock|u-lock/.test(w))
     return t === 0
       ? [`You swing the U-lock wild and it smacks them ${where}.`, `You flail with the U-lock; it bangs off them ${where}.`]
       : t === 1
         ? [`You swing the U-lock like a club and it smacks them ${where}.`, `The steel loop of the lock catches them ${where}.`]
-        : [`You whip the U-lock round on a short arc, ${where}.`, `A hard, short swing of the lock, ${where}.`];
+        : [`You whip the U-lock around on a short arc, ${where}.`, `A hard, short swing of the lock, ${where}.`];
   if (/flashlight/.test(w))
     return t === 0
       ? [`You swing the flashlight blindly and it thumps them ${where}.`, `You hit them with the flashlight, more or less ${where}.`]

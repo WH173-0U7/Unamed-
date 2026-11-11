@@ -208,6 +208,8 @@ export const STRESS_NAMES = ['', 'On edge', 'Stressed', 'Panicking'];
 export const stressLevel = (s: number) => (s >= 75 ? 3 : s >= 45 ? 2 : s >= 20 ? 1 : 0);
 
 export interface Encounter {
+  /** When they turned up (someone just standing there across the street moves on in the end). */
+  seenAt?: number;
   /** It's over and you've seen how: everything greyed out but the way out. */
   finished?: boolean;
   /** What you could do just before it ended (shown greyed out). */
@@ -494,7 +496,7 @@ function weaponOptions(e: Encounter, cat: Category, tired: (n: number) => boolea
         ]
       : [
       w.spray
-        ? { id: `wpn:${w.i}`, label: 'Pepper spray them', hint: full ? 'Your hands are full' : (w.doses ?? 3) <= 0 ? 'Empty' : e.them.blinded > 0 ? 'They’re already blind' : `${w.doses ?? 3} left · blinds them`, disabled: full || (w.doses ?? 3) <= 0 || e.them.blinded > 0, cat }
+        ? { id: `wpn:${w.i}`, label: 'Pepper spray them', hint: full ? 'Your hands are full' : (w.doses ?? 3) <= 0 ? 'Empty' : e.them.blinded > 0 ? 'They’re already blind' : `${w.doses ?? 3} spray${(w.doses ?? 3) === 1 ? '' : 's'} left · blinds them`, disabled: full || (w.doses ?? 3) <= 0 || e.them.blinded > 0, cat }
         : { id: `wpn:${w.i}`, label: /^bottle$/i.test(w.name) ? 'Swing the bottle' : isBluntTool(w.name) ? `Swing the ${shortName(w.name)}` : /syringe/i.test(w.name) ? (w.loaded ? `Stab with the syringe (${w.known ? w.loaded : 'loaded'})` : 'Stab with the empty syringe') : `${w.cuts ? (knifeOf(w.name)?.style === 'stab' ? 'Stab' : 'Slash') : 'Hit'} (${lc(w.name)})`, hint: full ? 'Your hands are full' : tired(COST.weapon) ? 'Too tired' : `+${w.weapon ?? 0} damage${w.cuts && !/^bottle$|syringe/i.test(w.name) ? ', cuts' : ''}${w.loaded ? ', may inject them' : ''}`, disabled: full || tired(COST.weapon), cat },
       // A whole bottle can be broken for an edge (it doesn't always break).
       ...(/^bottle$/i.test(w.name) ? [{ id: `smash:${w.i}`, label: 'Smash the bottle', hint: full ? 'Your hands are full' : tired(COST.punch) ? 'Too tired' : 'For a jagged edge: it cuts', disabled: full || tired(COST.punch), cat }] : []),
@@ -657,6 +659,7 @@ export function newEncounter(person: Person, yours: Body): Encounter {
     version: ENCOUNTER_VERSION,
     person,
     stage: 'seen',
+    seenAt: Date.now(),
     distance: 0,
     suspicion: 0,
     known: { build: false, carrying: false, awareness: false, sex: false, race: false, personality: false },
@@ -1285,7 +1288,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
           if (ci >= 0) p.carrying.splice(ci, 1);
         }
         e.lifted = (e.lifted ?? 0) + 1;
-        say('you', oneOf([`You match their step, and your fingers find ${L.noun}. ${L.key === 'keys' || L.key === 'cash' ? 'They come' : 'It comes'} away clean. They walk on.`, `A bump, a mumbled “sorry”, and ${L.noun} ${L.key === 'keys' || L.key === 'cash' ? 'are' : 'is'} in your hand. They don’t look back.`, `You lift ${L.noun} between two fingers, light as anything. They never feel it.`]));
+        say('you', oneOf([`You match their step, and your fingers find ${L.noun}. ${L.key === 'keys' || L.key === 'cash' ? 'They come' : 'It comes'} away clean. They walk on.`, `A bump, a mumbled “sorry,” and ${L.noun} ${L.key === 'keys' || L.key === 'cash' ? 'are' : 'is'} in your hand. They don’t look back.`, `You lift ${L.noun} between two fingers, light as anything. They never feel it.`]));
         if (L.key === 'wallet' && got.length) say('info', `In the wallet: ${list(got)}.`);
         watch(4);
         you.gain('sneak', 8);

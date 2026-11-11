@@ -23,14 +23,14 @@ export const PART_DESC: Record<CarPart, string> = {
   console: 'Change, chargers, the things people need to hand.',
   seats: 'Feel around in the dark under there.',
   back: 'Whatever got thrown in the back.',
-  trunk: 'Round the back, the lid up: you’re in plain sight.',
+  trunk: 'Around back, the lid up: you’re in plain sight.',
 };
 const PART_SEARCH: Record<CarPart, string> = {
   glovebox: 'You pop the glovebox and go through it: the manual, the registration, napkins.',
   console: 'You go through the console and the cup holders.',
   seats: 'You run your hand under the seats, front and back.',
   back: 'You lean over into the back and go through what’s there.',
-  trunk: 'You go round the back and lift the trunk lid. The little light comes on.',
+  trunk: 'You go around back and lift the trunk lid. The little light comes on.',
 };
 
 /** Whose car it is, going by what's in it. */

@@ -565,7 +565,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
         status: true,
         meter: { k: Math.min(1, f / 100), text: `${Math.round(f)} / 100` },
         effects: [`Stamina in a fight: −${Math.round(f * 0.4)}%`, `Your blows, and the odds on everything you try: −${Math.round(Math.min(15, f * 0.15))}%`, ...(lv >= 4 ? ['Too worn out to lurk: you need to lie down'] : [])],
-        heals: `${h.restingSince != null ? 'Lying down: fresh' : 'In a bed (your motel room): fresh'} in about ${left < 1 ? `${Math.max(1, Math.round(left * 60))} minutes` : `${Math.round(left * 10) / 10} hour${Math.round(left * 10) === 10 ? '' : 's'}`}, real time. A car takes longer, a doorway longer still. Otherwise, game open or closed, it wears off by itself (about 5 hours from exhausted).`,
+        heals: `${h.restingSince != null ? 'Lying down: fresh' : 'In a bed (your room at the Marlow): fresh'} in about ${left < 1 ? `${Math.max(1, Math.round(left * 60))} minutes` : `${Math.round(left * 10) / 10} hour${Math.round(left * 10) === 10 ? '' : 's'}`}, real time. A car takes longer, a doorway longer still. Otherwise, game open or closed, it wears off by itself (about 5 hours from exhausted).`,
       });
     }
   }
@@ -714,7 +714,7 @@ export function injuryEffects(h: Health, stressNow?: number): InjuryInfo[] {
   const looks = 'It shows on your face, nothing more: it doesn’t slow you in a fight';
   if (m.jaw) out.push({ mark: true, name: 'Broken jaw', effects: [looks], heals: markLeft('jaw') });
   if (m.eye) out.push({ mark: true, name: 'Black eye', effects: [looks], heals: markLeft('eye') });
-  if (m.brow) out.push({ mark: true, name: 'Cut over one eye', effects: [looks], heals: `${markLeft('brow')} ${h.stitched?.brow ? 'Stitched: it’ll leave a faint line.' : 'Unstitched, it will leave a scar.'}` });
+  if (m.brow) out.push({ mark: true, name: 'Cut over one eye', effects: [looks], heals: `${markLeft('brow')} ${h.stitched?.brow ? 'Stitched: it’ll leave a faint line.' : 'Unstitched, it’ll leave a scar.'}` });
   if (m.lip) out.push({ mark: true, name: 'Split lip', effects: [looks], heals: markLeft('lip') });
   if (m.cheek) out.push({ mark: true, name: 'Swollen face', effects: [looks], heals: markLeft('cheek') });
   if (m.teeth) out.push({ mark: true, name: m.teeth === 1 ? 'A tooth missing' : `${m.teeth} teeth missing`, effects: [looks], heals: 'They never grow back.' });

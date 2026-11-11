@@ -176,7 +176,7 @@ export interface Home {
 }
 
 const STREETS = ['Alder St', 'Kestrel Ave', 'Larkin St', 'Halsey Ave', 'Pruitt St', 'Ninth St', 'Cobb Ave', 'Delmar St', 'Wexford Rd', 'Orchard Ln', 'Bellamy St', 'Fulton Ave', 'Sorrel Ct', 'Grand Ave', 'Ivy St', 'Tanner Rd'];
-const CARS = ['Toyota', 'Honda', 'Ford', 'Chevy', 'Nissan', 'Hyundai', 'Dodge', 'Subaru', 'Kia'];
+const CARS = ['Corvan', 'Halden', 'Marlin', 'Stratos', 'Vela', 'Ardent', 'Kestrel', 'Bayliss', 'Orion'];
 
 /** Where someone lives. The homeless have nowhere; the rest, something to go home to. */
 export function makeHome(o: { name: string; sex: Sex; kind: Kind; age: number; type?: HomeType }): Home | null {
@@ -286,7 +286,7 @@ export const ROOM_NAME: Record<RoomId, string> = {
 };
 export const ROOM_DESC: Record<RoomId, string> = {
   bedroom: 'The dresser, the nightstand, under the mattress: where people keep cash and jewelry.',
-  living: 'A laptop, a tablet, a games console. The TV’s too big to carry.',
+  living: 'A laptop, a tablet, a game console. The TV’s too big to carry.',
   kitchen: 'The junk drawer, the jar on top of the fridge, keys on a hook by the door.',
   bathroom: 'The medicine cabinet.',
   closet: 'A coat on a hook, a box on the shelf, shoes.',
@@ -303,7 +303,7 @@ export function roomLoot(h: Home, room: RoomId, carHere: boolean): Loot[] {
   const r = Math.random;
   const w = h.wealth * (h.hits ? 0.35 : 1);
   const out: Loot[] = [];
-  const add = (l: Omit<Loot, 'where' | 'hot'>, where: string) => out.push({ ...l, where, ...(l.kind === 'phone' || l.kind === 'car keys' || /^(laptop|tablet|games console|gold chain|wedding ring|watch|earrings|class ring|bracelet)$/i.test(l.name) ? { hot: true } : {}) });
+  const add = (l: Omit<Loot, 'where' | 'hot'>, where: string) => out.push({ ...l, where, ...(l.kind === 'phone' || l.kind === 'car keys' || /^(laptop|tablet|games? console|gold chain|wedding ring|watch|earrings|class ring|bracelet)$/i.test(l.name) ? { hot: true } : {}) });
   const bills = (a: number, b: number) => Math.max(1, Math.round((a + r() * (b - a)) * w));
   if (room === 'bedroom') {
     if (r() < 0.55) add({ kind: 'cash', name: any(['Cash in a sock', 'Cash under the mattress', 'Envelope of cash']), cash: bills(20, 380) }, any(['dresser', 'under the mattress', 'nightstand']));
@@ -314,7 +314,7 @@ export function roomLoot(h: Home, room: RoomId, carHere: boolean): Loot[] {
   } else if (room === 'living') {
     if (r() < 0.5 * Math.min(1.2, w)) add({ kind: 'misc', name: 'Laptop', detail: 'On the couch, a sticker on the lid' }, 'couch');
     if (r() < 0.35 * w) add({ kind: 'misc', name: 'Tablet', detail: h.household === 'family' ? 'In a cover, a kid’s game on the screen' : 'In a cover, a crack across one corner' }, 'coffee table');
-    if (r() < 0.4 * w) add({ kind: 'misc', name: 'Games console', detail: 'Under the TV, controllers and all' }, 'TV stand');
+    if (r() < 0.4 * w) add({ kind: 'misc', name: 'Game console', detail: 'Under the TV, controllers and all' }, 'TV stand');
     if (r() < 0.3) add({ kind: 'cash', name: 'Loose change', cash: Math.round((1 + r() * 7) * 4) / 4 }, 'a bowl by the door');
   } else if (room === 'kitchen') {
     if (r() < 0.4) add({ kind: 'cash', name: any(['Cash in a coffee can', 'Rent money, in an envelope', 'Bills in the junk drawer']), cash: bills(15, 240) }, any(['top of the fridge', 'junk drawer', 'cupboard']));

@@ -188,6 +188,7 @@ const menu = createMenu({
       ok: 'Delete',
       onOk: () => {
         deleteSave();
+        pendingUpcoming = [];
         menu.setSaveInfo(null);
         menu.toast('Saved game deleted');
       },
@@ -208,6 +209,7 @@ $('btn-reset-game').addEventListener('click', () => {
       }
       clearTimeout(saveTimer);
       deleteSave();
+      pendingUpcoming = [];
       menu.setSaveInfo(null);
       document.body.classList.remove('paused');
       startGame(true);
@@ -377,12 +379,16 @@ function resume() {
   hideMenu();
 }
 
+/** What's coming for the character you left at the menu (for the phone's reminders). */
+let pendingUpcoming: ReturnType<Game['upcoming']> = [];
 function quitToMenu() {
   if (!game) return;
   // Saved as it is now (whatever finished while paused stays finished: no
   // quitting to roll it again).
   if (!game.dead) save();
   if (!game) return;
+  // (Resting, or locked up: the phone still tells you when it's done, even from the menu.)
+  pendingUpcoming = game.upcoming();
   game.close();
   game = null;
   state = 'menu';
@@ -427,14 +433,14 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     pause();
     glass.persist(true);
-    if (game) void scheduleAll(game.upcoming());
+    void scheduleAll(game ? game.upcoming() : pendingUpcoming);
   } else void clearAll();
 });
 // The Android app plays the live game: if the app itself is too old for it, say so.
 if (isApp() && !reloading) {
   void App.getInfo()
     .then((info) => {
-      if (Number(info.build) < APP_BUILD_NEEDED) menu.toast('There’s a new version of the app: Check for updates to get it.', 6000);
+      if (Number(info.build) < APP_BUILD_NEEDED) menu.toast('There’s a new version of the app: check for updates to get it.', 6000);
     })
     .catch(() => {});
 }

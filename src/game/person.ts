@@ -214,6 +214,8 @@ export interface Loot {
 
   /** Something to drink (uses in `doses`). */
   drink?: 'beer' | 'liquor' | 'energy';
+  /** Product already cut (once is all a package takes). */
+  cut?: boolean;
   /** Food out of the trash (see scavenge.ts): eaten from Pockets; spoiled, it wears you out instead. */
   food?: 'trash';
   spoiled?: boolean;
@@ -454,7 +456,7 @@ function spotsOf(name: string): string[] {
 
 /** A name for someone (or for you, when you start as someone new). */
 export const randomName = yourName;
-const STORES = ['Corner Mart', 'Gas & Go', "Lucky’s Liquor", 'Dollar Barn', 'Pho 88', 'QuickWash Laundromat', 'Night Owl Diner', 'Rite Way Pharmacy', 'Metro Transit'];
+const STORES = ['Corner Mart', 'Gas & Go', "Lucky’s Liquor", 'Dollar Barn', 'Pho 88', 'QuickWash Laundromat', 'Night Owl Diner', 'Westside Pharmacy', 'Metro Transit'];
 const NOTES = [
   'A note: “Call Dee back. Don’t tell Mom.”',
   'A folded note with a phone number and one word: “tonight.”',
@@ -468,7 +470,7 @@ const NOTES = [
   'A lottery ticket. Not a winner.',
 ];
 const PHONES = ['Cracked screen', 'Locked with a passcode', 'An old flip phone', 'Battery nearly dead', 'In a glitter case', 'A dog on the lock screen'];
-const CARS = ['Toyota', 'Honda', 'Ford', 'Chevy', 'Nissan', 'Hyundai', 'Dodge'];
+const CARS = ['Corvan', 'Halden', 'Marlin', 'Stratos', 'Vela', 'Ardent', 'Bayliss'];
 
 const r = Math.random;
 const money = (a: number, b: number) => Math.round((a + r() * (b - a)) * 100) / 100;
@@ -481,7 +483,7 @@ export function cash(dollars: number, style: 'wallet' | 'small' | 'change', name
 }
 
 /** Made-up brands. */
-const SMOKES = ['Red Crest', 'Mayfair Lights', 'Dakota Menthols', 'Ridgeway Reds', 'Union Blues', 'Harbor 100s'];
+const SMOKES = ['Red Crest', 'Mayfield Lights', 'Dakota Menthols', 'Ridgeway Reds', 'Union Blues', 'Harbor 100s'];
 
 function receipt(): Omit<Loot, 'where'> {
   return { kind: 'misc', name: 'Receipt', detail: `${any(STORES)}, $${money(2, 60).toFixed(2)}` };
@@ -525,7 +527,7 @@ function dress(kind: Kind, carrying: Item[], who: { name: string; age: number; s
 
   const { name, age, home } = who;
   // The address on their ID: home, or (for someone on the street) the last place that was.
-  const addr = home?.addr ?? `${100 + Math.floor(r() * 900)} Pier St (Harbor Light Mission)`;
+  const addr = home?.addr ?? `${100 + Math.floor(r() * 900)} Pier St (Harbor Light Shelter)`;
   const card = (dl: boolean, expired = false) => ({ card: idCard({ ...who, addr, dl, expired }), ...(home ? { homeInfo: home } : {}) });
   if (has('Wallet')) {
     // The wallet: back pocket of the trousers, or inside the jacket.

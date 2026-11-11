@@ -40,7 +40,7 @@ export const GUNS: Gun[] = [
   },
   {
     name: 'Pump shotgun',
-    desc: 'A twelve-gauge pump with an eighteen-inch barrel, five shells. Devastating up close, and there is no hiding it.',
+    desc: 'A twelve-gauge pump with an eighteen-inch barrel, five shells. Devastating up close, and there’s no hiding it.',
     holds: 5,
     ammo: '12-gauge shells',
     acc: 0.82,

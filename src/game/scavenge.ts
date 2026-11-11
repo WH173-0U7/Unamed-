@@ -62,7 +62,7 @@ export const BIN_LOOT: Record<BinArea, Record<Tier, BinFind[]>> = {
     common: [CANS, ...FOODS, CHANGE, SMOKES],
     uncommon: [
       { item: { kind: 'wear', name: 'Hoodie', slot: 'top', detail: 'Faded, but clean enough' }, line: 'A faded hoodie, clean enough.', w: 3 },
-      { item: { kind: 'wear', name: 'Windbreaker', slot: 'top', detail: 'A broken zip' }, line: 'A windbreaker with a broken zip.', w: 2 },
+      { item: { kind: 'wear', name: 'Windbreaker', slot: 'top', detail: 'A broken zip' }, line: 'A windbreaker with a broken zipper.', w: 2 },
       GLOVES,
       BEANIE,
       LIGHTER,
@@ -72,7 +72,7 @@ export const BIN_LOOT: Record<BinArea, Record<Tier, BinFind[]>> = {
       { item: { kind: 'misc', name: 'Old phone', detail: 'Cracked screen, but it still turns on' }, line: 'An old phone with a cracked screen. It still turns on.', w: 0.5 },
     ],
     rare: [
-      { item: { kind: 'misc', name: 'Sleeping bag', detail: 'Rolled up; the zip still works' }, line: 'A rolled-up sleeping bag. The zip still works.', w: 2 },
+      { item: { kind: 'misc', name: 'Sleeping bag', detail: 'Rolled up; the zipper still works' }, line: 'A rolled-up sleeping bag. The zipper still works.', w: 2 },
       TWENTY,
     ],
   },
@@ -100,7 +100,7 @@ export const BIN_LOOT: Record<BinArea, Record<Tier, BinFind[]>> = {
       { item: { kind: 'weapon', name: 'Claw hammer', detail: 'The handle’s taped', weapon: 8 }, line: 'A claw hammer, the handle wrapped in tape.', w: 2 },
       { item: { kind: 'weapon', name: 'Crowbar', detail: 'Rusty', weapon: 9 }, line: 'A rusty crowbar under a pile of pallets.', w: 1.5 },
       { item: { kind: 'weapon', name: 'Box cutter', weapon: 5, cuts: true }, line: 'A box cutter, a blade still in it.', w: 2 },
-      { item: { kind: 'weapon', name: 'U-lock', detail: 'A bike lock, with its key', weapon: 7 }, line: 'A U-lock, its key still in it.', w: 1.5 },
+      { item: { kind: 'weapon', name: 'U-lock', detail: 'Hardened steel, its key still in it', weapon: 7 }, line: 'A U-lock, its key still in it.', w: 1.5 },
       { item: { kind: 'weapon', name: 'Flashlight', detail: 'Works if you hit it', weapon: 4 }, line: 'A flashlight. It works if you hit it.', w: 2 },
       GLOVES,
     ],

@@ -53,7 +53,7 @@ const HUMANITY: { at: number; name: string; line: string }[] = [
   { at: 46, name: 'Vicious', line: 'You hurt people more than you need to now. You know it.' },
   { at: 62, name: 'Heartless', line: 'You feel nothing for them. Nothing at all.' },
   { at: 80, name: 'Sadist', line: 'You take your time with them now. You like the begging.' },
-  { at: 100, name: 'Monster', line: 'People cross the street when they see you coming. They are right to.' },
+  { at: 100, name: 'Monster', line: 'People cross the street when they see you coming. They’re right to.' },
   { at: 125, name: 'Butcher', line: "You’ve stopped counting what you’ve done." },
   { at: 155, name: 'Devil', line: "When they talk about you on the street, they don’t use your name." },
   { at: 190, name: 'Husk', line: "There’s nothing left inside you. You’re a husk." },
@@ -223,7 +223,7 @@ type DezDeal = { id: string; name: string; detail: string; doses: number; cash: 
 const DEZ_DEALS: DezDeal[] = [
   { id: 'weed14', name: 'Half ounce of weed', detail: 'Fourteen grams, in a sandwich bag', doses: 140, cash: [110, 100, 90], front: 150, days: 3, tier: 1, standing: 0, desc: '14 g. Goes for about $12 a gram, $35 an eighth.', product: 'weed' },
   { id: 'perc20', name: 'Bottle of percs', detail: 'Twenty percs in an orange bottle, the label peeled off', doses: 20, cash: [170, 155, 140], front: 230, days: 3, tier: 1, standing: 0, desc: 'Twenty Percocet, sold one at a time.', product: 'pills', pill: 'perc' },
-  { id: 'xan20', name: 'Roll of Xanax bars', detail: 'Twenty bars in a twist of cling film', doses: 20, cash: [70, 60, 55], front: 100, days: 3, tier: 1, standing: 0, desc: 'Twenty bars. The party crowd wants them.', product: 'pills', pill: 'xanax' },
+  { id: 'xan20', name: 'Roll of Xanax bars', detail: 'Twenty bars in a twist of plastic wrap', doses: 20, cash: [70, 60, 55], front: 100, days: 3, tier: 1, standing: 0, desc: 'Twenty bars. The party crowd wants them.', product: 'pills', pill: 'xanax' },
   { id: 'ball', name: 'Eight-ball', detail: 'Rocky powder in the knotted corner of a sandwich bag', doses: 35, cash: [180, 160, 150], front: 280, days: 3, tier: 1, standing: 0, desc: '3.5 g. Goes for about $90 a gram, $15 a point.', product: 'powder' },
   { id: 'weed28', name: 'Ounce of weed', detail: 'An ounce, pressed flat in a vacuum bag', doses: 280, cash: [0, 190, 170], front: 260, days: 5, tier: 2, standing: 1, desc: '28 g. Goes for about $12 a gram, $60 a quarter.', product: 'weed' },
   { id: 'adder30', name: 'Adderall, thirty', detail: 'Thirty orange tablets in a pill bottle', doses: 30, cash: [0, 110, 100], front: 160, days: 4, tier: 2, standing: 1, desc: 'Students pay for these at exam time.', product: 'pills', pill: 'adderall' },
@@ -1135,10 +1135,12 @@ export class Game {
         return;
       }
       this.encounter = null;
+      this.save.state.crowd = [];
       this.lieDown('street', [this.atBar ? 'You fold your arms on the bar, put your head down, and close your eyes. Nobody stops you.' : WET_AMOUNT[this.weather.now] > 0 ? `You find a doorway out of the ${isSnow(this.weather.now) ? 'snow' : 'rain'} and lie down.` : 'You find somewhere out of the way, sit down against the wall, and close your eyes.']);
       return;
     }
     this.encounter = null;
+    this.save.state.crowd = [];
     this.wipeBlood();
     const raining = !this.atBar && WET_AMOUNT[this.weather.now] > 0;
     const lieAfter = fatigueNow(this.health) >= 3;
@@ -1187,7 +1189,7 @@ export class Game {
     const el = document.createElement('div');
     el.id = 'rest';
     el.className = 'lockup';
-    const where = h.restWhere === 'room' ? 'In your room at the motel, the door wedged shut.' : h.restWhere === 'car' ? 'In the back seat, doors locked, windows fogged.' : h.restWhere === 'squat' ? 'In the back room of an empty house, out of sight of the street.' : h.restWhere === 'shelter' ? 'On a cot at the shelter, your shoes under your head so nobody takes them.' : h.restWhere === 'pew' ? 'On a back pew at St. Agnes, the candles guttering.' : this.atBar ? 'Head down on the bar, the jukebox going.' : WET_AMOUNT[this.weather.now] > 0 ? 'In a doorway, out of the weather, your back to the wall.' : 'Against a wall, your eyes shut.';
+    const where = h.restWhere === 'room' ? 'In your room at the Marlow, the door wedged shut.' : h.restWhere === 'car' ? 'In the back seat, doors locked, windows fogged.' : h.restWhere === 'squat' ? 'In the back room of an empty house, out of sight of the street.' : h.restWhere === 'shelter' ? 'On a cot at the shelter, your shoes under your head so nobody takes them.' : h.restWhere === 'pew' ? 'On a back pew at St. Agnes, the candles guttering.' : this.atBar ? 'Head down on the bar, the jukebox going.' : WET_AMOUNT[this.weather.now] > 0 ? 'In a doorway, out of the weather, your back to the wall.' : 'Against a wall, your eyes shut.';
     const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
     el.innerHTML =
       `<h2>Resting</h2>` +
@@ -1196,7 +1198,7 @@ export class Game {
       `<div class="rest-bar"><i></i></div>` +
       `<p class="jail-left"></p>` +
       `<p class="jail-out"></p>` +
-      `<p class="jail-how">Rest is real time. Come back later, or get up now with what you’ve got back so far.${h.restWhere === 'room' || h.restWhere === 'shelter' ? '' : ' A bed gets you there quicker: a motel room, or the shelter at night.'}</p>` +
+      `<p class="jail-how">Rest is real time. Come back later, or get up now with what you’ve got back so far.${h.restWhere === 'room' || h.restWhere === 'shelter' ? '' : ' A bed gets you there quicker: your room at the Marlow, or the shelter at night.'}</p>` +
       `<div class="lockup-btns"><button type="button" class="jail-quit">Get up</button><button type="button" class="jail-quit lockup-you">You</button></div>`;
     const shown = performance.now();
     el.querySelector('button')!.addEventListener('click', () => performance.now() - shown > 800 && this.getUp(false));
@@ -1261,7 +1263,7 @@ export class Game {
     delete this.save.state.laterLines;
     // (What happened as you lay down, after the first line of it, which the screen led with.)
     const said = lay.slice(1);
-    const lines = [rested ? (where === 'room' ? 'You wake up in the motel room, rested. The street’s still out there.' : where === 'car' ? 'You wake up in the back seat, stiff, but rested.' : where === 'squat' ? 'You wake up on the floor of the empty house, stiff, but rested. Nobody came.' : where === 'shelter' ? 'You wake up on the cot, rested. Your shoes are still there.' : where === 'pew' ? 'You wake up on the pew, rested. Nobody moved you on.' : 'You wake up against the wall, rested. Nobody bothered you.') : `You get up${slept < 10 * 60_000 ? ' after a few minutes' : ''}. ${f >= 20 ? `Still ${FATIGUE_NAMES[fatigueLevel(f)].toLowerCase()}.` : 'Good enough.'}`];
+    const lines = [rested ? (where === 'room' ? 'You wake up in your room at the Marlow, rested. The street’s still out there.' : where === 'car' ? 'You wake up in the back seat, stiff, but rested.' : where === 'squat' ? 'You wake up on the floor of the empty house, stiff, but rested. Nobody came.' : where === 'shelter' ? 'You wake up on the cot, rested. Your shoes are still there.' : where === 'pew' ? 'You wake up on the pew, rested. Nobody moved you on.' : 'You wake up against the wall, rested. Nobody bothered you.') : `You get up${slept < 10 * 60_000 ? ' after a few minutes' : ''}. ${f >= 20 ? `Still ${FATIGUE_NAMES[fatigueLevel(f)].toLowerCase()}.` : 'Good enough.'}`];
     // (Towed while you slept: you wake to it.)
     const c = car ? this.carById(car) : undefined;
     if (c && now() >= c.towAt) {
@@ -1729,7 +1731,7 @@ export class Game {
       if (dz && !dz.owed) delete this.save.state.debt;
     } else if (beaten?.resident && this.place === 'home') {
       lines = [...lines.map(indoors).filter((l) => !/^(You come to|Someone finds you)\b/.test(l)), 'You come to face down on their floor, a knee in your back and your wrists cuffed behind you. Blue light through the blinds.'];
-      this.save.state.policeWhy = ['They held you down until the police came. You couldn’t have got up if you’d tried.'];
+      this.save.state.policeWhy = ['They held you down until the police came. You couldn’t have gotten up if you’d tried.'];
       this.save.state.policeStop = 'burglary';
       this.save.state.policeCuffed = true;
       const j = this.job;
@@ -1985,6 +1987,11 @@ export class Game {
 
   /** Off the death screen: a new character, same streets. */
   private rebirth() {
+    // (Nothing the old life had waiting carries over.)
+    this.offLines = [];
+    this.heldNote = [];
+    this.sheetNote = [];
+    this.pendingLurk = [];
     document.getElementById('death')?.remove();
     delete this.save.state.deathScreen;
     this.dead = false;
@@ -2501,7 +2508,7 @@ export class Game {
         return;
       }
       const armed = this.armedWear?.id === s.id && performance.now() - this.armedWear.at > 450 && performance.now() - this.armedWear.at < 8000;
-      // (And what you have on now: if there's nowhere to carry it, it goes in the bin.)
+      // (And what you have on now: if there's nowhere to carry it, it goes in the trash.)
       const binned = ((): string | null => {
         const copy: Inventory = { ...inv, items: [...inv.items], clothes: [...inv.clothes], spots: [...inv.spots] };
         const r = wear(copy, s.slot as 'top' | 'bottom' | 'bag', s.name, true);
@@ -2512,7 +2519,7 @@ export class Game {
         this.armedWear = { id: s.id, at: performance.now() };
         const parts = [
           w.items.length ? `there’d be nowhere for ${list2(w.items.map((x) => `the ${lc(x.name)}`))}` : '',
-          binned ? `there’s nowhere to carry your old ${lc(binned)}: it goes in the bin` : '',
+          binned ? `there’s nowhere to carry your old ${lc(binned)}: it goes in the trash` : '',
         ].filter(Boolean);
         this.note([`If you wear the ${lc(s.name)}, ${parts.join(', and ')}. Tap Wear again to go ahead${w.items.length ? ` and leave ${w.items.length > 1 ? 'them' : 'it'} here` : ''}, or Carry it instead.`]);
         return;
@@ -2624,7 +2631,7 @@ export class Game {
       line = [
         `You buy the ${lc(s.name)}, move your things into ${it2} and put ${it2} on.`,
         r.left.length ? `You leave ${list2(r.left.map((x) => `the ${lc(x.name)}`))} behind.` : '',
-        old ? (kept ? `Your old ${old.toLowerCase()} goes in your ${lc(inv.spots.find((x) => x.id === kept.spot)?.on ?? 'bag')}.` : `Your old ${old.toLowerCase()} goes in the bin out front.`) : '',
+        old ? (kept ? `Your old ${old.toLowerCase()} goes in your ${lc(inv.spots.find((x) => x.id === kept.spot)?.on ?? 'bag')}.` : `Your old ${old.toLowerCase()} goes in the trash can out front.`) : '',
       ].filter(Boolean).join(' ');
     } else if (s.id === 'zipbags' && inv.items.some((x) => x.name === 'Zip bags')) {
       // (More of them: into the pack you've got, not a second one.)
@@ -2632,7 +2639,7 @@ export class Game {
       z.doses = (z.doses ?? 0) + (s.doses ?? 50);
       line = `You buy another pack of zip bags. ${z.doses} in all.`;
     } else {
-      const brand = s.id === 'cigs' ? ['Red Crest', 'Mayfair Lights', 'Dakota Menthols', 'Ridgeway Reds', 'Union Blues', 'Harbor 100s'][Math.floor(Math.random() * 6)] : undefined;
+      const brand = s.id === 'cigs' ? ['Red Crest', 'Mayfield Lights', 'Dakota Menthols', 'Ridgeway Reds', 'Union Blues', 'Harbor 100s'][Math.floor(Math.random() * 6)] : undefined;
       if (!stow(inv, { kind: 'misc', name: s.name, ...(brand ? { detail: brand } : {}), ...(s.drinkType ? { drink: s.drinkType } : {}), ...(s.doses ? { doses: s.doses } : s.id === 'lighter' ? { doses: 100 } : {}) })) {
         this.note([`Nowhere to put it. ${noRoomWhy(inv, measure({ kind: 'misc', name: s.name }).size, measure({ kind: 'misc', name: s.name }).kg)}`]);
         return;
@@ -2796,7 +2803,7 @@ export class Game {
         break;
       case 'lung':
         h.lung = false;
-        lines.push('They numb your side and push a tube in between your ribs. Air hisses out, and you can breathe again. A few hours on a gurney in the hall, then you sign yourself out against advice.');
+        lines.push('They numb your side and push a tube in between your ribs. Air hisses out, and you can breathe again. A few hours on a gurney in the hall, then you sign yourself out against medical advice.');
         lines.push(...passHours(h, 1, true));
         break;
       case 'blood':
@@ -3152,7 +3159,7 @@ export class Game {
       inv.items.splice(i, 1);
       addFatigue(h, 6);
       this.refresh();
-      this.note([oneOf([`Halfway through the ${lc(it.name)} you taste it: it’s gone off. You spit out what you can. You feel worse than before.`, `The ${lc(it.name)} smells fine and tastes wrong. You get it down anyway, and regret it. It leaves you drained.`])]);
+      this.note([oneOf([`Halfway through the ${lc(it.name)} you taste it: it’s gone bad. You spit out what you can. You feel worse than before.`, `The ${lc(it.name)} smells fine and tastes wrong. You get it down anyway, and regret it. It leaves you drained.`])]);
       return;
     }
     if (water) h.drankAt = now();
@@ -3248,7 +3255,7 @@ export class Game {
       }
       h.drunk = 40;
       h.drunkAt = now();
-      lines.push('You come to in a doorway, hours later, with your mouth tasting of sick.');
+      lines.push('You come to in a doorway, hours later, with your mouth tasting like vomit.');
     } else if (h.drunk >= 78 && h.drunk < 90) lines.push("The street spins. You’re close to blacking out.");
     else if (now_ > was) lines.push(['', "You’re tipsy. Everything’s a bit funnier.", "You’re drunk. The street sways when you turn your head.", "You’re wasted. Your feet aren’t where you left them.", "You’re blackout drunk. One more and you’re gone."][now_]);
     this.closeSheet();
@@ -3711,7 +3718,7 @@ export class Game {
     const cops = this.copsAtCar(c) && 'Police by it';
     const night = partOfDay() === 'night';
     const cues = [
-      ...(cops ? ['A patrol car parked right behind it, and an officer walking round it with a flashlight.'] : []),
+      ...(cops ? ['A patrol car parked right behind it, and an officer walking around it with a flashlight.'] : []),
       `The ${c.color} ${c.make}, parked ${c.street}.`,
       ...(rep && t - c.takenAt > 8 * 3_600_000 ? ['A parking ticket under the wiper.'] : []),
       ...(rep ? ['It’s been reported by now. Every patrol car in the city has the plate.'] : c.watch != null || cops ? [] : ['Not reported yet, probably. That won’t last.']),
@@ -4991,7 +4998,7 @@ export class Game {
       })
       .join('');
     if (!rows) return '';
-    return `<p class="shop-sub">County Jail, round the back</p><ul class="shop-list">${rows}</ul><p class="shop-broke">Bail only before a hearing. After that, they serve it out, or someone gets them out another way: the transport van is the only time they’re outside the walls. Long odds, and if it goes wrong, you’re inside with them.</p>`;
+    return `<p class="shop-sub">County Jail, around back</p><ul class="shop-list">${rows}</ul><p class="shop-broke">Bail only before a hearing. After that, they serve it out, or someone gets them out another way: the transport van is the only time they’re outside the walls. Long odds, and if it goes wrong, you’re inside with them.</p>`;
   }
   private selfAct(v: string) {
     const [what, id] = v.split(':');
@@ -5610,7 +5617,7 @@ export class Game {
         if (h.dead) return;
       }
     } else if (drug === 'fentanyl') {
-      lines.push('It hits like a wall, all at once. Nothing hurts. Nothing matters. It is very hard to breathe.');
+      lines.push('It hits like a wall, all at once. Nothing hurts. Nothing matters. It’s very hard to breathe.');
       h.stress = 0;
       h.high = 'fentanyl';
       h.highUntil = now() + HIGH_HOURS.fentanyl * 3_600_000;
@@ -6320,7 +6327,7 @@ export class Game {
   private binsWhy(): string | null {
     if (this.place !== 'street' || !this.canLurk) return 'Not now';
     const b = this.binAt(this.corner.id);
-    if ((b.shooedUntil ?? 0) > now()) return `They told you to clear off. Not till ${clockText(b.shooedUntil!)}`;
+    if ((b.shooedUntil ?? 0) > now()) return `They told you to move along. Not till ${clockText(b.shooedUntil!)}`;
     // (Picked clean, or too tired to dig: what you found is still there to sort through.)
     if (b.found?.length) return null;
     if (fatigueNow(this.health) >= FATIGUE_SPENT) return 'Too worn out';
@@ -6361,7 +6368,7 @@ export class Game {
       lines.push(
         oneOf(
           area === 'bar'
-            ? ['The back door bangs open. “Hey! Get out of there before I call somebody.” You put the lid down and go.', 'The barman comes out with a bag of empties and sees you. “Not here. Go on.” You go.']
+            ? ['The back door bangs open. “Hey! Get out of there before I call somebody.” You put the lid down and go.', 'The bartender comes out with a bag of empties and sees you. “Not here. Go on.” You go.']
             : area === 'downtown'
               ? ['A shopkeeper raps on the glass and points you away. When you don’t move fast enough, he comes out. “Not my bins. Go.”', 'A security guard in a yellow vest walks over. “Move along. Now.” You move along.']
               : area === 'southside'
@@ -6402,7 +6409,7 @@ export class Game {
           area === 'bar'
             ? ['The kitchen door opens and someone heaves a full bag into the dumpster without looking at you.']
             : area === 'downtown'
-              ? ['A man in a suit tosses a bag into the bin on his way past, still on his phone.', 'A store clerk drags out a bag at the end of a shift and drops it by the curb.']
+              ? ['A man in a suit tosses a bag into the dumpster on his way past, still on his phone.', 'A store clerk drags out a bag at the end of a shift and drops it by the curb.']
               : area === 'southside'
                 ? ['A worker on a smoke break throws a box out by the loading dock.']
                 : ['Someone comes down their steps with a full trash bag and sets it by the curb.', 'A woman clearing out an apartment drops a box by the bins and goes back inside.'],
@@ -7284,12 +7291,12 @@ export class Game {
     const mine = this.cars.find((c) => c.home === h.id && now() < c.towAt && this.keysKept(c.id));
     if (mine) {
       out.push(`Their ${mine.color} ${mine.make} still parked out front, and you’ve got the keys to it.`);
-      if (this.copsAtCar(mine) && !this.policeThere(h)) out.push(`A patrol car pulled up behind the ${mine.make}, and an officer walking round it with a flashlight.`);
+      if (this.copsAtCar(mine) && !this.policeThere(h)) out.push(`A patrol car pulled up behind the ${mine.make}, and an officer walking around it with a flashlight.`);
     } else if (this.cars.some((c) => c.home === h.id && now() < c.towAt)) {
       // (Still there, the keys gone from you.)
       const c = this.cars.find((x) => x.home === h.id && now() < x.towAt)!;
       out.push(`Their ${c.color} ${c.make} parked out front.`);
-      if (this.copsAtCar(c) && !this.policeThere(h)) out.push(`A patrol car pulled up behind the ${c.make}, and an officer walking round it with a flashlight.`);
+      if (this.copsAtCar(c) && !this.policeThere(h)) out.push(`A patrol car pulled up behind the ${c.make}, and an officer walking around it with a flashlight.`);
     } else if (this.cars.some((c) => c.home === h.id) && big) out.push('Nothing parked out front.');
     else if (h.car && big) out.push((p.owner !== 'out' || h.works === 'home' || h.deadAt ? steady(h, now(), 9) < 0.9 : steady(h, now(), 9) < 0.2) ? `A ${h.car} parked out front.` : 'Nothing parked out front.');
     if (h.sign) out.push(h.type === 'house' ? 'A security company sign in the flowerbed.' : 'A security company sticker on the door.');
@@ -7430,10 +7437,10 @@ export class Game {
         this.dogHeard(h, lines, 0.6);
         const odds = h.type === 'house' ? 0.3 : h.type === 'rowhouse' ? 0.2 : h.type === 'room' ? 0.25 : h.floor === 1 ? 0.15 : 0.08;
         if (Math.random() < odds * (h.fixedAt && now() > h.fixedAt ? 0.3 : 1)) {
-          lines.push(h.type === 'room' ? 'The lock’s a joke. You slip it with a card and you’re in.' : h.type === 'apartment' && h.floor > 1 ? 'Up the fire escape. Their window isn’t latched.' : oneOf(['The back door isn’t locked.', 'A window round the side slides up. Not even latched.']));
+          lines.push(h.type === 'room' ? 'The lock’s a joke. You slip it with a card and you’re in.' : h.type === 'apartment' && h.floor > 1 ? 'Up the fire escape. Their window isn’t latched.' : oneOf(['The back door isn’t locked.', 'A window around the side slides up. Not even latched.']));
           entry = 'try';
         } else {
-          lines.push(oneOf(['Locked, all of it. The back door, the windows. Somebody here is careful.', 'You go round every door and window you can reach. Locked.']));
+          lines.push(oneOf(['Locked, all of it. The back door, the windows. Somebody here is careful.', 'You go around every door and window you can reach. Locked.']));
           return this.homeNote(h, j, lines, 0.05);
         }
       } else if (what === 'window' && h.type !== 'room') {
@@ -8414,13 +8421,13 @@ export class Game {
       case 'laundromat':
         return { name: b.name ?? 'The laundromat', small: `${where}. Washers, dryers, a change machine that eats bills. The alley behind it is where the fence works.`, icon: PLACE_ICON.laundromat, go: '' };
       case 'lot':
-        return { name: 'A parking lot', small: `${where}. Pay-and-display, cars nose to tail. Somewhere for a car to sit unnoticed.`, icon: PLACE_ICON.lot, go: '' };
+        return { name: 'A parking lot', small: `${where}. Meters, cars nose to tail. Somewhere for a car to sit unnoticed.`, icon: PLACE_ICON.lot, go: '' };
       case 'garage':
         return { name: 'A garage', small: `${where}. A garage on the alley, padlocked.`, icon: PLACE_ICON.building, go: '' };
       case 'tower':
         return { name: 'Offices', small: `${where}. Offices: busy by day, a guard in the lobby at night.`, icon: PLACE_ICON.building, go: '' };
       case 'shop':
-        return { name: 'A shop', small: `${where}. ${['A corner store: cigarettes, lottery tickets, a cat on the counter.', 'A nail salon, a phone repair place, a takeout counter.', 'A barber’s, two chairs, a radio on.', 'A shop with its shutter half down and a FOR LEASE sign.'][Math.floor(b.cx * 7 + b.cy * 3) % 4]}`, icon: PLACE_ICON.building, go: '' };
+        return { name: 'A shop', small: `${where}. ${['A corner store: cigarettes, lottery tickets, a cat on the counter.', 'A nail salon, a phone repair place, a takeout counter.', 'A barbershop, two chairs, a radio on.', 'A shop with its shutter half down and a FOR LEASE sign.'][Math.floor(b.cx * 7 + b.cy * 3) % 4]}`, icon: PLACE_ICON.building, go: '' };
       case 'place':
         return { name: 'A building', small: where, icon: PLACE_ICON.building, go: '' };
     }
@@ -8484,7 +8491,7 @@ export class Game {
     const far = blocksBetween(here, picked);
     const card =
       `<div class="map-card" data-tone="${picked.tone}">` +
-      `<div class="map-card-head"><span class="map-card-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${picked.icon}"/></svg></span><div><b>${picked.name}</b><small>${isHere ? 'You’re here.' : far ? `${far} block${far === 1 ? '' : 's'} from you.` : 'Just round the corner.'}</small></div></div>` +
+      `<div class="map-card-head"><span class="map-card-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${picked.icon}"/></svg></span><div><b>${picked.name}</b><small>${isHere ? 'You’re here.' : far ? `${far} block${far === 1 ? '' : 's'} from you.` : 'Just around the corner.'}</small></div></div>` +
       `<p>${picked.small}</p>` +
       (isHere || !picked.go ? '' : `<button type="button" class="map-go" ${picked.go}>${picked.key === 'place:street' ? 'Back out to your corner' : picked.tone === 'corner' ? 'Work this corner' : 'Walk there'}</button>`) +
       (isHere && picked.key === 'place:street' ? ((why) => `<button type="button" class="map-go" data-bins ${why ? 'disabled' : ''}>${this.atBar ? 'Go through the bins out back' : 'Go through the bins'}${why ? `<small>${why}</small>` : ''}</button>`)(this.binsWhy()) : '') +
@@ -8494,7 +8501,7 @@ export class Game {
     const mine = spots.filter((x) => (x.tone === 'home' || x.tone === 'car') && x.key !== 'hunt');
     const list = mine.length
       ? `<p class="map-list-head">Addresses and cars you know</p><div class="map-list">${mine
-          .map((x) => `<button type="button" data-mappick="${x.key}" data-tone="${x.tone}" class="${x === picked ? 'on' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${x.icon}"/></svg><span><b>${x.name}</b><small>${x === here ? 'You’re here' : `${blocksBetween(here, x) ? `${blocksBetween(here, x)} block${blocksBetween(here, x) === 1 ? '' : 's'} away` : 'Just round the corner'} · ${x.small.replace(/<[^>]+>/g, '').split(' · ')[0]}`}</small></span></button>`)
+          .map((x) => `<button type="button" data-mappick="${x.key}" data-tone="${x.tone}" class="${x === picked ? 'on' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${x.icon}"/></svg><span><b>${x.name}</b><small>${x === here ? 'You’re here' : `${blocksBetween(here, x) ? `${blocksBetween(here, x)} block${blocksBetween(here, x) === 1 ? '' : 's'} away` : 'Just around the corner'} · ${x.small.replace(/<[^>]+>/g, '').split(' · ')[0]}`}</small></span></button>`)
           .join('')}</div>`
       : '';
     return `${mapHtml(marks, picked.bld, this.mapView)}${this.heldNote.length ? this.noteHtml(this.arrived.length ? this.arrived.slice(0, 3) : this.heldNote.slice(-3), 'sheet-note map-arrived') : ''}${card}<p class="map-hint">Tap any building on the map, a pin, or a corner (◆)${mine.length ? ', or an address below' : ''}. Pinch, or use the zoom buttons, to look closer.</p>${list}`;
@@ -8590,7 +8597,7 @@ export class Game {
   private spotArrive(b: Building): string {
     switch (b.kind) {
       case 'vacant':
-        return 'You go round the back and in through a window with no glass in it. Dark, and damp, and quiet.';
+        return 'You go around back and in through a window with no glass in it. Dark, and damp, and quiet.';
       case 'warehouse':
         return 'You walk through the gate to the row of roll-up doors. The man in the booth looks up from his phone.';
       case 'bar':
@@ -8699,14 +8706,16 @@ export class Game {
         this.dropEncounter();
         this.unstick();
         this.wipeBlood();
-        lines.push('The room tips over. The barman has you by the collar, and then you are outside, and then you are somewhere else.', ...passHours(h, 3));
+        lines.push('The room tips over. The bartender has you by the collar, and then you are outside, and then you are somewhere else.', ...passHours(h, 3));
         if (h.dead) return this.die(lines);
         h.drunk = 40;
         h.drunkAt = now();
         this.place = 'street';
-        lines.push('You come to in a doorway round the corner, hours later.');
+        this.wasInside = this.inside;
+        this.insideAt = 'street';
+        lines.push('You come to in a doorway around the corner, hours later.');
       } else if (h.drunk >= 78) lines.push('The room spins. You’re close to blacking out.');
-      else if (lvl > was) lines.push(['', 'You’re tipsy. The room’s friendlier.', 'You’re drunk. The barman’s watching you now.', 'You’re wasted. He won’t serve you much more.', 'You’re blackout drunk. One more and you’re gone.'][lvl]);
+      else if (lvl > was) lines.push(['', 'You’re tipsy. The room’s friendlier.', 'You’re drunk. The bartender’s watching you now.', 'You’re wasted. He won’t serve you much more.', 'You’re blackout drunk. One more and you’re gone.'][lvl]);
       this.refresh();
       this.note(lines);
       return;
@@ -8775,7 +8784,7 @@ export class Game {
     }
     if (b.kind === 'bar')
       return {
-        head: head(b.name ?? 'A bar', 'A long bar, a few booths, a pool table with a cue missing. The barman pours without asking how your day was.'),
+        head: head(b.name ?? 'A bar', 'A long bar, a few booths, a pool table with a cue missing. The bartender pours without asking how your day was.'),
         body:
           `<ul class="shop-list">${BAR_DRINKS.map((d) => li(d.name, d.desc, btn('spotact', `drink:${d.id}`, money(d.cents), c < d.cents && 'Not enough cash'))).join('')}</ul>` +
           `<h3>Work the room</h3><ul class="shop-list">${li('Sell in here', this.corner.id === `bar:${b.id}` ? 'This is where you work now.' : 'Make the bar your corner: a drinking crowd, and few patrols. Your customers find you here.', btn('spotact', 'room', 'Work the room', this.corner.id === `bar:${b.id}` && 'Already here'))}</ul>`,
@@ -9625,9 +9634,9 @@ export class Game {
       scavenging: [
         ['Useful find', `1\u00a0in\u00a0${Math.round(1 / uncommonOdds(st.scavenging.level))}`],
         ['Rare find', `1\u00a0in\u00a0${Math.round(1 / rareOdds(st.scavenging.level))}`],
-        ['Food gone off', pct(spoilOdds(st.scavenging.level))],
+        ['Spoiled food', pct(spoilOdds(st.scavenging.level))],
         ['Cut on glass, bare hands', `${(cutOdds(st.scavenging.level, false) * 100).toFixed(1)}%\u00a0a\u00a0dig`],
-        ['Told to clear off', `${(shooOdds(st.scavenging.level, 'flats') * 100).toFixed(1)}%\u00a0a\u00a0dig`],
+        ['Told to move along', `${(shooOdds(st.scavenging.level, 'flats') * 100).toFixed(1)}%\u00a0a\u00a0dig`],
       ],
       speech: [
         ['Lies that land', `+${pct(lieBonus(st))}`],
@@ -10178,6 +10187,12 @@ export class Game {
       // (A chase left standing for a quarter of an hour, or the game closed on it: they're long gone.)
       const ch = this.encounter?.chase;
       if (ch && this.running && now() - (ch.at ?? 0) > 15 * 60_000) this.act('let-go');
+      // (Someone just standing across the street for ten minutes, or the game closed on them: they've moved on.)
+      const sn = this.encounter;
+      if (sn?.stage === 'seen' && this.place === 'street' && !sn.resident && this.running && this.phase === 'idle' && !this.sheet && now() - (sn.seenAt ?? this.save.savedAt) > 10 * 60_000) {
+        this.encounter = null;
+        this.refresh();
+      }
       // (A sting that's done, left sitting on its last screen: the badges come out now.)
       if (this.save.state.policeStop === 'sting' && this.running && this.sheet !== 'police' && this.encounter?.finished) this.closeEncounter([]);
       // The street market moves on; you hear about busts and big loads if you're in the business.
@@ -10379,7 +10394,7 @@ function lootA(l: { kind: string; name: string }): string {
   const n = lc(l.name).replace(/, /g, ' ');
   // Money's money ("loose change", "bills in the junk drawer"), unless it's in something ("an envelope of cash").
   if (l.kind === 'cash' && !/^(envelope|wad|roll|jar|sock|tin|coffee can)\b/.test(n)) return n;
-  // ("pack of cigarettes" goes by "pack"; "games console" by "console".)
+  // ("pack of cigarettes" goes by "pack"; "game console" by "console".)
   const w = n.split(' ');
   const head = / of /.test(n) ? w[0] : w[w.length - 1].replace(/[^a-z]/g, '');
   if (/^(cash|loose|change|folded)\b/.test(n) || /^(gauze)$/.test(n) || (/s$/.test(head) && !/ss$/.test(head))) return n;

@@ -313,6 +313,8 @@ function startGame(fresh: boolean, fromBackup = false) {
       return;
     }
   }
+  // (Reminders saved for the last game are that game's, not this one's.)
+  pendingUpcoming = [];
   // Dying saves at once: that character is gone, and you go on as someone new.
   game.onDeath = () => save();
   // Saved as you play: a moment after anything changes (a new screen, a move, a

@@ -715,6 +715,9 @@ export class Game {
   /** A save that's been knocked about (by hand, or a bad write): lists that should be lists, numbers that should be numbers. */
   private repairSave() {
     const st = this.save.state as Record<string, unknown>;
+    // (Someone seen in a save from before the ten-minute rule: their time runs from when it was saved.)
+    const se = st.encounter as Encounter | undefined;
+    if (se && typeof se === 'object' && se.stage === 'seen' && !Number.isFinite(se.seenAt)) se.seenAt = Number.isFinite(this.save.savedAt) ? this.save.savedAt : now();
     const obj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
     const list = <T,>(o: Record<string, unknown>, k: string) => {
       if (k in o && !Array.isArray(o[k])) o[k] = [];
@@ -6904,6 +6907,8 @@ export class Game {
     if (!e && this.place === 'street' && this.phase === 'idle' && this.running && this.tvState.on && !this.ending && !this.save.state.policeStop && !this.sheet && c.some((b) => !b.saw)) {
       const b = c.splice(c.findIndex((x) => !x.saw), 1)[0];
       b.e.you = this.yourBody();
+      // (In front of you from now: their ten minutes start here.)
+      b.e.seenAt = now();
       this.save.state.encounter = b.e;
       this.refresh();
     }
@@ -10201,7 +10206,7 @@ export class Game {
       if (ch && this.running && now() - (ch.at ?? 0) > 15 * 60_000) this.act('let-go');
       // (Someone just standing across the street for ten minutes, or the game closed on them: they've moved on.)
       const sn = this.encounter;
-      if (sn?.stage === 'seen' && this.place === 'street' && !sn.resident && this.running && this.phase === 'idle' && !this.sheet && now() - (sn.seenAt ?? this.save.savedAt) > 10 * 60_000) {
+      if (sn?.stage === 'seen' && this.place === 'street' && !sn.resident && this.running && this.phase === 'idle' && !this.sheet && now() - sn.seenAt! > 10 * 60_000) {
         this.encounter = null;
         this.refresh();
       }

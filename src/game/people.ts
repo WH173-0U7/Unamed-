@@ -40,6 +40,9 @@ export interface Memory {
   snitch?: boolean;
   /** What's remembered was done by an earlier you (this you doesn't know it). */
   otherLife?: boolean;
+  /** Which you that was (its life number), and how they'd seen that face: theirs again if you go back to being them. */
+  ofLife?: number;
+  faceWas?: { sawFace: boolean; clothes: string[] };
   /** What they'd describe ("someone in a ski mask, a coat"). */
   looked: string;
   /** The clothes they'd know you by. */
@@ -225,6 +228,8 @@ export function remember(
     for (const f of ['usual', 'usualBags', 'lastBuy', 'buys', 'sat', 'returnH', 'burned', 'snitch'] as const) delete (k.memory as unknown as Record<string, unknown>)[f];
   }
   delete k.memory.otherLife;
+  delete k.memory.ofLife;
+  delete k.memory.faceWas;
   k.at = t;
   k.healedAt = t;
   k.blood = T.blood;

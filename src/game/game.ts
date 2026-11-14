@@ -10,7 +10,7 @@ import { runStamina, toughnessResist } from './stats';
 import { STAT_NAMES, lieBonus, persuadeBonus, train, newStats, xpToNext, MAX_LEVEL, maxStamina, ambushBonus, noticeRate, damageMult, accuracyBonus, dodgeBonus, staminaRegen, fearBonus, STAT_SHORT, unarmedDamage, strengthDamage, strengthFear, weaponDamage, weaponAccuracy, type StatName, type Stats } from './stats';
 import { MEND_HOURS, CONCUSSION_HOURS } from './health';
 import { addFatigue, fatigueLevel, fatigueNow, fatigueOdds, restLeft, FATIGUE_NAMES, FATIGUE_SPENT } from './health';
-import { clampClock, cravingLine, useHabit, withdrawalEffects, HIGH_HOURS, addCaffeine, caffeineNow, caffeineLevel, drunkLevel, soberUp, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
+import { clampClock, restRate, cravingLine, useHabit, withdrawalEffects, HIGH_HOURS, addCaffeine, caffeineNow, caffeineLevel, drunkLevel, soberUp, REST_HOURS, afterFight, bodyFrom, healthConditions, injuryEffects, isHurt, newHealth, passHours, type Health } from './health';
 import { ALL_TECHNIQUES, PASS_OUT, addStress, type Impact } from './encounter';
 import type { Glass } from '../fx/glass';
 import type { Upcoming } from '../core/notify';
@@ -265,7 +265,7 @@ type Case = {
   jumped?: boolean;
 };
 /** Held: since when, until when (real time), what for, and what's said when the door opens. */
-type Jail = { from: number; until: number; what: string; after?: string[]; triedAt?: number; tried?: string; escaped?: boolean };
+type Jail = { from: number; until: number; what: string; after?: string[]; triedAt?: number; tried?: string; escaped?: boolean; days?: number };
 /** Whether this one in the house (the owner, or whoever else lives there) has seen your face. */
 type FaceSeen = boolean | { owner?: boolean | number; other?: boolean | number };
 const sawFace = (j: { faceSeen?: FaceSeen } | undefined, owner: boolean) =>
@@ -1224,14 +1224,14 @@ export class Game {
     // that comes first, so being away past closing doesn't count as sleeping on.)
     if ((h.restWhere === 'pew' || h.restWhere === 'shelter') && (now() >= (h.restEnd ?? Infinity) || (h.restWhere === 'pew' ? !pewHours() : !shelterHours()))) {
       fatigueNow(h);
-      this.save.state.laterLines = [...((this.save.state.laterLines as string[] | undefined) ?? []), h.restWhere === 'pew' ? 'Someone shakes your shoulder: they’re locking up for the night. You’re shown out onto the street.' : 'The lights come on and a volunteer walks the rows calling time. Everyone out, onto the street.'];
+      const out = h.restWhere === 'pew' ? 'Someone shakes your shoulder: they’re locking up for the night. You’re shown out onto the street.' : 'The lights come on and a volunteer walks the rows calling time. Everyone out, onto the street.';
       // (Out the door with everyone else: back on your corner.)
       if (this.place === 'spot') {
         this.place = 'street';
         this.wasInside = this.inside;
         this.insideAt = 'street';
       }
-      return this.getUp(false);
+      return this.getUp(false, out);
     }
     const f = fatigueNow(h);
     if (f <= 0) return this.getUp(true);
@@ -1245,11 +1245,14 @@ export class Game {
     const ss = sec % 60;
     const two = (n: number) => String(n).padStart(2, '0');
     (el.querySelector('.rest-bar i') as HTMLElement).style.width = `${Math.max(0, 100 - f)}%`;
-    el.querySelector('.jail-left')!.textContent = `${two(hh)}:${two(mm)}:${two(ss)} to fully rested`;
-    el.querySelector('.jail-out')!.textContent = `${FATIGUE_NAMES[fatigueLevel(Math.round(f))]} (${Math.round(f)} / 100) · ${h.restEnd != null && h.restEnd < now() + restLeft(h) ? `${h.restWhere === 'pew' ? 'they lock up at' : 'everyone out at'} ${clockText(h.restEnd)}` : `rested by ${clockText(now() + restLeft(h))}`}`;
+    // (Somewhere that closes before you'd be rested: the countdown is to closing, and it says so.)
+    const full = (f / restRate(h)) * 3_600_000;
+    const closing = h.restEnd != null && h.restEnd < now() + full - 1000;
+    el.querySelector('.jail-left')!.textContent = `${two(hh)}:${two(mm)}:${two(ss)} ${closing ? (h.restWhere === 'pew' ? 'till they lock up' : 'till everyone’s out') : 'to fully rested'}`;
+    el.querySelector('.jail-out')!.textContent = `${FATIGUE_NAMES[fatigueLevel(Math.round(f))]} (${Math.round(f)} / 100) · ${closing ? `${h.restWhere === 'pew' ? 'they lock up at' : 'everyone out at'} ${clockText(h.restEnd!)}, before you’re rested` : `rested by ${clockText(now() + restLeft(h))}`}`;
   }
   /** Up again: rested, or not quite. */
-  private getUp(rested: boolean) {
+  private getUp(rested: boolean, putOut?: string) {
     const h = this.health;
     if (h.restingSince == null) return;
     // (The body first, at the resting rate, before you're up.)
@@ -1272,7 +1275,8 @@ export class Game {
     delete this.save.state.laterLines;
     // (What happened as you lay down, after the first line of it, which the screen led with.)
     const said = lay.slice(1);
-    const lines = [rested ? (where === 'room' ? 'You wake up in your room at the Marlow, rested. The street’s still out there.' : where === 'car' ? 'You wake up in the back seat, stiff, but rested.' : where === 'squat' ? 'You wake up on the floor of the empty house, stiff, but rested. Nobody came.' : where === 'shelter' ? 'You wake up on the cot, rested. Your shoes are still there.' : where === 'pew' ? 'You wake up on the pew, rested. Nobody moved you on.' : 'You wake up against the wall, rested. Nobody bothered you.') : `You get up${slept < 10 * 60_000 ? ' after a few minutes' : ''}. ${f >= 20 ? `Still ${FATIGUE_NAMES[fatigueLevel(f)].toLowerCase()}.` : 'Good enough.'}`];
+    // (Put out at closing: that's how you got up, and how tired you still are.)
+    const lines = [putOut ? `${putOut}${f >= 20 ? ` You’re still ${FATIGUE_NAMES[fatigueLevel(f)].toLowerCase()}.` : ''}` : rested ? (where === 'room' ? 'You wake up in your room at the Marlow, rested. The street’s still out there.' : where === 'car' ? 'You wake up in the back seat, stiff, but rested.' : where === 'squat' ? 'You wake up on the floor of the empty house, stiff, but rested. Nobody came.' : where === 'shelter' ? 'You wake up on the cot, rested. Your shoes are still there.' : where === 'pew' ? 'You wake up on the pew, rested. Nobody moved you on.' : 'You wake up against the wall, rested. Nobody bothered you.') : `You get up${slept < 10 * 60_000 ? ' after a few minutes' : ''}. ${f >= 20 ? `Still ${FATIGUE_NAMES[fatigueLevel(f)].toLowerCase()}.` : 'Good enough.'}`];
     // (Towed while you slept: you wake to it.)
     const c = car ? this.carById(car) : undefined;
     if (c && now() >= c.towAt) {
@@ -1541,7 +1545,7 @@ export class Game {
     const impacts = act(e, id, this.stats, this.inventory, (this.save.state.moves ??= {}) as Record<string, number>);
     this.witness(e);
     // Walking up to someone with others about: you know they'd see.
-    if (id === 'open' && this.crowd.length && e.stage !== 'over') e.log.push({ by: 'info', text: this.crowd.length === 1 ? 'Someone else is on the street. They’d see anything you do.' : `${this.crowd.length === 2 ? 'Two others are' : 'Others are'} on the street. They’d see anything you do.` });
+    if (id === 'open' && this.crowd.length && e.stage !== 'over') e.log.push({ by: 'info', text: ((where) => (this.crowd.length === 1 ? `Someone else is ${where}. They’d see anything you do.` : `${this.crowd.length === 2 ? 'Two others are' : 'Others are'} ${where}. They’d see anything you do.`))(this.atBar ? 'in here' : 'on the street') });
     // Fighting wears you down: every move (more for a chase, a lot more for being beaten senseless).
     if (!wasOver && stageBefore !== 'seen' && stageBefore !== 'menu' && stageBefore !== 'surveil' && !id.startsWith('search') && !id.startsWith('take')) {
       addFatigue(this.health, 0.7 + (e.chase ? 0.5 : 0) + (e.stage === 'over' && e.result === 'lost' ? 6 : 0));
@@ -1952,11 +1956,7 @@ export class Game {
     // Nobody knows this face. The people the old you hurt are still out there
     // (and your things on some of them), but they'd be looking for someone else.
     this.world.infamy = newInfamy();
-    for (const k of this.people) {
-      k.memory.sawFace = false;
-      k.memory.clothes = [];
-      k.memory.otherLife = true;
-    }
+    this.faceGone(w.lives);
     w.lives = this.nextLifeNo();
     w.lifeStart = this.lurkState.times;
     const p = (t: string) => `<p>${t}</p>`;
@@ -4529,6 +4529,8 @@ export class Game {
     // (Real time: you're inside until the day they let you out.)
     this.lockUp(servedHours(days), days >= 365 ? `Serving ${prisonTerm(days)} in state prison` : `Serving ${days} days in County`);
     rec.lastOut = this.jail?.until ?? now();
+    // (The sentence, in days, to take back off the record what's never served: see tryEscape.)
+    if (this.jail) this.jail.days = days;
     // (They don't let you bleed out inside: the wound's seen to first.)
     // (Bones and faces mend on the real clock while you're in there.)
     const lines = [...custodyCare(h), `You serve ${days >= 365 ? (prisonTerm(days) === 'a year' ? 'the year' : prisonTerm(days)) : `your ${days} days`}. The food is gray, the nights are loud, and you learn who not to look at.`];
@@ -4810,6 +4812,12 @@ export class Game {
         ]),
         'You run, and keep running. There’ll be a warrant out for you by tonight.',
       ];
+      // (What you never served comes off the record: it says what you did, not what you were given.)
+      if (j.days && j.until > j.from) {
+        const unserved = Math.round(j.days * Math.min(1, Math.max(0, (j.until - now()) / (j.until - j.from))));
+        this.record.daysServed = Math.max(0, (this.record.daysServed ?? 0) - unserved);
+        this.record.sentences = Math.max(0, (this.record.sentences ?? 0) - 1);
+      }
       j.until = now();
       j.escaped = true;
       this.record.lastOut = now();
@@ -4818,7 +4826,15 @@ export class Game {
     }
     // Caught: they add time for it.
     const left = j.until - now();
-    j.until += Math.max(2 * 3_600_000, left * 0.5);
+    const span = j.until - j.from;
+    const more = Math.max(2 * 3_600_000, left * 0.5);
+    j.until += more;
+    // (The added time goes on the record too, in days.)
+    if (j.days && span > 0) {
+      const add = Math.round((j.days * more) / span);
+      this.record.daysServed = (this.record.daysServed ?? 0) + add;
+      j.days += add;
+    }
     this.record.lastOut = j.until;
     const rec = this.record;
     rec.charges['Attempted escape'] = (rec.charges['Attempted escape'] ?? 0) + 1;
@@ -5229,16 +5245,25 @@ export class Game {
     const loaded = JSON.parse(JSON.stringify(x.state)) as Record<string, unknown>;
     // (They keep their own number: their ID and phone are theirs again.)
     this.topLifeNo();
+    const was = w.lives;
     w.lives = x.life ?? this.nextLifeNo();
     Object.assign(st, loaded);
     st.place = here === 'court' || here === 'street' ? here : 'street';
     w.infamy = JSON.parse(JSON.stringify(x.infamy)) as Infamy;
     // A different face: what people saw of the one you were is no use to them.
-    for (const k of this.people) {
-      k.memory.sawFace = false;
-      k.memory.clothes = [];
-      k.memory.otherLife = true;
-    }
+    // (Those who knew this you, from before, know you again: your customers, your history.)
+    this.faceGone(was);
+    if (x.life != null)
+      for (const k of this.people)
+        if (k.memory.otherLife && k.memory.ofLife === x.life) {
+          delete k.memory.otherLife;
+          delete k.memory.ofLife;
+          if (k.memory.faceWas) {
+            k.memory.sawFace = k.memory.faceWas.sawFace;
+            k.memory.clothes = k.memory.faceWas.clothes;
+            delete k.memory.faceWas;
+          }
+        }
     const xs = this.selves;
     xs.splice(xs.indexOf(x), 1);
     xs.push(cur);
@@ -8167,7 +8192,7 @@ export class Game {
         const gear = r.items.filter((x) => /digital scale|cutting kit/i.test(x.name));
         const scale = gear.some((x) => /scale/i.test(x.name));
         const kit = gear.some((x) => /cutting kit/i.test(x.name));
-        lines.push(`${scale && kit ? 'The scale and the plate' : scale ? 'The scale' : 'The plate and the razor card'} on the table go${scale && kit ? '' : 'es'} into a bag too.`);
+        lines.push(`${scale && kit ? 'The scale and the plate' : scale ? 'The scale' : 'The plate and the razor card'} on the table go${scale && !kit ? 'es' : ''} into a bag too.`);
         found.push(...gear);
       }
       r.items = r.items.filter((x) => !found.includes(x));
@@ -8547,6 +8572,7 @@ export class Game {
       `<div class="map-card-head"><span class="map-card-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${picked.icon}"/></svg></span><div><b>${picked.name}</b><small>${isHere ? 'You’re here.' : far ? `${far} block${far === 1 ? '' : 's'} from you.` : 'Just around the corner.'}</small></div></div>` +
       `<p>${picked.small}</p>` +
       (isHere || !picked.go ? '' : `<button type="button" class="map-go" ${picked.go}>${picked.key === 'place:street' ? (this.corner.bar ? `Back to ${this.corner.name}` : 'Back out to your corner') : picked.tone === 'corner' ? 'Work this corner' : 'Walk there'}</button>`) +
+      (isHere && picked.key === 'place:street' && this.corner.bar ? `<button type="button" class="map-go" data-spot="${this.corner.bar.id}">Up to the bar<small>Drinks, and what else the place has</small></button>` : '') +
       (isHere && picked.key === 'place:street' ? ((why) => `<button type="button" class="map-go" data-bins ${why ? 'disabled' : ''}>${this.atBar ? 'Go through the bins out back' : 'Go through the bins'}${why ? `<small>${why}</small>` : ''}</button>`)(this.binsWhy()) : '') +
       (isHere ? '' : (picked.extra ?? '')) +
       `</div>`;
@@ -8759,16 +8785,18 @@ export class Game {
         this.dropEncounter();
         this.unstick();
         this.wipeBlood();
-        lines.push('The room tips over. The bartender has you by the collar, and then you are outside, and then you are somewhere else.', ...passHours(h, 3));
+        lines.push(this.corner.bar?.id === b.id ? 'The room tips over, and then there’s nothing.' : 'The room tips over. The bartender has you by the collar, and then you are outside, and then you are somewhere else.', ...passHours(h, 3));
         if (h.dead) return this.die(lines);
         h.drunk = 40;
         h.drunkAt = now();
         this.place = 'street';
         this.wasInside = this.inside;
         this.insideAt = 'street';
-        lines.push('You come to in a doorway around the corner, hours later.');
+        // (Woken where the place says you are: your own bar's booth, or a doorway near your corner.)
+        const c = this.corner;
+        lines.push(c.bar?.id === b.id ? 'You come to in a booth at the back, hours later. Someone has put a glass of water by your head.' : `You come to in a doorway, hours later, somehow back at ${c.bar ? c.name : `your corner, ${c.name}`}.`);
       } else if (h.drunk >= 78) lines.push('The room spins. You’re close to blacking out.');
-      else if (lvl > was) lines.push(['', 'You’re tipsy. The room’s friendlier.', 'You’re drunk. The bartender’s watching you now.', 'You’re wasted. He won’t serve you much more.', 'You’re blackout drunk. One more and you’re gone.'][lvl]);
+      else if (lvl > was) lines.push(['', 'You’re tipsy. The room’s friendlier.', 'You’re drunk. The bartender’s watching you now.', 'You’re wasted. The bartender keeps an eye on you now.', 'You’re blackout drunk. One more and you’re gone.'][lvl]);
       this.refresh();
       this.note(lines);
       return;
@@ -8801,7 +8829,7 @@ export class Game {
       const banned = inv.items.filter((x) => x.kind === 'weapon' || (x.secret && x.secret !== 'empty') || x.name === 'Zip bags' || /syringe/i.test(x.name));
       inv.items = inv.items.filter((x) => !banned.includes(x));
       this.save.state.shelterAt = now();
-      const lines = [banned.length ? `At the door a volunteer goes through your pockets and your bag. ${banned.length === 1 ? `The ${lc(banned[0].name)} goes` : `${list2(banned.map((x) => `the ${lc(x.name)}`))} go`} in a bin under the table. “No weapons, no drugs. House rules.” You don’t get ${banned.length === 1 ? 'it' : 'them'} back.` : 'At the door a volunteer pats you down and looks in your pockets. Nothing they don’t allow.', 'A cot in a long row of cots, a thin blanket, the lights going down at ten. Someone coughs all night.'];
+      const lines = [banned.length ? `At the door a volunteer goes through your pockets and your bag. ${banned.length === 1 ? `The ${lc(banned[0].name)} goes` : `${((t) => t[0].toUpperCase() + t.slice(1))(list2(banned.map((x) => `the ${lc(x.name)}`)))} go`} in a bin under the table. “No weapons, no drugs. House rules.” You don’t get ${banned.length === 1 ? 'it' : 'them'} back.` : 'At the door a volunteer pats you down and looks in your pockets. Nothing they don’t allow.', 'A cot in a long row of cots, a thin blanket, the lights going down at ten. Someone coughs all night.'];
       this.unstick();
       this.refresh();
       h.restEnd = nextAt(9);
@@ -10162,6 +10190,18 @@ export class Game {
     this.noteEl.firstElementChild?.classList.add('note-title');
   }
 
+  /** A new face: everyone who knew the one you were (that life's number) remembers it as someone else's. */
+  private faceGone(life: number) {
+    for (const k of this.people) {
+      if (!k.memory.otherLife) {
+        k.memory.ofLife = life;
+        k.memory.faceWas = { sawFace: !!k.memory.sawFace, clothes: [...(k.memory.clothes ?? [])] };
+      }
+      k.memory.sawFace = false;
+      k.memory.clothes = [];
+      k.memory.otherLife = true;
+    }
+  }
   /** Closes the game view (back to the menu). */
   close() {
     this.closed = true;

@@ -678,7 +678,7 @@ export function newEncounter(person: Person, yours: Body): Encounter {
 }
 
 const DISTANCE = ['Across the street', 'Behind them', 'Right on them'];
-export const distanceLabel = (e: Encounter) => DISTANCE[e.distance];
+export const distanceLabel = (e: Encounter) => (e.bar && e.distance === 0 ? 'Across the bar' : DISTANCE[e.distance]);
 
 /** The states someone is in, for showing (e.g. "On the floor", "Bleeding: Heavy"). */
 export function conditions(f: Body): string[] {

@@ -11,6 +11,19 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '3.08',
+    date: 'Nov 14',
+    items: [
+      'Going back to being someone you were before: the people who knew that you know you again, regular customers included.',
+      'Resting on a pew or a shelter cot: the countdown says when they’ll put you out, if that comes before you’re rested. Being put out reads in the right order.',
+      'With a bar as your corner, Go has an “Up to the bar” button, for the drinks.',
+      'Escaping jail: your record counts only the time you actually served (and time added for a failed try).',
+      'Blacking out in a bar: you wake where you really are, a booth in your own bar or a doorway near your corner.',
+      'In a bar you work, the fight screen says “Across the bar”, and others are “in here”, not on the street.',
+      'Text fixes at the shelter door, in a police search of your room, and from the bartender.',
+    ],
+  },
+  {
     v: '3.07',
     date: 'Nov 14',
     items: [

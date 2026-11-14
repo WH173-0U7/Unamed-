@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '3.06',
+    date: 'Nov 14',
+    items: [
+      'Every shop and place has a Leave button in its top corner, back out to the street (or your bar, if that’s your corner).',
+      'How a fight ended (“You got away.”, “You lost them.”) is said once, not twice.',
+      'Messages on the street have a soft dark backing, so they stay readable even when you come to and the screen is nearly white.',
+    ],
+  },
+  {
     v: '3.05',
     date: 'Nov 14',
     items: [

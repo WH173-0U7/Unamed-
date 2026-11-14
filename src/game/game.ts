@@ -527,7 +527,11 @@ export class Game {
 
   /** A shop button: what it does. */
   private shopAction(b: HTMLButtonElement) {
-      if (b.dataset.buy) this.buy(b.dataset.buy as MedId);
+    if (b.dataset.leave !== undefined) {
+      this.goTo('street');
+      return;
+    }
+    if (b.dataset.buy) this.buy(b.dataset.buy as MedId);
       else if (b.dataset.sell) this.sell(Number(b.dataset.sell));
       else if (b.dataset.stock) this.buyStock(b.dataset.stock);
       else if (b.dataset.stockc) this.buyStock(b.dataset.stockc, 'carry');
@@ -1658,9 +1662,9 @@ export class Game {
       // the log, everything you could do greys out, and the one way on is to leave.
       const quietLeave = e.result === 'left' && !e.fought && !e.chased && !e.robbed && !e.mugged && !e.deal;
       if (!ko && e.deal?.kind !== 'sting' && !quietLeave) {
-        // (Not again what the log already says, just above.)
+        // (Not again what the log already says, just above; nor the heading, which says how it ended.)
         const said = new Set(e.log.slice(0, fightTo).map((l) => l.text));
-        e.log.splice(fightTo, 0, ...[lines[0], ...how].filter((t, i) => i === 0 ? !e.log.slice(Math.max(0, logFrom), fightTo).some((l) => l.text === t) : !said.has(t)).map((text) => ({ by: 'info' as const, text, end: true })));
+        e.log.splice(fightTo, 0, ...[lines[0], ...how].filter((t, i) => i === 0 ? t !== RESULT[e.result ?? 'left'] && !e.log.slice(Math.max(0, logFrom), fightTo).some((l) => l.text === t) : !said.has(t)).map((text) => ({ by: 'info' as const, text, end: true })));
         e.finished = true;
         e.endOpts = optsBefore;
         // (Whatever note was up before the fight stays gone: it's all in the log now.)
@@ -9125,7 +9129,9 @@ export class Game {
     if (car) body = this.carHtml(car, btn, li);
     else if (hunt) body = this.huntHtml(hunt, btn, li);
     const huntKey = hunt && this.keysFor(hunt.car);
-    const html =
+    // (A way out of anywhere: back to the street, or your corner.)
+    const leave = `<button type="button" class="shop-leave" data-leave aria-label="Leave">Leave</button>`;
+    const html0 =
       (home
         ? `<div class="shop-head"><h2>${home.addr}</h2><p>${home.owner}’s place, going by the ID. ${{ house: 'A house', rowhouse: 'A rowhouse', apartment: 'An apartment', room: 'A room in a rooming house' }[home.type]}${home.household === 'alone' || !home.hitAt ? '' : ', and they don’t live alone'}.</p></div>`
         : car
@@ -9140,6 +9146,7 @@ export class Game {
       `<div class="shop-body">${body}</div>`;
     // Only when something changed, and keep your place in the list (buying
     // something used to jump you back to the top).
+    const html = html0.replace('<div class="shop-head">', `<div class="shop-head">${leave}`);
     if (html !== this.shopHtml) {
       this.shopHtml = html;
       const same = this.shopAt === this.place;

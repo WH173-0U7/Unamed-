@@ -4165,8 +4165,10 @@ export class Game {
       // Weapons get taken off you, and they remember it. (A loaded syringe is evidence instead.)
       // A pat-down is your clothes. Your bag, only if they've reason to.
       const bagSearched = looks || lied || f.heat > 40 || Math.random() < 0.35;
-      if (!bagSearched && inv.items.some((x) => inBag(inv, x.spot))) lines.push("They don’t look in your bag.");
-      const blades = inv.items.filter((x) => x.kind === 'weapon' && !(x.secret && x.secret !== 'empty') && (bagSearched || !inBag(inv, x.spot)));
+      // (A sheath at the ankle is on you, not in a bag: a pat-down runs down your legs.)
+      const bagged = (spot: string) => inBag(inv, spot) && !/ankle/i.test(inv.spots.find((s) => s.id === spot)?.on ?? '');
+      if (!bagSearched && inv.items.some((x) => bagged(x.spot))) lines.push("They don’t look in your bag.");
+      const blades = inv.items.filter((x) => x.kind === 'weapon' && !(x.secret && x.secret !== 'empty') && (bagSearched || !bagged(x.spot)));
       // A switchblade, a butterfly knife, a push dagger: illegal to carry, and that's an arrest.
       const banned = blades.filter((x) => /switchblade|butterfly|push dagger/i.test(x.name));
       if (banned.length) {
@@ -4183,7 +4185,7 @@ export class Game {
           lines.push('The gun changes everything: one of them keeps a hand on his holster the whole time.');
         }
       }
-      const evidence = inv.items.filter((x) => (this.stolen(x) || (x.secret && x.secret !== 'empty')) && (bagSearched || !inBag(inv, x.spot)));
+      const evidence = inv.items.filter((x) => (this.stolen(x) || (x.secret && x.secret !== 'empty')) && (bagSearched || !bagged(x.spot)));
       if (evidence.length) {
         // (The drugs said as drugs; anything else, as something that isn't yours.)
         const dope = evidence.filter((x) => x.secret && x.secret !== 'empty');
@@ -4498,7 +4500,7 @@ export class Game {
         return [...lines, ...keep()];
       }
       const days = Math.max(2, Math.round(fine / 100));
-      this.record.convictions = (this.record.convictions ?? 0) + 1;
+      // (The conviction goes on your record with the time: see serve.)
       lines.push(`You plead guilty. ${/^\$(8|1[18](,|$))/.test(money(fine * 100)) ? 'An' : 'A'} ${money(fine * 100)} fine you can’t pay, so it’s ${days} days instead.`);
       return [...lines, ...keep(), ...this.serve(days)];
     }
@@ -6227,6 +6229,8 @@ export class Game {
     c.known = true;
     c.via = via;
     c.trust = 0;
+    // (Vouched for again: a fresh start, not still "cut off".)
+    delete c.cutOff;
     return ['You know a supplier now: Dez, in the alley behind the laundromat (Go: The alley).'];
   }
   /** Asking someone on the street if they know anyone selling. */
@@ -6291,6 +6295,21 @@ export class Game {
       }
     } else if (k === 'homeless') {
       if (roll < 0.1 + rough / 2) amt = 25;
+    }
+    // (What they give comes out of what's on them: no more than they've got, and it's gone from their pockets.)
+    if (amt) {
+      const wads = e.person.clothes.flatMap((g) => g.loot).filter((l) => l.kind === 'cash' && l.purse && cents(l.purse) > 0);
+      const have = wads.reduce((n, l) => n + cents(l.purse!), 0);
+      amt = Math.min(amt, have);
+      let owe = amt;
+      for (const l of wads) {
+        if (owe <= 0) break;
+        const part = Math.min(owe, cents(l.purse!));
+        if (pay(l.purse!, part)) {
+          owe -= part;
+          l.cash = cents(l.purse!) / 100;
+        }
+      }
     }
     if (k === 'junkie') {
       say('them', oneOf(['“I was gonna ask you, man.”', 'They laugh, a dry, empty sound. “Yeah. Me too.”']));
@@ -7023,9 +7042,11 @@ export class Game {
     const short: Record<string, string> = { downtown: 'Dtn', flats: 'Flats', oldtown: 'Old T', southside: 'South' };
     const rows = MARKET_KEYS.map((k) => {
       const { word, arrow } = marketWord(m, k);
+      // (What it goes for where you sell: your corner's district.)
+      const here = streetPrice(m, k, this.cornerDistrict);
       // (Each pair kept together when it wraps.)
       const where = DISTRICTS.map((d) => `<span class="nw">${short[d]} ${districtWord(m, k, d)}</span>`).join(' · ');
-      return `<li><div><b>${keyName(k)} <span class="mkt-arrow">${arrow}</span></b><small>${((p) => (p === 'pills' ? `${money(streetPrice(m, k) * 100)} a pill` : `${money(Math.round(streetPrice(m, k)) * 100)} a gram${SIZES[p][0].amt === 10 ? '' : ` · ${money(Math.round(sizePrice(k, SIZES[p][0].amt) * (streetPrice(m, k) / PRODUCTS[p].price)) * 100)} ${SIZES[p][0].word}`}`))(keyProduct(k))} · ${word}</small><small class="mkt-where">${where}</small></div></li>`;
+      return `<li><div><b>${keyName(k)} <span class="mkt-arrow">${arrow}</span></b><small>${((p) => (p === 'pills' ? `${money(here * 100)} a pill` : `${money(Math.round(here) * 100)} a gram${SIZES[p][0].amt === 10 ? '' : ` · ${money(Math.round(sizePrice(k, SIZES[p][0].amt) * (here / PRODUCTS[p].price)) * 100)} ${SIZES[p][0].word}`}`))(keyProduct(k))} · ${word}</small><small class="mkt-where">${where}</small></div></li>`;
     }).join('');
     return `${asSection ? `<h3>What’s moving</h3><p class="shop-sub">Street prices, ${DISTRICT_NAMES[this.cornerDistrict]}</p>` : `<p class="shop-sub">What’s moving (street prices, ${DISTRICT_NAMES[this.cornerDistrict]})</p>`}<ul class="shop-list market-list">${rows}</ul>`;
   }
@@ -7977,11 +7998,9 @@ export class Game {
     if (what === 'rent') {
       if (Math.round(cashOf(inv) * 100) < ROOM_RENT * 100) return;
       const cleared = this.checkRoom();
-      if (cleared.length && !this.room) {
-        this.note(cleared);
-        return;
-      }
-      const paid = [...cleared.filter((x) => !/rent ran out/.test(x)), this.payLine(ROOM_RENT * 100)].join(' ');
+      // (The old room cleared out: you hear so, and rent a new one in the same go.)
+      const lost = cleared.length > 0 && !this.room;
+      const paid = [...(lost ? cleared : cleared.filter((x) => !/rent ran out/.test(x))), this.payLine(ROOM_RENT * 100)].join(' ');
       const r = this.room;
       const t = now();
       if (r && t <= r.until + 2 * 86_400_000) r.until = Math.max(t, r.until) + 7 * 86_400_000;

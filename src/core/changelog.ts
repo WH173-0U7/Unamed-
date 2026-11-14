@@ -11,6 +11,19 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '3.07',
+    date: 'Nov 14',
+    items: [
+      'Paying a big amount with a thick wad of small bills no longer freezes the game.',
+      'A fine you can’t pay counts as one conviction on your record, not two.',
+      'The street prices list shows what things actually sell for at your corner.',
+      'Once someone vouches for you again, Dez stops being “cut off” and can post your bail again.',
+      'A bag of cans keeps its weight after you stash it and take it back.',
+      'If your old room at the Marlow was cleared out, one tap on Rent gets you a new one.',
+      'A pat-down finds a knife in an ankle sheath. Money you’re given when you beg comes out of the giver’s own pockets.',
+    ],
+  },
+  {
     v: '3.06',
     date: 'Nov 14',
     items: [

@@ -212,6 +212,8 @@ export function upgradeInventory(inv: Inventory) {
 export function measure(x: { kind: string; name: string; med?: MedId; product?: InvItem['product']; doses?: number; pkg?: number }): { size: Size; kg: number } {
   // Product: by what's in the package, and the package it came in.
   if (x.product && x.doses != null) return packageMeasure(x.product, x.doses, x.pkg ?? x.doses);
+  // (A bag of empty cans: 15 g a can.)
+  if (/^empty cans$/i.test(x.name)) return { size: 'small', kg: Math.round(Math.max(1, x.doses ?? 1) * 15) / 1000 };
   if (/^digital scale$/i.test(x.name)) return { size: 'small', kg: 0.25 };
   if (/^cutting kit$/i.test(x.name)) return { size: 'small', kg: 0.3 };
   if (/^lactose powder$/i.test(x.name)) return { size: 'small', kg: 0.12 };
@@ -302,6 +304,10 @@ export function reweigh(it: InvItem) {
   // A package weighs what's left in it.
   if (it.product) {
     it.kg = packageMeasure(it.product, it.doses, it.pkg ?? it.doses).kg;
+    return;
+  }
+  if (/^empty cans$/i.test(it.name)) {
+    it.kg = Math.round(Math.max(1, it.doses) * 15) / 1000;
     return;
   }
   if (/^loose cigarettes$/i.test(it.name)) {

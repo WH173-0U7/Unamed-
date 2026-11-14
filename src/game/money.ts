@@ -112,6 +112,9 @@ export function pay(p: Purse, price: number): { gave: Purse; change: Purse } | n
  * the price up to the price plus your biggest note.)
  */
 function bestHandover(p: Purse, price: number): Purse {
+  // (A big amount: the table would be far too slow with a wad of small bills. Biggest first,
+  // then the smallest piece that covers what's left; the change comes back after.)
+  if (price > 20000) return quickHandover(p, price);
   const have = DENOMS.filter((d) => p[d]);
   const top = Math.min(cents(p), price + Math.max(...have));
   const INF = 1e9;
@@ -192,3 +195,26 @@ export const money = (c: number) => {
   const d = c % 100 ? 2 : 0;
   return `$${(c / 100).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })}`;
 };
+
+/** Handing over a big amount without the table: largest pieces first, then the smallest that cover the rest. */
+function quickHandover(p: Purse, price: number): Purse {
+  const gave: Purse = {};
+  let left = price;
+  for (const d of DENOMS) {
+    const c = Math.min(p[d] ?? 0, Math.floor(left / d));
+    if (c) {
+      gave[d] = c;
+      left -= c * d;
+    }
+  }
+  // Short: one more of the smallest piece that covers it; failing that, the biggest there is, and again.
+  while (left > 0) {
+    const spare = DENOMS.filter((d) => (p[d] ?? 0) > (gave[d] ?? 0));
+    if (!spare.length) return { ...p };
+    const d = [...spare].reverse().find((x) => x >= left) ?? spare[0];
+    gave[d] = (gave[d] ?? 0) + 1;
+    left -= d;
+  }
+  return gave;
+}
+

@@ -11,6 +11,15 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '3.04',
+    date: 'Nov 14',
+    items: [
+      'Someone you’d seen in an older save now walks on after ten minutes, like everyone else.',
+      'A passer-by who steps up from the crowd gets their full ten minutes before moving on.',
+      'A “rested” reminder can’t come for a character you’ve already left behind.',
+    ],
+  },
+  {
     v: '3.03',
     date: 'Nov 14',
     items: [

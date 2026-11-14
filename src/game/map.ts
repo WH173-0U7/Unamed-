@@ -668,18 +668,18 @@ function overSvg(): string {
   // same distance, where a street name or a pin would be in the way).
   const R = 4;
   const GAP = 2.2;
-  const mark = (x: number, y: number, d: string, label: string, anchor = 'middle', side: 'below' | 'above' | 'beside' = 'below') => {
+  const mark = (x: number, y: number, d: string, label: string, anchor = 'middle', side: 'below' | 'above' | 'beside' = 'below', bld?: string) => {
     // (Below or above: centred, or starting at the badge's left edge, or ending at its right.)
     const tx = side === 'beside' ? (anchor === 'end' ? x - R - GAP : x + R + GAP) : anchor === 'start' ? x - R : anchor === 'end' ? x + R : x;
     const ty = side === 'beside' ? y : side === 'above' ? y - R - GAP : y + R + GAP;
     const base = side === 'beside' ? 'central' : side === 'above' ? 'auto' : 'hanging';
-    return `<g class="m-landmark"><circle cx="${f1(x)}" cy="${f1(y)}" r="${R}"/><path transform="translate(${(x - 3).toFixed(2)} ${(y - 3).toFixed(2)}) scale(0.25)" d="${d}"/><text x="${f1(tx)}" y="${f1(ty)}" text-anchor="${anchor}" dominant-baseline="${base}">${label}</text></g>`;
+    return `<g class="m-landmark"${bld ? ` data-bld="${bld}"` : ''}><circle cx="${f1(x)}" cy="${f1(y)}" r="${R}"/><path transform="translate(${(x - 3).toFixed(2)} ${(y - 3).toFixed(2)}) scale(0.25)" d="${d}"/><text x="${f1(tx)}" y="${f1(ty)}" text-anchor="${anchor}" dominant-baseline="${base}">${label}</text></g>`;
   };
   // (Every one on its own building's middle.)
   const { blds } = layout();
   const at = (k: BuildingKind) => blds.filter((b) => b.kind === k);
   const one = (k: BuildingKind, d: string, label: string, anchor = 'middle', side: 'below' | 'above' | 'beside' = 'below') =>
-    at(k).slice(0, 1).map((b) => mark(b.cx, b.cy, d, label, anchor, side));
+    at(k).slice(0, 1).map((b) => mark(b.cx, b.cy, d, label, anchor, side, b.id));
   const BAR_LABEL: Record<string, [string, 'below' | 'above' | 'beside']> = { 'Blue Lantern': ['start', 'above'], 'Low Tide': ['start', 'beside'], 'Anchor Room': ['start', 'below'], 'Rosie’s': ['end', 'beside'] };
   const marks = [
     ...one('church', PLACE_ICON.church, 'ST. AGNES', 'middle', 'above'),
@@ -694,7 +694,7 @@ function overSvg(): string {
     ...at('bar').map((b) => {
       const name = (b.name ?? 'BAR').replace(/^The /, '');
       const [anchor, side] = BAR_LABEL[name] ?? ['middle', 'below'];
-      return mark(b.cx, b.cy, PLACE_ICON.bar, name.toUpperCase(), anchor, side);
+      return mark(b.cx, b.cy, PLACE_ICON.bar, name.toUpperCase(), anchor, side, b.id);
     }),
     ...one('school', PLACE_ICON.school, 'SCHOOL'),
     ...one('warehouse', PLACE_ICON.warehouse, 'STORAGE'),

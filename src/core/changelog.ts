@@ -11,6 +11,20 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '3.05',
+    date: 'Nov 14',
+    items: [
+      'In shops, what a button says back (like “Tap Wear again”) stays at the top of the card where you can see it, even when you’re scrolled down the list.',
+      'Searching someone out cold: the other pockets warn that they could come to, and if they do, you’re told what you found is still on them.',
+      'Working a bar: “Back to the bar” takes you back inside, and the people there are across the bar, not across the street.',
+      'Zoomed in on the map, tapping a landmark’s name opens that place, not the building underneath the name.',
+      'The person’s card fits on screen and only lists what you’ve found out (tap it for the rest). “Carrying” only shows what you can actually see.',
+      'Eat, Drink and Bump are greyed out in shops instead of looking usable and then being refused.',
+      'With one or two finds in the bins, the list is only as tall as it needs to be, so Take and Leave stay on screen.',
+      'Smaller fixes: the first rest tip matches how tired you are, the rest timer says “to fully rested”, Pockets says “If it rains” when it’s dry, a fanny pack goes round your waist, and “the homeless man walks on”.',
+    ],
+  },
+  {
     v: '3.04',
     date: 'Nov 14',
     items: [

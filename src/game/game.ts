@@ -419,6 +419,8 @@ export class Game {
   private mapMoved = false;
   /** When the last drag or pinch on the map ended (the click that follows it isn't a tap). */
   private mapDragEnd = 0;
+  /** The landmark a finger came down on, on the map (see mapTap). */
+  private mapDownOn: Element | null = null;
   private noteTimer = 0;
   private readonly clockEl: HTMLElement;
   private clockShown = '';
@@ -1239,7 +1241,7 @@ export class Game {
     const ss = sec % 60;
     const two = (n: number) => String(n).padStart(2, '0');
     (el.querySelector('.rest-bar i') as HTMLElement).style.width = `${Math.max(0, 100 - f)}%`;
-    el.querySelector('.jail-left')!.textContent = `${two(hh)}:${two(mm)}:${two(ss)} to fresh`;
+    el.querySelector('.jail-left')!.textContent = `${two(hh)}:${two(mm)}:${two(ss)} to fully rested`;
     el.querySelector('.jail-out')!.textContent = `${FATIGUE_NAMES[fatigueLevel(Math.round(f))]} (${Math.round(f)} / 100) · ${h.restEnd != null && h.restEnd < now() + restLeft(h) ? `${h.restWhere === 'pew' ? 'they lock up at' : 'everyone out at'} ${clockText(h.restEnd)}` : `rested by ${clockText(now() + restLeft(h))}`}`;
   }
   /** Up again: rested, or not quite. */
@@ -2169,6 +2171,11 @@ export class Game {
     if (t === this.sheetEl) return this.closeSheet(); // tapped outside the card
     // (A drag or a pinch on the map isn't a tap on what was under it.)
     if (performance.now() - this.mapDragEnd < 400 && t.closest('.map') && !t.closest('.map-zoomctl')) return;
+    // (A finger on a landmark's name, handed to a pin beside it: the landmark it was on.)
+    if (this.sheet === 'places' && this.mapDownOn?.isConnected && t.closest('.map-pin')) {
+      const m = t.closest<HTMLElement>('.map');
+      if (m) return this.mapTap(ev, m, this.mapDownOn);
+    }
     const b = t.closest('button');
     if (!b) {
       // On the map, between the pins: whatever building is there.
@@ -2317,7 +2324,7 @@ export class Game {
     const inside = this.inside;
     const lines = arrive ? [...arrive] : [
       !inside && info.indoors && p !== 'spot' ? `You get to the ${info.name}. The doors are locked.` : {
-        street: 'You head back out into the street.',
+        street: this.corner.bar ? `You head back into ${this.corner.name}.` : 'You head back out into the street.',
         pharmacy: 'You walk to the all-night pharmacy.',
         gas: 'You walk over to the gas station. The door chimes as you go in.',
         pawn: 'You walk over to the pawn shop.',
@@ -6598,7 +6605,7 @@ export class Game {
       `</ul>` +
       (b.found?.length
         ? `<h3>What you’ve found <b>${b.found.length}</b></h3>` +
-          `<div class="scav-wheel-box"><div class="scav-wheel" role="listbox" aria-label="What you’ve found">` +
+          `<div class="scav-wheel-box${b.found.length === 1 ? ' one' : b.found.length === 2 ? ' few' : ''}"><div class="scav-wheel" role="listbox" aria-label="What you’ve found">` +
           b.found.map((x, i) => `<button type="button" role="option" class="scav-item${i === Math.min(this.scavSel, b.found!.length - 1) ? ' on' : ''}" data-wheel="${i}">${x.cans ? `${x.cans} can${x.cans === 1 ? '' : 's'}` : x.item!.name}</button>`).join('') +
           `</div></div>` +
           `<ul class="shop-list scav-pick">${this.scavPickHtml(b.found[Math.min(this.scavSel, b.found.length - 1)], Math.min(this.scavSel, b.found.length - 1))}</ul>`
@@ -6863,6 +6870,7 @@ export class Game {
     for (let i = 0; i < n; i++) {
       const p = makePerson(this.cornerFeel.chances);
       const x = newEncounter(p, this.yourBody());
+      if (this.atBar) x.bar = true;
       x.conspicuous = conspicuous(inv);
       x.start = { blood: x.them.blood, broken: [...x.them.broken] };
       this.lurkState.seen[p.kind]++;
@@ -6891,7 +6899,7 @@ export class Game {
     const gone = c.filter((b) => b.leaveAt <= t);
     if (gone.length) {
       this.save.state.crowd = c.filter((b) => b.leaveAt > t);
-      const who = (b: Bystander) => (b.e.person.title ?? (b.e.person.kind === 'civilian' ? (b.e.person.sex === 'Male' ? 'man' : 'woman') : NAMES[b.e.person.kind])).toLowerCase();
+      const who = (b: Bystander) => (b.e.person.title ?? (b.e.person.kind === 'civilian' ? (b.e.person.sex === 'Male' ? 'man' : 'woman') : b.e.person.kind === 'homeless' ? `homeless ${b.e.person.sex === 'Male' ? 'man' : 'woman'}` : NAMES[b.e.person.kind])).toLowerCase();
       const line = e?.witnessed || gone.every((b) => b.saw)
         ? gone.length > 1 ? 'The ones who saw it are gone.' : `The ${who(gone[0])} who saw it is gone.`
         : gone.length > 1 ? 'The others walk on.' : `The ${who(gone[0])} walks on.`;
@@ -7717,6 +7725,7 @@ export class Game {
       }
     const inv = this.inventory;
     const e = newEncounter(person, this.yourBody());
+    if (this.atBar) e.bar = true;
     e.conspicuous = conspicuous(inv);
     if (k) {
       applyTo(k, e.them);
@@ -8297,6 +8306,8 @@ export class Game {
     let vel = { x: 0, y: 0, t: 0 };
     let glide = 0;
     this.sheetEl.addEventListener('pointerdown', (e) => {
+      // (Where the finger really came down: a phone may hand the tap to a pin next to it.)
+      this.mapDownOn = (e.target as Element).closest?.('.m-landmark[data-bld]') ?? null;
       const m = (e.target as Element).closest<HTMLElement>('.map');
       if (!m || this.sheet !== 'places' || (e.target as Element).closest('.map-zoomctl')) return;
       cancelAnimationFrame(glide);
@@ -8382,7 +8393,7 @@ export class Game {
     }, { passive: false, signal: sig });
   }
   /** A tap on the map itself: the building under your finger (or near it). */
-  private mapTap(ev: MouseEvent, m: HTMLElement) {
+  private mapTap(ev: MouseEvent, m: HTMLElement, on?: Element) {
     // (The zoomed layer: where it is on screen is where the map is, however far in.)
     const r = (m.querySelector('.map-zoom') ?? m).getBoundingClientRect();
     if (!r.width || !r.height) return;
@@ -8390,7 +8401,9 @@ export class Game {
     const y = ((ev.clientY - r.top) / r.height) * MAP_H;
     // (Zoomed in, a finger covers less of the map.)
     const z = this.mapView.z;
-    const b = buildingAt(x, y, Math.max(2, 6 / z));
+    // (A landmark's badge or its name: that building, even where the name lies over the one next door.)
+    const lm = (on ?? (ev.target as Element | null))?.closest?.('[data-bld]')?.getAttribute('data-bld');
+    const b = (lm ? buildingById(lm) : undefined) ?? buildingAt(x, y, Math.max(2, 6 / z));
     // (Off any building: the nearest corner, if it's close.)
     const c = b ? undefined : CORNERS.find((k) => Math.hypot(k.x - x, k.y - y) < Math.max(3, 9 / z));
     if (!b && !c) return;
@@ -8510,7 +8523,7 @@ export class Game {
       `<div class="map-card" data-tone="${picked.tone}">` +
       `<div class="map-card-head"><span class="map-card-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${picked.icon}"/></svg></span><div><b>${picked.name}</b><small>${isHere ? 'You’re here.' : far ? `${far} block${far === 1 ? '' : 's'} from you.` : 'Just around the corner.'}</small></div></div>` +
       `<p>${picked.small}</p>` +
-      (isHere || !picked.go ? '' : `<button type="button" class="map-go" ${picked.go}>${picked.key === 'place:street' ? 'Back out to your corner' : picked.tone === 'corner' ? 'Work this corner' : 'Walk there'}</button>`) +
+      (isHere || !picked.go ? '' : `<button type="button" class="map-go" ${picked.go}>${picked.key === 'place:street' ? (this.corner.bar ? `Back to ${this.corner.name}` : 'Back out to your corner') : picked.tone === 'corner' ? 'Work this corner' : 'Walk there'}</button>`) +
       (isHere && picked.key === 'place:street' ? ((why) => `<button type="button" class="map-go" data-bins ${why ? 'disabled' : ''}>${this.atBar ? 'Go through the bins out back' : 'Go through the bins'}${why ? `<small>${why}</small>` : ''}</button>`)(this.binsWhy()) : '') +
       (isHere ? '' : (picked.extra ?? '')) +
       `</div>`;
@@ -9278,7 +9291,7 @@ export class Game {
       `<div class="pocket-cash"><span>Cash</span><b>${money(Math.round(cashOf(inv) * 100))}</b></div>` +
       `<p class="pocket-purse">${this.purseHtml()}</p>` +
       this.cashWhereHtml() +
-      `<p class="pocket-wear">Wearing ${[...inv.clothes, ...(inv.gear ?? [])].map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total + purseKg(inv))} of ${kgLabel(inv.maxKg ?? carryLimit(this.stats.strength.level))}${((k) => (k > 1 ? ': over your limit, so walking wears you out' : k >= TIRING_LOAD ? ': near your limit, so walking tires you' : ''))((total + purseKg(inv)) / (inv.maxKg ?? 99))}.</p><p class="pocket-wear pocket-rain">In the rain: ${((k) => (k <= 0.45 ? 'you stay warm' : k <= 0.9 ? 'fairly warm' : 'you’ll get cold'))(coldFactor(inv))}.</p>` +
+      `<p class="pocket-wear">Wearing ${[...inv.clothes, ...(inv.gear ?? [])].map((c) => c.toLowerCase()).join(', ')}. Carrying ${kgLabel(total + purseKg(inv))} of ${kgLabel(inv.maxKg ?? carryLimit(this.stats.strength.level))}${((k) => (k > 1 ? ': over your limit, so walking wears you out' : k >= TIRING_LOAD ? ': near your limit, so walking tires you' : ''))((total + purseKg(inv)) / (inv.maxKg ?? 99))}.</p><p class="pocket-wear pocket-rain">${((k, wet) => (wet ? `In the ${isSnow(this.weather.now) ? 'snow' : 'rain'}: ${k <= 0.45 ? 'you stay warm' : k <= 0.9 ? 'fairly warm' : 'you’ll get cold'}` : `If it rains: ${k <= 0.45 ? 'you’d stay warm' : k <= 0.9 ? 'fairly warm' : 'you’d get cold'}`))(coldFactor(inv), WET_AMOUNT[this.weather.now] > 0)}.</p>` +
       // What anyone looking at you can see you're carrying.
       (inv.items.some((x) => x.kind === 'weapon')
         ? ((seen) => `<p class="pocket-shows${seen.length ? ' seen' : ''}">${seen.length ? `Anyone looking can see you’re carrying: ${seen.map((x) => lc(x.name)).join(', ')}. People notice you sooner and scare easier, and the police notice too.` : 'Your weapons are out of sight.'}</p>`)(inv.items.filter((x) => x.kind === 'weapon' && showing(inv, x) >= 0.16))
@@ -9299,7 +9312,7 @@ export class Game {
       const bag = inv.clothes[3];
       if (top && !/^t-shirt$/i.test(top))
         rows.push(row(named({ kind: 'wear', name: top, slot: 'top' }), /reversible/i.test(top) ? (w.flipped ? 'Gray side out' : 'Black side out') : 'On', `${/reversible/i.test(top) ? '<button type="button" data-flip>Flip it</button>' : ''}<button type="button" data-takeoff="top">Take off</button>`));
-      if (bag) rows.push(row(named({ kind: 'wear', name: bag, slot: 'bag' }), 'On your back', `<button type="button" data-takeoff="bag">Take off</button>`));
+      if (bag) rows.push(row(named({ kind: 'wear', name: bag, slot: 'bag' }), /fanny|waist|belt bag|bum bag/i.test(bag) ? 'Round your waist' : /sling|shoulder|purse|tote|messenger/i.test(bag) ? 'Over your shoulder' : 'On your back', `<button type="button" data-takeoff="bag">Take off</button>`));
       body +=
         `<div class="spot"><h3><span>What you’ve got on</span><em>Your face: ${faceWord(anon)}</em></h3>` +
         (rows.length ? `<ul class="pocket-list">${rows.join('')}</ul>` : `<p class="pocket-empty">Nothing hides your face. Anyone who sees you will know you again.</p>`) +
@@ -9382,9 +9395,9 @@ export class Game {
                 let acts = m && m.id !== 'testkit' ? act('use', 'Use', why) : '';
                 if (/^(lighter|matches)$/i.test(x.name)) acts += act('fire', 'Fire', this.fireBlocked());
                 if (/^(loose |pack of )?cigarettes$/i.test(x.name)) acts += act('smoke', this.smoking ? 'Smoking' : 'Smoke', (x.doses ?? 1) <= 0 ? 'Empty' : this.smokeBlocked());
-                if (x.drink) acts += act('drink', 'Drink', (x.doses ?? 0) <= 0 ? 'Empty' : this.canOpenSheet ? null : 'Not now');
+                if (x.drink) acts += act('drink', 'Drink', (x.doses ?? 0) <= 0 ? 'Empty' : !this.canOpenSheet ? 'Not now' : this.inside && !this.privateSpace && x.drink !== 'energy' ? 'Not in here' : null);
                 // Food and water: someone else's, but it does you good.
-                if (x.food === 'trash' || /^(lunch in a plastic tub|groceries|sandwich)$/i.test(x.name)) acts += act('eat', 'Eat', !this.canOpenSheet ? 'Not now' : this.hungerWait ? 'You’re full' : null);
+                if (x.food === 'trash' || /^(lunch in a plastic tub|groceries|sandwich)$/i.test(x.name)) acts += act('eat', 'Eat', !this.canOpenSheet ? 'Not now' : this.inside && !this.privateSpace ? 'Not in here' : this.hungerWait ? 'You’re full' : null);
                 if (/^(water bottle|bottle of water)$/i.test(x.name)) acts += act('water', 'Drink', !this.canOpenSheet ? 'Not now' : this.thirstWait ? 'Not thirsty' : null);
                 if (x.kind === 'wear' && x.slot) acts += act('puton', 'Put on', this.canOpenSheet ? null : 'Not now');
                 // A phone: the delivery app, if it's yours or unlocked.
@@ -9403,7 +9416,7 @@ export class Game {
                   acts += act('taste', 'Taste');
                   if (inv.items.some((y) => y.med === 'testkit')) acts += act('test', 'Test');
                 }
-                if (x.secret === 'cocaine' && x.known && productOf(x) === 'powder') acts += act('bump', 'Bump', h.wired ? 'Already wired' : null);
+                if (x.secret === 'cocaine' && x.known && productOf(x) === 'powder') acts += act('bump', 'Bump', h.wired ? 'Already wired' : this.inside && !this.privateSpace ? 'Not in here' : null);
                 // The alley's loose brick, or your room: somewhere to leave it.
                 if (this.place === 'fence' || (this.place === 'room' && this.roomRented) || this.spotBoxKind || (this.atCar && x.carId !== this.atCar.id && !this.copsAtCar(this.atCar))) acts += act('stash', this.place === 'fence' ? 'Hide it' : this.spotBoxKind === 'vac' ? 'Hide it here' : this.spotBoxKind === 'lock' ? 'In the lock-up' : this.atCar ? 'In the trunk' : 'Leave it here');
                 // A gun: load it from a box of its rounds.
@@ -9891,6 +9904,7 @@ export class Game {
         s.seen[person.kind]++;
         s.races[person.race]++;
         const e = newEncounter(person, this.yourBody());
+        if (this.atBar) e.bar = true;
         const inv = this.inventory;
         const anon = anonymity(inv);
         e.conspicuous = conspicuous(inv);
@@ -10342,7 +10356,7 @@ export class Game {
     }
     if (rest && !this.save.state.restTold) {
       this.save.state.restTold = true;
-      this.later(['You’re worn down. Rest: lie low and get your strength back. It takes real time, and you can get up early.']);
+      this.later([`${isHurt(this.health) ? 'You’re hurt.' : fatigueNow(this.health) >= 20 ? 'You’re tired.' : 'You’re starting to tire.'} Rest: lie low and get your strength back. It takes real time, and you can get up early.`]);
     }
     // The edge tabs: whenever a drawer could be pulled in.
     const pull = (this.canOpenSheet && !this.sheet) || (this.phase !== 'idle' && this.place === 'street' && this.running && !this.sheet);

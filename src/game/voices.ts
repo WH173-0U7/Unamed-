@@ -26,6 +26,26 @@ export const indoors = (text: string) =>
     .replace(/\binto an alley\b/g, 'out the door')
     .replace(/\bdown a side street\b/g, 'out the back');
 
+/** The same, in a bar you work: a room full of people, not a street. */
+export const inBar = (text: string) =>
+  text
+    .replace(/\bfrom across the street\b/g, 'from across the bar')
+    .replace(/\bacross the street\b/g, 'across the bar')
+    .replace(/You cross the street toward them\./g, 'You cross the room toward them.')
+    .replace(/You step off the curb and close in\./g, 'You slide off your stool and close in.')
+    .replace(/You cross over, straight at them\./g, 'You go over, straight at them.')
+    .replace(/You cross over and fall in beside them\./g, 'You go over and take the stool beside them.')
+    .replace(/You cross over and fall in behind them\./g, 'You drift over and stand behind them.')
+    .replace(/You step into their path, not too close\./g, 'You step up beside them at the bar, not too close.')
+    .replace(/\bthe sidewalk\b/g, 'the floor')
+    .replace(/\bThe sidewalk\b/g, 'The floor')
+    .replace(/\bdown the street\b/g, 'out the door')
+    .replace(/They dart across the traffic, horns blaring, and you lose them\./g, 'They shove out the door and across the traffic, and you lose them.')
+    .replace(/They cut through a parking lot and they’re gone\./g, 'They’re out the door and gone.')
+    .replace(/\bin the gutter\b/g, 'on the floor')
+    .replace(/\binto an alley\b/g, 'out the door')
+    .replace(/\bdown a side street\b/g, 'out the back');
+
 
 /**
  * What people say and do, in their own voice. The scared (timid, jumpy,

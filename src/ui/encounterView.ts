@@ -1,7 +1,7 @@
 import { glyphSvg } from '../game/lootIcon';
 import { uiGlitch } from '../fx/uiGlitch';
 import { BUILDS, NAMES, personalityOf } from '../game/person';
-import { CATEGORY_NAMES, FEAR_TIER_NAMES, PASS_OUT, conditions, fearTier, distanceLabel, options, type Body, type Category, type Encounter, type Option } from '../game/encounter';
+import { CATEGORY_NAMES, FEAR_TIER_NAMES, PASS_OUT, conditions, fearTier, distanceLabel, inSight, options, type Body, type Category, type Encounter, type Option } from '../game/encounter';
 
 const STAGE_TITLE: Record<string, string> = {
   menu: 'What now?',
@@ -333,7 +333,8 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         ['Sex', e.known.sex ? p.sex : null],
         ['Race', e.known.race ? p.race : null],
         ['Build', e.known.build ? `${p.build} · ${b.difficulty}` : null],
-        ['Carrying', e.known.carrying ? p.carrying.map((i) => i.name).join(', ') || 'Nothing' : null],
+        // (Only what shows, until you've been close enough to see what's in their pockets.)
+        ['Carrying', e.known.carrying ? (e.known.pockets || e.stage === 'over' ? p.carrying : inSight(p)).map((i) => i.name).join(', ') || (e.known.pockets ? 'Nothing' : 'Nothing in hand') : null],
         ['Awareness', e.known.awareness ? p.awareness : null],
         ['Manner', e.known.personality ? personalityOf(p).name : null],
         ['Wearing', (p.clothes ?? []).map((g) => g.name).join(', ') || null],
@@ -346,7 +347,7 @@ export function createEncounterView(root: HTMLElement, onAct: (id: string) => vo
         (e.history ? `<p><b>${e.recognised ? 'They know you.' : 'You know them.'}</b> ${e.history}</p>` : '') +
         (e.looks?.length ? `<p class="looks">${e.looks.join(' · ')}</p>` : '');
       q('.enc-facts').innerHTML = facts
-        .map(([k, v], i) => `<div class="${i >= 5 ? 'wide' : ''}"><dt>${k}</dt><dd class="${v ? '' : 'unknown'}">${v ?? '?'}</dd></div>`)
+        .map(([k, v], i) => `<div class="${[i >= 5 ? 'wide' : '', v ? '' : 'unk'].join(' ').trim()}"><dt>${k}</dt><dd class="${v ? '' : 'unknown'}">${v ?? '?'}</dd></div>`)
         .join('');
 
       // Status: how close you are and how close they are to noticing, or the fight.

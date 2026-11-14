@@ -2,7 +2,7 @@ import { AMBUSH_TEXT, TECH_ALT, TECH_TEXT, kickText, missText, punchText, stompT
 import { AWARENESS, BUILDS, NAMES, personalityOf, type Item, type Loot, type Person } from './person';
 import { money } from './money';
 import { amountText, keyName, keyProduct, midName, pillCount, quote, requestFor, substitutes, type MarketKey, type PillKind } from './drugs';
-import { demandVoice, fearTier, homeThreatVoice, hushVoice, indoors, isBrute, voice, type Moment } from './voices';
+import { demandVoice, fearTier, homeThreatVoice, hushVoice, inBar, indoors, isBrute, voice, type Moment } from './voices';
 export { fearTier, FEAR_TIER_NAMES } from './voices';
 import { lootMark, type LootGlyph, type LootTone } from './lootIcon';
 import { STYLE_NAMES, styleLevel, trainStyle, type Style } from './styles';
@@ -208,6 +208,8 @@ export const STRESS_NAMES = ['', 'On edge', 'Stressed', 'Panicking'];
 export const stressLevel = (s: number) => (s >= 75 ? 3 : s >= 45 ? 2 : s >= 20 ? 1 : 0);
 
 export interface Encounter {
+  /** In the bar you work out of, not out on the street (what's said fits the room). */
+  bar?: boolean;
   /** When they turned up (someone just standing there across the street moves on in the end). */
   seenAt?: number;
   /** It's over and you've seen how: everything greyed out but the way out. */
@@ -461,6 +463,8 @@ function searchOptions(e: Encounter): Option[] {
     if ((it.weapon || it.spray) && (!e.them.yielded || e.emptied))
       found.push({ id: `takec:${ci}`, label: it.name, hint: e.them.weaponOut === it.name || it.dropped ? 'On the ground by them' : 'They were carrying it', cat: 'search', ...lootMark({ kind: 'weapon', ...it }) });
   });
+  // (Each pocket takes time: with things found and not yet taken, they could come to first.)
+  if (found.length && e.them.out && !e.them.dead) for (const o of todo) o.hint = 'They could come to';
   const all: Option[] = found.length > 1 ? [{ id: 'take-all', label: 'Take everything', hint: `${found.length} things`, cat: 'search' }] : [];
   const out = [...all, ...found, ...todo];
   return out.length ? out : [{ id: 'nothing', label: 'Nothing left on them', disabled: true, cat: 'search' }];
@@ -908,7 +912,7 @@ function rawOptions(e: Encounter): Option[] {
           ...(e.them.down
             ? [{ id: 'go-at', label: 'Go at them', hint: 'They can’t get away', cat: 'violence' as Category }]
             : [
-                { id: 'sucker', label: 'Hit them', hint: 'Before they see it coming', cat: 'violence' as Category },
+                { id: 'sucker', label: 'Hit them', hint: e.suspicion >= 70 ? 'They’re watching your hands' : 'Before they see it coming', cat: 'violence' as Category },
                 { id: 'shove', label: 'Shove', hint: 'Easiest to land', cat: 'violence' as Category },
                 ...learned(e, [{ id: 'slam', label: 'Slam them into the wall', hint: 'Head first', level: SLAM_AMBUSH_LEVEL, style: 'clinch' as Style }], 'violence'),
               ]),
@@ -1082,7 +1086,7 @@ const say = (by: LogLine['by'], text: string) => {
     text = indoors(text);
     // (Out of bed: a T-shirt, not a jacket.)
     if (enc.resident.how === 'woke') text = text.replace(/\btheir jacket\b/g, 'their shirt').replace(/back of the jacket/g, 'back of the shirt');
-  }
+  } else if (enc.bar) text = inBar(text);
   enc.log.push(landed ? { by, text, hit: landed } : { by, text });
   landed = null;
 };
@@ -1330,7 +1334,7 @@ function actInner(e: Encounter, id: string, stats: Stats, inv?: Inventory): Impa
         e.known.carrying = true;
         {
           // Only what shows: a bag, a bottle, a bat. Wallets and folded knives are in pockets.
-          const shows = p.carrying.filter((i) => /\bbags?\b|backpack|cart|blanket|bottle|\bbat\b|pipe|crowbar|umbrella|case|tote|stick|tire iron|machete|hammer/i.test(i.name));
+          const shows = inSight(p);
           say('info', shows.length ? `You can see: ${shows.map((i) => i.name.toLowerCase()).join(', ')}. Anything else is in their pockets.` : 'Nothing in their hands. Anything they have is in their pockets.');
         }
         if (e.distance >= 2 && !e.known.pockets) seePockets(e);
@@ -2968,6 +2972,8 @@ function endOfRound() {
     T0.dazed = 3;
     T0.awake = 25;
     say('them', oneOf(['They groan, and their eyes open. They come to on the sidewalk, dazed, trying to figure out where they are.', 'Their eyes flutter open. They don’t know where they are.', 'They groan and roll onto their side, blinking.']));
+    // (What you'd found and left in their pockets is back where they can keep it.)
+    if (enc.person.clothes.some((g) => g.searched && g.loot.length)) say('info', 'What you found is still on them.');
   }
   // A needle's dose, a few rounds after it went in.
   for (const side of ['you', 'them'] as Side[]) {
@@ -4271,6 +4277,8 @@ export function liftables(e: Encounter): Liftable[] {
   return Object.values(by) as Liftable[];
 }
 /** Right behind them: what shows in their pockets. */
+/** What anyone can see someone carrying: a bag, a bottle, a bat (wallets and folded knives are in pockets). */
+export const inSight = (p: Person) => p.carrying.filter((i) => /\bbags?\b|backpack|cart|blanket|bottle|\bbat\b|pipe|crowbar|umbrella|case|tote|stick|tire iron|machete|hammer/i.test(i.name));
 function seePockets(e: Encounter) {
   e.known.pockets = true;
   const L = liftables(e);

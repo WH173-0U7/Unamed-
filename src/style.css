@@ -7486,3 +7486,53 @@ body[data-buttons='lines'] #enc .enc-opts.dense:not(.compact) {
   color: var(--ink-dim);
   opacity: 1;
 }
+
+/* The finds wheel with one or two things in it: only as tall as it needs to be. */
+.scav-wheel-box.few .scav-wheel {
+  height: 120px;
+  padding: 40px 0;
+}
+.scav-wheel-box.few::before {
+  top: 40px;
+}
+.scav-wheel-box.one .scav-wheel {
+  height: 40px;
+  padding: 0;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.scav-wheel-box.one::before {
+  top: 0;
+  left: 0;
+  right: 0;
+  border-radius: 11px;
+}
+/* Portrait: what just happened stays at the top of the card while you scroll the list
+   (a reply to a button far down used to land out of sight, above the screen). */
+@media not all and (orientation: landscape) and (max-height: 560px) {
+  #shop > .shop-note {
+    position: sticky;
+    top: -14px;
+    z-index: 2;
+    flex: none;
+    max-height: 36%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: #1a1a1d;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.55);
+  }
+}
+/* A landmark's badge and name are something to tap (a finger near a pin still gets the landmark it's on). */
+.map-streets .m-landmark[data-bld] {
+  cursor: pointer;
+}
+/* Portrait: the status line keeps its height (squeezed, the Noticed bar spilled over the story). */
+@media (orientation: portrait) {
+  #enc:not(.status-open) .enc-status {
+    flex: none;
+  }
+}
+/* Folded, the card shows only what you've found out: the blanks are there when you open it. */
+#enc:not(.facts-open) .enc-facts div.unk {
+  display: none;
+}

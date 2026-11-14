@@ -11,6 +11,16 @@ export interface Release {
 
 export const CHANGES: Release[] = [
   {
+    v: '3.03',
+    date: 'Nov 14',
+    items: [
+      'Your court date now lasts the whole day. You were only ever told the date, but missing 4 PM counted as missing court.',
+      'If your phone’s clock was set ahead and back, the drug market and the bins don’t freeze anymore.',
+      'Woken at closing time on a pew or a shelter cot, the phone says you’re awake, not rested.',
+      'A fine you can’t pay still counts as a conviction on your record, and time held shows as “1 day”, not “1.0 days”.',
+    ],
+  },
+  {
     v: '3.02',
     date: 'Nov 11',
     items: [

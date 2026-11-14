@@ -1850,6 +1850,10 @@ export class Game {
   private feel(impacts: Impact[]) {
     impacts.forEach((im, i) => {
       const t = window.setTimeout(() => {
+        // (Done: off the list. And nothing after you've quit.)
+        const at = this.timers.indexOf(t);
+        if (at >= 0) this.timers.splice(at, 1);
+        if (this.closed) return;
         const you = im.target === 'you';
         const power = Math.min(1, im.ml / 600) * (im.severe ? 1.3 : 1);
         // Blood only when the blow would throw it (see Spill).
@@ -4480,6 +4484,7 @@ export class Game {
         return [...lines, ...keep()];
       }
       const days = Math.max(2, Math.round(fine / 100));
+      this.record.convictions = (this.record.convictions ?? 0) + 1;
       lines.push(`You plead guilty. ${/^\$(8|1[18](,|$))/.test(money(fine * 100)) ? 'An' : 'A'} ${money(fine * 100)} fine you can’t pay, so it’s ${days} days instead.`);
       return [...lines, ...keep(), ...this.serve(days)];
     }
@@ -4593,7 +4598,11 @@ export class Game {
     const out: Upcoming[] = [];
     const t = now();
     const h = this.health;
-    if (h.restingSince != null) out.push({ id: 1, at: t + restLeft(h), title: 'Rested', body: `${this.me.name} is rested. You can play again.` });
+    if (h.restingSince != null) {
+      // (On a pew or a shelter cot it can end at closing, before you're rested: say which.)
+      const closes = h.restEnd != null && (h.restWhere === 'pew' || h.restWhere === 'shelter') && t + restLeft(h) >= h.restEnd - 60_000;
+      out.push(closes ? { id: 1, at: t + restLeft(h), title: 'Awake', body: `${this.me.name} is awake. You can play again.` } : { id: 1, at: t + restLeft(h), title: 'Rested', body: `${this.me.name} is rested. You can play again.` });
+    }
     const j = this.jail;
     if (j && j.until > t) out.push({ id: 2, at: j.until, title: 'Out of jail', body: `${this.me.name} is out. You can play again.` });
     return out;
@@ -5236,14 +5245,16 @@ export class Game {
   /** Time inside, and what the courts gave you. */
   private recordTimeHtml(): string {
     const r = this.record;
-    const span = (days: number) => (days >= 365 ? `${(days / 365).toFixed(days % 365 ? 1 : 0)} year${days === 365 ? '' : 's'}` : `${days} day${days === 1 ? '' : 's'}`);
+    // ("1.5 years", "1 year": never "1.0 years".)
+    const n1 = (v: number) => v.toFixed(1).replace(/\.0$/, '');
+    const span = (days: number) => (days >= 365 ? `${n1(days / 365)} year${n1(days / 365) === '1' ? '' : 's'}` : `${days} day${days === 1 ? '' : 's'}`);
     const held = (r.nights ?? 0) * 8 + (r.heldHours ?? 0);
     const rows: [string, string][] = [];
     if (r.convictions) rows.push(['Convicted', `${r.convictions} time${r.convictions === 1 ? '' : 's'}`]);
     if (r.sentences) rows.push(['Sentences served', `${r.sentences}${r.prison ? ` (${r.prison} in state prison)` : ''}`]);
     if (r.daysServed) rows.push(['Time served', span(r.daysServed)]);
     if (r.longest && (r.sentences ?? 0) > 1) rows.push(['Longest stretch', span(r.longest)]);
-    if (held) rows.push(['Held in a cell', held < 24 ? `${held} hour${held === 1 ? '' : 's'}` : held === 24 ? '1 day' : `${(held / 24).toFixed(held % 24 ? 1 : 0)} days`]);
+    if (held) rows.push(['Held in a cell', held < 24 ? `${held} hour${held === 1 ? '' : 's'}` : n1(held / 24) === '1' ? '1 day' : `${n1(held / 24)} days`]);
     if (r.fines) rows.push(['Fines paid', `${money(r.finedCents ?? 0)} (${r.fines})`]);
     if (r.probations) rows.push(['Probation', `${r.probations} time${r.probations === 1 ? '' : 's'}`]);
     if (r.lastOut && r.lastOut <= now()) rows.push(['Last let out', dueText(r.lastOut)]);
@@ -6301,6 +6312,7 @@ export class Game {
     if (!st.bins || typeof st.bins !== 'object' || 'left' in (st.bins as object)) st.bins = {};
     const all = st.bins as Record<string, { left: number; at: number; tossed?: boolean; rareDay?: string; shooedUntil?: number; aside?: { item: InvItem; day: string }[]; found?: Found[] }>;
     const b = (all[id] ??= { left: BIN_MAX * 0.8, at: now() });
+    if (b.at > now()) b.at = now();
     const hours = (now() - b.at) / 3_600_000;
     if (hours > 0) {
       b.left = Math.min(BIN_MAX, b.left + hours * BIN_REFILL);
@@ -10426,7 +10438,8 @@ function courtDate(t = Date.now()): number {
   const d = new Date(t + 20 * 3_600_000);
   if (d.getHours() >= 16) d.setDate(d.getDate() + 1);
   while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
-  d.setHours(16, 0, 0, 0);
+  // (The whole of that day: you're only ever told the date, and the courthouse is open all hours.)
+  d.setHours(23, 59, 59, 999);
   return d.getTime();
 }
 

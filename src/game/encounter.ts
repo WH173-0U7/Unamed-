@@ -3471,7 +3471,7 @@ function sellOption(e: Encounter): Option {
 
 function sellTo(e: Encounter) {
   const p = e.person;
-  const hr = new Date().getHours();
+  const hr = new Date(Date.now()).getHours();
   const night = hr >= 21 || hr < 5;
   e.distance = 2;
   e.facedYou = true;

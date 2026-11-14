@@ -96,6 +96,8 @@ export function cashLike(c: number, style: 'wallet' | 'small' | 'change'): Purse
  */
 export function pay(p: Purse, price: number): { gave: Purse; change: Purse } | null {
   if (cents(p) < price) return null;
+  // (Nothing to pay: nothing changes hands.)
+  if (price <= 0) return { gave: {}, change: {} };
   const gave = bestHandover(p, price);
   for (const d of DENOMS) if (gave[d]) take(p, d, gave[d]);
   const change = fewest(cents(gave) - price);

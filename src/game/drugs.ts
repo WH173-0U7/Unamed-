@@ -301,6 +301,8 @@ export const EVENT_LINES: Record<MarketEvent['kind'], (k: MarketKey) => string> 
  * drought) or a big shipment (a glut). Returns what happened, to tell.
  */
 export function tickMarket(m: Market, t = now(), r = Math.random): MarketEvent[] {
+  // (The device clock set ahead and back again: start from now, not some time that hasn't come yet.)
+  if (m.at > t + 3_600_000) m.at = t;
   const hours = Math.min(24 * 14, Math.floor((t - m.at) / 3_600_000));
   if (hours < 1) return [];
   const start = m.at;

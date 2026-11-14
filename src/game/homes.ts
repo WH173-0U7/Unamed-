@@ -75,7 +75,7 @@ const BUILD_LB: Record<Build, number> = { Skinny: 0.8, Average: 1, Stocky: 1.12,
 
 /** An ID that matches the person holding it (more or less: people round their weight down). */
 export function idCard(o: { sex: Sex; race: Race; build: Build; age: number; addr: string; dl: boolean; expired?: boolean }): IdCard {
-  const t = new Date();
+  const t = new Date(Date.now());
   const born = new Date(t.getFullYear() - o.age, Math.floor(Math.random() * 12), 1 + Math.floor(Math.random() * 28));
   if (born > new Date(t.getFullYear() - o.age, t.getMonth(), t.getDate())) born.setFullYear(born.getFullYear() - 1);
   // Renewed every eight years, on the birthday.
